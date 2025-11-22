@@ -38,7 +38,7 @@ cp .env.example .env
 ```
 
 4. 데이터베이스 초기화
-  vector extension : CREATE EXTENSION IF NOT EXISTS vector; 사전설치 필요
+ -  vector extension : CREATE EXTENSION IF NOT EXISTS vector; 사전설치 필요
 ```bash
 python scripts/init_db.py
 ```
