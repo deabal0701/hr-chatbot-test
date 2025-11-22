@@ -1,8 +1,8 @@
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import psycopg
 from openai import OpenAI
-from pgvector.psycopg import register_vector
 
 from app.config import settings
 from app.models.schemas import DocumentSource, SearchFilters
@@ -54,11 +54,9 @@ class VectorStoreService:
     ) -> int:
         """문서 삽입 (임베딩 포함)"""
         embedding = self.embed_text(content)
+        embedding_array = np.array(embedding)
 
         with db_manager.get_cursor(commit=True) as cur:
-            # pgvector 등록
-            register_vector(cur.connection)
-
             cur.execute("""
                 INSERT INTO hr_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -69,7 +67,7 @@ class VectorStoreService:
                 language,
                 content,
                 psycopg.types.json.Json(metadata or {}),
-                embedding,
+                embedding_array,
                 self.embedding_model,
                 True
             ))
@@ -90,10 +88,11 @@ class VectorStoreService:
         """유사 문서 검색 (벡터 유사도 기반)"""
         # 쿼리를 벡터로 변환
         query_embedding = self.embed_text(query)
+        query_embedding_array = np.array(query_embedding)
 
         # 필터 조건 구성
         filter_conditions = []
-        filter_params = [query_embedding]
+        filter_params = []
 
         if filters:
             if filters.doc_type:
@@ -117,8 +116,6 @@ class VectorStoreService:
 
         # 벡터 검색 쿼리 (L2 거리 사용)
         # L2 거리가 작을수록 유사함. 0에 가까울수록 유사
-        filter_params.extend([top_k])
-
         query_sql = f"""
             SELECT
                 id,
@@ -135,29 +132,38 @@ class VectorStoreService:
             LIMIT %s
         """
 
-        # 파라미터에 쿼리 임베딩을 3번 추가 (distance, similarity_score, ORDER BY)
-        query_params = [query_embedding, query_embedding, query_embedding] + filter_params[1:]
+        # 파라미터 순서: SELECT의 embedding 2번 + WHERE 필터들 + ORDER BY embedding + LIMIT
+        query_params = [query_embedding_array, query_embedding_array] + filter_params + [query_embedding_array, top_k]
 
         with db_manager.get_cursor() as cur:
-            # pgvector 등록
-            register_vector(cur.connection)
-
             cur.execute(query_sql, query_params)
             rows = cur.fetchall()
+
+            logger.info(f"벡터 검색 원시 결과: {len(rows)}개 행 반환, 임계값={similarity_threshold}")
 
             documents = []
             for row in rows:
                 # 유사도 임계값 체크 (similarity_score가 threshold 이상인 경우만)
-                similarity = row.get('similarity_score', 0.0)
+                similarity = row.get('similarity_score')
 
                 # distance를 similarity로 변환 (0~1 범위)
                 # L2 distance는 0~2 사이 값이므로, 1 - (distance/2) 로 변환
                 if similarity is None and 'distance' in row:
-                    distance = row['distance']
-                    similarity = max(0, 1 - distance / 2)
+                    distance = row.get('distance')
+                    if distance is not None:
+                        similarity = max(0, 1 - distance / 2)
+                    else:
+                        similarity = 0.0
+
+                # similarity가 여전히 None이면 0으로 설정
+                if similarity is None:
+                    similarity = 0.0
+
+                logger.debug(f"문서 ID={row['id']}, distance={row.get('distance')}, similarity={similarity}, threshold={similarity_threshold}")
 
                 # 임계값 체크
                 if similarity < similarity_threshold:
+                    logger.debug(f"문서 ID={row['id']} 임계값 미달로 제외됨 (similarity={similarity} < {similarity_threshold})")
                     continue
 
                 # 컨텐츠 스니펫 생성 (처음 200자)
@@ -199,15 +205,14 @@ class VectorStoreService:
     def update_document_embedding(self, doc_id: int, content: str) -> bool:
         """문서 임베딩 업데이트"""
         embedding = self.embed_text(content)
+        embedding_array = np.array(embedding)
 
         with db_manager.get_cursor(commit=True) as cur:
-            register_vector(cur.connection)
-
             cur.execute("""
                 UPDATE hr_docs
                 SET content = %s, embedding = %s, updated_at = now(), indexed = true
                 WHERE id = %s
-            """, (content, embedding, doc_id))
+            """, (content, embedding_array, doc_id))
 
             return cur.rowcount > 0
 

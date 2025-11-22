@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from typing import Generator, Optional
 
 import psycopg
+from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -24,8 +25,14 @@ class DatabaseManager:
                 max_idle=300,  # 5분
                 max_lifetime=3600,  # 1시간
                 timeout=30,
-                kwargs={"row_factory": dict_row}
+                kwargs={"row_factory": dict_row},
+                configure=self._configure_connection
             )
+
+    @staticmethod
+    def _configure_connection(conn: psycopg.Connection):
+        """각 connection에 pgvector 등록"""
+        register_vector(conn)
 
     def close(self):
         """커넥션 풀 종료"""
