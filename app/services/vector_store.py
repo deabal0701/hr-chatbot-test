@@ -116,6 +116,7 @@ class VectorStoreService:
 
         # 벡터 검색 쿼리 (L2 거리 사용)
         # L2 거리가 작을수록 유사함. 0에 가까울수록 유사
+        # similarity_score는 distance를 역수로 변환 (작은 거리 = 높은 유사도)
         query_sql = f"""
             SELECT
                 id,
@@ -124,16 +125,15 @@ class VectorStoreService:
                 content,
                 metadata,
                 language,
-                embedding <-> %s AS distance,
-                1 - (embedding <-> %s) AS similarity_score
+                embedding <-> %s AS distance
             FROM hr_docs
             {where_clause}
             ORDER BY embedding <-> %s
             LIMIT %s
         """
 
-        # 파라미터 순서: SELECT의 embedding 2번 + WHERE 필터들 + ORDER BY embedding + LIMIT
-        query_params = [query_embedding_array, query_embedding_array] + filter_params + [query_embedding_array, top_k]
+        # 파라미터 순서: SELECT의 embedding 1번 + WHERE 필터들 + ORDER BY embedding + LIMIT
+        query_params = [query_embedding_array] + filter_params + [query_embedding_array, top_k]
 
         with db_manager.get_cursor() as cur:
             cur.execute(query_sql, query_params)
@@ -142,28 +142,26 @@ class VectorStoreService:
             logger.info(f"벡터 검색 원시 결과: {len(rows)}개 행 반환, 임계값={similarity_threshold}")
 
             documents = []
+            filtered_count = 0
             for row in rows:
-                # 유사도 임계값 체크 (similarity_score가 threshold 이상인 경우만)
-                similarity = row.get('similarity_score')
+                # L2 distance를 유사도로 변환
+                # 거리 0 = 완전 일치 = 유사도 1.0
+                # 거리가 클수록 유사도 낮음
+                distance = row.get('distance')
 
-                # distance를 similarity로 변환 (0~1 범위)
-                # L2 distance는 0~2 사이 값이므로, 1 - (distance/2) 로 변환
-                if similarity is None and 'distance' in row:
-                    distance = row.get('distance')
-                    if distance is not None:
-                        similarity = max(0, 1 - distance / 2)
-                    else:
-                        similarity = 0.0
-
-                # similarity가 여전히 None이면 0으로 설정
-                if similarity is None:
+                if distance is None:
                     similarity = 0.0
+                else:
+                    # distance를 0-1 스케일의 유사도로 변환
+                    # 1 / (1 + distance) 공식 사용 (거리 0 -> 유사도 1, 거리 무한대 -> 유사도 0)
+                    similarity = 1.0 / (1.0 + float(distance))
 
-                logger.debug(f"문서 ID={row['id']}, distance={row.get('distance')}, similarity={similarity}, threshold={similarity_threshold}")
+                logger.info(f"문서 ID={row['id']}, title='{row['title'][:30]}...', distance={distance}, similarity={similarity:.4f}")
 
                 # 임계값 체크
                 if similarity < similarity_threshold:
-                    logger.debug(f"문서 ID={row['id']} 임계값 미달로 제외됨 (similarity={similarity} < {similarity_threshold})")
+                    filtered_count += 1
+                    logger.info(f"  -> 임계값 미달로 제외됨 (similarity={similarity:.4f} < {similarity_threshold})")
                     continue
 
                 # 컨텐츠 스니펫 생성 (처음 200자)
@@ -180,6 +178,8 @@ class VectorStoreService:
                 )
                 documents.append(doc)
 
+            if filtered_count > 0:
+                logger.info(f"임계값으로 필터링된 문서: {filtered_count}개")
             logger.info(f"벡터 검색 완료: query='{query[:50]}...', found={len(documents)}")
             return documents
 
