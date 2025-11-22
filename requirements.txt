@@ -1,0 +1,36 @@
+# ============================================
+# HR Chatbot Backend Dependencies
+# ============================================
+# Python 3.11+ 환경에서 테스트됨
+# 설치: pip install -r requirements.txt
+
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# Database
+psycopg[binary,pool]==3.1.18
+pgvector==0.2.5
+
+# AI/LLM Stack (순서 중요: 하위 의존성부터)
+# langchain-core를 먼저 설치해야 다른 패키지들이 올바른 버전 선택
+openai>=1.30.0
+langchain-core>=0.1.25
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langgraph>=0.0.26
+
+# Utilities
+sqlparse==0.4.4
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-json-logger==2.0.7
+aiofiles==23.2.1
+httpx==0.26.0
+
+# Monitoring (Optional)
+prometheus-client==0.19.0

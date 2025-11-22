@@ -1,0 +1,313 @@
+from typing import Any, Dict, TypedDict
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+
+from app.config import settings
+from app.models.schemas import NL2SQLResponse, SQLResult
+from app.services.schema_loader import schema_loader
+from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
+from app.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+class NL2SQLState(TypedDict):
+    """NL2SQL Graph 상태"""
+    question: str
+    schema_description: str
+    generated_sql: str
+    validated: bool
+    validation_error: str
+    sql_result: SQLResult
+    answer: str
+    metadata: Dict[str, Any]
+
+
+class NL2SQLGraph:
+    """NL2SQL 검색 그래프 (LangGraph)"""
+
+    def __init__(self):
+        self.llm = ChatOpenAI(
+            model=settings.llm_model,
+            temperature=0,  # SQL 생성은 deterministic하게
+            api_key=settings.openai_api_key
+        )
+
+        # 스키마 로드
+        self.schema_description = schema_loader.generate_schema_description()
+
+        # 그래프 구성
+        self.graph = self._build_graph()
+
+    def _build_graph(self) -> StateGraph:
+        """그래프 구성"""
+        workflow = StateGraph(NL2SQLState)
+
+        # 노드 추가
+        workflow.add_node("generate_sql", self._generate_sql)
+        workflow.add_node("validate_sql", self._validate_sql)
+        workflow.add_node("execute_sql", self._execute_sql)
+        workflow.add_node("generate_answer", self._generate_answer)
+        workflow.add_node("handle_error", self._handle_error)
+
+        # 엣지 정의
+        workflow.set_entry_point("generate_sql")
+        workflow.add_edge("generate_sql", "validate_sql")
+
+        # 조건부 엣지: 검증 성공 여부에 따라 분기
+        workflow.add_conditional_edges(
+            "validate_sql",
+            self._should_execute,
+            {
+                "execute": "execute_sql",
+                "error": "handle_error"
+            }
+        )
+
+        workflow.add_edge("execute_sql", "generate_answer")
+        workflow.add_edge("generate_answer", END)
+        workflow.add_edge("handle_error", END)
+
+        return workflow.compile()
+
+    def _generate_sql(self, state: NL2SQLState) -> NL2SQLState:
+        """SQL 생성 노드"""
+        question = state["question"]
+
+        logger.info(f"SQL 생성 시작: question='{question[:50]}...'")
+
+        # 시스템 프롬프트
+        system_prompt = f"""당신은 PostgreSQL 전문가입니다.
+사용자의 자연어 질문을 PostgreSQL SQL 쿼리로 변환해주세요.
+
+# 데이터베이스 스키마
+{self.schema_description}
+
+# 중요한 규칙
+1. **반드시 SELECT 문만 생성하세요** (INSERT, UPDATE, DELETE, DROP 등은 절대 사용 금지)
+2. **LIMIT 절을 반드시 포함하세요** (기본값: 100)
+3. **테이블명과 컬럼명은 정확하게 사용하세요**
+4. **WHERE 절을 적절히 사용하여 결과를 필터링하세요**
+5. **집계 함수 사용 시 GROUP BY를 정확히 지정하세요**
+6. **날짜 비교 시 적절한 형변환을 사용하세요**
+7. **JOIN 시 명확한 조인 조건을 지정하세요**
+8. **SQL만 출력하고, 설명이나 마크다운 코드 블록은 포함하지 마세요**
+
+# 한국어 필드 매핑
+- "입사일" = hire_date
+- "직급" = position (사원, 대리, 과장, 차장, 부장)
+- "직무" = job_family (개발, 기획, 디자인, HR, 마케팅, 영업)
+- "부서" = department (department 테이블과 조인 필요)
+- "근무지" = work_location
+- "재직상태" = status (active, resigned, on_leave)
+"""
+
+        user_prompt = f"""질문: {question}
+
+위 질문에 대한 PostgreSQL SELECT 쿼리를 생성해주세요.
+SQL만 출력하세요 (설명 없이)."""
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+
+        try:
+            response = self.llm.invoke(messages)
+            sql = response.content.strip()
+
+            # 마크다운 코드 블록 제거 (```sql ... ```)
+            if sql.startswith("```"):
+                lines = sql.split("\n")
+                sql = "\n".join(lines[1:-1]) if len(lines) > 2 else sql
+                sql = sql.replace("```sql", "").replace("```", "").strip()
+
+            state["generated_sql"] = sql
+            state["schema_description"] = self.schema_description
+            state["metadata"] = {"llm_model": settings.llm_model}
+
+            logger.info(f"SQL 생성 완료: {sql[:100]}...")
+
+        except Exception as e:
+            logger.error(f"SQL 생성 실패: {e}")
+            state["generated_sql"] = ""
+            state["validation_error"] = f"SQL 생성 오류: {str(e)}"
+            state["validated"] = False
+
+        return state
+
+    def _validate_sql(self, state: NL2SQLState) -> NL2SQLState:
+        """SQL 검증 노드"""
+        sql = state["generated_sql"]
+
+        if not sql:
+            state["validated"] = False
+            state["validation_error"] = "생성된 SQL이 없습니다"
+            return state
+
+        logger.info(f"SQL 검증 시작: {sql[:100]}...")
+
+        try:
+            is_valid, error_msg = sql_executor.validate_sql(sql)
+
+            if is_valid:
+                state["validated"] = True
+                state["validation_error"] = ""
+                logger.info("SQL 검증 성공")
+            else:
+                state["validated"] = False
+                state["validation_error"] = error_msg
+                logger.warning(f"SQL 검증 실패: {error_msg}")
+
+        except Exception as e:
+            state["validated"] = False
+            state["validation_error"] = str(e)
+            logger.error(f"SQL 검증 중 오류: {e}")
+
+        return state
+
+    def _should_execute(self, state: NL2SQLState) -> str:
+        """조건부 엣지: 검증 성공 시 execute, 실패 시 error"""
+        return "execute" if state["validated"] else "error"
+
+    def _execute_sql(self, state: NL2SQLState) -> NL2SQLState:
+        """SQL 실행 노드"""
+        sql = state["generated_sql"]
+
+        logger.info(f"SQL 실행 시작: {sql[:100]}...")
+
+        try:
+            result = sql_executor.execute_sql(sql, validate=False)  # 이미 검증됨
+            state["sql_result"] = result
+            state["metadata"]["execution_time_ms"] = result.execution_time_ms
+            state["metadata"]["row_count"] = result.row_count
+
+            logger.info(f"SQL 실행 완료: rows={result.row_count}, time={result.execution_time_ms}ms")
+
+        except (SQLExecutionError, SQLValidationError) as e:
+            logger.error(f"SQL 실행 실패: {e}")
+            state["validation_error"] = str(e)
+            state["validated"] = False
+
+        return state
+
+    def _generate_answer(self, state: NL2SQLState) -> NL2SQLState:
+        """답변 생성 노드"""
+        question = state["question"]
+        sql = state["generated_sql"]
+        result = state.get("sql_result")
+
+        if not result or result.row_count == 0:
+            state["answer"] = "조회된 결과가 없습니다."
+            return state
+
+        # 시스템 프롬프트
+        system_prompt = """당신은 데이터 분석 전문가입니다.
+SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요.
+
+답변 작성 시:
+1. 핵심 통계나 수치를 강조하세요
+2. 결과를 명확하고 간결하게 설명하세요
+3. 필요시 불릿 포인트를 사용하세요
+4. 데이터에서 발견되는 인사이트나 특징을 언급하세요
+"""
+
+        # 결과 데이터 요약 (너무 길면 일부만)
+        rows_summary = result.rows[:10] if len(result.rows) > 10 else result.rows
+
+        user_prompt = f"""질문: {question}
+
+실행된 SQL:
+{sql}
+
+조회 결과 ({result.row_count}개 행):
+컬럼: {', '.join(result.columns)}
+데이터 (샘플):
+{rows_summary}
+
+위 결과를 바탕으로 질문에 대한 답변을 자연어로 작성해주세요."""
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+
+        try:
+            response = self.llm.invoke(messages)
+            answer = response.content
+
+            state["answer"] = answer
+            logger.info(f"답변 생성 완료: answer_length={len(answer)}")
+
+        except Exception as e:
+            logger.error(f"답변 생성 실패: {e}")
+            state["answer"] = f"조회 결과: {result.row_count}개 행이 발견되었습니다."
+
+        return state
+
+    def _handle_error(self, state: NL2SQLState) -> NL2SQLState:
+        """에러 처리 노드"""
+        error_msg = state.get("validation_error", "알 수 없는 오류")
+
+        state["answer"] = f"""SQL 생성 또는 실행 중 오류가 발생했습니다.
+
+오류 내용: {error_msg}
+
+다음 사항을 확인해주세요:
+1. 질문이 데이터베이스 스키마에 맞는지 확인
+2. 테이블명과 컬럼명이 정확한지 확인
+3. 질문을 더 구체적으로 작성
+"""
+
+        logger.warning(f"NL2SQL 오류 처리: {error_msg}")
+        return state
+
+    async def ainvoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
+        """그래프 비동기 실행"""
+        initial_state: NL2SQLState = {
+            "question": inputs["question"],
+            "schema_description": "",
+            "generated_sql": "",
+            "validated": False,
+            "validation_error": "",
+            "sql_result": None,
+            "answer": "",
+            "metadata": {}
+        }
+
+        result = await self.graph.ainvoke(initial_state)
+
+        return NL2SQLResponse(
+            answer=result["answer"],
+            sql=result["generated_sql"],
+            result=result.get("sql_result"),
+            metadata=result["metadata"]
+        )
+
+    def invoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
+        """그래프 동기 실행"""
+        initial_state: NL2SQLState = {
+            "question": inputs["question"],
+            "schema_description": "",
+            "generated_sql": "",
+            "validated": False,
+            "validation_error": "",
+            "sql_result": None,
+            "answer": "",
+            "metadata": {}
+        }
+
+        result = self.graph.invoke(initial_state)
+
+        return NL2SQLResponse(
+            answer=result["answer"],
+            sql=result["generated_sql"],
+            result=result.get("sql_result"),
+            metadata=result["metadata"]
+        )
+
+
+# 싱글톤 인스턴스
+nl2sql_graph = NL2SQLGraph()

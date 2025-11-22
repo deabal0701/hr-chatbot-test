@@ -1,0 +1,23 @@
+# 핵심 의존성만 명시 (pip이 자동으로 하위 의존성 해결)
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+psycopg[binary,pool]==3.1.18
+pgvector==0.2.5
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# AI/LLM (버전 제한 완화)
+openai>=1.12.0
+langgraph>=0.0.26
+langchain-openai>=0.0.5
+
+# 기타
+python-multipart==0.0.6
+sqlparse==0.4.4
+prometheus-client==0.19.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-json-logger==2.0.7
+aiofiles==23.2.1
+httpx==0.26.0
