@@ -140,12 +140,13 @@ class VectorStoreService:
         if filter_conditions:
             where_clause = "WHERE " + " AND ".join(filter_conditions)
 
-        # 유사도 임계값
-        similarity_threshold = similarity_threshold or settings.rag_similarity_threshold
+        # 유사도 임계값 (DB 설정 우선)
+        if similarity_threshold is None:
+            similarity_threshold = settings_service.get_value("rag", "similarity_threshold", settings.rag_similarity_threshold)
 
-        # 벡터 검색 쿼리 (L2 거리 사용)
-        # L2 거리가 작을수록 유사함. 0에 가까울수록 유사
-        # similarity_score는 distance를 역수로 변환 (작은 거리 = 높은 유사도)
+        # 벡터 검색 쿼리 (코사인 거리 사용)
+        # <=> 연산자: 코사인 거리 (0 = 동일, 2 = 정반대)
+        # 코사인 유사도 = 1 - 코사인 거리 (범위: -1 ~ 1, 보통 0 ~ 1)
         query_sql = f"""
             SELECT
                 id,
@@ -154,10 +155,10 @@ class VectorStoreService:
                 content,
                 metadata,
                 language,
-                embedding <-> %s AS distance
+                embedding <=> %s AS distance
             FROM hr_docs
             {where_clause}
-            ORDER BY embedding <-> %s
+            ORDER BY embedding <=> %s
             LIMIT %s
         """
 
@@ -173,17 +174,17 @@ class VectorStoreService:
             documents = []
             filtered_count = 0
             for row in rows:
-                # L2 distance를 유사도로 변환
-                # 거리 0 = 완전 일치 = 유사도 1.0
-                # 거리가 클수록 유사도 낮음
+                # 코사인 거리를 유사도로 변환
+                # 코사인 거리 0 = 완전 일치 = 유사도 1.0
+                # 코사인 거리 2 = 정반대 = 유사도 -1.0
                 distance = row.get('distance')
 
                 if distance is None:
                     similarity = 0.0
                 else:
-                    # distance를 0-1 스케일의 유사도로 변환
-                    # 1 / (1 + distance) 공식 사용 (거리 0 -> 유사도 1, 거리 무한대 -> 유사도 0)
-                    similarity = 1.0 / (1.0 + float(distance))
+                    # 코사인 유사도 = 1 - 코사인 거리
+                    # 범위: -1 ~ 1 (보통 텍스트는 0 ~ 1)
+                    similarity = 1.0 - float(distance)
 
                 logger.info(f"문서 ID={row['id']}, title='{row['title'][:30]}...', distance={distance}, similarity={similarity:.4f}")
 

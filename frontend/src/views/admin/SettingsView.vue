@@ -145,6 +145,17 @@
                 <div class="form-help">질문에 대해 검색할 유사 문서 수</div>
               </el-form-item>
 
+              <el-form-item label="유사도 측정 방식">
+                <el-select
+                  v-model="formData.rag.distance_metric"
+                  style="width: 100%"
+                  disabled
+                >
+                  <el-option label="Cosine Distance (코사인 거리)" value="cosine" />
+                </el-select>
+                <div class="form-help">벡터 간 유사도를 측정하는 알고리즘 (텍스트 임베딩에 권장)</div>
+              </el-form-item>
+
               <el-form-item label="유사도 임계값">
                 <el-slider
                   v-model="formData.rag.similarity_threshold"
@@ -277,6 +288,7 @@ const formData = reactive({
   },
   rag: {
     top_k: 10,
+    distance_metric: 'cosine',
     similarity_threshold: 0.7,
     max_context_length: 4000
   },

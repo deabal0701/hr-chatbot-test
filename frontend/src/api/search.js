@@ -11,12 +11,16 @@ export default {
    * @param {number} params.top_k - 상위 K개 결과
    */
   search(params) {
-    return apiClient.post('/api/v1/search', {
+    const payload = {
       query: params.query,
       mode: params.mode || 'auto',
-      filters: params.filters || {},
-      top_k: params.top_k || 10
-    })
+      filters: params.filters || {}
+    }
+    // top_k가 지정된 경우에만 전송 (미지정 시 서버에서 DB 설정값 사용)
+    if (params.top_k) {
+      payload.top_k = params.top_k
+    }
+    return apiClient.post('/api/v1/search', payload)
   },
 
   /**
@@ -24,11 +28,15 @@ export default {
    * @param {Object} params - 검색 파라미터
    */
   searchRag(params) {
-    return apiClient.post('/api/v1/rag', {
+    const payload = {
       query: params.query,
-      filters: params.filters || {},
-      top_k: params.top_k || 10
-    })
+      filters: params.filters || {}
+    }
+    // top_k가 지정된 경우에만 전송 (미지정 시 서버에서 DB 설정값 사용)
+    if (params.top_k) {
+      payload.top_k = params.top_k
+    }
+    return apiClient.post('/api/v1/rag', payload)
   },
 
   /**

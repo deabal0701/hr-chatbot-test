@@ -135,20 +135,53 @@ class SettingsService:
             return self.DEFAULTS[category][key]
         return None
 
+    def _query_setting_from_db(self, category: str, key: str) -> Optional[Dict[str, Any]]:
+        """DB에서 직접 설정 조회 (캐시 우회)"""
+        if not self._ensure_table_exists():
+            return None
+
+        try:
+            with db_manager.get_cursor() as cur:
+                cur.execute("""
+                    SELECT value, value_type, description, is_secret, updated_at
+                    FROM app_settings
+                    WHERE category = %s AND key = %s
+                """, (category, key))
+                row = cur.fetchone()
+
+                if row:
+                    return {
+                        'value': row['value'],
+                        'value_type': row['value_type'],
+                        'description': row['description'],
+                        'is_secret': row['is_secret'],
+                        'updated_at': row['updated_at'],
+                        'source': 'db'
+                    }
+        except Exception as e:
+            logger.error(f"DB 설정 조회 실패: {category}.{key} - {e}")
+
+        return None
+
     def get_setting(self, category: str, key: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
         """
         단일 설정 조회
 
         우선순위: DB → 환경변수 → 기본값
         """
+        # 1. DB에서 조회
         if use_cache:
             self._load_cache()
-
-        # 1. 캐시(DB)에서 조회
-        if category in self._cache and key in self._cache[category]:
-            cached = self._cache[category][key]
-            if cached['value']:  # 빈 문자열이 아닌 경우
-                return cached
+            # 캐시에서 조회
+            if category in self._cache and key in self._cache[category]:
+                cached = self._cache[category][key]
+                if cached['value']:  # 빈 문자열이 아닌 경우
+                    return cached
+        else:
+            # 캐시 사용 안 함 - DB에서 직접 조회
+            db_value = self._query_setting_from_db(category, key)
+            if db_value and db_value['value']:
+                return db_value
 
         # 2. 환경변수에서 조회
         env_value = self._get_env_value(category, key)
@@ -177,9 +210,16 @@ class SettingsService:
 
         return None
 
-    def get_value(self, category: str, key: str, default: Any = None) -> Any:
-        """설정 값만 조회 (타입 변환 포함)"""
-        setting = self.get_setting(category, key)
+    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = False) -> Any:
+        """설정 값만 조회 (타입 변환 포함)
+
+        Args:
+            category: 설정 카테고리
+            key: 설정 키
+            default: 기본값
+            use_cache: 캐시 사용 여부 (기본 False - 매번 DB 조회)
+        """
+        setting = self.get_setting(category, key, use_cache=use_cache)
         if not setting:
             return default
 
