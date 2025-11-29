@@ -255,7 +255,7 @@ const formatDateTime = (dateStr) => {
       margin: 0 0 20px;
       font-size: 16px;
       font-weight: 600;
-      color: #303133;
+      color: var(--text-color-primary);
     }
 
     .action-section {
@@ -278,22 +278,23 @@ const formatDateTime = (dateStr) => {
         margin: 0;
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: var(--text-color-primary);
       }
     }
 
     .content-body {
       flex: 1;
       padding: 20px;
-      background-color: #f5f7fa;
+      background-color: var(--bg-color-hover);
       border-radius: 8px;
       white-space: pre-wrap;
       word-break: break-word;
       font-size: 14px;
       line-height: 1.8;
-      color: #303133;
+      color: var(--text-color-primary);
       overflow-y: auto;
       max-height: calc(100vh - 280px);
+      transition: var(--theme-transition);
     }
   }
 }

@@ -13,9 +13,9 @@
       :default-active="activeMenu"
       :collapse="isCollapsed"
       :collapse-transition="false"
-      background-color="#304156"
-      text-color="#bfcbd9"
-      active-text-color="#409eff"
+      :background-color="menuBgColor"
+      :text-color="menuTextColor"
+      :active-text-color="menuActiveColor"
       router
     >
       <el-menu-item index="/admin">
@@ -57,6 +57,12 @@ const store = useStore()
 
 const isCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const activeMenu = computed(() => route.path)
+const isDarkMode = computed(() => store.state.app.darkMode)
+
+// 다크모드에 따른 메뉴 색상
+const menuBgColor = computed(() => isDarkMode.value ? '#1f1f1f' : '#304156')
+const menuTextColor = computed(() => isDarkMode.value ? '#a3a3a3' : '#bfcbd9')
+const menuActiveColor = computed(() => '#409eff')
 </script>
 
 <style lang="scss" scoped>
@@ -72,8 +78,9 @@ const activeMenu = computed(() => route.path)
   align-items: center;
   justify-content: center;
   padding: 0 20px;
-  background-color: #263445;
-  border-bottom: 1px solid #1f2d3d;
+  background-color: var(--sidebar-hover-bg);
+  border-bottom: 1px solid var(--border-color-lighter);
+  transition: var(--theme-transition);
 
   &.collapsed {
     padding: 0;
@@ -94,11 +101,11 @@ const activeMenu = computed(() => route.path)
 
   .el-menu-item {
     &:hover {
-      background-color: #263445 !important;
+      background-color: var(--sidebar-hover-bg) !important;
     }
 
     &.is-active {
-      background-color: #263445 !important;
+      background-color: var(--sidebar-hover-bg) !important;
     }
   }
 }
@@ -106,11 +113,11 @@ const activeMenu = computed(() => route.path)
 .sidebar-footer {
   padding: 16px;
   text-align: center;
-  border-top: 1px solid #1f2d3d;
+  border-top: 1px solid var(--border-color-lighter);
 
   .version {
     font-size: 12px;
-    color: #6b7a8f;
+    color: var(--text-color-secondary);
   }
 }
 </style>

@@ -130,17 +130,18 @@ const formatTime = (timestamp) => {
   border-radius: 12px;
 
   &.user {
-    background-color: #409eff;
-    color: #fff;
+    background-color: var(--chat-bubble-user-bg);
+    color: var(--chat-bubble-user-text);
     border-bottom-right-radius: 4px;
   }
 
   &.assistant {
-    background-color: #fff;
-    color: #303133;
-    border: 1px solid #ebeef5;
+    background-color: var(--chat-bubble-assistant-bg);
+    color: var(--chat-bubble-assistant-text);
+    border: 1px solid var(--chat-bubble-assistant-border);
     border-bottom-left-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--box-shadow-light);
+    transition: var(--theme-transition);
 
     &.error {
       background-color: #fef0f0;
@@ -162,17 +163,17 @@ const formatTime = (timestamp) => {
   gap: 10px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border-color-lighter);
 
   .response-time {
     font-size: 12px;
-    color: #909399;
+    color: var(--text-color-secondary);
   }
 }
 
 .message-time {
   font-size: 11px;
-  color: #c0c4cc;
+  color: var(--text-color-placeholder);
   margin-top: 4px;
 }
 
@@ -180,25 +181,27 @@ const formatTime = (timestamp) => {
   margin-top: 12px;
 
   .sql-code {
-    background-color: #f5f7fa;
+    background-color: var(--bg-color-code);
     padding: 12px;
     border-radius: 4px;
     font-family: 'Courier New', monospace;
     font-size: 12px;
     overflow-x: auto;
     margin: 0;
+    color: var(--text-color-primary);
+    transition: var(--theme-transition);
   }
 
   .result-summary {
     margin-bottom: 8px;
     font-size: 12px;
-    color: #909399;
+    color: var(--text-color-secondary);
   }
 
   .more-rows {
     margin-top: 8px;
     font-size: 12px;
-    color: #909399;
+    color: var(--text-color-secondary);
     text-align: center;
   }
 }
@@ -212,7 +215,7 @@ const formatTime = (timestamp) => {
     gap: 6px;
     font-size: 13px;
     font-weight: 500;
-    color: #606266;
+    color: var(--text-color-regular);
     margin-bottom: 8px;
   }
 

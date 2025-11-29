@@ -182,12 +182,12 @@ watch(messages, async () => {
 .welcome-message {
   text-align: center;
   padding: 60px 20px;
-  color: #606266;
+  color: var(--text-color-regular);
 
   h3 {
     margin: 20px 0 10px;
     font-size: 20px;
-    color: #303133;
+    color: var(--text-color-primary);
   }
 
   p {
@@ -196,7 +196,7 @@ watch(messages, async () => {
 
   .example-title {
     font-size: 14px;
-    color: #909399;
+    color: var(--text-color-secondary);
     margin-bottom: 12px;
   }
 
@@ -210,7 +210,7 @@ watch(messages, async () => {
   align-items: center;
   gap: 10px;
   padding: 16px;
-  color: #909399;
+  color: var(--text-color-secondary);
 
   .is-loading {
     animation: rotating 1s linear infinite;
@@ -228,8 +228,9 @@ watch(messages, async () => {
 
 .chat-input-area {
   padding: 20px;
-  border-top: 1px solid #ebeef5;
-  background-color: #fff;
+  border-top: 1px solid var(--chat-input-border);
+  background-color: var(--chat-input-bg);
+  transition: var(--theme-transition);
 }
 
 .chat-sidebar {
@@ -245,7 +246,7 @@ watch(messages, async () => {
     margin: 0 0 12px;
     font-size: 14px;
     font-weight: 600;
-    color: #303133;
+    color: var(--text-color-primary);
   }
 
   .el-radio-group {
@@ -264,7 +265,7 @@ watch(messages, async () => {
   .mode-description {
     margin: 12px 0 0;
     font-size: 12px;
-    color: #909399;
+    color: var(--text-color-secondary);
     line-height: 1.5;
   }
 }

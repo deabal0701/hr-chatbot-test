@@ -64,8 +64,8 @@ const toggleSidebar = () => {
 }
 
 .admin-sidebar {
-  background-color: #304156;
-  transition: width 0.3s ease;
+  background-color: var(--sidebar-bg);
+  transition: width 0.3s ease, background-color 0.3s ease;
   overflow: hidden;
 }
 
@@ -92,7 +92,7 @@ const toggleSidebar = () => {
   color: #fff;
 
   &:hover {
-    background-color: #409eff;
+    background-color: var(--color-primary);
     width: 14px;
   }
 }
@@ -104,18 +104,20 @@ const toggleSidebar = () => {
 }
 
 .admin-header {
-  background-color: #fff;
-  border-bottom: 1px solid #ebeef5;
+  background-color: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
   padding: 0 20px;
   display: flex;
   align-items: center;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  box-shadow: var(--box-shadow-light);
   z-index: 10;
+  transition: var(--theme-transition);
 }
 
 .admin-content {
-  background-color: #f5f7fa;
+  background-color: var(--bg-color-page);
   padding: 20px;
   overflow-y: auto;
+  transition: var(--theme-transition);
 }
 </style>

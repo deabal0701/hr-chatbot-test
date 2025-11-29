@@ -1,4 +1,26 @@
 // 앱 전역 상태 모듈 (향후 인증 확장용)
+
+// localStorage에서 테마 설정 로드
+const getStoredTheme = () => {
+  try {
+    const theme = localStorage.getItem('theme')
+    return theme === 'dark'
+  } catch {
+    return false
+  }
+}
+
+// 테마를 DOM에 적용
+const applyTheme = (isDark) => {
+  if (isDark) {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.removeAttribute('data-theme')
+    document.documentElement.classList.remove('dark')
+  }
+}
+
 export default {
   namespaced: true,
 
@@ -9,7 +31,8 @@ export default {
     sidebarCollapsed: false,
 
     // 앱 설정
-    apiHealthy: true
+    apiHealthy: true,
+    darkMode: getStoredTheme()  // 다크모드 상태
   }),
 
   mutations: {
@@ -27,12 +50,33 @@ export default {
     },
     SET_API_HEALTH(state, healthy) {
       state.apiHealthy = healthy
+    },
+    SET_DARK_MODE(state, isDark) {
+      state.darkMode = isDark
+      // localStorage에 저장
+      try {
+        localStorage.setItem('theme', isDark ? 'dark' : 'light')
+      } catch {
+        // localStorage 사용 불가시 무시
+      }
+      // DOM에 테마 적용
+      applyTheme(isDark)
+    },
+    TOGGLE_DARK_MODE(state) {
+      state.darkMode = !state.darkMode
+      try {
+        localStorage.setItem('theme', state.darkMode ? 'dark' : 'light')
+      } catch {
+        // localStorage 사용 불가시 무시
+      }
+      applyTheme(state.darkMode)
     }
   },
 
   getters: {
     isAdmin: (state) => state.userRole === 'admin',
-    isAuthenticated: (state) => state.user !== null
+    isAuthenticated: (state) => state.user !== null,
+    isDarkMode: (state) => state.darkMode
   },
 
   actions: {
@@ -47,6 +91,16 @@ export default {
     },
     toggleSidebar({ commit }) {
       commit('TOGGLE_SIDEBAR')
+    },
+    toggleDarkMode({ commit }) {
+      commit('TOGGLE_DARK_MODE')
+    },
+    setDarkMode({ commit }, isDark) {
+      commit('SET_DARK_MODE', isDark)
+    },
+    // 앱 초기화 시 저장된 테마 적용
+    initTheme({ state }) {
+      applyTheme(state.darkMode)
     }
   }
 }

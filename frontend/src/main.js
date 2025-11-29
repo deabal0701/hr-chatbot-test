@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
 import App from './App.vue'
@@ -18,5 +19,8 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(ElementPlus, { locale: undefined }) // 한국어는 별도 설정 필요시 추가
 app.use(router)
 app.use(store)
+
+// 앱 마운트 전 저장된 테마 적용
+store.dispatch('app/initTheme')
 
 app.mount('#app')

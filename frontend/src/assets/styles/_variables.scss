@@ -1,0 +1,150 @@
+// =============================================
+// Theme CSS Variables
+// =============================================
+
+// Light theme colors (default)
+:root {
+  // Primary colors
+  --color-primary: #409eff;
+  --color-success: #67c23a;
+  --color-warning: #e6a23c;
+  --color-danger: #f56c6c;
+  --color-info: #909399;
+
+  // Background colors
+  --bg-color: #f5f7fa;
+  --bg-color-page: #f5f7fa;
+  --bg-color-overlay: #ffffff;
+  --bg-color-card: #ffffff;
+  --bg-color-input: #ffffff;
+  --bg-color-hover: #f5f7fa;
+  --bg-color-code: #f5f7fa;
+
+  // Sidebar colors
+  --sidebar-bg: #304156;
+  --sidebar-text: #bfcbd9;
+  --sidebar-active-text: #409eff;
+  --sidebar-hover-bg: #263445;
+
+  // Header colors
+  --header-bg: #ffffff;
+  --header-border: #ebeef5;
+
+  // Text colors
+  --text-color-primary: #303133;
+  --text-color-regular: #606266;
+  --text-color-secondary: #909399;
+  --text-color-placeholder: #c0c4cc;
+
+  // Border colors
+  --border-color: #dcdfe6;
+  --border-color-light: #e4e7ed;
+  --border-color-lighter: #ebeef5;
+  --border-color-extra-light: #f2f6fc;
+
+  // Chat specific
+  --chat-bubble-user-bg: #409eff;
+  --chat-bubble-user-text: #ffffff;
+  --chat-bubble-assistant-bg: #ffffff;
+  --chat-bubble-assistant-text: #303133;
+  --chat-bubble-assistant-border: #ebeef5;
+  --chat-input-bg: #ffffff;
+  --chat-input-border: #ebeef5;
+
+  // Shadow
+  --box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  --box-shadow-light: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  // Scrollbar
+  --scrollbar-thumb: #c0c4cc;
+  --scrollbar-track: #f5f7fa;
+
+  // Loading overlay
+  --loading-overlay-bg: rgba(255, 255, 255, 0.7);
+
+  // Table
+  --table-header-bg: #f5f7fa;
+  --table-row-hover-bg: #f5f7fa;
+  --table-border-color: #ebeef5;
+
+  // Description item
+  --description-label-color: #909399;
+  --description-content-color: #303133;
+
+  // Transition
+  --theme-transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+// Dark theme colors
+[data-theme="dark"] {
+  // Primary colors (same or slightly adjusted)
+  --color-primary: #409eff;
+  --color-success: #67c23a;
+  --color-warning: #e6a23c;
+  --color-danger: #f56c6c;
+  --color-info: #909399;
+
+  // Background colors
+  --bg-color: #1a1a1a;
+  --bg-color-page: #141414;
+  --bg-color-overlay: #1f1f1f;
+  --bg-color-card: #1f1f1f;
+  --bg-color-input: #2c2c2c;
+  --bg-color-hover: #2c2c2c;
+  --bg-color-code: #2c2c2c;
+
+  // Sidebar colors
+  --sidebar-bg: #1f1f1f;
+  --sidebar-text: #a3a3a3;
+  --sidebar-active-text: #409eff;
+  --sidebar-hover-bg: #2c2c2c;
+
+  // Header colors
+  --header-bg: #1f1f1f;
+  --header-border: #3a3a3a;
+
+  // Text colors
+  --text-color-primary: #e5e5e5;
+  --text-color-regular: #b3b3b3;
+  --text-color-secondary: #8c8c8c;
+  --text-color-placeholder: #5c5c5c;
+
+  // Border colors
+  --border-color: #4a4a4a;
+  --border-color-light: #3a3a3a;
+  --border-color-lighter: #303030;
+  --border-color-extra-light: #262626;
+
+  // Chat specific
+  --chat-bubble-user-bg: #409eff;
+  --chat-bubble-user-text: #ffffff;
+  --chat-bubble-assistant-bg: #2c2c2c;
+  --chat-bubble-assistant-text: #e5e5e5;
+  --chat-bubble-assistant-border: #3a3a3a;
+  --chat-input-bg: #1f1f1f;
+  --chat-input-border: #3a3a3a;
+
+  // Shadow
+  --box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+  --box-shadow-light: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  // Scrollbar
+  --scrollbar-thumb: #4a4a4a;
+  --scrollbar-track: #1a1a1a;
+
+  // Loading overlay
+  --loading-overlay-bg: rgba(0, 0, 0, 0.7);
+
+  // Table
+  --table-header-bg: #262626;
+  --table-row-hover-bg: #2c2c2c;
+  --table-border-color: #3a3a3a;
+
+  // Description item
+  --description-label-color: #8c8c8c;
+  --description-content-color: #e5e5e5;
+}
+
+// Layout variables (same for both themes)
+$sidebar-width: 220px;
+$header-height: 60px;

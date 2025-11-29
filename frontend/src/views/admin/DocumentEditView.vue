@@ -327,19 +327,19 @@ const formatDate = (dateStr) => {
       margin: 0 0 20px;
       font-size: 16px;
       font-weight: 600;
-      color: #303133;
+      color: var(--text-color-primary);
     }
 
     h4 {
       margin: 0 0 16px;
       font-size: 14px;
       font-weight: 500;
-      color: #606266;
+      color: var(--text-color-regular);
     }
 
     .form-tip {
       font-size: 12px;
-      color: #909399;
+      color: var(--text-color-secondary);
       margin-top: 4px;
     }
   }
@@ -359,12 +359,12 @@ const formatDate = (dateStr) => {
         margin: 0;
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: var(--text-color-primary);
       }
 
       .char-count {
         font-size: 14px;
-        color: #909399;
+        color: var(--text-color-secondary);
       }
     }
 
@@ -395,8 +395,9 @@ const formatDate = (dateStr) => {
   .preview-item {
     margin-bottom: 16px;
     padding: 12px;
-    background-color: #f5f7fa;
+    background-color: var(--bg-color-hover);
     border-radius: 6px;
+    transition: var(--theme-transition);
 
     .chunk-header {
       display: flex;
@@ -406,18 +407,18 @@ const formatDate = (dateStr) => {
 
       .chunk-number {
         font-weight: 600;
-        color: #409eff;
+        color: var(--color-primary);
       }
 
       .chunk-length {
-        color: #909399;
+        color: var(--text-color-secondary);
       }
     }
 
     .chunk-content {
       font-size: 13px;
       line-height: 1.6;
-      color: #606266;
+      color: var(--text-color-regular);
       white-space: pre-wrap;
       word-break: break-word;
     }

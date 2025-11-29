@@ -314,7 +314,7 @@ const formatDate = (dateStr) => {
 
     .selected-info {
       font-size: 14px;
-      color: #606266;
+      color: var(--text-color-regular);
       font-weight: 500;
     }
   }

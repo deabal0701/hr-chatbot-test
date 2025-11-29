@@ -16,6 +16,16 @@
         </el-tag>
       </el-tooltip>
 
+      <!-- 다크모드 토글 버튼 -->
+      <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
+        <el-button
+          circle
+          :icon="isDarkMode ? Sunny : Moon"
+          @click="toggleDarkMode"
+          class="theme-toggle-btn"
+        />
+      </el-tooltip>
+
       <!-- 향후 사용자 메뉴 추가 위치 -->
       <!-- <el-dropdown>
         <el-avatar :size="32" icon="UserFilled" />
@@ -34,17 +44,23 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
-import { Connection, Menu } from '@element-plus/icons-vue'
+import { Connection, Menu, Moon, Sunny } from '@element-plus/icons-vue'
 import apiClient from '@/api'
 
 const route = useRoute()
 const store = useStore()
 
 const apiHealthy = computed(() => store.state.app.apiHealthy)
+const isDarkMode = computed(() => store.state.app.darkMode)
 
 const pageTitle = computed(() => {
   return route.meta.title || 'DocuRAG'
 })
+
+// 다크모드 토글
+const toggleDarkMode = () => {
+  store.dispatch('app/toggleDarkMode')
+}
 
 // API 헬스 체크
 const checkApiHealth = async () => {
@@ -78,13 +94,13 @@ onMounted(() => {
   gap: 12px;
 
   .menu-icon {
-    color: #606266;
+    color: var(--text-color-regular);
   }
 
   .page-title {
     font-size: 18px;
     font-weight: 500;
-    color: #303133;
+    color: var(--text-color-primary);
   }
 }
 
@@ -92,6 +108,18 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.theme-toggle-btn {
+  border: 1px solid var(--border-color-light);
+  background-color: var(--bg-color-overlay);
+  color: var(--text-color-regular);
+  transition: var(--theme-transition);
+
+  &:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
 }
 
 .mr-5 {
