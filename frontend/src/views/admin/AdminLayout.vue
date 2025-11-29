@@ -81,7 +81,7 @@ const toggleSidebar = () => {
   height: 48px;
   border-radius: 0 6px 6px 0;
   border: none;
-  background-color: #337ecc;
+  background-color: var(--sidebar-toggle-bg);
 
   display: flex;
   align-items: center;
@@ -89,10 +89,10 @@ const toggleSidebar = () => {
   cursor: pointer;
   transition: all 0.2s ease;
 
-  color: #fff;
+  color: var(--sidebar-toggle-color);
 
   &:hover {
-    background-color: var(--color-primary);
+    background-color: var(--sidebar-toggle-hover-bg);
     width: 14px;
   }
 }

@@ -25,6 +25,9 @@
   --sidebar-text: #bfcbd9;
   --sidebar-active-text: #409eff;
   --sidebar-hover-bg: #263445;
+  --sidebar-toggle-bg: #337ecc;
+  --sidebar-toggle-color: #ffffff;
+  --sidebar-toggle-hover-bg: #409eff;
 
   // Header colors
   --header-bg: #ffffff;
@@ -98,6 +101,9 @@
   --sidebar-text: #a3a3a3;
   --sidebar-active-text: #409eff;
   --sidebar-hover-bg: #2c2c2c;
+  --sidebar-toggle-bg: #3a3a3a;
+  --sidebar-toggle-color: #a3a3a3;
+  --sidebar-toggle-hover-bg: #4a4a4a;
 
   // Header colors
   --header-bg: #1f1f1f;
@@ -115,9 +121,9 @@
   --border-color-lighter: #303030;
   --border-color-extra-light: #262626;
 
-  // Chat specific
-  --chat-bubble-user-bg: #409eff;
-  --chat-bubble-user-text: #ffffff;
+  // Chat specific - 회색 계열 (ChatGPT 스타일)
+  --chat-bubble-user-bg: #3a3a3a;
+  --chat-bubble-user-text: #e5e5e5;
   --chat-bubble-assistant-bg: #2c2c2c;
   --chat-bubble-assistant-text: #e5e5e5;
   --chat-bubble-assistant-border: #3a3a3a;

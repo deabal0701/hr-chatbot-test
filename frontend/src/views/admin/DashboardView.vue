@@ -247,9 +247,10 @@ onMounted(() => {
     display: flex;
     align-items: center;
     padding: 20px;
-    background-color: #fff;
+    background-color: var(--bg-color-card);
     border-radius: 6px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    box-shadow: var(--box-shadow);
+    transition: var(--theme-transition);
 
     .stat-icon {
       width: 56px;
@@ -265,13 +266,13 @@ onMounted(() => {
       .stat-value {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: var(--text-color-primary);
         line-height: 1.2;
       }
 
       .stat-label {
         font-size: 14px;
-        color: #909399;
+        color: var(--text-color-secondary);
         margin-top: 4px;
       }
     }
@@ -281,7 +282,7 @@ onMounted(() => {
     margin: 0 0 16px;
     font-size: 16px;
     font-weight: 500;
-    color: #303133;
+    color: var(--text-color-primary);
   }
 
   .card-header {
@@ -305,15 +306,15 @@ onMounted(() => {
       flex-direction: column;
       align-items: center;
       padding: 20px;
-      background-color: #f5f7fa;
+      background-color: var(--bg-color-hover);
       border-radius: 8px;
       text-decoration: none;
       color: inherit;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: var(--theme-transition);
 
       &:hover {
-        background-color: #ebeef5;
+        background-color: var(--bg-color-code);
         transform: translateY(-2px);
       }
 
@@ -321,20 +322,20 @@ onMounted(() => {
         margin-top: 12px;
         font-size: 14px;
         font-weight: 500;
-        color: #303133;
+        color: var(--text-color-primary);
       }
 
       p {
         margin: 6px 0 0;
         font-size: 12px;
-        color: #909399;
+        color: var(--text-color-secondary);
         text-align: center;
       }
     }
   }
 
   .doc-link {
-    color: #409eff;
+    color: var(--color-primary);
     text-decoration: none;
 
     &:hover {
