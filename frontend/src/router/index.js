@@ -55,6 +55,12 @@ const routes = [
         name: 'AdminDocumentEdit',
         component: () => import('@/views/admin/DocumentEditView.vue'),
         meta: { title: '문서 수정' }
+      },
+      {
+        path: 'settings',
+        name: 'AdminSettings',
+        component: () => import('@/views/admin/SettingsView.vue'),
+        meta: { title: '시스템 설정' }
       }
     ]
   },

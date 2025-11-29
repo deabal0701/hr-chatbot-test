@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes import documents, search
+from app.api.routes import settings as settings_router
 from app.config import settings
 from app.utils.database import db_manager
 from app.utils.logger import setup_logger
@@ -49,6 +50,7 @@ app.add_middleware(
 # 라우터 등록
 app.include_router(search.router)
 app.include_router(documents.router)
+app.include_router(settings_router.router)
 
 
 # 기본 엔드포인트
@@ -102,7 +104,8 @@ async def api_info():
         },
         "endpoints": {
             "search": "/api/v1/search, /api/v1/rag, /api/v1/nl2sql",
-            "admin": "/api/admin/v1/documents"
+            "admin_documents": "/api/admin/v1/documents",
+            "admin_settings": "/api/admin/v1/settings"
         }
     }
 

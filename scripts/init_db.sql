@@ -293,6 +293,57 @@ COMMENT ON TABLE query_log IS '사용자 검색 쿼리 로그';
 COMMENT ON TABLE sql_execution_log IS 'NL2SQL 실행 로그';
 COMMENT ON VIEW v_document_chunks IS '청킹된 문서 조회용 뷰';
 
+-- ===================================
+-- 8. 시스템 설정 테이블
+-- ===================================
+
+CREATE TABLE app_settings (
+  id              BIGSERIAL PRIMARY KEY,
+  category        VARCHAR(50) NOT NULL,       -- 'openai', 'embedding', 'llm', 'rag', 'nl2sql', 'chunking'
+  key             VARCHAR(100) NOT NULL,
+  value           TEXT NOT NULL,
+  value_type      VARCHAR(20) DEFAULT 'string',  -- 'string', 'int', 'float', 'bool', 'json'
+  description     TEXT,
+  is_secret       BOOLEAN DEFAULT FALSE,      -- API Key 등 마스킹 표시
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(category, key)
+);
+
+CREATE INDEX idx_app_settings_category ON app_settings(category);
+
+COMMENT ON TABLE app_settings IS '시스템 설정 테이블 (런타임 설정 관리)';
+
+-- 기본 설정값 삽입
+INSERT INTO app_settings (category, key, value, value_type, description, is_secret) VALUES
+  -- OpenAI 설정
+  ('openai', 'api_key', '', 'string', 'OpenAI API Key', TRUE),
+  ('openai', 'organization_id', '', 'string', 'OpenAI Organization ID (선택)', FALSE),
+
+  -- 임베딩 설정
+  ('embedding', 'model', 'text-embedding-3-small', 'string', '임베딩 모델명', FALSE),
+  ('embedding', 'dimension', '1536', 'int', '벡터 차원 수', FALSE),
+
+  -- LLM 설정
+  ('llm', 'model', 'gpt-4-turbo-preview', 'string', 'LLM 모델명', FALSE),
+  ('llm', 'temperature', '0.1', 'float', '생성 온도 (0.0-2.0)', FALSE),
+  ('llm', 'max_tokens', '2000', 'int', '최대 토큰 수', FALSE),
+
+  -- RAG 설정
+  ('rag', 'top_k', '10', 'int', '검색 문서 수', FALSE),
+  ('rag', 'similarity_threshold', '0.7', 'float', '유사도 임계값 (0.0-1.0)', FALSE),
+  ('rag', 'max_context_length', '4000', 'int', '최대 컨텍스트 길이', FALSE),
+
+  -- NL2SQL 설정
+  ('nl2sql', 'timeout_seconds', '30', 'int', 'SQL 실행 타임아웃 (초)', FALSE),
+  ('nl2sql', 'max_rows', '1000', 'int', '최대 반환 행 수', FALSE),
+  ('nl2sql', 'read_only_mode', 'true', 'bool', '읽기 전용 모드', FALSE),
+
+  -- 청킹 설정
+  ('chunking', 'default_chunk_size', '1000', 'int', '기본 청크 크기 (문자)', FALSE),
+  ('chunking', 'default_overlap', '100', 'int', '기본 오버랩 크기 (문자)', FALSE)
+ON CONFLICT (category, key) DO NOTHING;
+
 -- 완료 메시지
 DO $$
 BEGIN

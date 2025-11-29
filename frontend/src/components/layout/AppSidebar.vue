@@ -32,6 +32,11 @@
         <el-icon><Document /></el-icon>
         <template #title>RAG 문서관리</template>
       </el-menu-item>
+
+      <el-menu-item index="/admin/settings">
+        <el-icon><Setting /></el-icon>
+        <template #title>시스템 설정</template>
+      </el-menu-item>
     </el-menu>
 
     <!-- 하단 정보 -->
@@ -49,7 +54,8 @@ import {
   ChatDotRound,
   DataAnalysis,
   ChatDotSquare,
-  Document
+  Document,
+  Setting
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
