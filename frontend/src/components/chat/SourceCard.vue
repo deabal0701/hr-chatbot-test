@@ -19,6 +19,7 @@
     v-model="showDetail"
     :title="source.title"
     width="600px"
+    class="source-detail-dialog"
   >
     <div class="source-detail">
       <div class="detail-meta">
@@ -68,13 +69,14 @@ const truncate = (text, maxLength) => {
 <style lang="scss" scoped>
 .source-card {
   padding: 10px 12px;
-  background-color: #f5f7fa;
+  background-color: var(--bg-color-page);
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s;
+  border: 1px solid var(--border-color-light);
 
   &:hover {
-    background-color: #ebeef5;
+    background-color: var(--bg-color-overlay);
   }
 }
 
@@ -88,7 +90,7 @@ const truncate = (text, maxLength) => {
     flex: 1;
     font-size: 13px;
     font-weight: 500;
-    color: #303133;
+    color: var(--text-color-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -103,7 +105,7 @@ const truncate = (text, maxLength) => {
 
 .source-snippet {
   font-size: 12px;
-  color: #606266;
+  color: var(--text-color-regular);
   line-height: 1.5;
 }
 
@@ -122,12 +124,13 @@ const truncate = (text, maxLength) => {
 
   .detail-content {
     padding: 16px;
-    background-color: #f5f7fa;
+    background-color: var(--bg-color-page);
     border-radius: 6px;
     font-size: 14px;
     line-height: 1.8;
     white-space: pre-wrap;
     word-break: break-word;
+    color: var(--text-color-primary);
   }
 
   .detail-metadata {
@@ -137,7 +140,34 @@ const truncate = (text, maxLength) => {
       margin: 0 0 12px;
       font-size: 14px;
       font-weight: 500;
-      color: #303133;
+      color: var(--text-color-primary);
+    }
+  }
+}
+</style>
+
+<!-- 다이얼로그 전역 스타일 (scoped 밖에서 적용) -->
+<style lang="scss">
+.source-detail-dialog {
+  .el-dialog {
+    background-color: var(--bg-color) !important;
+
+    .el-dialog__header {
+      background-color: var(--bg-color);
+      border-bottom: 1px solid var(--border-color-light);
+
+      .el-dialog__title {
+        color: var(--text-color-primary);
+      }
+
+      .el-dialog__headerbtn .el-dialog__close {
+        color: var(--text-color-regular);
+      }
+    }
+
+    .el-dialog__body {
+      background-color: var(--bg-color);
+      color: var(--text-color-primary);
     }
   }
 }
