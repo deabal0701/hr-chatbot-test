@@ -394,7 +394,9 @@ class VectorStoreService:
             cur.execute("""
                 SELECT id, title, doc_type, language, content, metadata,
                        source_type, source_file, chunk_index, total_chunks,
-                       parent_doc_id, created_at, updated_at
+                       parent_doc_id, indexed, embedded_at,
+                       LENGTH(content) as content_length,
+                       created_at, updated_at
                 FROM hr_docs
                 WHERE id = %s
             """, (doc_id,))

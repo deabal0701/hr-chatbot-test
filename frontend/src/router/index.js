@@ -37,6 +37,24 @@ const routes = [
         name: 'AdminDocuments',
         component: () => import('@/views/admin/DocumentsView.vue'),
         meta: { title: 'RAG 문서관리' }
+      },
+      {
+        path: 'documents/new',
+        name: 'AdminDocumentNew',
+        component: () => import('@/views/admin/DocumentEditView.vue'),
+        meta: { title: '새 문서 등록' }
+      },
+      {
+        path: 'documents/:id',
+        name: 'AdminDocumentDetail',
+        component: () => import('@/views/admin/DocumentDetailView.vue'),
+        meta: { title: '문서 상세' }
+      },
+      {
+        path: 'documents/:id/edit',
+        name: 'AdminDocumentEdit',
+        component: () => import('@/views/admin/DocumentEditView.vue'),
+        meta: { title: '문서 수정' }
       }
     ]
   },

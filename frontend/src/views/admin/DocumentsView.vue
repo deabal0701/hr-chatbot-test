@@ -146,63 +146,18 @@
       </div>
     </div>
 
-    <!-- 문서 생성/수정 다이얼로그 -->
-    <DocumentForm
-      v-model:visible="formVisible"
-      :document="currentDocument"
-      :mode="formMode"
-      @saved="handleSaved"
-    />
-
-    <!-- 문서 상세 다이얼로그 -->
-    <el-dialog
-      v-model="detailVisible"
-      :title="detailDocument?.title"
-      width="700px"
-    >
-      <div v-if="detailDocument" class="document-detail">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="ID">{{ detailDocument.id }}</el-descriptions-item>
-          <el-descriptions-item label="유형">
-            <el-tag :type="getDocTypeTag(detailDocument.doc_type)">
-              {{ getDocTypeLabel(detailDocument.doc_type) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="언어">{{ detailDocument.language }}</el-descriptions-item>
-          <el-descriptions-item label="임베딩">
-            <el-tag :type="detailDocument.indexed ? 'success' : 'warning'">
-              {{ detailDocument.indexed ? '완료' : '대기' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="길이">{{ formatNumber(detailDocument.content_length) }}자</el-descriptions-item>
-          <el-descriptions-item label="청크 수">{{ detailDocument.total_chunks || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="생성일" :span="2">{{ formatDateTime(detailDocument.created_at) }}</el-descriptions-item>
-        </el-descriptions>
-
-        <div class="detail-content-section">
-          <h4>내용</h4>
-          <div class="detail-content">{{ detailDocument.content || '(내용 없음)' }}</div>
-        </div>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
-import DocumentForm from '@/components/documents/DocumentForm.vue'
 
 const store = useStore()
-
-// 상태
-const formVisible = ref(false)
-const formMode = ref('create')
-const currentDocument = ref(null)
-const detailVisible = ref(false)
-const detailDocument = ref(null)
+const router = useRouter()
 
 // Computed
 const documents = computed(() => store.state.document.documents)
@@ -240,39 +195,19 @@ const handleSelectionChange = (selection) => {
   store.commit('document/SET_SELECTED', selection.map(doc => doc.id))
 }
 
-// 문서 생성 폼
+// 새 문서 페이지로 이동
 const showCreateForm = () => {
-  formMode.value = 'create'
-  currentDocument.value = null
-  formVisible.value = true
+  router.push({ name: 'AdminDocumentNew' })
 }
 
-// 문서 수정 폼
-const showEditForm = async (doc) => {
-  formMode.value = 'edit'
-  try {
-    const detail = await store.dispatch('document/fetchDocument', doc.id)
-    currentDocument.value = detail
-    formVisible.value = true
-  } catch (error) {
-    ElMessage.error('문서 정보를 불러올 수 없습니다.')
-  }
+// 문서 수정 페이지로 이동
+const showEditForm = (doc) => {
+  router.push({ name: 'AdminDocumentEdit', params: { id: doc.id } })
 }
 
-// 문서 상세 보기
-const showDetail = async (doc) => {
-  try {
-    detailDocument.value = await store.dispatch('document/fetchDocument', doc.id)
-    detailVisible.value = true
-  } catch (error) {
-    ElMessage.error('문서 정보를 불러올 수 없습니다.')
-  }
-}
-
-// 문서 저장 완료
-const handleSaved = () => {
-  formVisible.value = false
-  ElMessage.success(formMode.value === 'create' ? '문서가 생성되었습니다.' : '문서가 수정되었습니다.')
+// 문서 상세 페이지로 이동
+const showDetail = (doc) => {
+  router.push({ name: 'AdminDocumentDetail', params: { id: doc.id } })
 }
 
 // 단일 삭제
@@ -356,11 +291,6 @@ const formatDate = (dateStr) => {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString('ko-KR')
 }
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('ko-KR')
-}
 </script>
 
 <style lang="scss" scoped>
@@ -393,31 +323,6 @@ const formatDateTime = (dateStr) => {
     display: flex;
     justify-content: flex-end;
     margin-top: 20px;
-  }
-}
-
-.document-detail {
-  .detail-content-section {
-    margin-top: 20px;
-
-    h4 {
-      margin: 0 0 12px;
-      font-size: 14px;
-      font-weight: 500;
-      color: #303133;
-    }
-
-    .detail-content {
-      padding: 16px;
-      background-color: #f5f7fa;
-      border-radius: 6px;
-      max-height: 400px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 14px;
-      line-height: 1.8;
-    }
   }
 }
 </style>

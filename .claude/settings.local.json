@@ -5,7 +5,8 @@
       "Bash(tree:*)",
       "Bash(dir:*)",
       "Bash(npm install)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(del \"d:\\900.develop\\02.dev\\30.python\\12.hr-chatbot-claude\\frontend\\src\\components\\documents\\DocumentForm.vue\")"
     ],
     "deny": [],
     "ask": []
