@@ -23,14 +23,14 @@
         <template #title>대시보드</template>
       </el-menu-item>
 
-      <el-menu-item index="/admin/chat">
-        <el-icon><ChatDotSquare /></el-icon>
-        <template #title>자연어 검색</template>
-      </el-menu-item>
-
       <el-menu-item index="/admin/documents">
         <el-icon><Document /></el-icon>
         <template #title>RAG 문서관리</template>
+      </el-menu-item>
+
+      <el-menu-item index="/admin/chat">
+        <el-icon><ChatDotSquare /></el-icon>
+        <template #title>자연어 검색</template>
       </el-menu-item>
 
       <el-menu-item index="/admin/settings">
