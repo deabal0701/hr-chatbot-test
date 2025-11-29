@@ -1,40 +1,78 @@
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
+-- =====================================================
+-- HR Chatbot 데이터베이스 초기화 스크립트
+-- 실행: python scripts/init_db.py
+-- =====================================================
+
+-- Enable pgvector extension (슈퍼유저 권한필요)
+-- CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ===================================
--- 1. 문서(텍스트)용 테이블
+-- 0. 기존 테이블 삭제 (의존성 역순)
 -- ===================================
-CREATE TABLE IF NOT EXISTS hr_docs (
+DROP VIEW IF EXISTS v_document_chunks CASCADE;
+DROP TABLE IF EXISTS rag_search_log CASCADE;
+DROP TABLE IF EXISTS sql_execution_log CASCADE;
+DROP TABLE IF EXISTS query_log CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS salary CASCADE;
+DROP TABLE IF EXISTS job_history CASCADE;
+DROP TABLE IF EXISTS performance_review CASCADE;
+DROP TABLE IF EXISTS employee CASCADE;
+DROP TABLE IF EXISTS department CASCADE;
+DROP TABLE IF EXISTS hr_docs CASCADE;
+
+-- ===================================
+-- 1. 문서(텍스트)용 테이블 (청킹 지원)
+-- ===================================
+
+CREATE TABLE hr_docs (
   id              BIGSERIAL PRIMARY KEY,
   title           TEXT NOT NULL,
   doc_type        TEXT NOT NULL,           -- 'policy', 'job_posting', 'faq', 'guide'
   language        TEXT DEFAULT 'ko',       -- 'ko', 'en'
   content         TEXT NOT NULL,
   metadata        JSONB,                   -- {"year":2024,"department":"HR","region":"Seoul"}
+
+  -- 임베딩 관련
   embedding       VECTOR(1536),            -- text-embedding-3-small 차원수
   embedding_model TEXT DEFAULT 'text-embedding-3-small',
-  indexed         BOOLEAN DEFAULT false,
+  indexed         BOOLEAN DEFAULT false,   -- 임베딩 완료 여부
+  embedded_at     TIMESTAMPTZ,             -- 임베딩 생성 일시
+
+  -- 청킹 관련
+  chunk_index     INTEGER DEFAULT 0,       -- 청크 순서 (0부터 시작)
+  total_chunks    INTEGER DEFAULT 1,       -- 전체 청크 수
+  parent_doc_id   BIGINT REFERENCES hr_docs(id) ON DELETE CASCADE,  -- 원본 문서 ID
+
+  -- 소스 관련
+  source_type     TEXT DEFAULT 'ui_input', -- 'ui_input', 'pdf', 'web', 'api'
+  source_file     TEXT,                    -- 원본 파일명
+  content_hash    TEXT,                    -- 컨텐츠 MD5 해시 (중복 검사용)
+
+  -- 타임스탬프
   created_at      TIMESTAMPTZ DEFAULT now(),
   updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
 -- pgvector index (IVFFlat for approximate nearest neighbor search)
-CREATE INDEX IF NOT EXISTS idx_hr_docs_embedding
-  ON hr_docs USING ivfflat (embedding vector_l2_ops)
-  WITH (lists = 100);
+CREATE INDEX idx_hr_docs_embedding ON hr_docs USING ivfflat (embedding vector_l2_ops) WITH (lists = 100);
 
--- Additional indexes for filtering
-CREATE INDEX IF NOT EXISTS idx_hr_docs_doc_type ON hr_docs(doc_type);
-CREATE INDEX IF NOT EXISTS idx_hr_docs_language ON hr_docs(language);
-CREATE INDEX IF NOT EXISTS idx_hr_docs_metadata ON hr_docs USING gin(metadata);
-CREATE INDEX IF NOT EXISTS idx_hr_docs_created_at ON hr_docs(created_at DESC);
+-- 필터링용 인덱스
+CREATE INDEX idx_hr_docs_doc_type ON hr_docs(doc_type);
+CREATE INDEX idx_hr_docs_language ON hr_docs(language);
+CREATE INDEX idx_hr_docs_metadata ON hr_docs USING gin(metadata);
+CREATE INDEX idx_hr_docs_created_at ON hr_docs(created_at DESC);
+CREATE INDEX idx_hr_docs_indexed ON hr_docs(indexed);
+CREATE INDEX idx_hr_docs_source_type ON hr_docs(source_type);
+CREATE INDEX idx_hr_docs_parent_doc ON hr_docs(parent_doc_id);
+CREATE INDEX idx_hr_docs_content_hash ON hr_docs(content_hash);
 
 -- ===================================
 -- 2. HR 구조화 데이터
 -- ===================================
 
 -- 부서 테이블
-CREATE TABLE IF NOT EXISTS department (
+CREATE TABLE department (
   dept_id         BIGSERIAL PRIMARY KEY,
   dept_name       TEXT NOT NULL,
   dept_code       TEXT UNIQUE,
@@ -44,11 +82,11 @@ CREATE TABLE IF NOT EXISTS department (
   updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_department_parent ON department(parent_dept_id);
-CREATE INDEX IF NOT EXISTS idx_department_region ON department(region);
+CREATE INDEX idx_department_parent ON department(parent_dept_id);
+CREATE INDEX idx_department_region ON department(region);
 
 -- 직원 테이블
-CREATE TABLE IF NOT EXISTS employee (
+CREATE TABLE employee (
   emp_id          BIGSERIAL PRIMARY KEY,
   emp_no          TEXT UNIQUE NOT NULL,
   name            TEXT NOT NULL,
@@ -69,15 +107,15 @@ CREATE TABLE IF NOT EXISTS employee (
   updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_employee_emp_no ON employee(emp_no);
-CREATE INDEX IF NOT EXISTS idx_employee_hire_date ON employee(hire_date);
-CREATE INDEX IF NOT EXISTS idx_employee_department ON employee(department_id);
-CREATE INDEX IF NOT EXISTS idx_employee_status ON employee(status);
-CREATE INDEX IF NOT EXISTS idx_employee_job_family ON employee(job_family);
-CREATE INDEX IF NOT EXISTS idx_employee_work_location ON employee(work_location);
+CREATE INDEX idx_employee_emp_no ON employee(emp_no);
+CREATE INDEX idx_employee_hire_date ON employee(hire_date);
+CREATE INDEX idx_employee_department ON employee(department_id);
+CREATE INDEX idx_employee_status ON employee(status);
+CREATE INDEX idx_employee_job_family ON employee(job_family);
+CREATE INDEX idx_employee_work_location ON employee(work_location);
 
 -- 직무 이력 테이블
-CREATE TABLE IF NOT EXISTS job_history (
+CREATE TABLE job_history (
   id              BIGSERIAL PRIMARY KEY,
   emp_id          BIGINT NOT NULL REFERENCES employee(emp_id) ON DELETE CASCADE,
   from_date       DATE NOT NULL,
@@ -90,11 +128,11 @@ CREATE TABLE IF NOT EXISTS job_history (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_job_history_emp ON job_history(emp_id);
-CREATE INDEX IF NOT EXISTS idx_job_history_dates ON job_history(from_date, to_date);
+CREATE INDEX idx_job_history_emp ON job_history(emp_id);
+CREATE INDEX idx_job_history_dates ON job_history(from_date, to_date);
 
 -- 급여 테이블 (민감 정보)
-CREATE TABLE IF NOT EXISTS salary (
+CREATE TABLE salary (
   id              BIGSERIAL PRIMARY KEY,
   emp_id          BIGINT NOT NULL REFERENCES employee(emp_id) ON DELETE CASCADE,
   effective_date  DATE NOT NULL,
@@ -103,11 +141,11 @@ CREATE TABLE IF NOT EXISTS salary (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_salary_emp ON salary(emp_id);
-CREATE INDEX IF NOT EXISTS idx_salary_date ON salary(effective_date DESC);
+CREATE INDEX idx_salary_emp ON salary(emp_id);
+CREATE INDEX idx_salary_date ON salary(effective_date DESC);
 
 -- 평가 테이블
-CREATE TABLE IF NOT EXISTS performance_review (
+CREATE TABLE performance_review (
   id              BIGSERIAL PRIMARY KEY,
   emp_id          BIGINT NOT NULL REFERENCES employee(emp_id) ON DELETE CASCADE,
   review_period   TEXT NOT NULL,           -- '2024-H1', '2024-H2'
@@ -117,15 +155,15 @@ CREATE TABLE IF NOT EXISTS performance_review (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_performance_emp ON performance_review(emp_id);
-CREATE INDEX IF NOT EXISTS idx_performance_period ON performance_review(review_period);
+CREATE INDEX idx_performance_emp ON performance_review(emp_id);
+CREATE INDEX idx_performance_period ON performance_review(review_period);
 
 -- ===================================
 -- 3. 로깅/감사 테이블
 -- ===================================
 
 -- 검색 쿼리 로그
-CREATE TABLE IF NOT EXISTS query_log (
+CREATE TABLE query_log (
   id              BIGSERIAL PRIMARY KEY,
   user_id         TEXT,
   query_text      TEXT NOT NULL,
@@ -138,12 +176,12 @@ CREATE TABLE IF NOT EXISTS query_log (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_query_log_user ON query_log(user_id);
-CREATE INDEX IF NOT EXISTS idx_query_log_created ON query_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_query_log_type ON query_log(query_type);
+CREATE INDEX idx_query_log_user ON query_log(user_id);
+CREATE INDEX idx_query_log_created ON query_log(created_at DESC);
+CREATE INDEX idx_query_log_type ON query_log(query_type);
 
 -- NL2SQL 실행 로그
-CREATE TABLE IF NOT EXISTS sql_execution_log (
+CREATE TABLE sql_execution_log (
   id              BIGSERIAL PRIMARY KEY,
   query_log_id    BIGINT REFERENCES query_log(id) ON DELETE CASCADE,
   generated_sql   TEXT NOT NULL,
@@ -155,11 +193,11 @@ CREATE TABLE IF NOT EXISTS sql_execution_log (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_sql_log_query ON sql_execution_log(query_log_id);
-CREATE INDEX IF NOT EXISTS idx_sql_log_created ON sql_execution_log(created_at DESC);
+CREATE INDEX idx_sql_log_query ON sql_execution_log(query_log_id);
+CREATE INDEX idx_sql_log_created ON sql_execution_log(created_at DESC);
 
 -- RAG 검색 로그
-CREATE TABLE IF NOT EXISTS rag_search_log (
+CREATE TABLE rag_search_log (
   id              BIGSERIAL PRIMARY KEY,
   query_log_id    BIGINT REFERENCES query_log(id) ON DELETE CASCADE,
   top_k           INTEGER,
@@ -169,13 +207,12 @@ CREATE TABLE IF NOT EXISTS rag_search_log (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_rag_log_query ON rag_search_log(query_log_id);
+CREATE INDEX idx_rag_log_query ON rag_search_log(query_log_id);
 
 -- ===================================
 -- 4. 사용자/권한 테이블 (간단한 버전)
 -- ===================================
-
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
   id              BIGSERIAL PRIMARY KEY,
   username        TEXT UNIQUE NOT NULL,
   email           TEXT UNIQUE NOT NULL,
@@ -188,11 +225,31 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
 
 -- ===================================
--- 5. 샘플 데이터 (테스트용)
+-- 5. 뷰 생성
+-- ===================================
+
+-- 청킹된 문서 조회 뷰
+CREATE OR REPLACE VIEW v_document_chunks AS
+SELECT
+    COALESCE(parent_doc_id, id) as document_id,
+    id as chunk_id,
+    title,
+    doc_type,
+    chunk_index,
+    total_chunks,
+    LENGTH(content) as content_length,
+    indexed,
+    source_type,
+    created_at
+FROM hr_docs
+ORDER BY COALESCE(parent_doc_id, id), chunk_index;
+
+-- ===================================
+-- 6. 샘플 데이터 (HR 구조화 데이터만)
 -- ===================================
 
 -- 부서 샘플 데이터
@@ -226,27 +283,20 @@ SELECT
 FROM generate_series(1, 100) AS i
 ON CONFLICT (emp_no) DO NOTHING;
 
--- 문서 샘플 데이터
-INSERT INTO hr_docs (title, doc_type, language, content, metadata) VALUES
-  ('2024년 채용 공고 - 백엔드 개발자', 'job_posting', 'ko',
-   '우리 회사는 Python/Django 기반 백엔드 개발자를 채용합니다. 경력 3년 이상, AWS 경험 우대.',
-   '{"year": 2024, "department": "개발", "position": "백엔드개발자"}'::jsonb),
-
-  ('재택근무 정책 안내', 'policy', 'ko',
-   '2024년부터 주 2회 재택근무가 가능합니다. 사전에 팀장 승인을 받아야 하며, 협업 툴을 통한 업무 공유가 필수입니다.',
-   '{"year": 2024, "category": "근무제도"}'::jsonb),
-
-  ('연차 사용 가이드', 'guide', 'ko',
-   '연차는 1년 근속 시 15일이 부여됩니다. 사용은 1일 전 신청을 원칙으로 하며, 팀 업무 상황을 고려해야 합니다.',
-   '{"year": 2024, "category": "휴가"}'::jsonb),
-
-  ('인사평가 FAQ', 'faq', 'ko',
-   'Q: 인사평가는 언 실시되나요? A: 연 2회, 상반기와 하반기에 실시됩니다. Q: 평가 등급은? A: S, A, B, C, D 5단계입니다.',
-   '{"year": 2024, "category": "평가"}'::jsonb)
-ON CONFLICT DO NOTHING;
-
-COMMENT ON TABLE hr_docs IS '인사 관련 문서 및 벡터 검색용 테이블';
+-- ===================================
+-- 7. 테이블 코멘트
+-- ===================================
+COMMENT ON TABLE hr_docs IS '인사 관련 문서 및 벡터 검색용 테이블 (청킹 지원)';
 COMMENT ON TABLE employee IS '직원 정보 테이블';
 COMMENT ON TABLE department IS '부서 정보 테이블';
 COMMENT ON TABLE query_log IS '사용자 검색 쿼리 로그';
 COMMENT ON TABLE sql_execution_log IS 'NL2SQL 실행 로그';
+COMMENT ON VIEW v_document_chunks IS '청킹된 문서 조회용 뷰';
+
+-- 완료 메시지
+DO $$
+BEGIN
+    RAISE NOTICE '==========================================';
+    RAISE NOTICE 'HR Chatbot 데이터베이스 초기화 완료!';
+    RAISE NOTICE '==========================================';
+END $$;

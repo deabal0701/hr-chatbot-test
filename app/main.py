@@ -99,6 +99,10 @@ async def api_info():
         "models": {
             "llm": settings.llm_model,
             "embedding": settings.embedding_model
+        },
+        "endpoints": {
+            "search": "/api/v1/search, /api/v1/rag, /api/v1/nl2sql",
+            "admin": "/api/admin/v1/documents"
         }
     }
 

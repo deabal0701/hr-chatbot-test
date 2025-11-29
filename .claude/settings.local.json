@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"d:\\900.develop\\02.dev\\30.python\\12.hr-chatbot-claude\\scripts\\embed_documents.py\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
