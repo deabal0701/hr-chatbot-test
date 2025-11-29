@@ -3,8 +3,8 @@
     <el-input
       v-model="inputText"
       type="textarea"
-      :rows="1"
-      :autosize="{ minRows: 1, maxRows: 4 }"
+      :rows="2"
+      :autosize="{ minRows: 2, maxRows: 6 }"
       placeholder="HR 관련 질문을 입력하세요..."
       :disabled="disabled"
       @keydown.enter.exact.prevent="handleSend"

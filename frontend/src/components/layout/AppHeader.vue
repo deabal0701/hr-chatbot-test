@@ -1,12 +1,8 @@
 <template>
   <div class="header-container">
-    <!-- 좌측: 사이드바 토글 + 페이지 제목 -->
+    <!-- 좌측: 메뉴 아이콘 + 페이지 제목 -->
     <div class="header-left">
-      <el-button
-        :icon="isCollapsed ? Expand : Fold"
-        text
-        @click="toggleSidebar"
-      />
+      <el-icon class="menu-icon" :size="20"><Menu /></el-icon>
       <span class="page-title">{{ pageTitle }}</span>
     </div>
 
@@ -38,22 +34,17 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
-import { Fold, Expand, Connection } from '@element-plus/icons-vue'
+import { Connection, Menu } from '@element-plus/icons-vue'
 import apiClient from '@/api'
 
 const route = useRoute()
 const store = useStore()
 
-const isCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const apiHealthy = computed(() => store.state.app.apiHealthy)
 
 const pageTitle = computed(() => {
-  return route.meta.title || 'HR Chatbot'
+  return route.meta.title || 'DocuRAG'
 })
-
-const toggleSidebar = () => {
-  store.dispatch('app/toggleSidebar')
-}
 
 // API 헬스 체크
 const checkApiHealth = async () => {
@@ -85,6 +76,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+
+  .menu-icon {
+    color: #606266;
+  }
 
   .page-title {
     font-size: 18px;

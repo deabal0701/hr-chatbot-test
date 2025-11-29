@@ -1,9 +1,19 @@
 <template>
   <el-container class="admin-layout">
-    <!-- 사이드바 -->
-    <el-aside :width="sidebarCollapsed ? '64px' : '220px'" class="admin-sidebar">
-      <AppSidebar />
-    </el-aside>
+    <!-- 사이드바 래퍼 (토글 버튼 포함) -->
+    <div class="sidebar-wrapper" :class="{ collapsed: sidebarCollapsed }">
+      <el-aside :width="sidebarCollapsed ? '64px' : '220px'" class="admin-sidebar">
+        <AppSidebar />
+      </el-aside>
+
+      <!-- 사이드바 토글 버튼 -->
+      <button class="sidebar-toggle" @click="toggleSidebar">
+        <el-icon :size="10">
+          <ArrowLeft v-if="!sidebarCollapsed" />
+          <ArrowRight v-else />
+        </el-icon>
+      </button>
+    </div>
 
     <!-- 메인 영역 -->
     <el-container class="admin-main">
@@ -23,11 +33,16 @@
 <script setup>
 import { computed } from 'vue'
 import { useStore } from 'vuex'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 
 const store = useStore()
 const sidebarCollapsed = computed(() => store.state.app.sidebarCollapsed)
+
+const toggleSidebar = () => {
+  store.dispatch('app/toggleSidebar')
+}
 </script>
 
 <style lang="scss" scoped>
@@ -36,10 +51,50 @@ const sidebarCollapsed = computed(() => store.state.app.sidebarCollapsed)
   overflow: hidden;
 }
 
+.sidebar-wrapper {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+
+  &.collapsed {
+    .sidebar-toggle {
+      right: -6px;
+    }
+  }
+}
+
 .admin-sidebar {
   background-color: #304156;
   transition: width 0.3s ease;
   overflow: hidden;
+}
+
+// 사이드바 토글 버튼
+.sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%);
+  z-index: 100;
+
+  width: 12px;
+  height: 48px;
+  border-radius: 0 6px 6px 0;
+  border: none;
+  background-color: #337ecc;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  color: #fff;
+
+  &:hover {
+    background-color: #409eff;
+    width: 14px;
+  }
 }
 
 .admin-main {

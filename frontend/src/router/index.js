@@ -3,10 +3,18 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/admin'
+    redirect: '/chat'
   },
 
-  // 관리자 라우트 (현재 구현)
+  // 일반 사용자 채팅 (메인 페이지)
+  {
+    path: '/chat',
+    name: 'UserChat',
+    component: () => import('@/views/user/UserChatView.vue'),
+    meta: { title: 'DocuRAG' }
+  },
+
+  // 관리자 라우트
   {
     path: '/admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
@@ -22,32 +30,18 @@ const routes = [
         path: 'chat',
         name: 'AdminChat',
         component: () => import('@/views/admin/ChatView.vue'),
-        meta: { title: 'HR 챗봇' }
+        meta: { title: '자연어 검색' }
       },
       {
         path: 'documents',
         name: 'AdminDocuments',
         component: () => import('@/views/admin/DocumentsView.vue'),
-        meta: { title: '문서 관리' }
+        meta: { title: 'RAG 문서관리' }
       }
     ]
   },
 
-  // 일반사용자 라우트 (향후 확장)
-  // {
-  //   path: '/user',
-  //   component: () => import('@/views/user/UserLayout.vue'),
-  //   children: [
-  //     {
-  //       path: '',
-  //       name: 'UserChat',
-  //       component: () => import('@/views/user/ChatView.vue'),
-  //       meta: { title: 'HR 챗봇' }
-  //     }
-  //   ]
-  // },
-
-  // 404 - 홈으로 리다이렉트
+  // 404 - 채팅으로 리다이렉트
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
@@ -61,7 +55,7 @@ const router = createRouter({
 
 // 페이지 타이틀 업데이트
 router.afterEach((to) => {
-  const appTitle = import.meta.env.VITE_APP_TITLE || 'HR Chatbot'
+  const appTitle = import.meta.env.VITE_APP_TITLE || 'DocuRAG'
   document.title = to.meta.title ? `${to.meta.title} - ${appTitle}` : appTitle
 })
 

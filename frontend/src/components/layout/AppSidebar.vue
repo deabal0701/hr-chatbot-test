@@ -5,7 +5,7 @@
       <el-icon :size="28" color="#409eff">
         <ChatDotRound />
       </el-icon>
-      <span v-if="!isCollapsed" class="logo-text">HR Chatbot</span>
+      <span v-if="!isCollapsed" class="logo-text">DocuRAG</span>
     </div>
 
     <!-- 메뉴 -->
@@ -25,12 +25,12 @@
 
       <el-menu-item index="/admin/chat">
         <el-icon><ChatDotSquare /></el-icon>
-        <template #title>HR 챗봇</template>
+        <template #title>자연어 검색</template>
       </el-menu-item>
 
       <el-menu-item index="/admin/documents">
         <el-icon><Document /></el-icon>
-        <template #title>문서 관리</template>
+        <template #title>RAG 문서관리</template>
       </el-menu-item>
     </el-menu>
 

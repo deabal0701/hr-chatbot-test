@@ -83,6 +83,19 @@
           대화 초기화
         </el-button>
       </div>
+
+      <!-- 사용자 화면 -->
+      <div class="sidebar-section content-card">
+        <h4>사용자 화면</h4>
+        <el-button
+          type="primary"
+          plain
+          :icon="Monitor"
+          @click="openUserChat"
+        >
+          새 창으로 열기
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -90,7 +103,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { ChatDotRound, Loading, Delete } from '@element-plus/icons-vue'
+import { ChatDotRound, Loading, Delete, Monitor } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 
@@ -129,6 +142,11 @@ const handleModeChange = (mode) => {
 // 대화 초기화
 const clearChat = () => {
   store.dispatch('chat/clearChat')
+}
+
+// 사용자 화면 새 창으로 열기
+const openUserChat = () => {
+  window.open('/chat', '_blank', 'width=800,height=900')
 }
 
 // 메시지 추가 시 스크롤
