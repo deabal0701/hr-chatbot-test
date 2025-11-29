@@ -6,10 +6,29 @@ from langgraph.graph import END, StateGraph
 
 from app.config import settings
 from app.models.schemas import DocumentSource, RAGResponse, SearchFilters
+from app.services.settings_service import settings_service
 from app.services.vector_store import vector_store
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+
+def get_llm_settings():
+    """DB 설정에서 LLM 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
+    return {
+        "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
+        "model": settings_service.get_value("llm", "model", settings.llm_model),
+        "temperature": settings_service.get_value("llm", "temperature", 0.1),
+    }
+
+
+def get_rag_settings():
+    """DB 설정에서 RAG 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
+    return {
+        "top_k": settings_service.get_value("rag", "top_k", settings.rag_top_k),
+        "similarity_threshold": settings_service.get_value("rag", "similarity_threshold", settings.rag_similarity_threshold),
+        "max_context_length": settings_service.get_value("rag", "max_context_length", settings.max_context_length),
+    }
 
 
 def truncate_text(text: str, max_length: int = 100000) -> str:
@@ -42,14 +61,17 @@ class RAGGraph:
     """RAG 검색 그래프 (LangGraph)"""
 
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.llm_model,
-            temperature=0.1,
-            api_key=settings.openai_api_key
-        )
-
-        # 그래프 구성
+        # 그래프 구성 (LLM은 요청 시점에 생성)
         self.graph = self._build_graph()
+
+    def _get_llm(self):
+        """매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성"""
+        llm_settings = get_llm_settings()
+        return ChatOpenAI(
+            model=llm_settings["model"],
+            temperature=llm_settings["temperature"],
+            api_key=llm_settings["api_key"]
+        )
 
     def _build_graph(self) -> StateGraph:
         """그래프 구성"""
@@ -70,21 +92,27 @@ class RAGGraph:
         """문서 검색 노드"""
         question = state["question"]
         filters_dict = state.get("filters", {})
-        top_k = state.get("top_k", settings.rag_top_k)
         request_id = state.get("request_id", "unknown")
+
+        # DB 설정에서 RAG 파라미터 가져오기
+        rag_settings = get_rag_settings()
+        top_k = state.get("top_k") or rag_settings["top_k"]
+        similarity_threshold = rag_settings["similarity_threshold"]
 
         # SearchFilters 객체 생성
         filters = SearchFilters(**filters_dict) if filters_dict else None
 
         log_rag_step(request_id, "1", "RETRIEVE", "벡터 검색 시작",
                      question=question[:40], top_k=top_k,
+                     similarity_threshold=similarity_threshold,
                      has_filters=bool(filters_dict))
 
-        # 벡터 검색
+        # 벡터 검색 (similarity_threshold도 DB 설정 적용)
         documents = vector_store.search_similar_documents(
             query=question,
             top_k=top_k,
-            filters=filters
+            filters=filters,
+            similarity_threshold=similarity_threshold
         )
 
         state["retrieved_docs"] = documents
@@ -145,9 +173,13 @@ class RAGGraph:
             HumanMessage(content=user_prompt)
         ]
 
+        # 매 요청마다 DB 설정 반영된 LLM 사용
+        llm = self._get_llm()
+        llm_model = settings_service.get_value("llm", "model", settings.llm_model)
+
         # LLM 입력 로그
         log_rag_step(request_id, "2b", "LLM-INPUT", "LLM 호출 시작",
-                     model=settings.llm_model,
+                     model=llm_model,
                      system_prompt_length=len(system_prompt),
                      user_prompt_length=len(user_prompt),
                      context_length=len(context))
@@ -155,11 +187,11 @@ class RAGGraph:
         log_rag_step(request_id, "2b", "LLM-INPUT", f"CONTEXT: {truncate_text(context)}")
 
         try:
-            response = self.llm.invoke(messages)
+            response = llm.invoke(messages)
             answer = response.content
 
             state["answer"] = answer
-            state["metadata"]["llm_model"] = settings.llm_model
+            state["metadata"]["llm_model"] = llm_model
             state["metadata"]["context_length"] = len(context)
 
             # LLM 출력 로그
@@ -177,6 +209,10 @@ class RAGGraph:
         """문서 리스트를 컨텍스트 문자열로 변환"""
         context_parts = []
 
+        # DB 설정에서 max_context_length 가져오기
+        rag_settings = get_rag_settings()
+        max_context_length = rag_settings["max_context_length"]
+
         for i, doc in enumerate(documents, 1):
             # 문서 정보
             similarity = doc.similarity_score if doc.similarity_score is not None else 0.0
@@ -191,8 +227,8 @@ class RAGGraph:
 
             # 최대 컨텍스트 길이 체크
             current_length = sum(len(p) for p in context_parts)
-            if current_length > settings.max_context_length:
-                logger.warning(f"컨텍스트 길이 초과: {current_length} > {settings.max_context_length}")
+            if current_length > max_context_length:
+                logger.warning(f"컨텍스트 길이 초과: {current_length} > {max_context_length}")
                 break
 
         return "\n".join(context_parts)
@@ -201,11 +237,14 @@ class RAGGraph:
         """그래프 비동기 실행"""
         request_id = inputs.get("request_id", "unknown")
 
+        # DB 설정에서 기본 top_k 가져오기
+        rag_settings = get_rag_settings()
+
         # 초기 상태 설정
         initial_state: RAGState = {
             "question": inputs["question"],
             "filters": inputs.get("filters", {}),
-            "top_k": inputs.get("top_k", settings.rag_top_k),
+            "top_k": inputs.get("top_k") or rag_settings["top_k"],
             "retrieved_docs": [],
             "answer": "",
             "metadata": {},
@@ -233,11 +272,14 @@ class RAGGraph:
         """그래프 동기 실행"""
         request_id = inputs.get("request_id", "unknown")
 
+        # DB 설정에서 기본 top_k 가져오기
+        rag_settings = get_rag_settings()
+
         # 초기 상태 설정
         initial_state: RAGState = {
             "question": inputs["question"],
             "filters": inputs.get("filters", {}),
-            "top_k": inputs.get("top_k", settings.rag_top_k),
+            "top_k": inputs.get("top_k") or rag_settings["top_k"],
             "retrieved_docs": [],
             "answer": "",
             "metadata": {},

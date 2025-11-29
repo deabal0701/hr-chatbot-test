@@ -7,10 +7,19 @@ from langgraph.graph import END, StateGraph
 from app.config import settings
 from app.models.schemas import NL2SQLResponse, SQLResult
 from app.services.schema_loader import schema_loader
+from app.services.settings_service import settings_service
 from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+
+def get_llm_settings():
+    """DB 설정에서 LLM 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
+    return {
+        "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
+        "model": settings_service.get_value("llm", "model", settings.llm_model),
+    }
 
 
 def log_nl2sql_step(request_id: str, step: str, stage: str, message: str, **kwargs):
@@ -46,17 +55,20 @@ class NL2SQLGraph:
     """NL2SQL 검색 그래프 (LangGraph)"""
 
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.llm_model,
-            temperature=0,  # SQL 생성은 deterministic하게
-            api_key=settings.openai_api_key
-        )
-
         # 스키마 로드
         self.schema_description = schema_loader.generate_schema_description()
 
-        # 그래프 구성
+        # 그래프 구성 (LLM은 요청 시점에 생성)
         self.graph = self._build_graph()
+
+    def _get_llm(self):
+        """매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성"""
+        llm_settings = get_llm_settings()
+        return ChatOpenAI(
+            model=llm_settings["model"],
+            temperature=0,  # SQL 생성은 deterministic하게
+            api_key=llm_settings["api_key"]
+        )
 
     def _build_graph(self) -> StateGraph:
         """그래프 구성"""
@@ -144,15 +156,19 @@ SQL만 출력하세요 (설명 없이)."""
             HumanMessage(content=user_prompt)
         ]
 
+        # 매 요청마다 DB 설정 반영된 LLM 사용
+        llm = self._get_llm()
+        llm_model = settings_service.get_value("llm", "model", settings.llm_model)
+
         # LLM 입력 로그
         log_nl2sql_step(request_id, "1a", "LLM-INPUT", "LLM 호출 시작",
-                        model=settings.llm_model,
+                        model=llm_model,
                         system_prompt_length=len(system_prompt),
                         user_prompt_length=len(user_prompt))
         log_nl2sql_step(request_id, "1a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
 
         try:
-            response = self.llm.invoke(messages)
+            response = llm.invoke(messages)
             sql = response.content.strip()
 
             # 마크다운 코드 블록 제거 (```sql ... ```)
@@ -163,7 +179,7 @@ SQL만 출력하세요 (설명 없이)."""
 
             state["generated_sql"] = sql
             state["schema_description"] = self.schema_description
-            state["metadata"] = {"llm_model": settings.llm_model}
+            state["metadata"] = {"llm_model": llm_model}
 
             # LLM 출력 로그
             log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", "SQL 생성 완료",
@@ -288,6 +304,9 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
             HumanMessage(content=user_prompt)
         ]
 
+        # 매 요청마다 DB 설정 반영된 LLM 사용
+        llm = self._get_llm()
+
         # LLM 입력 로그 (답변 생성)
         log_nl2sql_step(request_id, "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
                         system_prompt_length=len(system_prompt),
@@ -297,7 +316,7 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
         log_nl2sql_step(request_id, "4a", "LLM-INPUT", f"DATA_SAMPLE: {truncate_text(str(rows_summary))}")
 
         try:
-            response = self.llm.invoke(messages)
+            response = llm.invoke(messages)
             answer = response.content
 
             state["answer"] = answer

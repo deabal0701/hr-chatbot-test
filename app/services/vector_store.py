@@ -7,6 +7,7 @@ from openai import OpenAI
 
 from app.config import settings
 from app.models.schemas import DocumentSource, SearchFilters
+from app.services.settings_service import settings_service
 from app.utils.database import db_manager
 from app.utils.logger import setup_logger
 from app.utils.text_chunker import TextChunker, chunk_text
@@ -14,18 +15,43 @@ from app.utils.text_chunker import TextChunker, chunk_text
 logger = setup_logger(__name__)
 
 
+def get_chunking_settings():
+    """DB 설정에서 청킹 관련 설정 가져오기 (DB → 기본값)"""
+    return {
+        "chunk_size": settings_service.get_value("chunking", "default_chunk_size", 1000),
+        "chunk_overlap": settings_service.get_value("chunking", "default_overlap", 100),
+    }
+
+
 class VectorStoreService:
     """벡터 검색 서비스 (pgvector 기반)"""
 
     def __init__(self):
-        self.client = OpenAI(api_key=settings.openai_api_key)
-        self.embedding_model = settings.embedding_model
-        self.embedding_dimension = settings.embedding_dimension
+        # 기본값 저장 (초기화 시점)
+        self._default_api_key = settings.openai_api_key
+        self._default_embedding_model = settings.embedding_model
+        self._default_embedding_dimension = settings.embedding_dimension
+
+    def _get_openai_client(self) -> OpenAI:
+        """매 요청 시 DB 설정을 반영한 OpenAI 클라이언트 생성"""
+        api_key = settings_service.get_value("openai", "api_key", self._default_api_key)
+        return OpenAI(api_key=api_key)
+
+    @property
+    def embedding_model(self) -> str:
+        """현재 임베딩 모델 (DB 설정 우선)"""
+        return settings_service.get_value("embedding", "model", self._default_embedding_model)
+
+    @property
+    def embedding_dimension(self) -> int:
+        """현재 임베딩 차원 (DB 설정 우선)"""
+        return settings_service.get_value("embedding", "dimension", self._default_embedding_dimension)
 
     def embed_text(self, text: str) -> List[float]:
         """텍스트를 벡터로 임베딩"""
         try:
-            response = self.client.embeddings.create(
+            client = self._get_openai_client()
+            response = client.embeddings.create(
                 model=self.embedding_model,
                 input=text
             )
@@ -37,7 +63,8 @@ class VectorStoreService:
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """여러 텍스트를 벡터로 임베딩 (배치)"""
         try:
-            response = self.client.embeddings.create(
+            client = self._get_openai_client()
+            response = client.embeddings.create(
                 model=self.embedding_model,
                 input=texts
             )
@@ -226,8 +253,8 @@ class VectorStoreService:
         language: str = "ko",
         metadata: Optional[Dict[str, Any]] = None,
         auto_chunk: bool = True,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 100,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
         source_type: str = "ui_input",
         source_file: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -241,8 +268,8 @@ class VectorStoreService:
             language: 언어
             metadata: 메타데이터
             auto_chunk: 자동 청킹 여부
-            chunk_size: 청크 크기 (기본 1000자)
-            chunk_overlap: 청크 간 중복 (기본 100자)
+            chunk_size: 청크 크기 (None이면 DB 설정 사용)
+            chunk_overlap: 청크 간 중복 (None이면 DB 설정 사용)
             source_type: 소스 타입 (ui_input, pdf, web, api)
             source_file: 원본 파일명
 
@@ -254,6 +281,11 @@ class VectorStoreService:
                 "total_chars": 전체 문자 수
             }
         """
+        # DB 설정에서 청킹 파라미터 가져오기
+        chunking_settings = get_chunking_settings()
+        chunk_size = chunk_size or chunking_settings["chunk_size"]
+        chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
+
         content_hash = TextChunker.calculate_hash(content)
 
         # 자동 청킹 비활성화 또는 짧은 텍스트면 단일 문서로 저장
@@ -380,10 +412,14 @@ class VectorStoreService:
     def preview_chunks(
         self,
         content: str,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 100
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """청킹 미리보기"""
+        """청킹 미리보기 (DB 설정 사용)"""
+        chunking_settings = get_chunking_settings()
+        chunk_size = chunk_size or chunking_settings["chunk_size"]
+        chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
+
         chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         return chunker.preview_chunks(content)
 
@@ -575,8 +611,8 @@ class VectorStoreService:
     def execute_chunking(
         self,
         doc_ids: List[int],
-        chunk_size: int = 1000,
-        chunk_overlap: int = 100,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
         delete_original: bool = False
     ) -> List[Dict[str, Any]]:
         """
@@ -584,13 +620,18 @@ class VectorStoreService:
 
         Args:
             doc_ids: 청킹할 문서 ID 목록
-            chunk_size: 청크 크기
-            chunk_overlap: 청크 간 중복
+            chunk_size: 청크 크기 (None이면 DB 설정 사용)
+            chunk_overlap: 청크 간 중복 (None이면 DB 설정 사용)
             delete_original: 원본 문서 삭제 여부
 
         Returns:
             각 문서별 청킹 결과 목록
         """
+        # DB 설정에서 청킹 파라미터 가져오기
+        chunking_settings = get_chunking_settings()
+        chunk_size = chunk_size or chunking_settings["chunk_size"]
+        chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
+
         results = []
 
         for doc_id in doc_ids:

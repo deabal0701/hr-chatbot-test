@@ -8,10 +8,20 @@ from sqlparse.tokens import DML, DDL, Keyword
 
 from app.config import settings
 from app.models.schemas import SQLResult
+from app.services.settings_service import settings_service
 from app.utils.database import db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+
+def get_nl2sql_settings():
+    """DB 설정에서 NL2SQL 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
+    return {
+        "timeout_seconds": settings_service.get_value("nl2sql", "timeout_seconds", settings.sql_timeout_seconds),
+        "max_rows": settings_service.get_value("nl2sql", "max_rows", settings.sql_max_rows),
+        "read_only_mode": settings_service.get_value("nl2sql", "read_only_mode", settings.read_only_mode),
+    }
 
 
 class SQLExecutionError(Exception):
@@ -41,9 +51,25 @@ class SQLExecutorService:
     }
 
     def __init__(self):
-        self.timeout = settings.sql_timeout_seconds
-        self.max_rows = settings.sql_max_rows
-        self.read_only = settings.read_only_mode
+        # 기본값 저장 (환경변수)
+        self._default_timeout = settings.sql_timeout_seconds
+        self._default_max_rows = settings.sql_max_rows
+        self._default_read_only = settings.read_only_mode
+
+    @property
+    def timeout(self) -> int:
+        """현재 타임아웃 설정 (DB 설정 우선)"""
+        return settings_service.get_value("nl2sql", "timeout_seconds", self._default_timeout)
+
+    @property
+    def max_rows(self) -> int:
+        """현재 최대 행 수 설정 (DB 설정 우선)"""
+        return settings_service.get_value("nl2sql", "max_rows", self._default_max_rows)
+
+    @property
+    def read_only(self) -> bool:
+        """현재 읽기 전용 모드 설정 (DB 설정 우선)"""
+        return settings_service.get_value("nl2sql", "read_only_mode", self._default_read_only)
 
     def validate_sql(self, sql: str) -> Tuple[bool, Optional[str]]:
         """
