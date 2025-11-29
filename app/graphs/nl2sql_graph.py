@@ -13,6 +13,22 @@ from app.utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+def log_nl2sql_step(request_id: str, step: str, stage: str, message: str, **kwargs):
+    """NL2SQL 그래프 단계별 로그 출력 헬퍼"""
+    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
+    logger.info(f"[{request_id}] [NL2SQL-{step}] [{stage}] {message}" + (f" | {extra_info}" if extra_info else ""))
+
+
+def truncate_text(text: str, max_length: int = 100000) -> str:
+    """텍스트를 지정된 길이로 자르고 truncated 표시 (기본값 100000 = 거의 전체 출력)"""
+    if not text:
+        return ""
+    text = text.replace("\n", " ").strip()
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "...[truncated]"
+
+
 class NL2SQLState(TypedDict):
     """NL2SQL Graph 상태"""
     question: str
@@ -23,6 +39,7 @@ class NL2SQLState(TypedDict):
     sql_result: SQLResult
     answer: str
     metadata: Dict[str, Any]
+    request_id: str  # 요청 추적용 ID
 
 
 class NL2SQLGraph:
@@ -75,8 +92,10 @@ class NL2SQLGraph:
     def _generate_sql(self, state: NL2SQLState) -> NL2SQLState:
         """SQL 생성 노드"""
         question = state["question"]
+        request_id = state.get("request_id", "unknown")
 
-        logger.info(f"SQL 생성 시작: question='{question[:50]}...'")
+        log_nl2sql_step(request_id, "1", "GENERATE", "SQL 생성 시작",
+                        question=question[:40])
 
         # 시스템 프롬프트
         system_prompt = f"""당신은 PostgreSQL 전문가입니다.
@@ -94,6 +113,12 @@ class NL2SQLGraph:
 6. **날짜 비교 시 적절한 형변환을 사용하세요**
 7. **JOIN 시 명확한 조인 조건을 지정하세요**
 8. **SQL만 출력하고, 설명이나 마크다운 코드 블록은 포함하지 마세요**
+
+# 사용자 의도 파악 규칙
+- "표로 보여줘", "목록으로", "리스트로", "상세 정보" 등의 표현이 있으면 **개별 데이터를 조회**하세요 (COUNT 사용 금지)
+- "몇 명", "총 수", "개수" 등의 표현이 있을 때만 COUNT를 사용하세요
+- 이미 특정 수치("27명", "10건" 등)를 언급한 경우, 해당 데이터의 **상세 내용**을 원하는 것입니다 (COUNT 사용 금지)
+- 불확실한 경우, 상세 데이터를 조회하는 것이 더 유용합니다
 
 # 한국어 필드 매핑
 - "입사일" = hire_date
@@ -114,6 +139,13 @@ SQL만 출력하세요 (설명 없이)."""
             HumanMessage(content=user_prompt)
         ]
 
+        # LLM 입력 로그
+        log_nl2sql_step(request_id, "1a", "LLM-INPUT", "LLM 호출 시작",
+                        model=settings.llm_model,
+                        system_prompt_length=len(system_prompt),
+                        user_prompt_length=len(user_prompt))
+        log_nl2sql_step(request_id, "1a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
+
         try:
             response = self.llm.invoke(messages)
             sql = response.content.strip()
@@ -128,10 +160,13 @@ SQL만 출력하세요 (설명 없이)."""
             state["schema_description"] = self.schema_description
             state["metadata"] = {"llm_model": settings.llm_model}
 
-            logger.info(f"SQL 생성 완료: {sql[:100]}...")
+            # LLM 출력 로그
+            log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", "SQL 생성 완료",
+                            sql_length=len(sql))
+            log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", f"GENERATED_SQL: {truncate_text(sql)}")
 
         except Exception as e:
-            logger.error(f"SQL 생성 실패: {e}")
+            logger.error(f"[{request_id}] [NL2SQL-1] [LLM] SQL 생성 실패: {e}")
             state["generated_sql"] = ""
             state["validation_error"] = f"SQL 생성 오류: {str(e)}"
             state["validated"] = False
@@ -141,13 +176,15 @@ SQL만 출력하세요 (설명 없이)."""
     def _validate_sql(self, state: NL2SQLState) -> NL2SQLState:
         """SQL 검증 노드"""
         sql = state["generated_sql"]
+        request_id = state.get("request_id", "unknown")
 
         if not sql:
+            log_nl2sql_step(request_id, "2", "VALIDATE", "검증 실패 - SQL 없음")
             state["validated"] = False
             state["validation_error"] = "생성된 SQL이 없습니다"
             return state
 
-        logger.info(f"SQL 검증 시작: {sql[:100]}...")
+        log_nl2sql_step(request_id, "2", "VALIDATE", "SQL 검증 시작")
 
         try:
             is_valid, error_msg = sql_executor.validate_sql(sql)
@@ -155,28 +192,33 @@ SQL만 출력하세요 (설명 없이)."""
             if is_valid:
                 state["validated"] = True
                 state["validation_error"] = ""
-                logger.info("SQL 검증 성공")
+                log_nl2sql_step(request_id, "2", "VALIDATE", "SQL 검증 성공")
             else:
                 state["validated"] = False
                 state["validation_error"] = error_msg
-                logger.warning(f"SQL 검증 실패: {error_msg}")
+                log_nl2sql_step(request_id, "2", "VALIDATE", f"SQL 검증 실패",
+                                error=error_msg[:50])
 
         except Exception as e:
             state["validated"] = False
             state["validation_error"] = str(e)
-            logger.error(f"SQL 검증 중 오류: {e}")
+            logger.error(f"[{request_id}] [NL2SQL-2] [VALIDATE] SQL 검증 중 오류: {e}")
 
         return state
 
     def _should_execute(self, state: NL2SQLState) -> str:
         """조건부 엣지: 검증 성공 시 execute, 실패 시 error"""
-        return "execute" if state["validated"] else "error"
+        request_id = state.get("request_id", "unknown")
+        decision = "execute" if state["validated"] else "error"
+        log_nl2sql_step(request_id, "2x", "BRANCH", f"분기 결정 → {decision.upper()}")
+        return decision
 
     def _execute_sql(self, state: NL2SQLState) -> NL2SQLState:
         """SQL 실행 노드"""
         sql = state["generated_sql"]
+        request_id = state.get("request_id", "unknown")
 
-        logger.info(f"SQL 실행 시작: {sql[:100]}...")
+        log_nl2sql_step(request_id, "3", "EXECUTE", "SQL 실행 시작")
 
         try:
             result = sql_executor.execute_sql(sql, validate=False)  # 이미 검증됨
@@ -184,10 +226,12 @@ SQL만 출력하세요 (설명 없이)."""
             state["metadata"]["execution_time_ms"] = result.execution_time_ms
             state["metadata"]["row_count"] = result.row_count
 
-            logger.info(f"SQL 실행 완료: rows={result.row_count}, time={result.execution_time_ms}ms")
+            log_nl2sql_step(request_id, "3", "EXECUTE", "SQL 실행 완료",
+                            row_count=result.row_count,
+                            execution_time_ms=result.execution_time_ms)
 
         except (SQLExecutionError, SQLValidationError) as e:
-            logger.error(f"SQL 실행 실패: {e}")
+            logger.error(f"[{request_id}] [NL2SQL-3] [EXECUTE] SQL 실행 실패: {e}")
             state["validation_error"] = str(e)
             state["validated"] = False
 
@@ -198,10 +242,15 @@ SQL만 출력하세요 (설명 없이)."""
         question = state["question"]
         sql = state["generated_sql"]
         result = state.get("sql_result")
+        request_id = state.get("request_id", "unknown")
 
         if not result or result.row_count == 0:
+            log_nl2sql_step(request_id, "4", "ANSWER", "결과 없음 - 기본 응답 반환")
             state["answer"] = "조회된 결과가 없습니다."
             return state
+
+        log_nl2sql_step(request_id, "4", "ANSWER", "답변 생성 시작",
+                        row_count=result.row_count)
 
         # 시스템 프롬프트
         system_prompt = """당신은 데이터 분석 전문가입니다.
@@ -227,22 +276,33 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
 데이터 (샘플):
 {rows_summary}
 
-위 결과를 바탕으로 질문에 대한 답변을 자연어로 작성해주세요."""
+위 결과를 바탕으로 질문에 대한 답변을 자연어/표/리스트등 사용자가 원하는 형태로 작성하라."""
 
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt)
         ]
 
+        # LLM 입력 로그 (답변 생성)
+        log_nl2sql_step(request_id, "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
+                        system_prompt_length=len(system_prompt),
+                        user_prompt_length=len(user_prompt),
+                        data_rows=len(rows_summary))
+        log_nl2sql_step(request_id, "4a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
+        log_nl2sql_step(request_id, "4a", "LLM-INPUT", f"DATA_SAMPLE: {truncate_text(str(rows_summary))}")
+
         try:
             response = self.llm.invoke(messages)
             answer = response.content
 
             state["answer"] = answer
-            logger.info(f"답변 생성 완료: answer_length={len(answer)}")
+            # LLM 출력 로그 (답변 생성)
+            log_nl2sql_step(request_id, "4b", "LLM-OUTPUT", "답변 생성 완료",
+                            answer_length=len(answer))
+            log_nl2sql_step(request_id, "4b", "LLM-OUTPUT", f"ANSWER: {truncate_text(answer)}")
 
         except Exception as e:
-            logger.error(f"답변 생성 실패: {e}")
+            logger.error(f"[{request_id}] [NL2SQL-4] [LLM] 답변 생성 실패: {e}")
             state["answer"] = f"조회 결과: {result.row_count}개 행이 발견되었습니다."
 
         return state
@@ -250,6 +310,7 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
     def _handle_error(self, state: NL2SQLState) -> NL2SQLState:
         """에러 처리 노드"""
         error_msg = state.get("validation_error", "알 수 없는 오류")
+        request_id = state.get("request_id", "unknown")
 
         state["answer"] = f"""SQL 생성 또는 실행 중 오류가 발생했습니다.
 
@@ -261,11 +322,14 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
 3. 질문을 더 구체적으로 작성
 """
 
-        logger.warning(f"NL2SQL 오류 처리: {error_msg}")
+        log_nl2sql_step(request_id, "ERR", "ERROR", f"오류 처리 완료",
+                        error=error_msg[:50])
         return state
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
         """그래프 비동기 실행"""
+        request_id = inputs.get("request_id", "unknown")
+
         initial_state: NL2SQLState = {
             "question": inputs["question"],
             "schema_description": "",
@@ -274,10 +338,18 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
             "validation_error": "",
             "sql_result": None,
             "answer": "",
-            "metadata": {}
+            "metadata": {},
+            "request_id": request_id
         }
 
+        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작",
+                        question=inputs["question"][:40])
+
         result = await self.graph.ainvoke(initial_state)
+
+        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료",
+                        has_sql=bool(result["generated_sql"]),
+                        answer_length=len(result["answer"]))
 
         return NL2SQLResponse(
             answer=result["answer"],
@@ -288,6 +360,8 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
 
     def invoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
         """그래프 동기 실행"""
+        request_id = inputs.get("request_id", "unknown")
+
         initial_state: NL2SQLState = {
             "question": inputs["question"],
             "schema_description": "",
@@ -296,10 +370,18 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
             "validation_error": "",
             "sql_result": None,
             "answer": "",
-            "metadata": {}
+            "metadata": {},
+            "request_id": request_id
         }
 
+        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작 (동기)",
+                        question=inputs["question"][:40])
+
         result = self.graph.invoke(initial_state)
+
+        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료 (동기)",
+                        has_sql=bool(result["generated_sql"]),
+                        answer_length=len(result["answer"]))
 
         return NL2SQLResponse(
             answer=result["answer"],

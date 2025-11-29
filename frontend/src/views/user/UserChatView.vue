@@ -23,7 +23,7 @@
             </svg>
           </div>
           <h2 class="welcome-title">무엇을 도와드릴까요?</h2>
-          <p class="welcome-subtitle">HR 관련 질문을 자유롭게 입력해 주세요</p>
+          <p class="welcome-subtitle">문서 기반 질문을 자유롭게 입력해 주세요</p>
 
           <!-- 예시 질문 -->
           <div class="example-queries">

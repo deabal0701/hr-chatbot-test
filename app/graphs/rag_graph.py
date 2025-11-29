@@ -12,6 +12,21 @@ from app.utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+def truncate_text(text: str, max_length: int = 100000) -> str:
+    """텍스트를 지정된 길이로 자르고 truncated 표시 (기본값 100000 = 거의 전체 출력)"""
+    if not text:
+        return ""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "...[truncated]"
+
+
+def log_rag_step(request_id: str, step: str, stage: str, message: str, **kwargs):
+    """RAG 그래프 단계별 로그 출력 헬퍼"""
+    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
+    logger.info(f"[{request_id}] [RAG-{step}] [{stage}] {message}" + (f" | {extra_info}" if extra_info else ""))
+
+
 class RAGState(TypedDict):
     """RAG Graph 상태"""
     question: str
@@ -20,6 +35,7 @@ class RAGState(TypedDict):
     retrieved_docs: List[DocumentSource]
     answer: str
     metadata: Dict[str, Any]
+    request_id: str  # 요청 추적용 ID
 
 
 class RAGGraph:
@@ -55,11 +71,14 @@ class RAGGraph:
         question = state["question"]
         filters_dict = state.get("filters", {})
         top_k = state.get("top_k", settings.rag_top_k)
+        request_id = state.get("request_id", "unknown")
 
         # SearchFilters 객체 생성
         filters = SearchFilters(**filters_dict) if filters_dict else None
 
-        logger.info(f"문서 검색 시작: question='{question[:50]}...', top_k={top_k}")
+        log_rag_step(request_id, "1", "RETRIEVE", "벡터 검색 시작",
+                     question=question[:40], top_k=top_k,
+                     has_filters=bool(filters_dict))
 
         # 벡터 검색
         documents = vector_store.search_similar_documents(
@@ -74,20 +93,33 @@ class RAGGraph:
             "top_k": top_k
         }
 
-        logger.info(f"문서 검색 완료: {len(documents)}개 문서 발견")
+        # 검색 결과 상세 로그
+        if documents:
+            doc_summaries = [f"{d.title}(유사도:{d.similarity_score:.2f})" for d in documents[:3]]
+            log_rag_step(request_id, "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견",
+                         top_docs=", ".join(doc_summaries))
+        else:
+            log_rag_step(request_id, "1", "RETRIEVE", "벡터 검색 완료 - 관련 문서 없음")
+
         return state
 
     def _generate_answer(self, state: RAGState) -> RAGState:
         """답변 생성 노드"""
         question = state["question"]
         documents = state["retrieved_docs"]
+        request_id = state.get("request_id", "unknown")
 
         if not documents:
+            log_rag_step(request_id, "2", "GENERATE", "문서 없음 - 기본 응답 반환")
             state["answer"] = "관련 문서를 찾을 수 없습니다. 다른 질문을 시도해주세요."
             return state
 
         # 컨텍스트 구성
+        log_rag_step(request_id, "2a", "CONTEXT", "컨텍스트 구성 시작",
+                     doc_count=len(documents))
         context = self._build_context(documents)
+        log_rag_step(request_id, "2a", "CONTEXT", "컨텍스트 구성 완료",
+                     context_length=len(context))
 
         # 시스템 프롬프트
         system_prompt = """당신은 HR 시스템 전문가입니다.
@@ -113,7 +145,14 @@ class RAGGraph:
             HumanMessage(content=user_prompt)
         ]
 
-        logger.info(f"LLM 답변 생성 시작: model={settings.llm_model}")
+        # LLM 입력 로그
+        log_rag_step(request_id, "2b", "LLM-INPUT", "LLM 호출 시작",
+                     model=settings.llm_model,
+                     system_prompt_length=len(system_prompt),
+                     user_prompt_length=len(user_prompt),
+                     context_length=len(context))
+        log_rag_step(request_id, "2b", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
+        log_rag_step(request_id, "2b", "LLM-INPUT", f"CONTEXT: {truncate_text(context)}")
 
         try:
             response = self.llm.invoke(messages)
@@ -123,10 +162,13 @@ class RAGGraph:
             state["metadata"]["llm_model"] = settings.llm_model
             state["metadata"]["context_length"] = len(context)
 
-            logger.info(f"LLM 답변 생성 완료: answer_length={len(answer)}")
+            # LLM 출력 로그
+            log_rag_step(request_id, "2b", "LLM-OUTPUT", "LLM 답변 생성 완료",
+                         answer_length=len(answer))
+            log_rag_step(request_id, "2b", "LLM-OUTPUT", f"ANSWER: {truncate_text(answer)}")
 
         except Exception as e:
-            logger.error(f"LLM 답변 생성 실패: {e}")
+            logger.error(f"[{request_id}] [RAG-2b] [LLM] LLM 호출 실패: {e}")
             state["answer"] = f"답변 생성 중 오류가 발생했습니다: {str(e)}"
 
         return state
@@ -157,6 +199,8 @@ class RAGGraph:
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> RAGResponse:
         """그래프 비동기 실행"""
+        request_id = inputs.get("request_id", "unknown")
+
         # 초기 상태 설정
         initial_state: RAGState = {
             "question": inputs["question"],
@@ -164,11 +208,19 @@ class RAGGraph:
             "top_k": inputs.get("top_k", settings.rag_top_k),
             "retrieved_docs": [],
             "answer": "",
-            "metadata": {}
+            "metadata": {},
+            "request_id": request_id
         }
+
+        log_rag_step(request_id, "0", "INIT", "RAG 그래프 실행 시작",
+                     question=inputs["question"][:40], top_k=initial_state["top_k"])
 
         # 그래프 실행
         result = await self.graph.ainvoke(initial_state)
+
+        log_rag_step(request_id, "3", "COMPLETE", "RAG 그래프 실행 완료",
+                     docs_found=len(result["retrieved_docs"]),
+                     answer_length=len(result["answer"]))
 
         # 응답 구성
         return RAGResponse(
@@ -179,6 +231,8 @@ class RAGGraph:
 
     def invoke(self, inputs: Dict[str, Any]) -> RAGResponse:
         """그래프 동기 실행"""
+        request_id = inputs.get("request_id", "unknown")
+
         # 초기 상태 설정
         initial_state: RAGState = {
             "question": inputs["question"],
@@ -186,11 +240,19 @@ class RAGGraph:
             "top_k": inputs.get("top_k", settings.rag_top_k),
             "retrieved_docs": [],
             "answer": "",
-            "metadata": {}
+            "metadata": {},
+            "request_id": request_id
         }
+
+        log_rag_step(request_id, "0", "INIT", "RAG 그래프 실행 시작 (동기)",
+                     question=inputs["question"][:40], top_k=initial_state["top_k"])
 
         # 그래프 실행
         result = self.graph.invoke(initial_state)
+
+        log_rag_step(request_id, "3", "COMPLETE", "RAG 그래프 실행 완료 (동기)",
+                     docs_found=len(result["retrieved_docs"]),
+                     answer_length=len(result["answer"]))
 
         # 응답 구성
         return RAGResponse(

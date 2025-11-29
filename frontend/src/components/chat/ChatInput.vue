@@ -5,7 +5,7 @@
       type="textarea"
       :rows="2"
       :autosize="{ minRows: 2, maxRows: 6 }"
-      placeholder="HR 관련 질문을 입력하세요..."
+      placeholder="질문을 입력하세요..."
       :disabled="disabled"
       @keydown.enter.exact.prevent="handleSend"
     />
