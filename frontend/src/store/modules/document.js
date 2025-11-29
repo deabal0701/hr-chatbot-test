@@ -64,6 +64,9 @@ export default {
     SET_PAGE(state, page) {
       state.pagination.page = page
     },
+    SET_PAGE_SIZE(state, size) {
+      state.pagination.limit = size
+    },
     SET_ERROR(state, error) {
       state.error = error
     },
@@ -263,6 +266,13 @@ export default {
     // 페이지 변경
     setPage({ commit, dispatch }, page) {
       commit('SET_PAGE', page)
+      dispatch('fetchDocuments')
+    },
+
+    // 페이지 사이즈 변경
+    setPageSize({ commit, dispatch }, size) {
+      commit('SET_PAGE_SIZE', size)
+      commit('SET_PAGE', 1)  // 페이지 사이즈 변경 시 1페이지로 이동
       dispatch('fetchDocuments')
     },
 

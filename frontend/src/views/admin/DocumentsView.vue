@@ -137,10 +137,12 @@
       <!-- 페이지네이션 -->
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="currentPage"
+          :current-page="currentPage"
           :page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
           :total="total"
-          layout="total, prev, pager, next"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
@@ -166,10 +168,7 @@ const selectedCount = computed(() => store.getters['document/selectedCount'])
 const filters = computed(() => store.state.document.filters)
 const total = computed(() => store.state.document.pagination.total)
 const pageSize = computed(() => store.state.document.pagination.limit)
-const currentPage = computed({
-  get: () => store.state.document.pagination.page,
-  set: (val) => store.commit('document/SET_PAGE', val)
-})
+const currentPage = computed(() => store.state.document.pagination.page)
 
 // 초기 로드
 onMounted(() => {
@@ -188,6 +187,11 @@ const resetFilters = () => {
 // 페이지 변경
 const handlePageChange = (page) => {
   store.dispatch('document/setPage', page)
+}
+
+// 페이지 사이즈 변경
+const handleSizeChange = (size) => {
+  store.dispatch('document/setPageSize', size)
 }
 
 // 선택 변경
@@ -321,7 +325,7 @@ const formatDate = (dateStr) => {
 
   .pagination-wrapper {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     margin-top: 20px;
   }
 }
