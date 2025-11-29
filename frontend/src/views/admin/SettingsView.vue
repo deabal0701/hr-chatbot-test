@@ -60,12 +60,17 @@
         <el-tab-pane label="임베딩" name="embedding">
           <div class="settings-section">
             <h3>임베딩 모델 설정</h3>
+
             <el-form label-position="top" class="settings-form">
               <el-form-item label="임베딩 모델">
-                <el-select v-model="formData.embedding.model" style="width: 100%">
-                  <el-option label="text-embedding-3-small (추천)" value="text-embedding-3-small" />
-                  <el-option label="text-embedding-3-large" value="text-embedding-3-large" />
-                  <el-option label="text-embedding-ada-002" value="text-embedding-ada-002" />
+                <el-select
+                  v-model="formData.embedding.model"
+                  style="width: 100%"
+                  @change="onEmbeddingModelChange"
+                >
+                  <el-option label="text-embedding-3-small (추천, 1536차원)" value="text-embedding-3-small" />
+                  <el-option label="text-embedding-3-large (3072차원)" value="text-embedding-3-large" />
+                  <el-option label="text-embedding-ada-002 (1536차원, 레거시)" value="text-embedding-ada-002" />
                 </el-select>
               </el-form-item>
 
@@ -76,8 +81,11 @@
                   :max="3072"
                   :step="256"
                   style="width: 100%"
+                  disabled
                 />
-                <div class="form-help">text-embedding-3-small: 1536, text-embedding-3-large: 3072</div>
+                <div class="form-help">
+                  모델에 따라 자동 설정됩니다. (현재 DB: 1536 고정)
+                </div>
               </el-form-item>
             </el-form>
           </div>
@@ -417,6 +425,33 @@ const validateApiKey = async () => {
 // 탭 변경 시 저장 여부 확인
 const handleTabChange = () => {
   // 탭 변경 시 추가 로직이 필요하면 여기에
+}
+
+// 모델별 기본 차원 매핑
+const MODEL_DIMENSIONS = {
+  'text-embedding-3-small': 1536,
+  'text-embedding-3-large': 3072,
+  'text-embedding-ada-002': 1536
+}
+
+// 임베딩 모델 변경 시 차원 자동 설정
+const onEmbeddingModelChange = (model) => {
+  const dimension = MODEL_DIMENSIONS[model] || 1536
+  formData.embedding.dimension = dimension
+
+  // 3072 차원 모델 선택 시 경고
+  if (dimension !== 1536) {
+    ElMessageBox.alert(
+      `선택한 모델(${model})은 ${dimension} 차원을 사용합니다.\n` +
+      '현재 DB 스키마는 1536 차원으로 설정되어 있어 호환되지 않습니다.\n\n' +
+      'DB 스키마를 수정하거나 1536 차원 모델을 사용해주세요.',
+      '차원 불일치 경고',
+      {
+        confirmButtonText: '확인',
+        type: 'warning'
+      }
+    )
+  }
 }
 
 onMounted(() => {
