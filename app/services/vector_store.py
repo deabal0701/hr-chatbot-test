@@ -441,7 +441,7 @@ class VectorStoreService:
         include_chunks: bool = False,
         limit: int = 100,
         offset: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """
         문서 목록 조회
 
@@ -454,7 +454,7 @@ class VectorStoreService:
             offset: 시작 위치
 
         Returns:
-            문서 목록
+            (문서 목록, 전체 카운트) 튜플
         """
         conditions = []
         params = []
@@ -484,9 +484,17 @@ class VectorStoreService:
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
-        params.extend([limit, offset])
-
         with db_manager.get_cursor() as cur:
+            # 전체 카운트 조회
+            cur.execute(f"""
+                SELECT COUNT(*) as total
+                FROM hr_docs
+                {where_clause}
+            """, params)
+            total_count = cur.fetchone()['total']
+
+            # 문서 목록 조회
+            list_params = params + [limit, offset]
             cur.execute(f"""
                 SELECT id, title, doc_type, language,
                        LENGTH(content) as content_length,
@@ -496,9 +504,10 @@ class VectorStoreService:
                 {where_clause}
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
-            """, params)
+            """, list_params)
 
-            return [dict(row) for row in cur.fetchall()]
+            documents = [dict(row) for row in cur.fetchall()]
+            return documents, total_count
 
     # ============================================
     # 문서 저장 (임베딩 없이) / 청킹 실행 분리

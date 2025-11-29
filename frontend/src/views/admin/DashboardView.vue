@@ -189,20 +189,17 @@ const loadDashboardData = async () => {
   isLoading.value = true
 
   try {
-    // 전체 문서 조회
-    const allDocs = await documentApi.list({ limit: 100 })
+    // 병렬로 API 호출 (total은 limit과 관계없이 전체 카운트 반환)
+    const [allDocs, indexedDocs, pendingDocs, recent] = await Promise.all([
+      documentApi.list({ limit: 1 }),           // 전체 문서 카운트
+      documentApi.list({ indexed: true, limit: 1 }),   // 임베딩 완료 카운트
+      documentApi.list({ indexed: false, limit: 1 }),  // 임베딩 대기 카운트
+      documentApi.list({ limit: 5 })            // 최근 문서 5개
+    ])
+
     stats.value.totalDocuments = allDocs.total
-
-    // 임베딩 완료 문서
-    const indexedDocs = await documentApi.list({ indexed: true, limit: 1 })
     stats.value.indexedDocuments = indexedDocs.total
-
-    // 임베딩 대기 문서
-    const pendingDocs = await documentApi.list({ indexed: false, limit: 1 })
     stats.value.pendingDocuments = pendingDocs.total
-
-    // 최근 문서 (최신 5개)
-    const recent = await documentApi.list({ limit: 5 })
     recentDocuments.value = recent.documents
 
     // 오늘 대화 수 (현재는 로컬 상태에서)

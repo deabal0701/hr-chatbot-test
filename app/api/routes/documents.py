@@ -108,7 +108,7 @@ async def list_documents(
     - include_chunks=True: 청크 포함
     """
     try:
-        documents = vector_store.list_documents(
+        documents, total_count = vector_store.list_documents(
             doc_type=doc_type,
             source_type=source_type,
             indexed=indexed,
@@ -118,7 +118,7 @@ async def list_documents(
         )
 
         return DocumentListResponse(
-            total=len(documents),
+            total=total_count,
             documents=[DocumentListItem(**doc) for doc in documents]
         )
 
