@@ -1,0 +1,423 @@
+<template>
+  <div class="documents-view">
+    <!-- 헤더 영역 -->
+    <div class="page-header">
+      <div>
+        <h2>문서 관리</h2>
+        <p class="subtitle">HR 챗봇에서 사용할 문서를 관리합니다.</p>
+      </div>
+      <el-button type="primary" :icon="Plus" @click="showCreateForm">
+        새 문서
+      </el-button>
+    </div>
+
+    <!-- 필터 및 액션 -->
+    <div class="content-card filter-section">
+      <div class="filter-row">
+        <el-select
+          v-model="filters.docType"
+          placeholder="문서 유형"
+          clearable
+          style="width: 150px"
+          @change="handleFilterChange"
+        >
+          <el-option label="정책" value="policy" />
+          <el-option label="가이드" value="guide" />
+          <el-option label="FAQ" value="faq" />
+          <el-option label="채용공고" value="job_posting" />
+        </el-select>
+
+        <el-select
+          v-model="filters.indexed"
+          placeholder="임베딩 상태"
+          clearable
+          style="width: 150px"
+          @change="handleFilterChange"
+        >
+          <el-option label="임베딩 완료" :value="true" />
+          <el-option label="임베딩 대기" :value="false" />
+        </el-select>
+
+        <el-button :icon="Refresh" @click="resetFilters">
+          필터 초기화
+        </el-button>
+
+        <div class="flex-1" />
+
+        <!-- 선택된 항목 액션 -->
+        <template v-if="selectedCount > 0">
+          <span class="selected-info">{{ selectedCount }}개 선택됨</span>
+          <el-button
+            type="success"
+            plain
+            :icon="Upload"
+            @click="executeEmbeddingSelected"
+          >
+            임베딩 실행
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :icon="Delete"
+            @click="deleteSelected"
+          >
+            삭제
+          </el-button>
+        </template>
+      </div>
+    </div>
+
+    <!-- 문서 목록 -->
+    <div class="content-card">
+      <el-table
+        v-loading="isLoading"
+        :data="documents"
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="45" />
+
+        <el-table-column prop="id" label="ID" width="70" />
+
+        <el-table-column prop="title" label="제목" min-width="200">
+          <template #default="{ row }">
+            <el-link type="primary" @click="showDetail(row)">
+              {{ row.title }}
+            </el-link>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="doc_type" label="유형" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="getDocTypeTag(row.doc_type)">
+              {{ getDocTypeLabel(row.doc_type) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="content_length" label="길이" width="100">
+          <template #default="{ row }">
+            {{ formatNumber(row.content_length) }}자
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="indexed" label="임베딩" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.indexed" type="success" size="small">완료</el-tag>
+            <el-tag v-else type="warning" size="small">대기</el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="total_chunks" label="청크" width="80" align="center">
+          <template #default="{ row }">
+            {{ row.total_chunks || '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="created_at" label="생성일" width="120">
+          <template #default="{ row }">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="작업" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button-group>
+              <el-button size="small" text :icon="Edit" @click="showEditForm(row)">
+                수정
+              </el-button>
+              <el-button size="small" text type="danger" :icon="Delete" @click="confirmDelete(row)">
+                삭제
+              </el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 페이지네이션 -->
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="total"
+          layout="total, prev, pager, next"
+          @current-change="handlePageChange"
+        />
+      </div>
+    </div>
+
+    <!-- 문서 생성/수정 다이얼로그 -->
+    <DocumentForm
+      v-model:visible="formVisible"
+      :document="currentDocument"
+      :mode="formMode"
+      @saved="handleSaved"
+    />
+
+    <!-- 문서 상세 다이얼로그 -->
+    <el-dialog
+      v-model="detailVisible"
+      :title="detailDocument?.title"
+      width="700px"
+    >
+      <div v-if="detailDocument" class="document-detail">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="ID">{{ detailDocument.id }}</el-descriptions-item>
+          <el-descriptions-item label="유형">
+            <el-tag :type="getDocTypeTag(detailDocument.doc_type)">
+              {{ getDocTypeLabel(detailDocument.doc_type) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="언어">{{ detailDocument.language }}</el-descriptions-item>
+          <el-descriptions-item label="임베딩">
+            <el-tag :type="detailDocument.indexed ? 'success' : 'warning'">
+              {{ detailDocument.indexed ? '완료' : '대기' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="길이">{{ formatNumber(detailDocument.content_length) }}자</el-descriptions-item>
+          <el-descriptions-item label="청크 수">{{ detailDocument.total_chunks || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="생성일" :span="2">{{ formatDateTime(detailDocument.created_at) }}</el-descriptions-item>
+        </el-descriptions>
+
+        <div class="detail-content-section">
+          <h4>내용</h4>
+          <div class="detail-content">{{ detailDocument.content || '(내용 없음)' }}</div>
+        </div>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useStore } from 'vuex'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
+import DocumentForm from '@/components/documents/DocumentForm.vue'
+
+const store = useStore()
+
+// 상태
+const formVisible = ref(false)
+const formMode = ref('create')
+const currentDocument = ref(null)
+const detailVisible = ref(false)
+const detailDocument = ref(null)
+
+// Computed
+const documents = computed(() => store.state.document.documents)
+const isLoading = computed(() => store.state.document.isLoading)
+const selectedCount = computed(() => store.getters['document/selectedCount'])
+const filters = computed(() => store.state.document.filters)
+const total = computed(() => store.state.document.pagination.total)
+const pageSize = computed(() => store.state.document.pagination.limit)
+const currentPage = computed({
+  get: () => store.state.document.pagination.page,
+  set: (val) => store.commit('document/SET_PAGE', val)
+})
+
+// 초기 로드
+onMounted(() => {
+  store.dispatch('document/fetchDocuments')
+})
+
+// 필터 변경
+const handleFilterChange = () => {
+  store.dispatch('document/setFilters', filters.value)
+}
+
+const resetFilters = () => {
+  store.dispatch('document/resetFilters')
+}
+
+// 페이지 변경
+const handlePageChange = (page) => {
+  store.dispatch('document/setPage', page)
+}
+
+// 선택 변경
+const handleSelectionChange = (selection) => {
+  store.commit('document/SET_SELECTED', selection.map(doc => doc.id))
+}
+
+// 문서 생성 폼
+const showCreateForm = () => {
+  formMode.value = 'create'
+  currentDocument.value = null
+  formVisible.value = true
+}
+
+// 문서 수정 폼
+const showEditForm = async (doc) => {
+  formMode.value = 'edit'
+  try {
+    const detail = await store.dispatch('document/fetchDocument', doc.id)
+    currentDocument.value = detail
+    formVisible.value = true
+  } catch (error) {
+    ElMessage.error('문서 정보를 불러올 수 없습니다.')
+  }
+}
+
+// 문서 상세 보기
+const showDetail = async (doc) => {
+  try {
+    detailDocument.value = await store.dispatch('document/fetchDocument', doc.id)
+    detailVisible.value = true
+  } catch (error) {
+    ElMessage.error('문서 정보를 불러올 수 없습니다.')
+  }
+}
+
+// 문서 저장 완료
+const handleSaved = () => {
+  formVisible.value = false
+  ElMessage.success(formMode.value === 'create' ? '문서가 생성되었습니다.' : '문서가 수정되었습니다.')
+}
+
+// 단일 삭제
+const confirmDelete = (doc) => {
+  ElMessageBox.confirm(
+    `"${doc.title}" 문서를 삭제하시겠습니까?`,
+    '문서 삭제',
+    {
+      confirmButtonText: '삭제',
+      cancelButtonText: '취소',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await store.dispatch('document/deleteDocument', doc.id)
+      ElMessage.success('문서가 삭제되었습니다.')
+    } catch (error) {
+      ElMessage.error('문서 삭제에 실패했습니다.')
+    }
+  }).catch(() => {})
+}
+
+// 선택 삭제
+const deleteSelected = () => {
+  ElMessageBox.confirm(
+    `선택한 ${selectedCount.value}개 문서를 삭제하시겠습니까?`,
+    '일괄 삭제',
+    {
+      confirmButtonText: '삭제',
+      cancelButtonText: '취소',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await store.dispatch('document/deleteSelected')
+      ElMessage.success('문서가 삭제되었습니다.')
+    } catch (error) {
+      ElMessage.error('일괄 삭제에 실패했습니다.')
+    }
+  }).catch(() => {})
+}
+
+// 선택 임베딩 실행
+const executeEmbeddingSelected = async () => {
+  const selectedIds = store.state.document.selectedIds
+  try {
+    const result = await store.dispatch('document/executeEmbedding', { docIds: selectedIds })
+    ElMessage.success(result.message || '임베딩이 완료되었습니다.')
+    store.commit('document/CLEAR_SELECTED')
+  } catch (error) {
+    ElMessage.error('임베딩 실행에 실패했습니다.')
+  }
+}
+
+// 유틸리티
+const getDocTypeLabel = (type) => {
+  const labels = {
+    policy: '정책',
+    guide: '가이드',
+    faq: 'FAQ',
+    job_posting: '채용공고'
+  }
+  return labels[type] || type
+}
+
+const getDocTypeTag = (type) => {
+  const types = {
+    policy: 'primary',
+    guide: 'success',
+    faq: 'info',
+    job_posting: 'warning'
+  }
+  return types[type] || 'info'
+}
+
+const formatNumber = (num) => {
+  return num?.toLocaleString() || '0'
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString('ko-KR')
+}
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString('ko-KR')
+}
+</script>
+
+<style lang="scss" scoped>
+.documents-view {
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .filter-section {
+    margin-bottom: 20px;
+  }
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    .selected-info {
+      font-size: 14px;
+      color: #606266;
+      font-weight: 500;
+    }
+  }
+
+  .pagination-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+}
+
+.document-detail {
+  .detail-content-section {
+    margin-top: 20px;
+
+    h4 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #303133;
+    }
+
+    .detail-content {
+      padding: 16px;
+      background-color: #f5f7fa;
+      border-radius: 6px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+  }
+}
+</style>
