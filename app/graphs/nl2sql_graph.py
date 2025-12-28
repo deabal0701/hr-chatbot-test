@@ -40,15 +40,15 @@ def truncate_text(text: str, max_length: int = 100000) -> str:
 
 class NL2SQLState(TypedDict):
     """NL2SQL Graph 상태"""
-    question: str
-    schema_description: str
+    question: str                   # 사용자 질문
+    schema_description: str         # DB 스키마 설명 (LLM 제공)
     generated_sql: str
-    validated: bool
+    validated: bool                 # 검증 통과 여부
     validation_error: str
     sql_result: SQLResult
-    answer: str
-    metadata: Dict[str, Any]
-    request_id: str  # 요청 추적용 ID
+    answer: str                     # 죄종 답변
+    metadata: Dict[str, Any]        # 메타 데이터 
+    request_id: str                 # 요청 추적용 ID
 
 
 class NL2SQLGraph:
