@@ -45,8 +45,7 @@ async def search(request: SearchRequest):
         # STEP 2: 모드 결정
         if request.mode == "auto":
             query_type = _classify_query_intent(request.query)
-            log_step(request_id, 2, "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}",
-                     original_mode="auto", detected_type=query_type)
+            log_step(request_id, 2, "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
         else:
             query_type = request.mode
             log_step(request_id, 2, "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
@@ -71,8 +70,7 @@ async def search(request: SearchRequest):
                 metadata=nl2sql_result.metadata,
                 response_time_ms=int((time.time() - start_time) * 1000)
             )
-            log_step(request_id, 4, "NL2SQL", "NL2SQL 그래프 실행 완료",
-                     sql_generated=bool(nl2sql_result.sql))
+            log_step(request_id, 4, "NL2SQL", "NL2SQL 그래프 실행 완료", sql_generated=bool(nl2sql_result.sql))
         else:  # rag
             log_step(request_id, 3, "RAG", "RAG 그래프 실행 시작")
             rag_result = await rag_graph.ainvoke(inputs)
@@ -84,8 +82,7 @@ async def search(request: SearchRequest):
                 metadata=rag_result.metadata,
                 response_time_ms=int((time.time() - start_time) * 1000)
             )
-            log_step(request_id, 4, "RAG", "RAG 그래프 실행 완료",
-                     sources_count=len(rag_result.sources))
+            log_step(request_id, 4, "RAG", "RAG 그래프 실행 완료", sources_count=len(rag_result.sources))
 
         # STEP 5: 응답 완료
         log_step(request_id, 5, "RESPONSE", "응답 생성 완료",
