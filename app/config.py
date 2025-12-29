@@ -81,7 +81,8 @@ class Settings(BaseSettings):
         return self.app_env == "development"
 
 
-@lru_cache
+# 캐싱 : 한번만 로드
+@lru_cache    
 def get_settings() -> Settings:
     """설정 인스턴스 반환 (캐싱됨)"""
     return Settings()

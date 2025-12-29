@@ -22,10 +22,7 @@ class DatabaseManager:
     def _test_connection(self) -> bool:
         """시작 시 연결 테스트 (인증 오류 등 빠른 실패)"""
         try:
-            with psycopg.connect(
-                settings.database_url,
-                connect_timeout=10
-            ) as conn:
+            with psycopg.connect(settings.database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT 1")
             return True

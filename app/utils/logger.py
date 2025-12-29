@@ -32,16 +32,10 @@ def setup_logger(name: str) -> logging.Logger:
 
     # 프로덕션 환경에서는 JSON 포맷 사용
     if settings.is_production:
-        formatter = CustomJsonFormatter(
-            '%(timestamp)s %(level)s %(logger)s %(message)s',
-            timestamp=True
-        )
+        formatter = CustomJsonFormatter('%(timestamp)s %(level)s %(logger)s %(message)s', timestamp=True)
     else:
         # 개발 환경에서는 일반 포맷 사용
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     handler.setFormatter(formatter)
     logger.addHandler(handler)
