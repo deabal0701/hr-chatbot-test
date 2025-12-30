@@ -168,10 +168,10 @@ SQL만 출력하세요 (설명 없이)."""
             logger.info(f"[{request_id}] [LLM-INFO] LLM Original Object : {llm}")
             logger.info(f"[{request_id}] [LLM-INFO] {type(llm).__name__}(model={llm.model_name}, temp={llm.temperature})")
             # LLM 호출 전 messages 원문 로깅
-            logger.info(f"[{request_id} [NL2SQL-1a] [LLM-RAW-INPUT] Message원문: {messages}")
+            logger.info(f"[{request_id} [NL2SQL-1a] [LLM-RAW-INPUT] Message원문 SystemMessage: {messages}")
             response = llm.invoke(messages)
             # Response 원문 로깅
-            logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response 원문: {response}")
+            logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response원문 AIMessage: {response}")
             logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
             
             sql = response.content.strip()
@@ -187,8 +187,7 @@ SQL만 출력하세요 (설명 없이)."""
             state["metadata"] = {"llm_model": llm_model}
 
             # LLM 출력 로그
-            log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", "SQL 생성 완료",
-                            sql_length=len(sql))
+            log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
             log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", f"GENERATED_SQL: {truncate_text(sql)}")
 
         except Exception as e:
@@ -252,9 +251,7 @@ SQL만 출력하세요 (설명 없이)."""
             state["metadata"]["execution_time_ms"] = result.execution_time_ms
             state["metadata"]["row_count"] = result.row_count
 
-            log_nl2sql_step(request_id, "3", "EXECUTE", "SQL 실행 완료",
-                            row_count=result.row_count,
-                            execution_time_ms=result.execution_time_ms)
+            log_nl2sql_step(request_id, "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
 
         except (SQLExecutionError, SQLValidationError) as e:
             logger.error(f"[{request_id}] [NL2SQL-3] [EXECUTE] SQL 실행 실패: {e}")
@@ -351,8 +348,7 @@ SQL만 출력하세요 (설명 없이)."""
 3. 질문을 더 구체적으로 작성
 """
 
-        log_nl2sql_step(request_id, "ERR", "ERROR", f"오류 처리 완료",
-                        error=error_msg[:50])
+        log_nl2sql_step(request_id, "ERR", "ERROR", f"오류 처리 완료", error=error_msg[:50])
         return state
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
@@ -371,14 +367,11 @@ SQL만 출력하세요 (설명 없이)."""
             "request_id": request_id
         }
 
-        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작",
-                        question=inputs["question"][:40])
+        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작", question=inputs["question"][:40])
 
         result = await self.graph.ainvoke(initial_state)
 
-        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료",
-                        has_sql=bool(result["generated_sql"]),
-                        answer_length=len(result["answer"]))
+        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
 
         return NL2SQLResponse(
             answer=result["answer"],

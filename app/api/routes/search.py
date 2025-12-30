@@ -39,8 +39,7 @@ async def search(request: SearchRequest):
 
     try:
         # STEP 1: 사용자 요청 수신
-        log_step(request_id, 1, "REQUEST", "사용자 요청 수신",
-                 query=request.query[:50], mode=request.mode, top_k=request.top_k)
+        log_step(request_id, 1, "REQUEST", "사용자 요청 수신", query=request.query[:50], mode=request.mode, top_k=request.top_k)
 
         # STEP 2: 모드 결정
         if request.mode == "auto":
@@ -85,10 +84,7 @@ async def search(request: SearchRequest):
             log_step(request_id, 4, "RAG", "RAG 그래프 실행 완료", sources_count=len(rag_result.sources))
 
         # STEP 5: 응답 완료
-        log_step(request_id, 5, "RESPONSE", "응답 생성 완료",
-                 query_type=response.query_type,
-                 response_time_ms=response.response_time_ms,
-                 answer_length=len(response.answer))
+        log_step(request_id, 5, "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
 
         logger.info(f"[{request_id}] ========== 검색 요청 처리 완료 ==========")
 
