@@ -96,15 +96,22 @@
           <div class="settings-section">
             <h3>LLM 모델 설정</h3>
             <el-form label-position="top" class="settings-form">
-              <el-form-item label="LLM 모델">
-                <el-select v-model="formData.llm.model" style="width: 100%">
-                  <el-option label="gpt-4-turbo-preview" value="gpt-4-turbo-preview" />
-                  <el-option label="gpt-4" value="gpt-4" />
-                  <el-option label="gpt-4o" value="gpt-4o" />
-                  <el-option label="gpt-4o-mini" value="gpt-4o-mini" />
-                  <el-option label="gpt-3.5-turbo" value="gpt-3.5-turbo" />
-                </el-select>
-              </el-form-item>
+              <div class="form-item-with-link">
+                <el-form-item label="LLM 모델">
+                  <el-select v-model="formData.llm.model" style="width: 100%">
+                    <el-option label="gpt-4-turbo-preview" value="gpt-4-turbo-preview" />
+                    <el-option label="gpt-4" value="gpt-4" />
+                    <el-option label="gpt-4o" value="gpt-4o" />
+                    <el-option label="gpt-4o-mini" value="gpt-4o-mini" />
+                    <el-option label="gpt-4.1-nano" value="gpt-4.1-nano" />
+                    <el-option label="gpt-4.1-mini" value="gpt-4.1-mini" />
+                    <el-option label="gpt-3.5-turbo" value="gpt-3.5-turbo" />
+                  </el-select>
+                </el-form-item>
+                <a href="https://platform.openai.com/docs/pricing" target="_blank" class="pricing-link">
+                  가격 정보 보기 →
+                </a>
+              </div>
 
               <el-form-item label="Temperature">
                 <el-slider
@@ -259,7 +266,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, View, Hide } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
@@ -570,6 +577,25 @@ onMounted(() => {
 
   .cursor-pointer {
     cursor: pointer;
+  }
+
+  // LLM 모델 선택 관련 스타일
+  .form-item-with-link {
+    position: relative;
+
+    .pricing-link {
+      position: absolute;
+      top: 0;
+      right: 0;
+      font-size: 12px;
+      color: var(--el-color-primary);
+      text-decoration: none;
+      font-weight: normal;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
 }
 </style>
