@@ -165,7 +165,8 @@ SQL만 출력하세요 (설명 없이)."""
         log_nl2sql_step(request_id, "1a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
 
         try:
-            
+            logger.info(f"[{request_id}] [LLM-INFO] LLM Original Object : {llm}")
+            logger.info(f"[{request_id}] [LLM-INFO] {type(llm).__name__}(model={llm.model_name}, temp={llm.temperature})")
             # LLM 호출 전 messages 원문 로깅
             logger.info(f"[{request_id} [NL2SQL-1a] [LLM-RAW-INPUT] Message원문: {messages}")
             response = llm.invoke(messages)
