@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import psycopg
-from openai import OpenAI
+from langchain_openai import OpenAIEmbeddings
 
 from app.config import settings
 from app.models.schemas import DocumentSource, SearchFilters
@@ -32,10 +32,14 @@ class VectorStoreService:
         self._default_embedding_model = settings.embedding_model
         self._default_embedding_dimension = settings.embedding_dimension
 
-    def _get_openai_client(self) -> OpenAI:
-        """매 요청 시 DB 설정을 반영한 OpenAI 클라이언트 생성"""
+    def _get_embeddings(self) -> OpenAIEmbeddings:
+        """매 요청 시 DB 설정을 반영한 OpenAIEmbeddings 인스턴스 생성"""
         api_key = settings_service.get_value("openai", "api_key", self._default_api_key)
-        return OpenAI(api_key=api_key)
+        model = self.embedding_model
+        return OpenAIEmbeddings(
+            model=model,
+            openai_api_key=api_key
+        )
 
     @property
     def embedding_model(self) -> str:
@@ -48,27 +52,19 @@ class VectorStoreService:
         return settings_service.get_value("embedding", "dimension", self._default_embedding_dimension)
 
     def embed_text(self, text: str) -> List[float]:
-        """텍스트를 벡터로 임베딩"""
+        """텍스트를 벡터로 임베딩 (LangChain OpenAIEmbeddings 사용)"""
         try:
-            client = self._get_openai_client()
-            response = client.embeddings.create(
-                model=self.embedding_model,
-                input=text
-            )
-            return response.data[0].embedding
+            embeddings = self._get_embeddings()
+            return embeddings.embed_query(text)
         except Exception as e:
             logger.error(f"임베딩 생성 실패: {e}")
             raise
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """여러 텍스트를 벡터로 임베딩 (배치)"""
+        """여러 텍스트를 벡터로 임베딩 (배치, LangChain OpenAIEmbeddings 사용)"""
         try:
-            client = self._get_openai_client()
-            response = client.embeddings.create(
-                model=self.embedding_model,
-                input=texts
-            )
-            return [item.embedding for item in response.data]
+            embeddings = self._get_embeddings()
+            return embeddings.embed_documents(texts)
         except Exception as e:
             logger.error(f"배치 임베딩 생성 실패: {e}")
             raise

@@ -8,6 +8,8 @@ HR Chatbot system combining RAG (Retrieval Augmented Generation) and NL2SQL for 
 
 **Stack**: FastAPI + LangGraph + PostgreSQL (pgvector) + Vue 3 + OpenAI API
 
+**LangChain Version**: v1.0+ (langchain>=1.2.0, langchain-core>=1.2.5, langchain-openai>=1.1.6, langgraph>=1.0.5)
+
 ## Common Commands
 
 ### Backend (Python/FastAPI)
@@ -112,7 +114,8 @@ Admin UI can change settings in real-time without code deployment. See `app/serv
 **LLM Configuration**:
 - Model: Dynamically loaded from DB settings (supports gpt-4, gpt-4o, gpt-4.1-nano, etc.)
 - Temperature: 0 for SQL generation (deterministic), 0.1 for answers
-- Embeddings: Always `text-embedding-3-small` (1536 dimensions)
+- Embeddings: `text-embedding-3-small` (1536 dimensions) via `langchain_openai.OpenAIEmbeddings`
+- All LLM/Embedding instances use LangChain v1.0 `langchain_openai` package
 
 ### Database Architecture
 
@@ -378,6 +381,91 @@ DB_MAX_OVERFLOW=15  # default: 10
   - Cache common schema descriptions
   - Batch embedding operations
   - Use cheaper models (gpt-4.1-nano) for testing
+
+## LangChain v1.0 Migration
+
+This project has been migrated to LangChain v1.0+ for improved stability and production readiness.
+
+**CRITICAL REQUIREMENT**: Python 3.10 or higher (Python 3.9 not supported)
+
+### Key Changes
+
+**0. Python Version Requirement**:
+- **Minimum**: Python 3.10.0
+- **Recommended**: Python 3.11+
+- **Not Supported**: Python 3.9 (EOL October 2025)
+
+Check version: `python check_python_version.py`
+
+**1. Dependencies** ([requirements.txt](requirements.txt)):
+```python
+# Core Framework (Pydantic v2 compatible)
+fastapi>=0.115.0,<1.0.0
+pydantic>=2.7.4,<3.0.0  # CRITICAL: langchain-core requires >=2.7.4
+
+# LangChain v1.0+ stable versions (actual 1.x series)
+openai>=1.30.0,<2.0.0
+langchain-core>=1.2.5,<2.0.0
+langchain-text-splitters>=0.3.0,<1.0.0
+langchain>=1.2.0,<2.0.0
+langchain-openai>=1.1.6,<2.0.0
+langgraph>=1.0.5,<2.0.0
+```
+
+**2. Import Patterns** (already compliant):
+```python
+# Correct (LangChain v1.0)
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import END, StateGraph
+
+# NEVER use (deprecated)
+from langchain_community.chat_models import ChatOpenAI  # ❌
+from openai import OpenAI  # ❌ Use OpenAIEmbeddings instead
+```
+
+**3. Embeddings Migration** ([vector_store.py:54-70](app/services/vector_store.py#L54-L70)):
+```python
+# Old (direct OpenAI SDK)
+from openai import OpenAI
+client = OpenAI(api_key=api_key)
+response = client.embeddings.create(model=model, input=text)
+
+# New (LangChain v1.0)
+from langchain_openai import OpenAIEmbeddings
+embeddings = OpenAIEmbeddings(model=model, openai_api_key=api_key)
+vector = embeddings.embed_query(text)  # Single text
+vectors = embeddings.embed_documents(texts)  # Batch
+```
+
+**Benefits**:
+- Built-in retry logic and error handling
+- Caching support for repeated queries
+- Unified interface across different embedding providers
+- Better integration with LangChain ecosystem
+
+**4. LangGraph Stability**:
+- No breaking changes in StateGraph API
+- Backward compatible with v0.x patterns
+- Production-ready with durable execution and checkpointing
+
+### Migration Checklist
+
+- ✅ Update `requirements.txt` version constraints
+- ✅ Replace direct OpenAI SDK calls with `langchain_openai` equivalents
+- ✅ Use `ChatOpenAI` from `langchain_openai` (not `langchain_community`)
+- ✅ Use `OpenAIEmbeddings` for all embedding operations
+- ✅ Verify all imports use `langchain_openai` package
+- ⚠️ **Regenerate `requirements.lock`** (see [UPDATE_LOCK_FILE.md](UPDATE_LOCK_FILE.md))
+
+### Version Compatibility
+
+| Package | Min Version | Max Version | Status |
+|---------|-------------|-------------|--------|
+| langchain-core | 1.2.5 | <2.0.0 | ✅ Stable (Production) |
+| langchain | 1.2.0 | <2.0.0 | ✅ Stable (Production) |
+| langchain-openai | 1.1.6 | <2.0.0 | ✅ Stable (Production) |
+| langgraph | 1.0.5 | <2.0.0 | ✅ Stable (Production) |
 
 ## Additional Documentation
 

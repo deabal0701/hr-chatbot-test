@@ -1,14 +1,19 @@
 # ============================================
 # HR Chatbot Backend Dependencies
 # ============================================
+# REQUIRED: Python 3.10+ (LangChain v1.0 requires Python >= 3.10)
 # Python 3.11+ 환경에서 테스트됨
 # 설치: pip install -r requirements.txt
+#
+# IMPORTANT: Python 3.9는 지원하지 않습니다!
+# LangChain v1.0은 Python 3.10 이상 필요 (Python 3.9 EOL: 2025-10)
 
 # Core Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+# FastAPI 0.115+ recommended for Pydantic v2 full support
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.27.0,<1.0.0
+pydantic>=2.7.4,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
 python-dotenv==1.0.0
 python-multipart==0.0.6
 
@@ -17,12 +22,13 @@ psycopg[binary,pool]==3.1.18
 pgvector==0.2.5
 
 # AI/LLM Stack (순서 중요: 하위 의존성부터)
-# langchain-core를 먼저 설치해야 다른 패키지들이 올바른 버전 선택
-openai>=1.30.0
-langchain-core>=0.1.25
-langchain>=0.1.0
-langchain-openai>=0.0.5
-langgraph>=0.0.26
+# LangChain v1.0+ stable versions (actual 1.x series)
+openai>=1.30.0,<2.0.0
+langchain-core>=1.2.5,<2.0.0
+langchain-text-splitters>=0.3.0,<1.0.0
+langchain>=1.2.0,<2.0.0
+langchain-openai>=1.1.6,<2.0.0
+langgraph>=1.0.5,<2.0.0
 
 # Utilities
 numpy>=1.24.0
