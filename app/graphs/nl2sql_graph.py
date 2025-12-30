@@ -161,14 +161,18 @@ SQL만 출력하세요 (설명 없이)."""
         llm_model = settings_service.get_value("llm", "model", settings.llm_model)
 
         # LLM 입력 로그
-        log_nl2sql_step(request_id, "1a", "LLM-INPUT", "LLM 호출 시작",
-                        model=llm_model,
-                        system_prompt_length=len(system_prompt),
-                        user_prompt_length=len(user_prompt))
+        log_nl2sql_step(request_id, "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt))
         log_nl2sql_step(request_id, "1a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
 
         try:
+            
+            # LLM 호출 전 messages 원문 로깅
+            logger.info(f"[{request_id} [NL2SQL-1a] [LLM-RAW-INPUT] Message원문: {messages}")
             response = llm.invoke(messages)
+            # Response 원문 로깅
+            logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response 원문: {response}")
+            logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
+            
             sql = response.content.strip()
 
             # 마크다운 코드 블록 제거 (```sql ... ```)

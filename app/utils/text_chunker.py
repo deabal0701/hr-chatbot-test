@@ -12,10 +12,10 @@ logger = setup_logger(__name__)
 @dataclass
 class TextChunk:
     """청킹된 텍스트 조각"""
-    content: str
-    chunk_index: int
-    start_char: int
-    end_char: int
+    content: str          # 청크내용
+    chunk_index: int      # 청크 순서(0부터 시작)
+    start_char: int       # 원본 텍스트에서 시작 위치
+    end_char: int         # 원본 텍스트에서 종료 위치
 
 
 class TextChunker:
@@ -23,9 +23,9 @@ class TextChunker:
 
     def __init__(
         self,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 100,
-        separators: Optional[List[str]] = None
+        chunk_size: int = 1000,                     # 청크 최대 크기(문자 수)
+        chunk_overlap: int = 100,                   # 청크간 중복 문자 수
+        separators: Optional[List[str]] = None      # 분할 우선 순위
     ):
         """
         Args:
