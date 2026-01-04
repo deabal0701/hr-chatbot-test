@@ -373,7 +373,13 @@ const loadSettings = async () => {
     response.categories.forEach(cat => {
       if (formData[cat.category]) {
         cat.settings.forEach(setting => {
-          const value = parseValue(setting.value, setting.value_type)
+          let value = parseValue(setting.value, setting.value_type)
+
+          // enabled_tools는 쉼표 구분 문자열을 배열로 변환
+          if (cat.category === 'agent' && setting.key === 'enabled_tools' && typeof value === 'string') {
+            value = value.split(',').map(t => t.trim()).filter(t => t)
+          }
+
           formData[cat.category][setting.key] = value
         })
       }
@@ -422,7 +428,12 @@ const saveSettings = async () => {
 
     // 현재 탭의 설정을 문자열로 변환
     Object.entries(formData[category]).forEach(([key, value]) => {
-      settings[key] = stringifyValue(value)
+      // enabled_tools는 배열을 쉼표 구분 문자열로 변환
+      if (category === 'agent' && key === 'enabled_tools' && Array.isArray(value)) {
+        settings[key] = value.join(',')
+      } else {
+        settings[key] = stringifyValue(value)
+      }
     })
 
     await settingsApi.updateCategory(category, settings)

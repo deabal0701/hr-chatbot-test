@@ -25,6 +25,7 @@ from app.models.agent_schemas import (
     session_memory_store
 )
 from app.utils.logger import setup_logger
+from app.services.settings_service import settings_service
 
 logger = setup_logger(__name__)
 
@@ -93,11 +94,35 @@ async def agent_search(request: AgentRequest):
         if not request.session_id:
             request.session_id = f"session-{request_id}"
 
+        # Agent 설정: 시스템 설정 → 요청 설정 → 기본값 순서로 적용
+        config = request.config or AgentConfig()
+
+        # 시스템 설정에서 값 로드 (요청에 명시되지 않은 경우만)
+        if request.config is None:
+            config.max_iterations = settings_service.get_value("agent", "max_iterations", config.max_iterations)
+            config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", config.timeout_seconds)
+            config.llm_model = settings_service.get_value("agent", "llm_model", config.llm_model)
+            config.llm_temperature = settings_service.get_value("agent", "llm_temperature", config.llm_temperature)
+            config.enable_memory = settings_service.get_value("agent", "enable_memory", config.enable_memory)
+            config.enable_streaming = settings_service.get_value("agent", "enable_streaming", config.enable_streaming)
+
+            # enabled_tools는 쉼표 구분 문자열로 저장되므로 리스트로 변환
+            tools_str = settings_service.get_value("agent", "enabled_tools", "query_database,search_documents,calculate")
+            if tools_str:
+                enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
+                # tools_whitelist로 설정 (None이 아닌 경우만 사용)
+                if enabled_tools:
+                    config.tools_whitelist = enabled_tools
+
+        logger.debug(f"[{request_id}] Agent 설정: max_iterations={config.max_iterations}, "
+                     f"timeout={config.timeout_seconds}s, memory={config.enable_memory}, "
+                     f"tools_whitelist={config.tools_whitelist}")
+
         # 입력 구성
         inputs = {
             "question": request.question,
             "session_id": request.session_id,
-            "config": request.config or AgentConfig(),
+            "config": config,
             "request_id": request_id
         }
 

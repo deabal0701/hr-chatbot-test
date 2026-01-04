@@ -45,6 +45,15 @@ class SettingsService:
             "default_chunk_size": ("1000", "int", "기본 청크 크기 (문자)", False),
             "default_overlap": ("100", "int", "기본 오버랩 크기 (문자)", False),
         },
+        "agent": {
+            "max_iterations": ("10", "int", "최대 반복 횟수 (1-20)", False),
+            "timeout_seconds": ("60", "int", "전체 타임아웃 (초, 10-300)", False),
+            "llm_model": ("gpt-4o", "string", "Agent용 LLM 모델", False),
+            "llm_temperature": ("0.0", "float", "Agent LLM 온도 (0.0-2.0)", False),
+            "enable_memory": ("true", "bool", "대화 메모리 활성화", False),
+            "enable_streaming": ("false", "bool", "스트리밍 응답 (확장)", False),
+            "enabled_tools": ("query_database,search_documents,calculate", "string", "사용 가능한 도구 (쉼표 구분)", False),
+        },
     }
 
     # 환경변수 매핑 (category.key -> env_settings attribute)
