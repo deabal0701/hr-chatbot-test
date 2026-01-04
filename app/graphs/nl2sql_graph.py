@@ -115,13 +115,8 @@ class NL2SQLGraph:
 - **개별 데이터 조회 시**: LIMIT 1000 사용 (대용량 방지)
 - 사용자가 "상위 5개만", "10개만 보여줘" 등 명시적으로 제한을 요청한 경우에만 해당 숫자를 LIMIT에 사용
 
-# 한국어 필드 매핑
-- "입사일" = hire_date
-- "직급" = position (사원, 대리, 과장, 차장, 부장)
-- "직무" = job_family (개발, 기획, 디자인, HR, 마케팅, 영업)
-- "부서" = department (department 테이블과 조인 필요)
-- "근무지" = work_location
-- "재직상태" = status (active, resigned, on_leave)
+# 필드 매핑 규칙 (데이터베이스 언어에 맞춤)
+- 사용자 질문의 키워드를 스키마 정의에 정의된 실제 컬럼명과 정확히 매칭하세요.
 """
 
         user_prompt = f"""질문: {question}

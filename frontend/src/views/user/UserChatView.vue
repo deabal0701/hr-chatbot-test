@@ -3,11 +3,20 @@
     <!-- 헤더 -->
     <header class="chat-header">
       <div class="header-left">
-        <h1 class="logo">RAG 자연어 검색</h1>
+        <div class="header-logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.7 8.5 8.5 0 0 1 5.3 1.9"></path>
+              <polyline points="16 5 12 9 8 5"></polyline>
+            </svg>
+          </div>
+          <h1 class="logo-text">InsightLink</h1>
+        </div>
       </div>
       <div class="header-right">
         <el-button text class="header-btn" @click="goToAdmin">
           <el-icon><Setting /></el-icon>
+          <span class="btn-text">Admin</span>
         </el-button>
       </div>
     </header>
@@ -18,12 +27,15 @@
         <!-- 환영 메시지 (대화 시작 전) -->
         <div v-if="messages.length === 0" class="welcome-section">
           <div class="welcome-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              <path d="M8 10h.01"></path>
+              <path d="M12 10h.01"></path>
+              <path d="M16 10h.01"></path>
             </svg>
           </div>
           <h2 class="welcome-title">무엇을 도와드릴까요?</h2>
-          <p class="welcome-subtitle">문서 기반 질문을 자유롭게 입력해 주세요</p>
+          <p class="welcome-subtitle">문서 기반 검색과 데이터 조회를 한 번에 해결하세요.</p>
 
           <!-- 예시 질문 -->
           <div class="example-queries">
@@ -33,6 +45,7 @@
               class="example-btn"
               @click="sendExample(example)"
             >
+              <el-icon class="btn-icon"><ChatLineRound /></el-icon>
               {{ example }}
             </button>
           </div>
@@ -48,12 +61,19 @@
 
           <!-- 로딩 인디케이터 -->
           <div v-if="isLoading" class="loading-indicator">
-            <div class="typing-dots">
-              <span></span>
-              <span></span>
-              <span></span>
+            <div class="assistant-avatar-small">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 8V4m0 0L9 7m3-3l3 3M9 15v4m0 0l-3-3m3 3l3-3M5 12H1m0 0l3-3m-3 3l3 3M23 12h-4m0 0l-3-3m3 3l3 3" />
+              </svg>
             </div>
-            <span class="loading-text">답변을 생성하고 있습니다...</span>
+            <div class="loading-content">
+              <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span class="loading-text">답변을 준비하고 있습니다...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -117,7 +137,7 @@
             ref="inputRef"
             v-model="inputText"
             class="chat-input"
-            placeholder="메시지를 입력하세요..."
+            placeholder="궁금한 내용을 입력하세요..."
             rows="1"
             @keydown.enter.exact.prevent="handleSend"
             @input="autoResize"
@@ -130,12 +150,15 @@
             :disabled="!inputText.trim() || isLoading"
             @click="handleSend"
           >
-            <el-icon><Promotion /></el-icon>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
           </button>
         </div>
 
         <p class="footer-note">
-          AI가 생성한 답변은 부정확할 수 있습니다. 중요한 정보는 담당자에게 확인하세요.
+          AI 비서가 생성한 답변은 참고용입니다. 정확한 정보는 관련 부서에 확인 바랍니다.
         </p>
       </div>
     </footer>
@@ -146,7 +169,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import { Setting, Operation, ArrowDown, Promotion, MagicStick, Document, DataLine, CoffeeCup } from '@element-plus/icons-vue'
+import { Setting, Operation, ArrowDown, Promotion, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 
 const router = useRouter()
@@ -237,21 +260,56 @@ watch(messages, async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 24px;
+  padding: 14px 24px;
   border-bottom: 1px solid #303030;
   background-color: #212121;
+  z-index: 10;
 
-  .logo {
-    font-size: 18px;
-    font-weight: 600;
-    color: #ececec;
-    margin: 0;
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      
+      svg {
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    .logo-text {
+      font-size: 19px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
   }
 
   .header-btn {
     color: #8e8e8e;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
     &:hover {
-      color: #ececec;
+      color: #ffffff;
+      background-color: transparent;
+    }
+
+    .btn-text {
+      margin-top: 1px;
     }
   }
 }
@@ -266,10 +324,10 @@ watch(messages, async () => {
 
 .chat-content {
   width: 100%;
-  max-width: 800px;
+  max-width: 1000px;
   height: 100%;
   overflow-y: auto;
-  padding: 0 24px;
+  padding: 0 32px;
 }
 
 // 환영 섹션
@@ -280,31 +338,36 @@ watch(messages, async () => {
   justify-content: center;
   height: 100%;
   text-align: center;
-  padding-bottom: 100px;
+  padding-bottom: 80px;
 
   .welcome-icon {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    background-color: #303030;
+    width: 84px;
+    height: 84px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 24px;
-    color: #10a37f;
+    margin-bottom: 28px;
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(16, 163, 127, 0.2);
+    transform: rotate(-5deg);
   }
 
   .welcome-title {
-    font-size: 32px;
-    font-weight: 600;
-    margin: 0 0 12px;
-    color: #ececec;
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    color: #ffffff;
+    letter-spacing: -0.02em;
   }
 
   .welcome-subtitle {
-    font-size: 16px;
-    color: #8e8e8e;
-    margin: 0 0 32px;
+    font-size: 17px;
+    color: #b4b4b4;
+    margin: 0 0 40px;
+    max-width: 480px;
+    line-height: 1.6;
   }
 }
 
@@ -312,30 +375,41 @@ watch(messages, async () => {
 .example-queries {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
-  max-width: 600px;
+  max-width: 720px;
 
   .example-btn {
-    padding: 12px 20px;
-    background-color: #303030;
+    padding: 14px 22px;
+    background-color: #2f2f2f;
     border: 1px solid #424242;
-    border-radius: 12px;
-    color: #ececec;
+    border-radius: 16px;
+    color: #e0e0e0;
     font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .btn-icon {
+      font-size: 16px;
+      color: #10a37f;
+    }
 
     &:hover {
-      background-color: #3d3d3d;
-      border-color: #525252;
+      background-color: #383838;
+      border-color: #10a37f;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
   }
 }
 
 // 메시지 컨테이너
 .messages-container {
-  padding: 24px 0;
+  padding: 40px 0;
   overflow-y: auto;
   height: 100%;
 }
@@ -343,19 +417,41 @@ watch(messages, async () => {
 // 로딩 인디케이터
 .loading-indicator {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 0;
-  color: #8e8e8e;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px 0;
+  
+  .assistant-avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background-color: #10a37f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  .loading-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
   .typing-dots {
     display: flex;
-    gap: 4px;
+    gap: 5px;
 
     span {
-      width: 8px;
-      height: 8px;
-      background-color: #8e8e8e;
+      width: 6px;
+      height: 6px;
+      background-color: #10a37f;
       border-radius: 50%;
       animation: typing 1.4s infinite ease-in-out both;
 
@@ -366,6 +462,8 @@ watch(messages, async () => {
 
   .loading-text {
     font-size: 14px;
+    color: #8e8e8e;
+    font-weight: 500;
   }
 }
 
@@ -382,26 +480,29 @@ watch(messages, async () => {
 
 // 푸터 (입력 영역)
 .chat-footer {
-  padding: 16px 24px 24px;
+  padding: 20px 32px 32px;
   background-color: #212121;
 }
 
 .input-container {
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 
 .input-wrapper {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  background-color: #303030;
-  border-radius: 24px;
+  gap: 12px;
+  padding: 14px 18px;
+  background-color: #2f2f2f;
+  border-radius: 20px;
   border: 1px solid #424242;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transition: border-color 0.2s, box-shadow 0.2s;
 
   &:focus-within {
     border-color: #525252;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   }
 }
 
@@ -409,19 +510,20 @@ watch(messages, async () => {
 .mode-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background-color: #424242;
+  gap: 8px;
+  padding: 10px 14px;
+  background-color: #3d3d3d;
   border: none;
-  border-radius: 8px;
-  color: #ececec;
+  border-radius: 12px;
+  color: #efefef;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: #525252;
+    background-color: #4a4a4a;
   }
 
   .arrow {
@@ -436,38 +538,42 @@ watch(messages, async () => {
   background: transparent;
   border: none;
   outline: none;
-  color: #ececec;
+  color: #ffffff;
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
   resize: none;
   max-height: 200px;
+  padding: 4px 0;
 
   &::placeholder {
-    color: #6e6e6e;
+    color: #7d7d7d;
   }
 }
 
 // 전송 버튼
 .send-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   border: none;
-  background-color: #424242;
-  color: #6e6e6e;
+  background-color: #3d3d3d;
+  color: #7d7d7d;
   cursor: not-allowed;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
 
   &.active {
-    background-color: #10a37f;
+    background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
     color: #fff;
     cursor: pointer;
+    box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3);
 
     &:hover {
-      background-color: #0d8a6c;
+      transform: scale(1.05);
+      box-shadow: 0 6px 16px rgba(16, 163, 127, 0.4);
     }
   }
 

@@ -17,22 +17,22 @@ logger = setup_logger(__name__)
 async def lifespan(app: FastAPI):
     """애플리케이션 시작/종료 이벤트"""
     # 시작
-    logger.info(f"HR Chatbot 시작: env={settings.app_env}")
+    logger.info(f"InsightLink 시작: env={settings.app_env}")
     db_manager.initialize()
     logger.info("데이터베이스 연결 풀 초기화 완료")
 
     yield
 
     # 종료
-    logger.info("HR Chatbot 종료 중...")
+    logger.info("InsightLink 종료 중...")
     db_manager.close()
     logger.info("데이터베이스 연결 풀 종료 완료")
 
 
 # FastAPI 앱 생성
 app = FastAPI(
-    title="HR Chatbot API",
-    description="AI 기반 HR 시스템 자연어 검색 API",
+    title="InsightLink API",
+    description="기업용 지식 베이스 기반 AI 어시스턴트 API",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -59,7 +59,7 @@ app.include_router(agent.router)  # AI Agent 라우터
 async def root():
     """루트 엔드포인트"""
     return {
-        "service": "HR Chatbot API",
+        "service": "InsightLink API",
         "version": "1.0.0",
         "status": "running",
         "environment": settings.app_env
@@ -95,7 +95,7 @@ async def api_info():
     return {
         "api_version": "v1",
         "features": {
-            "rag": "자연어 문서 검색",
+            "rag": "지식 베이스 문서 검색",
             "nl2sql": "자연어를 SQL로 변환하여 통계 조회",
             "auto": "자동 의도 분류",
             "agent": "AI Agent 기반 멀티스텝 검색 (ReAct 패턴)"

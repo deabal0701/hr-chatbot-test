@@ -9,10 +9,12 @@
 
     <!-- AI 응답 -->
     <div v-else class="message-row assistant">
-      <div class="avatar">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-        </svg>
+      <div class="avatar-container">
+        <div class="avatar assistant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 8V4m0 0L9 7m3-3l3 3M9 15v4m0 0l-3-3m3 3l3-3M5 12H1m0 0l3-3m-3 3l3 3M23 12h-4m0 0l-3-3m3 3l3 3" />
+          </svg>
+        </div>
       </div>
       <div class="message-content assistant-message">
         <div class="answer-text" v-html="formattedContent" />
@@ -20,26 +22,31 @@
         <!-- 소스 정보 -->
         <div v-if="message.sources && message.sources.length > 0" class="sources-section">
           <button class="sources-toggle" @click="showSources = !showSources">
-            <el-icon><Document /></el-icon>
-            <span>{{ message.sources.length }}개 출처</span>
+            <div class="toggle-left">
+              <el-icon><Document /></el-icon>
+              <span>{{ message.sources.length }}개의 출처 확인</span>
+            </div>
             <el-icon class="toggle-icon" :class="{ expanded: showSources }">
               <ArrowDown />
             </el-icon>
           </button>
 
-          <div v-show="showSources" class="sources-list">
-            <div
-              v-for="(source, index) in message.sources"
-              :key="index"
-              class="source-item"
-            >
-              <div class="source-header">
-                <span class="source-title">{{ source.title || `문서 ${index + 1}` }}</span>
-                <span class="source-score" v-if="source.score">
-                  {{ Math.round(source.score * 100) }}%
-                </span>
+          <div v-show="showSources" class="sources-list-container">
+            <div class="sources-list">
+              <div
+                v-for="(source, index) in message.sources"
+                :key="index"
+                class="source-card"
+              >
+                <div class="source-header">
+                  <span class="source-index">{{ index + 1 }}</span>
+                  <span class="source-title">{{ source.title || '관련 문서' }}</span>
+                  <span class="source-score" v-if="source.score">
+                    {{ Math.round(source.score * 100) }}% 일치
+                  </span>
+                </div>
+                <p class="source-text">{{ truncateText(source.content, 180) }}</p>
               </div>
-              <p class="source-content">{{ truncateText(source.content, 150) }}</p>
             </div>
           </div>
         </div>
@@ -47,14 +54,17 @@
         <!-- SQL 정보 (NL2SQL 모드) -->
         <div v-if="message.sql" class="sql-section">
           <button class="sql-toggle" @click="showSql = !showSql">
-            <el-icon><DataLine /></el-icon>
-            <span>SQL 쿼리</span>
+            <div class="toggle-left">
+              <el-icon><DataLine /></el-icon>
+              <span>데이터 조회 쿼리</span>
+            </div>
             <el-icon class="toggle-icon" :class="{ expanded: showSql }">
               <ArrowDown />
             </el-icon>
           </button>
 
           <div v-show="showSql" class="sql-content">
+            <div class="sql-header">PostgreSQL Query</div>
             <pre><code>{{ message.sql }}</code></pre>
           </div>
         </div>
@@ -62,57 +72,75 @@
         <!-- Agent 실행 단계 (Agent 모드) -->
         <div v-if="message.agentResult && message.agentResult.steps" class="agent-section">
           <button class="agent-toggle" @click="showAgentSteps = !showAgentSteps">
-            <el-icon><CoffeeCup /></el-icon>
-            <span>실행 단계 ({{ message.agentResult.totalIterations }}회 반복)</span>
+            <div class="toggle-left">
+              <el-icon><CoffeeCup /></el-icon>
+              <span>에이전트 사고 과정 ({{ message.agentResult.totalIterations }}단계)</span>
+            </div>
             <el-icon class="toggle-icon" :class="{ expanded: showAgentSteps }">
               <ArrowDown />
             </el-icon>
           </button>
 
-          <div v-show="showAgentSteps" class="agent-steps">
-            <div
-              v-for="(step, index) in message.agentResult.steps"
-              :key="index"
-              class="agent-step"
-            >
-              <div class="step-header">
-                <span class="step-number">{{ index + 1 }}</span>
-                <span class="step-tool" v-if="step.action">
-                  <el-icon>{{ getToolIcon(step.action) }}</el-icon>
-                  {{ getToolLabel(step.action) }}
-                </span>
-              </div>
-              <div class="step-content">
-                <div v-if="step.thought" class="step-thought">
-                  <strong>생각:</strong> {{ step.thought }}
+          <div v-show="showAgentSteps" class="agent-steps-container">
+            <div class="agent-steps">
+              <div
+                v-for="(step, index) in message.agentResult.steps"
+                :key="index"
+                class="agent-step-item"
+              >
+                <div class="step-marker">
+                  <div class="step-dot"></div>
+                  <div v-if="index < message.agentResult.steps.length - 1" class="step-line"></div>
                 </div>
-                <div v-if="step.action" class="step-action">
-                  <strong>동작:</strong> {{ step.action }}
-                </div>
-                <div v-if="step.observation" class="step-observation">
-                  <strong>결과:</strong> {{ truncateText(step.observation, 200) }}
+                <div class="step-body">
+                  <div class="step-header">
+                    <span class="step-tool" v-if="step.action">
+                      <el-icon>{{ getToolIcon(step.action) }}</el-icon>
+                      {{ getToolLabel(step.action) }}
+                    </span>
+                    <span class="step-name">단계 {{ index + 1 }}</span>
+                  </div>
+                  <div class="step-main">
+                    <div v-if="step.thought" class="step-thought">
+                      {{ step.thought }}
+                    </div>
+                    <div v-if="step.observation" class="step-observation">
+                      <div class="obs-label">결과값</div>
+                      <div class="obs-content">{{ truncateText(step.observation, 300) }}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Agent 메트릭 -->
-            <div class="agent-metrics">
-              <span v-if="message.agentResult.toolsUsed">
-                사용된 도구: {{ message.agentResult.toolsUsed.join(', ') }}
-              </span>
-              <span :class="message.agentResult.success ? 'success' : 'error'">
-                {{ message.agentResult.success ? '성공' : '실패' }}
-              </span>
+            <div class="agent-summary">
+              <div class="summary-item">
+                <span class="label">상태</span>
+                <span class="value" :class="message.agentResult.success ? 'success' : 'error'">
+                  {{ message.agentResult.success ? '해결됨' : '실패' }}
+                </span>
+              </div>
+              <div class="summary-item" v-if="message.agentResult.toolsUsed">
+                <span class="label">도구</span>
+                <span class="value">{{ message.agentResult.toolsUsed.join(', ') }}</span>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- 메타 정보 -->
-        <div class="message-meta">
-          <span class="mode-tag" v-if="message.mode">
-            {{ getModeLabel(message.mode) }}
-          </span>
-          <span class="timestamp">{{ formatTime(message.timestamp) }}</span>
+        <div class="message-footer">
+          <div class="meta-left">
+            <span class="mode-badge" v-if="message.mode">
+              {{ getModeLabel(message.mode) }}
+            </span>
+            <span class="timestamp">{{ formatTime(message.timestamp) }}</span>
+          </div>
+          <div class="meta-right">
+            <button class="action-btn" title="복사">
+              <el-icon><CopyDocument /></el-icon>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -121,7 +149,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Document, ArrowDown, DataLine, CoffeeCup } from '@element-plus/icons-vue'
+import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument } from '@element-plus/icons-vue'
 
 const props = defineProps({
   message: {
@@ -240,15 +268,22 @@ const formatTime = (timestamp) => {
 
 <style lang="scss" scoped>
 .chat-message {
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-row {
   display: flex;
-  gap: 12px;
+  gap: 20px;
+  width: 100%;
 
   &.user {
-    justify-content: flex-end;
+    flex-direction: row-reverse;
   }
 
   &.assistant {
@@ -257,303 +292,432 @@ const formatTime = (timestamp) => {
 }
 
 // 아바타
+.avatar-container {
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
 .avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: #10a37f;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  flex-shrink: 0;
+  
+  &.assistant {
+    background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
+    box-shadow: 0 4px 12px rgba(16, 163, 127, 0.2);
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
 }
 
 // 메시지 내용
 .message-content {
-  max-width: 85%;
+  flex: 1;
+  max-width: calc(100% - 100px);
 }
 
 // 사용자 메시지
 .user-message {
-  background-color: #303030;
-  padding: 12px 16px;
-  border-radius: 18px 18px 4px 18px;
-  color: #ececec;
-  font-size: 15px;
+  background-color: #2f2f2f;
+  padding: 12px 20px;
+  border-radius: 18px;
+  color: #ffffff;
+  font-size: 16px;
   line-height: 1.6;
+  width: fit-content;
+  margin-left: auto;
+  border: 1px solid #424242;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 // AI 메시지
 .assistant-message {
   color: #ececec;
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 16px;
+  line-height: 1.8;
+  padding-top: 6px;
 
   .answer-text {
+    word-break: break-word;
+
+    :deep(p) {
+      margin: 0 0 12px;
+      &:last-child { margin-bottom: 0; }
+    }
+
     :deep(pre) {
       background-color: #1a1a1a;
-      padding: 16px;
-      border-radius: 8px;
+      padding: 20px;
+      border-radius: 12px;
       overflow-x: auto;
-      margin: 12px 0;
+      margin: 16px 0;
+      border: 1px solid #333;
 
       code {
-        font-family: 'Consolas', 'Monaco', monospace;
+        font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
         font-size: 14px;
         color: #e6e6e6;
+        line-height: 1.5;
       }
     }
 
     :deep(code) {
-      background-color: #303030;
+      background-color: #383838;
       padding: 2px 6px;
-      border-radius: 4px;
-      font-family: 'Consolas', 'Monaco', monospace;
+      border-radius: 6px;
+      font-family: 'Fira Code', monospace;
       font-size: 14px;
+      color: #10a37f;
+      font-weight: 500;
     }
 
     :deep(strong) {
-      font-weight: 600;
-      color: #fff;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    :deep(ul), :deep(ol) {
+      margin: 12px 0;
+      padding-left: 24px;
+      li { margin-bottom: 8px; }
     }
   }
 }
 
-// 소스 섹션
-.sources-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #303030;
+// 공통 토글 섹션 (Sources, SQL, Agent)
+.sources-section, .sql-section, .agent-section {
+  margin-top: 24px;
+  border: 1px solid #383838;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #262626;
 }
 
-.sources-toggle,
-.sql-toggle {
+.sources-toggle, .sql-toggle, .agent-toggle {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  padding: 12px 16px;
   background: none;
   border: none;
-  color: #8e8e8e;
-  font-size: 13px;
+  color: #b4b4b4;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 0;
+  transition: all 0.2s;
 
   &:hover {
-    color: #ececec;
+    background-color: #2f2f2f;
+    color: #ffffff;
+  }
+
+  .toggle-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    
+    .el-icon {
+      font-size: 18px;
+      color: #10a37f;
+    }
   }
 
   .toggle-icon {
-    transition: transform 0.2s;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     &.expanded {
       transform: rotate(180deg);
     }
   }
 }
 
-.sources-list {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+// 소스 리스트
+.sources-list-container {
+  padding: 0 16px 16px;
+  background-color: #262626;
 }
 
-.source-item {
-  background-color: #303030;
-  border-radius: 8px;
-  padding: 12px;
+.sources-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.source-card {
+  flex: 1;
+  min-width: 260px;
+  background-color: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 14px;
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: #10a37f;
+  }
 
   .source-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    gap: 8px;
+    margin-bottom: 10px;
+
+    .source-index {
+      background-color: #333;
+      color: #8e8e8e;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .source-title {
+      font-weight: 600;
+      color: #e0e0e0;
+      font-size: 13px;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .source-score {
+      font-size: 11px;
+      color: #10a37f;
+      font-weight: 600;
+      background-color: rgba(16, 163, 127, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
   }
 
-  .source-title {
-    font-weight: 500;
-    color: #ececec;
+  .source-text {
     font-size: 13px;
-  }
-
-  .source-score {
-    font-size: 12px;
-    color: #10a37f;
-    background-color: rgba(16, 163, 127, 0.1);
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-
-  .source-content {
-    font-size: 13px;
-    color: #8e8e8e;
-    line-height: 1.5;
+    color: #9a9a9a;
+    line-height: 1.6;
     margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
 
 // SQL 섹션
-.sql-section {
-  margin-top: 12px;
-}
-
 .sql-content {
-  margin-top: 8px;
+  padding: 16px;
+  background-color: #1a1a1a;
+  border-top: 1px solid #333;
+
+  .sql-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    letter-spacing: 0.1em;
+  }
 
   pre {
-    background-color: #1a1a1a;
-    padding: 12px;
-    border-radius: 8px;
-    overflow-x: auto;
     margin: 0;
-
     code {
-      font-family: 'Consolas', 'Monaco', monospace;
+      font-family: 'Fira Code', monospace;
       font-size: 13px;
-      color: #e6e6e6;
+      color: #e0e0e0;
+      line-height: 1.5;
     }
   }
 }
 
 // Agent 섹션
-.agent-section {
-  margin-top: 12px;
-}
-
-.agent-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  border: none;
-  color: #8e8e8e;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0;
-
-  &:hover {
-    color: #ececec;
-  }
-
-  .toggle-icon {
-    transition: transform 0.2s;
-    &.expanded {
-      transform: rotate(180deg);
-    }
-  }
+.agent-steps-container {
+  padding: 20px 16px;
+  background-color: #1e1e1e;
+  border-top: 1px solid #333;
 }
 
 .agent-steps {
-  margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-.agent-step {
-  background-color: #2a2a2a;
-  border-left: 3px solid #10a37f;
-  border-radius: 8px;
-  padding: 12px;
+.agent-step-item {
+  display: flex;
+  gap: 16px;
 
-  .step-header {
+  .step-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 12px;
+
+    .step-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10a37f;
+      margin-top: 6px;
+    }
+
+    .step-line {
+      width: 2px;
+      flex: 1;
+      background-color: #333;
+      margin: 4px 0;
+    }
+  }
+
+  .step-body {
+    flex: 1;
+    padding-bottom: 24px;
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+
+      .step-tool {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #10a37f;
+        background-color: rgba(16, 163, 127, 0.1);
+        padding: 2px 8px;
+        border-radius: 6px;
+
+        .el-icon { font-size: 14px; }
+      }
+
+      .step-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: #666;
+      }
+    }
+
+    .step-main {
+      .step-thought {
+        font-size: 14px;
+        color: #e0e0e0;
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+
+      .step-observation {
+        background-color: #141414;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        padding: 12px;
+
+        .obs-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: #555;
+          margin-bottom: 6px;
+          text-transform: uppercase;
+        }
+
+        .obs-content {
+          font-size: 13px;
+          color: #888;
+          line-height: 1.5;
+        }
+      }
+    }
+  }
+}
+
+.agent-summary {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #333;
+  display: flex;
+  gap: 24px;
+
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .label {
+      font-size: 11px;
+      color: #666;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #b4b4b4;
+
+      &.success { color: #10a37f; }
+      &.error { color: #ff6b6b; }
+    }
+  }
+}
+
+// 메시지 푸터 (메타 정보)
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 12px;
+  
+  .meta-left {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-
-    .step-number {
-      background-color: #10a37f;
-      color: #fff;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .step-tool {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 13px;
-      color: #10a37f;
-      font-weight: 500;
-    }
+    gap: 12px;
   }
 
-  .step-content {
-    padding-left: 32px;
-    font-size: 13px;
-
-    > div {
-      margin-bottom: 6px;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      strong {
-        color: #ececec;
-        margin-right: 6px;
-      }
-    }
-
-    .step-thought {
-      color: #b8b8b8;
-    }
-
-    .step-action {
-      color: #10a37f;
-    }
-
-    .step-observation {
-      color: #8e8e8e;
-      background-color: #1a1a1a;
-      padding: 8px;
-      border-radius: 4px;
-      margin-top: 4px;
-    }
-  }
-}
-
-.agent-metrics {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #303030;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #8e8e8e;
-
-  .success {
-    color: #10a37f;
-    font-weight: 500;
-  }
-
-  .error {
-    color: #ff6b6b;
-    font-weight: 500;
-  }
-}
-
-// 메타 정보
-.message-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  font-size: 12px;
-  color: #6e6e6e;
-
-  .mode-tag {
-    background-color: #303030;
+  .mode-badge {
+    background-color: #333;
+    color: #999;
+    font-size: 11px;
+    font-weight: 700;
     padding: 2px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .timestamp {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .action-btn {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    padding: 4px;
     border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      color: #b4b4b4;
+      background-color: #333;
+    }
   }
 }
 </style>

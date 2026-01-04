@@ -66,14 +66,9 @@ class AgentState(TypedDict):
     start_time: float
 
 
-class HRAgentGraph:
+class InsightAgentGraph:
     """
-    HR Chatbot AI Agent (ReAct Pattern)
-
-    확장 포인트:
-    - _get_tools(): 동적 도구 로딩
-    - _get_system_prompt(): 컨텍스트별 프롬프트
-    - _should_continue(): 커스텀 종료 조건
+    Corporate AI Agent (ReAct Pattern)
     """
 
     def __init__(self):
@@ -83,7 +78,7 @@ class HRAgentGraph:
         # 그래프 빌드
         self.graph = self._build_graph()
 
-        logger.info(f"[HRAgentGraph] Initialized with {len(self.tools)} tools")
+        logger.info(f"[InsightAgentGraph] Initialized with {len(self.tools)} tools")
 
     def _get_tools(self) -> List:
         """
@@ -359,17 +354,12 @@ class HRAgentGraph:
     def _get_system_prompt(self, memory: AgentMemory = None) -> str:
         """
         시스템 프롬프트 생성
-
-        확장 포인트:
-        - 사용자별 커스터마이징
-        - 도메인별 전문화
-        - Few-shot 예제 추가
         """
-        base_prompt = """You are an AI assistant for HR system with access to multiple tools.
+        base_prompt = """You are an AI assistant for corporate knowledge base and database systems with access to multiple tools.
 
 **Available Tools:**
-1. query_database: Query employee database (for structured data like counts, statistics, employee info)
-2. search_documents: Search HR policy documents (for policies, regulations, guidelines)
+1. query_database: Query corporate database (for structured data like counts, statistics, records)
+2. search_documents: Search corporate documents (for policies, regulations, guidelines, FAQs)
 3. calculate: Perform mathematical calculations (for percentages, averages, etc.)
 
 **Instructions:**
@@ -387,32 +377,10 @@ class HRAgentGraph:
 - Final Answer: Provide comprehensive answer in Korean
 
 **Tool Selection Guidelines:**
-- Employee data/statistics → query_database
-- Policies/regulations → search_documents
+- Structured data/statistics → query_database
+- Documents/policies/regulations → search_documents
 - Calculations → calculate
 - Complex queries → combine multiple tools
-
-**Examples:**
-
-Example 1 (Simple query):
-User: "2024년 입사자는 몇 명인가?"
-Thought: "I need to query the database for employee count"
-Action: query_database("2024년 입사자 수")
-Observation: "27명 발견"
-Final Answer: "2024년 입사자는 총 27명입니다."
-
-Example 2 (Multi-step query):
-User: "2024년 입사자 중 재택근무 정책을 준수하는 사람은 몇 명이고 평균 급여는?"
-Thought: "I need: 1) 2024 hires, 2) Remote work policy, 3) Filter by policy, 4) Calculate average salary"
-Action: query_database("2024년 입사자")
-Observation: "27명 발견"
-Action: search_documents("재택근무 정책")
-Observation: "주 2회 이상 출근 필요"
-Action: query_database("2024년 입사자 중 주 2회 이상 출근자 및 급여")
-Observation: "15명, 급여 데이터: [5000, 5500, 5200, ...]"
-Action: calculate("평균 계산")
-Observation: "5400"
-Final Answer: "2024년 입사자는 총 27명이며, 이 중 재택근무 정책(주 2회 이상 출근)을 준수하는 사람은 15명입니다. 이들의 평균 급여는 5,400만원입니다."
 
 **Important:**
 - Do NOT make assumptions without tool use
@@ -604,4 +572,4 @@ Use this context to provide more relevant and personalized answers.
 
 
 # 싱글톤 인스턴스
-agent_graph = HRAgentGraph()
+agent_graph = InsightAgentGraph()

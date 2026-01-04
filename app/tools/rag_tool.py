@@ -38,32 +38,32 @@ class DocumentSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return """Search HR policy documents and regulations.
+        return """Search corporate documents and regulations.
 
 Use this tool when you need to:
-- Find HR policies (e.g., "remote work policy", "vacation policy")
+- Find company policies (e.g., "remote work policy", "travel policy")
 - Look up company regulations and guidelines
-- Access procedures and workflows (e.g., "performance review process")
+- Access procedures and workflows
 - Find FAQ or announcements
 - Get information about benefits, compliance, training, etc.
 
 DO NOT use this tool for:
-- Employee data or statistics (use query_database instead)
+- Data or statistics (use query_database instead)
 - Calculations (use calculate instead)
-- Real-time data queries (use query_database instead)
+- Real-time database queries (use query_database instead)
 
 Args:
     question: Natural language question about policies/regulations
     top_k: Number of documents to retrieve (default: 5, max: 20)
-    doc_type: Filter by document type (optional): policy, job_posting, faq, guide
+    doc_type: Filter by document type (optional): policy, guide, faq, notice
 
 Returns:
     Relevant document snippets with titles and metadata
 
 Examples:
     - "재택근무 정책이 뭐야?" → Returns remote work policy documents
-    - "연차는 며칠인가?" → Returns vacation policy
-    - "성과 평가 기준은?" → Returns performance review guidelines
+    - "법인카드 사용 규정" → Returns corporate card policy
+    - "보안 가이드라인은?" → Returns security guidelines
 """
 
     @property
@@ -85,8 +85,8 @@ Examples:
                 },
                 "doc_type": {
                     "type": "string",
-                    "description": "Filter by document type: policy, job_posting, faq, guide",
-                    "enum": ["policy", "job_posting", "faq", "guide"]
+                    "description": "Filter by document type: policy, guide, faq, notice",
+                    "enum": ["policy", "guide", "faq", "notice"]
                 }
             },
             "required": ["question"]
@@ -278,14 +278,14 @@ def search_documents(
     doc_type: Optional[str] = None
 ) -> str:
     """
-    Search HR policy documents and regulations.
+    Search corporate documents and regulations.
 
     Use this for policy, regulation, guideline, FAQ queries.
 
     Args:
-        question: Natural language question about policies
+        question: Natural language question about documents
         top_k: Number of documents to retrieve (default: 5)
-        doc_type: Filter by type (policy, job_posting, faq, guide)
+        doc_type: Filter by type (policy, guide, faq, notice)
 
     Returns:
         Relevant document snippets

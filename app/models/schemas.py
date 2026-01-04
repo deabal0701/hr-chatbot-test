@@ -120,7 +120,7 @@ class DocumentCreate(BaseModel):
 class DocumentCreateWithChunking(BaseModel):
     """문서 생성 (자동 청킹 지원)"""
     title: str = Field(..., min_length=1, max_length=500, description="문서 제목")
-    doc_type: str = Field(..., description="문서 유형 (policy, job_posting, faq, guide)")
+    doc_type: str = Field(..., description="문서 유형 (policy, guide, faq, notice)")
     content: str = Field(..., min_length=1, description="문서 내용")
     language: str = Field(default="ko", description="언어 (ko, en)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="메타데이터")
@@ -131,11 +131,11 @@ class DocumentCreateWithChunking(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "title": "2024년 인사규정",
+                "title": "2024년 보안 규정",
                 "doc_type": "policy",
                 "content": "제1조 목적... (긴 텍스트를 입력하세요)",
                 "language": "ko",
-                "metadata": {"year": 2024, "department": "HR"},
+                "metadata": {"year": 2024, "department": "Security"},
                 "auto_chunk": True,
                 "chunk_size": 1000,
                 "chunk_overlap": 100
@@ -265,7 +265,7 @@ class ChunkExecuteResponse(BaseModel):
 class DocumentSaveRequest(BaseModel):
     """문서 저장 요청 (임베딩 없이 저장)"""
     title: str = Field(..., min_length=1, max_length=500, description="문서 제목")
-    doc_type: str = Field(..., description="문서 유형 (policy, job_posting, faq, guide)")
+    doc_type: str = Field(..., description="문서 유형 (policy, guide, faq, notice)")
     content: str = Field(..., min_length=1, description="문서 내용")
     language: str = Field(default="ko", description="언어 (ko, en)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="메타데이터")
@@ -275,11 +275,11 @@ class DocumentSaveRequest(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "title": "2024년 인사규정",
-                "doc_type": "policy",
-                "content": "제1조 목적... (긴 텍스트)",
+                "title": "2024년 운영 가이드",
+                "doc_type": "guide",
+                "content": "본 가이드는 시스템 운영 절차를 설명합니다...",
                 "language": "ko",
-                "metadata": {"year": 2024, "department": "HR"},
+                "metadata": {"year": 2024, "department": "IT"},
                 "source_type": "ui_input"
             }
         }

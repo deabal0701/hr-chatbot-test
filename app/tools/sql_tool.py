@@ -41,14 +41,14 @@ class SQLQueryTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return """Query the HR database using natural language.
+        return """Query the database using natural language.
 
 Use this tool when you need to:
-- Get employee counts, statistics, aggregations (e.g., "How many employees in 2024?")
-- Find specific employee information (e.g., "List developers in Seoul")
-- Analyze hiring/resignation trends (e.g., "Monthly hiring trend for 2024")
-- Get department-wise data (e.g., "Average salary by department")
-- Query structured data from tables: employee, department, salary, etc.
+- Get counts, statistics, aggregations from structured tables
+- Find specific record information (e.g., "List records by criteria")
+- Analyze trends and patterns
+- Get category-wise or group-wise data
+- Query structured data from various database tables
 
 DO NOT use this tool for:
 - Policy questions (use search_documents instead)
@@ -56,15 +56,15 @@ DO NOT use this tool for:
 - Calculations only (use calculate instead)
 
 Args:
-    question: Natural language question about HR database
+    question: Natural language question about the database
 
 Returns:
     Query results formatted as natural language
 
 Examples:
-    - "2024년 입사자는 몇 명인가?" → Returns employee count
-    - "개발팀 직원 목록을 보여줘" → Returns list of developers
-    - "부서별 평균 급여는?" → Returns salary statistics by department
+    - "2024년 총 매출은?" → Returns total sales
+    - "서울 지역 고객 목록" → Returns list of customers in Seoul
+    - "카테고리별 평균 가격은?" → Returns price statistics by category
 """
 
     @property
@@ -75,7 +75,7 @@ Examples:
             "properties": {
                 "question": {
                     "type": "string",
-                    "description": "Natural language question about HR database"
+                    "description": "Natural language question about the database"
                 }
             },
             "required": ["question"]
@@ -227,13 +227,8 @@ Examples:
 - **GROUP BY 사용 시**: LIMIT 절 사용 금지
 - **개별 데이터 조회 시**: LIMIT 1000 사용
 
-# 한국어 필드 매핑
-- "입사일" = hire_date
-- "직급" = position
-- "직무" = job_family
-- "부서" = department
-- "근무지" = work_location
-- "재직상태" = status
+# 필드 매핑 규칙 (데이터베이스 언어에 맞춤)
+- 사용자 질문의 키워드를 스키마 정의에 정의된 실제 컬럼명과 정확히 매칭하세요.
 """
 
         user_prompt = f"""질문: {question}
@@ -296,12 +291,12 @@ SQL만 출력하세요 (설명 없이)."""
 @tool
 def query_database(question: str) -> str:
     """
-    Query the HR database using natural language.
+    Query the database using natural language.
 
-    Use this for structured data queries about employees, departments, salaries, etc.
+    Use this for structured data queries from database tables.
 
     Args:
-        question: Natural language question about HR database
+        question: Natural language question about the database
 
     Returns:
         Query results as formatted text

@@ -188,7 +188,7 @@ class SchemaLoaderService:
         """
         schema = self.load_schema_metadata()
 
-        description = "# HR 데이터베이스 스키마\n\n"
+        description = "# 데이터베이스 스키마\n\n"
 
         for table in schema['tables']:
             description += f"## 테이블: {table['name']}\n"
