@@ -65,6 +65,46 @@
           />
         </div>
       </div>
+
+      <!-- Agent 결과 -->
+      <div v-if="message.agentResult" class="agent-result">
+        <el-collapse>
+          <el-collapse-item title="실행 단계 보기" name="steps">
+            <div class="agent-summary">
+              <el-tag size="small" type="success">
+                총 {{ message.agentResult.totalIterations }}번 반복
+              </el-tag>
+              <el-tag size="small" type="info" v-if="message.agentResult.toolsUsed">
+                사용 도구: {{ message.agentResult.toolsUsed.join(', ') }}
+              </el-tag>
+              <el-tag size="small" :type="message.agentResult.success ? 'success' : 'danger'">
+                {{ message.agentResult.success ? '성공' : '실패' }}
+              </el-tag>
+            </div>
+            
+            <div v-if="message.agentResult.steps?.length > 0" class="steps-list">
+              <div
+                v-for="(step, index) in message.agentResult.steps"
+                :key="index"
+                class="step-item"
+              >
+                <div class="step-header">
+                  <span class="step-number">Step {{ step.step_number || (index + 1) }}</span>
+                  <el-tag size="small" type="primary">{{ step.action }}</el-tag>
+                </div>
+                <div class="step-content">
+                  <div v-if="step.thought" class="step-thought">
+                    <strong>💭 생각:</strong> {{ step.thought }}
+                  </div>
+                  <div v-if="step.observation" class="step-observation">
+                    <strong>👁️ 관찰:</strong> {{ step.observation }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
     </div>
 
     <!-- 타임스탬프 -->
@@ -75,7 +115,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import SourceCard from './SourceCard.vue'
 
@@ -86,12 +126,28 @@ const props = defineProps({
   }
 })
 
+// 디버깅: 메시지 내용 확인
+onMounted(() => {
+  if (props.message.role === 'assistant') {
+    console.log('[ChatMessage Mounted]', props.message)
+    console.log('[ChatMessage Content]', props.message.content)
+    console.log('[ChatMessage Content Type]', typeof props.message.content)
+    console.log('[ChatMessage Content Length]', props.message.content?.length)
+  }
+})
+
+watch(() => props.message.content, (newVal) => {
+  console.log('[ChatMessage Content Changed]', newVal)
+}, { immediate: true })
+
 const queryTypeTag = computed(() => {
   switch (props.message.queryType) {
     case 'rag':
       return { label: 'RAG', type: 'success' }
     case 'nl2sql':
       return { label: 'NL2SQL', type: 'warning' }
+    case 'agent':
+      return { label: 'Agent', type: 'primary' }
     default:
       return { label: 'Auto', type: 'info' }
   }
@@ -223,6 +279,69 @@ const formatTime = (timestamp) => {
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+}
+
+.agent-result {
+  margin-top: 12px;
+
+  .agent-summary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step-item {
+    padding: 12px;
+    background-color: var(--bg-color-page);
+    border-radius: 6px;
+    border: 1px solid var(--border-color-light);
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+
+      .step-number {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-primary);
+      }
+    }
+
+    .step-content {
+      font-size: 13px;
+      
+      > div {
+        margin-bottom: 6px;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      .step-thought {
+        color: var(--text-color-regular);
+        font-style: italic;
+      }
+
+      .step-observation {
+        color: var(--text-color-secondary);
+        padding: 8px;
+        background-color: var(--bg-color-code);
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+    }
   }
 }
 </style>

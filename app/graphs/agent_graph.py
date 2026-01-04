@@ -481,17 +481,29 @@ Use this context to provide more relevant and personalized answers.
             # 응답 구성
             steps = self._extract_steps(result["messages"])
             tools_used = self._extract_tools_used(result["messages"])
+            
+            # 최종 답변 추출 (마지막 AIMessage의 content)
+            final_answer = ""
+            if result.get("messages"):
+                for message in reversed(result["messages"]):
+                    if isinstance(message, AIMessage) and message.content:
+                        final_answer = message.content
+                        break
+            
+            # 디버깅: 최종 답변 확인
+            logger.info(f"[{request_id}] [EXTRACT] Final answer extracted: length={len(final_answer)}, preview={final_answer[:100] if final_answer else '(empty)'}")
 
             log_agent_step(request_id, "END", "COMPLETE", "Agent 실행 완료",
                           iterations=result["iteration_count"],
                           tools_count=len(tools_used),
-                          execution_time_ms=execution_time_ms)
+                          execution_time_ms=execution_time_ms,
+                          answer_length=len(final_answer))
 
             # 메모리 저장 (멀티턴 대화)
             if config.enable_memory and session_id:
                 memory = session_memory_store.get_memory(session_id)
                 memory.add_message("user", question)
-                memory.add_message("assistant", result["final_answer"])
+                memory.add_message("assistant", final_answer)
 
                 # 메트릭 기록
                 metrics = session_memory_store.get_metrics(session_id)
@@ -503,7 +515,7 @@ Use this context to provide more relevant and personalized answers.
                 )
 
             return AgentResponse(
-                answer=result["final_answer"],
+                answer=final_answer,  # ← 수정: 직접 추출한 답변 사용
                 steps=steps,
                 total_iterations=result["iteration_count"],
                 tools_used=tools_used,

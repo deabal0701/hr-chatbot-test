@@ -29,6 +29,9 @@ export const agentSearch = async ({ question, sessionId = null, config = {} }) =
       },
       verbose: config.verbose || false
     })
+    console.log('[Agent API Raw Response]', response)
+    console.log('[Agent API Data]', response.data)
+    console.log('[Agent API Answer Field]', response.data.answer)
     return response.data
   } catch (error) {
     console.error('Agent search error:', error)

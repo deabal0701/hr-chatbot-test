@@ -120,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Document, ArrowDown, DataLine, CoffeeCup } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -134,9 +134,37 @@ const showSources = ref(false)
 const showSql = ref(false)
 const showAgentSteps = ref(false)
 
+// 디버깅: 메시지 내용 확인
+onMounted(() => {
+  if (props.message.role === 'assistant') {
+    console.log('[UserChatMessage Mounted]', props.message)
+    console.log('[UserChatMessage Content]', props.message.content)
+    console.log('[UserChatMessage QueryType]', props.message.queryType)
+    console.log('[UserChatMessage AgentResult]', props.message.agentResult)
+  }
+})
+
+watch(() => props.message.content, (newVal) => {
+  console.log('[UserChatMessage Content Changed]', newVal)
+  console.log('[UserChatMessage Content Length]', newVal?.length)
+}, { immediate: true })
+
 // 마크다운 간단 처리
 const formattedContent = computed(() => {
-  if (!props.message.content) return ''
+  console.log('[UserChatMessage formattedContent] Computing...', props.message.content)
+  console.log('[UserChatMessage formattedContent] Content type:', typeof props.message.content)
+  console.log('[UserChatMessage formattedContent] Content length:', props.message.content?.length)
+  
+  if (!props.message.content) {
+    console.warn('[UserChatMessage formattedContent] Content is empty!')
+    return '<span style="color: #999;">내용이 없습니다.</span>'
+  }
+  
+  // 빈 문자열 체크
+  if (props.message.content.trim() === '') {
+    console.warn('[UserChatMessage formattedContent] Content is empty string!')
+    return '<span style="color: #999;">답변이 비어있습니다.</span>'
+  }
 
   let text = props.message.content
     // 코드 블록
@@ -149,7 +177,8 @@ const formattedContent = computed(() => {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     // 줄바꿈
     .replace(/\n/g, '<br>')
-
+  
+  console.log('[UserChatMessage formattedContent] Formatted text:', text.substring(0, 100))
   return text
 })
 

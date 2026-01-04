@@ -37,10 +37,13 @@ class SQLValidationError(Exception):
 class SQLExecutorService:
     """SQL 실행 서비스 (NL2SQL용)"""
 
-    # 허용된 테이블 목록
+    # 허용된 테이블 목록 (스키마 로더와 일치)
+    # 테스트 환경: employee, department만 허용
+    # 프로덕션: 모든 테이블 추가 또는 None으로 설정하여 제한 해제
     ALLOWED_TABLES = {
-        'employee', 'department', 'job_history',
-        'salary', 'performance_review', 'hr_docs'
+        'employee', 'department'
+        # 'job_history', 'salary', 'performance_review', 
+        # 'attendance', 'leave_request', 'hr_docs'
     }
 
     # 허용되지 않는 키워드 (DDL/DML)
@@ -119,11 +122,70 @@ class SQLExecutorService:
         return True, None
 
     def _extract_table_names(self, sql: str) -> List[str]:
-        """SQL에서 테이블 이름 추출 (간단한 버전)"""
-        # FROM, JOIN 뒤의 테이블 이름 추출
-        pattern = r'\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)'
-        matches = re.findall(pattern, sql, re.IGNORECASE)
-        return matches
+        """
+        SQL에서 테이블 이름 추출
+        
+        sqlparse를 사용하여 정확하게 추출
+        """
+        table_names = set()
+        
+        try:
+            parsed = sqlparse.parse(sql)
+            if not parsed:
+                return []
+            
+            stmt = parsed[0]
+            
+            # Token을 순회하며 FROM/JOIN 절의 테이블만 추출
+            from_seen = False
+            join_seen = False
+            parenthesis_depth = 0  # 괄호 깊이 추적
+            
+            for token in stmt.flatten():
+                # 괄호 깊이 추적 (함수 내부 FROM 무시용)
+                if token.value == '(':
+                    parenthesis_depth += 1
+                    continue
+                elif token.value == ')':
+                    parenthesis_depth -= 1
+                    continue
+                
+                # 괄호 안(함수 내부)에서는 FROM을 테이블 구문으로 간주하지 않음
+                if parenthesis_depth > 0:
+                    continue
+                
+                # FROM 또는 JOIN 키워드 감지 (괄호 밖에서만)
+                if token.ttype is sqlparse.tokens.Keyword and token.value.upper() in ('FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN'):
+                    from_seen = True
+                    join_seen = True
+                    continue
+                
+                # FROM/JOIN 다음의 식별자(테이블명) 추출
+                if (from_seen or join_seen) and token.ttype in (sqlparse.tokens.Name, None):
+                    value = token.value.strip()
+                    # 괄호나 쉼표가 아닌 경우만 (서브쿼리 제외)
+                    if value and value not in ('(', ')', ',', 'ON', 'AS') and not value.upper() in ('WHERE', 'GROUP', 'ORDER', 'LIMIT', 'HAVING', 'SELECT'):
+                        # 괄호가 포함되지 않은 경우만 (함수 호출 제외)
+                        if '(' not in value:
+                            table_names.add(value.lower())
+                            from_seen = False
+                            join_seen = False
+                
+                # WHERE, GROUP BY 등을 만나면 리셋
+                if token.ttype is sqlparse.tokens.Keyword and token.value.upper() in ('WHERE', 'GROUP', 'ORDER', 'LIMIT', 'HAVING'):
+                    from_seen = False
+                    join_seen = False
+            
+            return list(table_names)
+            
+        except Exception as e:
+            logger.warning(f"테이블 추출 실패, 간단한 정규식 사용: {e}")
+            # Fallback: 간단한 정규식 (함수 내부 제외)
+            # FROM/JOIN 뒤의 단어를 추출하되, 괄호 안은 제외
+            sql_no_parens = re.sub(r'\([^)]*\)', '', sql)  # 괄호 내부 제거
+            pattern = r'\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)'
+            matches = re.findall(pattern, sql_no_parens, re.IGNORECASE)
+            return [m.lower() for m in matches]
 
     def _add_limit_if_missing(self, sql: str) -> str:
         """LIMIT 절이 없으면 추가"""

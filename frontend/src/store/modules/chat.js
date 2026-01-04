@@ -20,11 +20,14 @@ export default {
 
   mutations: {
     ADD_MESSAGE(state, message) {
-      state.messages.push({
+      const newMessage = {
         id: Date.now().toString(),
         timestamp: new Date(),
         ...message
-      })
+      }
+      console.log('[ADD_MESSAGE]', newMessage)
+      console.log('[Message Content]', newMessage.content)
+      state.messages.push(newMessage)
     },
     UPDATE_LAST_MESSAGE(state, updates) {
       if (state.messages.length > 0) {
@@ -92,19 +95,24 @@ export default {
             config: state.agentConfig
           })
 
+          // 디버깅: Agent 응답 구조 확인
+          console.log('[Agent Response]', response)
+          console.log('[Agent Answer]', response.answer)
+          console.log('[Agent Steps]', response.steps)
+
           // Agent 응답 메시지 추가
           commit('ADD_MESSAGE', {
             role: 'assistant',
-            content: response.answer,
+            content: response.answer || '답변을 생성하지 못했습니다.',
             queryType: 'agent',
             agentResult: {
-              steps: response.steps,
-              totalIterations: response.total_iterations,
-              toolsUsed: response.tools_used,
+              steps: response.steps || [],
+              totalIterations: response.total_iterations || 0,
+              toolsUsed: response.tools_used || [],
               success: response.success,
               sessionId: response.session_id
             },
-            metadata: response.metadata
+            metadata: response.metadata || {}
           })
         } else {
           // 기존 모드 (auto/rag/nl2sql)
