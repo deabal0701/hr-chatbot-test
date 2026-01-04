@@ -9,6 +9,11 @@ logger = setup_logger(__name__)
 class SchemaLoaderService:
     """데이터베이스 스키마 메타데이터 로더"""
 
+    # 테스트용: LLM에 전달할 테이블 제한 (None이면 전체 테이블 사용)
+    # 최소한의 스키마만 LLM에 전달하여 토큰 사용량 및 처리 시간 감소
+    # 프로덕션에서는 None으로 설정하거나 필요한 테이블만 지정
+    ALLOWED_TABLES = ['employee', 'department']
+
     def __init__(self):
         self._schema_cache: Dict[str, Any] = {}
 
@@ -47,7 +52,7 @@ class SchemaLoaderService:
         return schema
 
     def _get_tables(self) -> List[str]:
-        """public 스키마의 테이블 목록 조회"""
+        """public 스키마의 테이블 목록 조회 (ALLOWED_TABLES로 필터링)"""
         with db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT table_name
@@ -56,7 +61,15 @@ class SchemaLoaderService:
                   AND table_type = 'BASE TABLE'
                 ORDER BY table_name
             """)
-            return [row['table_name'] for row in cur.fetchall()]
+            all_tables = [row['table_name'] for row in cur.fetchall()]
+            
+            # ALLOWED_TABLES가 설정되어 있으면 필터링
+            if self.ALLOWED_TABLES:
+                filtered_tables = [t for t in all_tables if t in self.ALLOWED_TABLES]
+                logger.info(f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 (허용: {self.ALLOWED_TABLES})")
+                return filtered_tables
+            
+            return all_tables
 
     def _get_columns(self, table_name: str) -> List[Dict[str, Any]]:
         """테이블의 컬럼 정보 조회"""
