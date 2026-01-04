@@ -59,6 +59,54 @@
           </div>
         </div>
 
+        <!-- Agent 실행 단계 (Agent 모드) -->
+        <div v-if="message.agentResult && message.agentResult.steps" class="agent-section">
+          <button class="agent-toggle" @click="showAgentSteps = !showAgentSteps">
+            <el-icon><CoffeeCup /></el-icon>
+            <span>실행 단계 ({{ message.agentResult.totalIterations }}회 반복)</span>
+            <el-icon class="toggle-icon" :class="{ expanded: showAgentSteps }">
+              <ArrowDown />
+            </el-icon>
+          </button>
+
+          <div v-show="showAgentSteps" class="agent-steps">
+            <div
+              v-for="(step, index) in message.agentResult.steps"
+              :key="index"
+              class="agent-step"
+            >
+              <div class="step-header">
+                <span class="step-number">{{ index + 1 }}</span>
+                <span class="step-tool" v-if="step.tool">
+                  <el-icon>{{ getToolIcon(step.tool) }}</el-icon>
+                  {{ getToolLabel(step.tool) }}
+                </span>
+              </div>
+              <div class="step-content">
+                <div v-if="step.thought" class="step-thought">
+                  <strong>생각:</strong> {{ step.thought }}
+                </div>
+                <div v-if="step.action" class="step-action">
+                  <strong>동작:</strong> {{ step.action }}
+                </div>
+                <div v-if="step.observation" class="step-observation">
+                  <strong>결과:</strong> {{ truncateText(step.observation, 200) }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Agent 메트릭 -->
+            <div class="agent-metrics">
+              <span v-if="message.agentResult.toolsUsed">
+                사용된 도구: {{ message.agentResult.toolsUsed.join(', ') }}
+              </span>
+              <span :class="message.agentResult.success ? 'success' : 'error'">
+                {{ message.agentResult.success ? '성공' : '실패' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <!-- 메타 정보 -->
         <div class="message-meta">
           <span class="mode-tag" v-if="message.mode">
@@ -73,7 +121,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Document, ArrowDown, DataLine } from '@element-plus/icons-vue'
+import { Document, ArrowDown, DataLine, CoffeeCup } from '@element-plus/icons-vue'
 
 const props = defineProps({
   message: {
@@ -84,6 +132,7 @@ const props = defineProps({
 
 const showSources = ref(false)
 const showSql = ref(false)
+const showAgentSteps = ref(false)
 
 // 마크다운 간단 처리
 const formattedContent = computed(() => {
@@ -113,9 +162,30 @@ const getModeLabel = (mode) => {
   const labels = {
     auto: 'Auto',
     rag: 'RAG',
-    nl2sql: 'NL2SQL'
+    nl2sql: 'NL2SQL',
+    agent: 'Agent'
   }
   return labels[mode] || mode
+}
+
+const getToolLabel = (toolName) => {
+  const labels = {
+    query_database: 'DB 조회',
+    search_documents: '문서 검색',
+    calculate: '계산'
+  }
+  return labels[toolName] || toolName
+}
+
+const getToolIcon = (toolName) => {
+  // Element Plus 아이콘 컴포넌트는 템플릿에서 직접 사용해야 하므로
+  // 여기서는 아이콘 이름만 반환
+  const icons = {
+    query_database: 'DataLine',
+    search_documents: 'Document',
+    calculate: 'Calculator'
+  }
+  return icons[toolName] || 'Tools'
 }
 
 const formatTime = (timestamp) => {
@@ -302,6 +372,132 @@ const formatTime = (timestamp) => {
       font-size: 13px;
       color: #e6e6e6;
     }
+  }
+}
+
+// Agent 섹션
+.agent-section {
+  margin-top: 12px;
+}
+
+.agent-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: #8e8e8e;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    color: #ececec;
+  }
+
+  .toggle-icon {
+    transition: transform 0.2s;
+    &.expanded {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+.agent-steps {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-step {
+  background-color: #2a2a2a;
+  border-left: 3px solid #10a37f;
+  border-radius: 8px;
+  padding: 12px;
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .step-number {
+      background-color: #10a37f;
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .step-tool {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      color: #10a37f;
+      font-weight: 500;
+    }
+  }
+
+  .step-content {
+    padding-left: 32px;
+    font-size: 13px;
+
+    > div {
+      margin-bottom: 6px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      strong {
+        color: #ececec;
+        margin-right: 6px;
+      }
+    }
+
+    .step-thought {
+      color: #b8b8b8;
+    }
+
+    .step-action {
+      color: #10a37f;
+    }
+
+    .step-observation {
+      color: #8e8e8e;
+      background-color: #1a1a1a;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+  }
+}
+
+.agent-metrics {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #303030;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #8e8e8e;
+
+  .success {
+    color: #10a37f;
+    font-weight: 500;
+  }
+
+  .error {
+    color: #ff6b6b;
+    font-weight: 500;
   }
 }
 

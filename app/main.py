@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import documents, search
+from app.api.routes import documents, search, agent
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.utils.database import db_manager
@@ -51,6 +51,7 @@ app.add_middleware(
 app.include_router(search.router)
 app.include_router(documents.router)
 app.include_router(settings_router.router)
+app.include_router(agent.router)  # AI Agent 라우터
 
 
 # 기본 엔드포인트
@@ -96,7 +97,8 @@ async def api_info():
         "features": {
             "rag": "자연어 문서 검색",
             "nl2sql": "자연어를 SQL로 변환하여 통계 조회",
-            "auto": "자동 의도 분류"
+            "auto": "자동 의도 분류",
+            "agent": "AI Agent 기반 멀티스텝 검색 (ReAct 패턴)"
         },
         "models": {
             "llm": settings.llm_model,
@@ -104,6 +106,7 @@ async def api_info():
         },
         "endpoints": {
             "search": "/api/v1/search, /api/v1/rag, /api/v1/nl2sql",
+            "agent": "/api/v1/agent/search (멀티스텝, 멀티턴 대화)",
             "admin_documents": "/api/admin/v1/documents",
             "admin_settings": "/api/admin/v1/settings"
         }

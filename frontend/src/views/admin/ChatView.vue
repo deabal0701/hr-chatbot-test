@@ -56,6 +56,7 @@
           <el-radio-button value="auto">Auto</el-radio-button>
           <el-radio-button value="rag">RAG</el-radio-button>
           <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
+          <el-radio-button value="agent">Agent</el-radio-button>
         </el-radio-group>
         <p class="mode-description">
           <template v-if="searchMode === 'auto'">
@@ -64,8 +65,11 @@
           <template v-else-if="searchMode === 'rag'">
             문서 기반 검색 (정책, 가이드, 규정 등)
           </template>
-          <template v-else>
+          <template v-else-if="searchMode === 'nl2sql'">
             데이터베이스 조회 (통계, 수치 데이터 등)
+          </template>
+          <template v-else-if="searchMode === 'agent'">
+            복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)
           </template>
         </p>
       </div>

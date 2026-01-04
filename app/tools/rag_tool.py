@@ -1,0 +1,303 @@
+"""
+문서 검색 도구 (RAG)
+
+기능:
+- 벡터 검색으로 관련 문서 찾기
+- 하이브리드 검색 지원 (확장)
+- 결과 리랭킹 (확장)
+
+확장성:
+- 하이브리드 검색: 키워드 + 벡터
+- 리랭킹: Cross-encoder 사용
+- 문서 필터링: 메타데이터 기반
+"""
+
+from typing import Dict, Any, List, Optional
+from langchain_core.tools import tool
+
+from app.tools.base import BaseTool, ToolResult
+from app.services.vector_store import vector_store
+from app.services.settings_service import settings_service
+from app.models.schemas import SearchFilters
+from app.config import settings
+from app.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+class DocumentSearchTool(BaseTool):
+    """문서 검색 도구"""
+
+    def __init__(self):
+        super().__init__()
+        self._search_cache: Dict[str, Any] = {}
+
+    @property
+    def name(self) -> str:
+        return "search_documents"
+
+    @property
+    def description(self) -> str:
+        return """Search HR policy documents and regulations.
+
+Use this tool when you need to:
+- Find HR policies (e.g., "remote work policy", "vacation policy")
+- Look up company regulations and guidelines
+- Access procedures and workflows (e.g., "performance review process")
+- Find FAQ or announcements
+- Get information about benefits, compliance, training, etc.
+
+DO NOT use this tool for:
+- Employee data or statistics (use query_database instead)
+- Calculations (use calculate instead)
+- Real-time data queries (use query_database instead)
+
+Args:
+    question: Natural language question about policies/regulations
+    top_k: Number of documents to retrieve (default: 5, max: 20)
+    doc_type: Filter by document type (optional): policy, job_posting, faq, guide
+
+Returns:
+    Relevant document snippets with titles and metadata
+
+Examples:
+    - "재택근무 정책이 뭐야?" → Returns remote work policy documents
+    - "연차는 며칠인가?" → Returns vacation policy
+    - "성과 평가 기준은?" → Returns performance review guidelines
+"""
+
+    @property
+    def parameters_schema(self) -> Dict[str, Any]:
+        """파라미터 스키마"""
+        return {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "Natural language question about policies/regulations"
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of documents to retrieve (default: 5, max: 20)",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20
+                },
+                "doc_type": {
+                    "type": "string",
+                    "description": "Filter by document type: policy, job_posting, faq, guide",
+                    "enum": ["policy", "job_posting", "faq", "guide"]
+                }
+            },
+            "required": ["question"]
+        }
+
+    def before_execute(self, **kwargs) -> Dict[str, Any]:
+        """
+        전처리: 캐싱 체크, 파라미터 정규화
+
+        확장 포인트:
+        - 쿼리 확장 (동의어, 관련어)
+        - 쿼리 재작성 (더 나은 검색 결과)
+        """
+        question = kwargs.get("question", "")
+        top_k = kwargs.get("top_k", 5)
+
+        # top_k 제한
+        if top_k > 20:
+            logger.warning(f"[{self.name}] top_k {top_k} exceeds max, setting to 20")
+            kwargs["top_k"] = 20
+
+        # 캐시 체크
+        cache_key = f"{question.lower().strip()}:{top_k}"
+        if cache_key in self._search_cache:
+            logger.info(f"[{self.name}] Cache hit: {cache_key[:50]}")
+            kwargs["_cached_result"] = self._search_cache[cache_key]
+
+        return kwargs
+
+    def after_execute(self, result: ToolResult) -> ToolResult:
+        """
+        후처리: 캐싱 저장
+
+        확장 포인트:
+        - 결과 리랭킹
+        - 다양성 증진 (MMR)
+        """
+        # 성공한 결과만 캐싱
+        if result.success and result.data:
+            question = result.metadata.get("original_question", "")
+            top_k = result.metadata.get("top_k", 5)
+            cache_key = f"{question.lower().strip()}:{top_k}"
+            self._search_cache[cache_key] = result.data
+
+            # 캐시 크기 제한
+            if len(self._search_cache) > 50:
+                oldest_key = next(iter(self._search_cache))
+                del self._search_cache[oldest_key]
+
+        return result
+
+    def _execute(
+        self,
+        question: str,
+        top_k: int = 5,
+        doc_type: Optional[str] = None,
+        _cached_result: Any = None,
+        **kwargs
+    ) -> ToolResult:
+        """실제 실행 로직"""
+
+        # 캐시된 결과 반환
+        if _cached_result is not None:
+            return ToolResult(
+                success=True,
+                data=_cached_result,
+                metadata={
+                    "original_question": question,
+                    "top_k": top_k,
+                    "cached": True
+                }
+            )
+
+        try:
+            # RAG 설정 가져오기
+            similarity_threshold = settings_service.get_value(
+                "rag",
+                "similarity_threshold",
+                settings.rag_similarity_threshold
+            )
+
+            # 필터 구성
+            filters = None
+            if doc_type:
+                filters = SearchFilters(doc_type=doc_type)
+
+            # 벡터 검색 (기존 vector_store 재사용)
+            documents = vector_store.search_similar_documents(
+                query=question,
+                top_k=top_k,
+                filters=filters,
+                similarity_threshold=similarity_threshold
+            )
+
+            if not documents:
+                return ToolResult(
+                    success=True,
+                    data="관련 문서를 찾을 수 없습니다. 질문을 다르게 표현해보세요.",
+                    metadata={
+                        "original_question": question,
+                        "top_k": top_k,
+                        "found_count": 0
+                    }
+                )
+
+            # 결과 포맷팅
+            formatted_result = self._format_documents(documents)
+
+            return ToolResult(
+                success=True,
+                data=formatted_result,
+                metadata={
+                    "original_question": question,
+                    "top_k": top_k,
+                    "found_count": len(documents),
+                    "doc_types": list(set(doc.doc_type for doc in documents)),
+                    "cached": False
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Document search failed: {e}", exc_info=True)
+            return ToolResult(
+                success=False,
+                error=f"Document search failed: {str(e)}",
+                metadata={"original_question": question}
+            )
+
+    def _format_documents(self, documents: List) -> str:
+        """
+        문서 결과 포맷팅
+
+        확장 포인트:
+        - 마크다운 포맷
+        - JSON 포맷
+        - 하이라이트 추가
+        """
+        formatted = f"총 {len(documents)}개의 관련 문서를 찾았습니다:\n\n"
+
+        for i, doc in enumerate(documents, 1):
+            similarity = doc.similarity_score if doc.similarity_score is not None else 0.0
+
+            formatted += f"[문서 {i}]\n"
+            formatted += f"제목: {doc.title}\n"
+            formatted += f"유형: {doc.doc_type}\n"
+            formatted += f"관련도: {similarity:.2f}\n"
+            formatted += f"내용: {doc.content_snippet[:300]}"
+
+            if len(doc.content_snippet) > 300:
+                formatted += "..."
+
+            formatted += "\n\n"
+
+        return formatted
+
+    def _hybrid_search(
+        self,
+        question: str,
+        top_k: int,
+        filters: Optional[SearchFilters]
+    ) -> List:
+        """
+        하이브리드 검색 (확장 기능)
+
+        벡터 검색 + 키워드 검색 결합
+        TODO: 추후 구현
+        """
+        # 1. 벡터 검색
+        vector_results = vector_store.search_similar_documents(
+            query=question,
+            top_k=top_k * 2,  # 더 많이 가져와서 리랭킹
+            filters=filters
+        )
+
+        # 2. 키워드 검색 (TODO: 구현)
+        # keyword_results = keyword_search(question, top_k * 2)
+
+        # 3. 결과 합치기 및 리랭킹 (TODO: Cross-encoder)
+        # combined = rerank(vector_results, keyword_results)
+
+        return vector_results[:top_k]
+
+
+# LangChain tool 래퍼
+@tool
+def search_documents(
+    question: str,
+    top_k: int = 5,
+    doc_type: Optional[str] = None
+) -> str:
+    """
+    Search HR policy documents and regulations.
+
+    Use this for policy, regulation, guideline, FAQ queries.
+
+    Args:
+        question: Natural language question about policies
+        top_k: Number of documents to retrieve (default: 5)
+        doc_type: Filter by type (policy, job_posting, faq, guide)
+
+    Returns:
+        Relevant document snippets
+    """
+    tool_instance = DocumentSearchTool()
+    result = tool_instance.execute(
+        question=question,
+        top_k=top_k,
+        doc_type=doc_type
+    )
+
+    if result.success:
+        return str(result.data)
+    else:
+        return f"Error: {result.error}"

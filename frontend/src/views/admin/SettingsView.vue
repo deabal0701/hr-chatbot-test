@@ -221,6 +221,50 @@
           </div>
         </el-tab-pane>
 
+        <!-- Agent 설정 -->
+        <el-tab-pane label="Agent" name="agent">
+          <div class="settings-section">
+            <h3>AI Agent 설정</h3>
+            <el-form label-position="top" class="settings-form">
+              <el-form-item label="최대 반복 횟수">
+                <el-input-number
+                  v-model="formData.agent.max_iterations"
+                  :min="3"
+                  :max="30"
+                  style="width: 100%"
+                />
+                <div class="form-help">Agent가 문제를 해결하기 위해 시도할 최대 반복 횟수</div>
+              </el-form-item>
+
+              <el-form-item label="실행 타임아웃 (초)">
+                <el-input-number
+                  v-model="formData.agent.timeout_seconds"
+                  :min="30"
+                  :max="300"
+                  :step="10"
+                  style="width: 100%"
+                />
+                <div class="form-help">Agent 전체 실행의 최대 대기 시간</div>
+              </el-form-item>
+
+              <el-form-item label="메모리 기능">
+                <el-switch v-model="formData.agent.enable_memory" />
+                <span class="switch-label">{{ formData.agent.enable_memory ? '활성화' : '비활성화' }}</span>
+                <div class="form-help">멀티턴 대화를 위한 세션 메모리 사용</div>
+              </el-form-item>
+
+              <el-form-item label="사용 가능한 도구">
+                <el-checkbox-group v-model="formData.agent.enabled_tools">
+                  <el-checkbox label="query_database">DB 조회 (NL2SQL)</el-checkbox>
+                  <el-checkbox label="search_documents">문서 검색 (RAG)</el-checkbox>
+                  <el-checkbox label="calculate">계산기</el-checkbox>
+                </el-checkbox-group>
+                <div class="form-help">Agent가 사용할 수 있는 도구를 선택하세요</div>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
+
         <!-- 청킹 설정 -->
         <el-tab-pane label="청킹" name="chunking">
           <div class="settings-section">
@@ -303,6 +347,12 @@ const formData = reactive({
     timeout_seconds: 30,
     max_rows: 1000,
     read_only_mode: true
+  },
+  agent: {
+    max_iterations: 10,
+    timeout_seconds: 60,
+    enable_memory: true,
+    enabled_tools: ['query_database', 'search_documents', 'calculate']
   },
   chunking: {
     default_chunk_size: 1000,

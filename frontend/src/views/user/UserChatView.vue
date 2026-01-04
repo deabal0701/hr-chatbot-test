@@ -99,6 +99,15 @@
                     <span class="mode-desc">통계, 수치 등 데이터베이스 조회</span>
                   </div>
                 </el-dropdown-item>
+                <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
+                  <div class="mode-option">
+                    <span class="mode-name">
+                      <el-icon class="mode-icon"><CoffeeCup /></el-icon>
+                      Agent
+                    </span>
+                    <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
+                  </div>
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -137,7 +146,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import { Setting, Operation, ArrowDown, Promotion, MagicStick, Document, DataLine } from '@element-plus/icons-vue'
+import { Setting, Operation, ArrowDown, Promotion, MagicStick, Document, DataLine, CoffeeCup } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 
 const router = useRouter()
@@ -155,7 +164,8 @@ const modeLabel = computed(() => {
   const labels = {
     auto: 'Auto',
     rag: 'RAG',
-    nl2sql: 'NL2SQL'
+    nl2sql: 'NL2SQL',
+    agent: 'Agent'
   }
   return labels[searchMode.value] || 'Auto'
 })
