@@ -77,9 +77,9 @@
             >
               <div class="step-header">
                 <span class="step-number">{{ index + 1 }}</span>
-                <span class="step-tool" v-if="step.tool">
-                  <el-icon>{{ getToolIcon(step.tool) }}</el-icon>
-                  {{ getToolLabel(step.tool) }}
+                <span class="step-tool" v-if="step.action">
+                  <el-icon>{{ getToolIcon(step.action) }}</el-icon>
+                  {{ getToolLabel(step.action) }}
                 </span>
               </div>
               <div class="step-content">

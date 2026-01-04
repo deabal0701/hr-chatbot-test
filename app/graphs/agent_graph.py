@@ -14,7 +14,7 @@ AI Agent Graph (ReAct 패턴)
 - 협업: Multi-Agent 협업 (확장)
 """
 
-from typing import Literal, Dict, Any, List, Sequence
+from typing import Literal, Dict, Any, List, Sequence, Annotated
 import time
 import uuid
 from datetime import datetime
@@ -27,7 +27,7 @@ from langchain_core.messages import (
     ToolMessage
 )
 from langchain_openai import ChatOpenAI
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 
 from app.models.agent_schemas import (
@@ -54,7 +54,7 @@ from typing import TypedDict
 
 class AgentState(TypedDict):
     """Agent의 내부 상태"""
-    messages: Sequence[BaseMessage]
+    messages: Annotated[Sequence[BaseMessage], add_messages]
     question: str
     session_id: str
     config: AgentConfig
@@ -206,8 +206,21 @@ class HRAgentGraph:
         # 2. LLM 호출
         llm = self._get_llm(config)
 
+        # 디버깅: LLM 입력 메시지 로그
+        logger.debug(f"[{request_id}] [AGENT-{iteration}] [LLM-INPUT] Messages to LLM:")
+        for i, msg in enumerate(messages):
+            msg_type = type(msg).__name__
+            content_preview = str(msg.content)[:100] if hasattr(msg, 'content') and msg.content else "(empty)"
+            has_tool_calls = hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
+            logger.debug(f"  [{i}] {msg_type}: {content_preview}... | has_tool_calls={has_tool_calls}")
+
         try:
             response = llm.invoke(messages)
+            
+            # 디버깅: LLM 출력 로그
+            response_content = response.content if hasattr(response, 'content') else "(no content)"
+            response_tool_calls = len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0
+            logger.info(f"[{request_id}] [AGENT-{iteration}] [LLM-OUTPUT] content_length={len(response_content)}, tool_calls={response_tool_calls}")
 
             # 3. 메시지 추가
             state["messages"] = list(state["messages"]) + [response]
@@ -235,7 +248,14 @@ class HRAgentGraph:
 
             else:
                 log_agent_step(request_id, str(iteration), "FINISH",
-                              "최종 답변 생성")
+                              "최종 답변 생성",
+                              answer_length=len(response.content) if response.content else 0)
+                
+                # 디버깅: 최종 답변 내용 로그
+                if response.content:
+                    logger.info(f"[{request_id}] [AGENT-{iteration}] [ANSWER] {response.content[:200]}")
+                else:
+                    logger.warning(f"[{request_id}] [AGENT-{iteration}] [ANSWER] 최종 답변이 비어있음!")
 
             return state
 
@@ -329,7 +349,15 @@ class HRAgentGraph:
             return "continue"
         else:
             # 최종 답변 저장
-            state["final_answer"] = last_message.content
+            final_content = last_message.content if hasattr(last_message, "content") else ""
+            state["final_answer"] = final_content
+            
+            # 디버깅: 최종 답변 내용 확인
+            if final_content:
+                logger.info(f"[{request_id}] [DECISION] 최종 답변 저장: {final_content[:100]}")
+            else:
+                logger.warning(f"[{request_id}] [DECISION] 최종 답변이 비어있음! last_message type: {type(last_message).__name__}")
+            
             return "end"
 
     def _get_system_prompt(self, memory: AgentMemory = None) -> str:
@@ -394,6 +422,8 @@ Final Answer: "2024년 입사자는 총 27명이며, 이 중 재택근무 정책
 - Do NOT make assumptions without tool use
 - Do NOT invent data
 - If tools fail, explain what went wrong
+- **CRITICAL: After using tools and getting results, you MUST provide a final answer in Korean**
+- **Do NOT return empty responses - always synthesize tool results into a clear answer**
 """
 
         # 메모리 컨텍스트 추가 (멀티턴 대화)
