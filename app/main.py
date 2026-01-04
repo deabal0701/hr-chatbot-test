@@ -9,6 +9,7 @@ from app.api.routes import settings as settings_router
 from app.config import settings
 from app.utils.database import db_manager
 from app.utils.logger import setup_logger
+from app.utils.langsmith import init_langsmith
 
 logger = setup_logger(__name__)
 
@@ -18,6 +19,10 @@ async def lifespan(app: FastAPI):
     """애플리케이션 시작/종료 이벤트"""
     # 시작
     logger.info(f"InsightLink 시작: env={settings.app_env}")
+
+    # LangSmith 초기화 (옵션)
+    init_langsmith()
+
     db_manager.initialize()
     logger.info("데이터베이스 연결 풀 초기화 완료")
 

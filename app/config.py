@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(default=True, description="메트릭 활성화")
     enable_audit_log: bool = Field(default=True, description="감사 로그 활성화")
 
+    # LangSmith (Optional)
+    langchain_tracing_v2: Optional[bool] = Field(default=None, description="LangSmith 트레이싱 활성화")
+    langchain_endpoint: Optional[str] = Field(default=None, description="LangSmith API 엔드포인트")
+    langchain_api_key: Optional[str] = Field(default=None, description="LangSmith API 키")
+    langchain_project: Optional[str] = Field(default=None, description="LangSmith 프로젝트 이름")
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
@@ -79,6 +85,14 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """개발 환경 여부"""
         return self.app_env == "development"
+
+    @property
+    def langsmith_enabled(self) -> bool:
+        """LangSmith 활성화 여부"""
+        return (
+            self.langchain_tracing_v2 is True
+            and self.langchain_api_key is not None
+        )
 
 
 # 캐싱 : 한번만 로드
