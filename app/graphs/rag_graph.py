@@ -8,42 +8,11 @@ from app.config import settings
 from app.models.schemas import DocumentSource, RAGResponse, SearchFilters
 from app.services.settings_service import settings_service
 from app.services.vector_store import vector_store
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_rag_step  # 통합 로깅 유틸리티
+from app.utils.llm_config import get_llm_settings, get_rag_settings  # 통합 LLM/RAG 설정
+from app.utils.common import truncate_text  # 공통 유틸리티
 
 logger = setup_logger(__name__)
-
-
-def get_llm_settings():
-    """DB 설정에서 LLM 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
-    return {
-        "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
-        "model": settings_service.get_value("llm", "model", settings.llm_model),
-        "temperature": settings_service.get_value("llm", "temperature", 0.1),
-    }
-
-
-def get_rag_settings():
-    """DB 설정에서 RAG 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
-    return {
-        "top_k": settings_service.get_value("rag", "top_k", settings.rag_top_k),
-        "similarity_threshold": settings_service.get_value("rag", "similarity_threshold", settings.rag_similarity_threshold),
-        "max_context_length": settings_service.get_value("rag", "max_context_length", settings.max_context_length),
-    }
-
-
-def truncate_text(text: str, max_length: int = 100000) -> str:
-    """텍스트를 지정된 길이로 자르고 truncated 표시 (기본값 100000 = 거의 전체 출력)"""
-    if not text:
-        return ""
-    if len(text) <= max_length:
-        return text
-    return text[:max_length] + "...[truncated]"
-
-
-def log_rag_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """RAG 그래프 단계별 로그 출력 헬퍼"""
-    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
-    logger.info(f"[{request_id}] [RAG-{step}] [{stage}] {message}" + (f" | {extra_info}" if extra_info else ""))
 
 
 class RAGState(TypedDict):

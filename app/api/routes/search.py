@@ -13,7 +13,8 @@ from app.models.schemas import (
     SearchRequest,
     SearchResponse,
 )
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_api_step  # 통합 로깅 유틸리티
+from app.utils.common import generate_request_id  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
@@ -21,9 +22,8 @@ router = APIRouter(prefix="/api/v1", tags=["search"])
 
 
 def log_step(request_id: str, step: int, stage: str, message: str, **kwargs):
-    """단계별 로그 출력 헬퍼"""
-    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
-    logger.info(f"[{request_id}] [STEP {step}] [{stage}] {message}" + (f" | {extra_info}" if extra_info else ""))
+    """단계별 로그 출력 헬퍼 (하위 호환)"""
+    log_api_step(request_id, str(step), stage, message, **kwargs)
 
 
 @router.post("/search", response_model=SearchResponse)

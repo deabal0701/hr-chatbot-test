@@ -25,8 +25,11 @@ export default {
         timestamp: new Date(),
         ...message
       }
-      console.log('[ADD_MESSAGE]', newMessage)
-      console.log('[Message Content]', newMessage.content)
+      // 디버깅 로그 (개발 환경에서만)
+      if (import.meta.env.DEV) {
+        console.log('[ADD_MESSAGE]', newMessage)
+        console.log('[Message Content]', newMessage.content)
+      }
       state.messages.push(newMessage)
     },
     UPDATE_LAST_MESSAGE(state, updates) {
@@ -95,10 +98,12 @@ export default {
             config: state.agentConfig
           })
 
-          // 디버깅: Agent 응답 구조 확인
-          console.log('[Agent Response]', response)
-          console.log('[Agent Answer]', response.answer)
-          console.log('[Agent Steps]', response.steps)
+          // 디버깅: Agent 응답 구조 확인 (개발 환경에서만)
+          if (import.meta.env.DEV) {
+            console.log('[Agent Response]', response)
+            console.log('[Agent Answer]', response.answer)
+            console.log('[Agent Steps]', response.steps)
+          }
 
           // Agent 응답 메시지 추가
           commit('ADD_MESSAGE', {

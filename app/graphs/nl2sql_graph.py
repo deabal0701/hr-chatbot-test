@@ -9,33 +9,11 @@ from app.models.schemas import NL2SQLResponse, SQLResult
 from app.services.schema_loader import schema_loader
 from app.services.settings_service import settings_service
 from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_nl2sql_step  # 통합 로깅 유틸리티
+from app.utils.llm_config import get_llm_settings  # 통합 LLM 설정
+from app.utils.common import truncate_text  # 공통 유틸리티
 
 logger = setup_logger(__name__)
-
-
-def get_llm_settings():
-    """DB 설정에서 LLM 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
-    return {
-        "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
-        "model": settings_service.get_value("llm", "model", settings.llm_model),
-    }
-
-
-def log_nl2sql_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """NL2SQL 그래프 단계별 로그 출력 헬퍼"""
-    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
-    logger.info(f"[{request_id}] [NL2SQL-{step}] [{stage}] {message}" + (f" | {extra_info}" if extra_info else ""))
-
-
-def truncate_text(text: str, max_length: int = 100000) -> str:
-    """텍스트를 지정된 길이로 자르고 truncated 표시 (기본값 100000 = 거의 전체 출력)"""
-    if not text:
-        return ""
-    text = text.replace("\n", " ").strip()
-    if len(text) <= max_length:
-        return text
-    return text[:max_length] + "...[truncated]"
 
 
 class NL2SQLState(TypedDict):

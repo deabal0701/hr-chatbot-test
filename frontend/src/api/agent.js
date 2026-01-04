@@ -29,9 +29,12 @@ export const agentSearch = async ({ question, sessionId = null, config = {} }) =
       },
       verbose: config.verbose || false
     })
-    console.log('[Agent API Raw Response]', response)
-    console.log('[Agent API Data]', response.data)
-    console.log('[Agent API Answer Field]', response.data.answer)
+    // 디버깅 로그 (개발 환경에서만)
+    if (import.meta.env.DEV) {
+      console.log('[Agent API Raw Response]', response)
+      console.log('[Agent API Data]', response.data)
+      console.log('[Agent API Answer Field]', response.data.answer)
+    }
     return response.data
   } catch (error) {
     console.error('Agent search error:', error)

@@ -43,7 +43,9 @@ from app.tools.rag_tool import search_documents
 from app.tools.calculator_tool import calculate
 from app.services.settings_service import settings_service
 from app.config import settings
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_agent_step  # 통합 로깅 유틸리티
+from app.utils.llm_config import LLMConfigManager  # 통합 LLM 설정
+from app.utils.common import generate_request_id  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
@@ -62,12 +64,6 @@ class AgentState(TypedDict):
     final_answer: str
     request_id: str
     start_time: float
-
-
-def log_agent_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """Agent 로깅 헬퍼"""
-    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
-    logger.info(f"[{request_id}] [AGENT-{step}] [{stage}] {message}" + (f" | {extra_info}" if extra_info else ""))
 
 
 class HRAgentGraph:

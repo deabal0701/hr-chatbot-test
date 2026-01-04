@@ -11,17 +11,9 @@ from app.models.schemas import SQLResult
 from app.services.settings_service import settings_service
 from app.utils.database import db_manager
 from app.utils.logger import setup_logger
+from app.utils.llm_config import get_nl2sql_settings  # 통합 NL2SQL 설정
 
 logger = setup_logger(__name__)
-
-
-def get_nl2sql_settings():
-    """DB 설정에서 NL2SQL 관련 설정 가져오기 (DB → 환경변수 → 기본값)"""
-    return {
-        "timeout_seconds": settings_service.get_value("nl2sql", "timeout_seconds", settings.sql_timeout_seconds),
-        "max_rows": settings_service.get_value("nl2sql", "max_rows", settings.sql_max_rows),
-        "read_only_mode": settings_service.get_value("nl2sql", "read_only_mode", settings.read_only_mode),
-    }
 
 
 class SQLExecutionError(Exception):
