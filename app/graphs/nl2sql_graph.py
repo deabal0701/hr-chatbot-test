@@ -1,7 +1,6 @@
 from typing import Any, Dict, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
 from app.config import settings
@@ -10,7 +9,7 @@ from app.services.schema_loader import schema_loader
 from app.services.settings_service import settings_service
 from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_nl2sql_step  # 통합 로깅 유틸리티
-from app.utils.llm_config import get_llm_settings  # 통합 LLM 설정
+from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
 from app.utils.common import truncate_text  # 공통 유틸리티
 
 logger = setup_logger(__name__)
@@ -40,12 +39,14 @@ class NL2SQLGraph:
         self.graph = self._build_graph()
 
     def _get_llm(self):
-        """매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성"""
-        llm_settings = get_llm_settings()
-        return ChatOpenAI(
-            model=llm_settings["model"],
+        """
+        매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성 (Phase 1: init_chat_model 적용)
+
+        NL2SQL은 temperature=0으로 고정하여 deterministic한 SQL 생성
+        """
+        return LLMConfigManager.create_llm(
             temperature=0,  # SQL 생성은 deterministic하게
-            api_key=llm_settings["api_key"]
+            # model과 provider는 DB 설정 사용
         )
 
     def _build_graph(self) -> StateGraph:

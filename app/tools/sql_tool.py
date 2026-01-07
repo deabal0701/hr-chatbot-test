@@ -15,7 +15,6 @@ SQL 쿼리 도구
 from typing import Dict, Any
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from app.tools.base import BaseTool, ToolResult
 from app.services.sql_executor import sql_executor
@@ -23,6 +22,7 @@ from app.services.schema_loader import schema_loader
 from app.services.settings_service import settings_service
 from app.config import settings
 from app.utils.logger import setup_logger
+from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
 
 logger = setup_logger(__name__)
 
@@ -192,15 +192,10 @@ Examples:
         - Few-shot learning (예제 추가)
         - Chain-of-Thought prompting
         """
-        llm_settings = {
-            "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
-            "model": settings_service.get_value("llm", "model", settings.llm_model),
-        }
-
-        llm = ChatOpenAI(
-            model=llm_settings["model"],
-            temperature=0,
-            api_key=llm_settings["api_key"]
+        # Phase 1: LLMConfigManager를 통해 init_chat_model 사용
+        llm = LLMConfigManager.create_llm(
+            temperature=0,  # SQL 생성은 deterministic하게
+            # model과 provider는 DB 설정 사용
         )
 
         system_prompt = f"""당신은 PostgreSQL 전문가입니다.

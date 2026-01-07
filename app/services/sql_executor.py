@@ -11,7 +11,6 @@ from app.models.schemas import SQLResult
 from app.services.settings_service import settings_service
 from app.utils.database import db_manager
 from app.utils.logger import setup_logger
-from app.utils.llm_config import get_nl2sql_settings  # 통합 NL2SQL 설정
 
 logger = setup_logger(__name__)
 

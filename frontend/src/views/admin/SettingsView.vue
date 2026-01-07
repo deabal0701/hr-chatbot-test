@@ -56,6 +56,37 @@
           </div>
         </el-tab-pane>
 
+        <!-- Anthropic 설정 -->
+        <el-tab-pane label="Anthropic" name="anthropic">
+          <div class="settings-section">
+            <h3>Anthropic API 설정</h3>
+            <el-form label-position="top" class="settings-form openai-form">
+              <el-form-item label="API Key">
+                <div class="api-key-input">
+                  <el-input
+                    v-model="formData.anthropic.api_key"
+                    :type="showAnthropicApiKey ? 'text' : 'password'"
+                    placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    clearable
+                    class="api-key-field"
+                  >
+                    <template #suffix>
+                      <el-icon class="cursor-pointer" @click="showAnthropicApiKey = !showAnthropicApiKey">
+                        <View v-if="!showAnthropicApiKey" />
+                        <Hide v-else />
+                      </el-icon>
+                    </template>
+                  </el-input>
+                </div>
+                <div class="form-help">
+                  Anthropic Claude 모델 사용을 위한 API 키를 입력하세요.
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank">API 키 발급받기 →</a>
+                </div>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
+
         <!-- 임베딩 설정 -->
         <el-tab-pane label="임베딩" name="embedding">
           <div class="settings-section">
@@ -96,19 +127,24 @@
           <div class="settings-section">
             <h3>LLM 모델 설정</h3>
             <el-form label-position="top" class="settings-form">
+              <el-form-item label="LLM 제공자">
+                <el-select v-model="formData.llm.provider" style="width: 100%" @change="onLLMProviderChange">
+                  <el-option label="OpenAI" value="openai" />
+                  <el-option label="Anthropic (Claude)" value="anthropic" />
+                </el-select>
+                <div class="form-help">LLM 서비스 제공자를 선택하세요</div>
+              </el-form-item>
+
               <div class="form-item-with-link">
                 <el-form-item label="LLM 모델">
-                  <el-select v-model="formData.llm.model" style="width: 100%">
-                    <el-option label="gpt-4-turbo-preview" value="gpt-4-turbo-preview" />
-                    <el-option label="gpt-4" value="gpt-4" />
-                    <el-option label="gpt-4o" value="gpt-4o" />
-                    <el-option label="gpt-4o-mini" value="gpt-4o-mini" />
-                    <el-option label="gpt-4.1-nano" value="gpt-4.1-nano" />
-                    <el-option label="gpt-4.1-mini" value="gpt-4.1-mini" />
-                    <el-option label="gpt-3.5-turbo" value="gpt-3.5-turbo" />
-                  </el-select>
+                  <el-input
+                    v-model="formData.llm.model"
+                    :placeholder="getLLMModelPlaceholder()"
+                    clearable
+                    style="width: 100%"
+                  />
                 </el-form-item>
-                <a href="https://platform.openai.com/docs/pricing" target="_blank" class="pricing-link">
+                <a :href="getPricingLink()" target="_blank" class="pricing-link">
                   가격 정보 보기 →
                 </a>
               </div>
@@ -226,6 +262,14 @@
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
             <el-form label-position="top" class="settings-form">
+              <el-form-item label="Agent LLM 제공자">
+                <el-select v-model="formData.agent.llm_provider" style="width: 100%">
+                  <el-option label="OpenAI" value="openai" />
+                  <el-option label="Anthropic (Claude)" value="anthropic" />
+                </el-select>
+                <div class="form-help">Agent 실행에 사용할 LLM 제공자를 선택하세요</div>
+              </el-form-item>
+
               <el-form-item label="최대 반복 횟수">
                 <el-input-number
                   v-model="formData.agent.max_iterations"
@@ -320,6 +364,7 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const validating = ref(false)
 const showApiKey = ref(false)
+const showAnthropicApiKey = ref(false)
 const apiKeyStatus = ref(null)
 
 // 설정 데이터 (타입별로 구조화)
@@ -328,11 +373,15 @@ const formData = reactive({
     api_key: '',
     organization_id: ''
   },
+  anthropic: {
+    api_key: ''
+  },
   embedding: {
     model: 'text-embedding-3-small',
     dimension: 1536
   },
   llm: {
+    provider: 'openai',
     model: 'gpt-4-turbo-preview',
     temperature: 0.1,
     max_tokens: 2000
@@ -349,6 +398,7 @@ const formData = reactive({
     read_only_mode: true
   },
   agent: {
+    llm_provider: 'openai',
     max_iterations: 10,
     timeout_seconds: 60,
     enable_memory: true,
@@ -531,6 +581,34 @@ const onEmbeddingModelChange = (model) => {
         type: 'warning'
       }
     )
+  }
+}
+
+// LLM 제공자별 모델 placeholder
+const getLLMModelPlaceholder = () => {
+  const provider = formData.llm.provider
+  if (provider === 'anthropic') {
+    return 'claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-sonnet-20240229'
+  }
+  return 'gpt-4o, gpt-4-turbo-preview, gpt-4, gpt-3.5-turbo'
+}
+
+// LLM 제공자별 가격 정보 링크
+const getPricingLink = () => {
+  const provider = formData.llm.provider
+  if (provider === 'anthropic') {
+    return 'https://www.anthropic.com/pricing#anthropic-api'
+  }
+  return 'https://platform.openai.com/docs/pricing'
+}
+
+// LLM 제공자 변경 시 처리
+const onLLMProviderChange = (provider) => {
+  // 제공자 변경 시 모델 필드 초기화 (사용자가 직접 입력하도록)
+  if (provider === 'anthropic' && formData.llm.model.startsWith('gpt-')) {
+    formData.llm.model = ''
+  } else if (provider === 'openai' && formData.llm.model.startsWith('claude-')) {
+    formData.llm.model = ''
   }
 }
 

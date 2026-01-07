@@ -97,23 +97,27 @@ class InsightAgentGraph:
 
     def _get_llm(self, config: AgentConfig):
         """
-        LLM 인스턴스 생성
+        LLM 인스턴스 생성 (Phase 1: init_chat_model 적용)
 
         확장 포인트:
         - 모델 선택 로직
+        - 제공자 선택 로직 (Phase 2+에서 활성화)
         - 폴백 모델 (메인 모델 실패 시)
         - 비용 최적화 (간단한 질문은 저렴한 모델)
         """
-        llm_settings = {
-            "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
-            "model": config.llm_model,
-        }
+        # Agent 설정에서 provider 가져오기 (Phase 1: openai만 지원)
+        provider = getattr(config, 'llm_provider', None) or \
+                   settings_service.get_value("agent", "llm_provider", "openai")
 
-        return ChatOpenAI(
-            model=llm_settings["model"],
+        # LLMConfigManager를 통해 LLM 생성 (init_chat_model 사용)
+        llm = LLMConfigManager.create_llm(
             temperature=config.llm_temperature,
-            api_key=llm_settings["api_key"]
-        ).bind_tools(self.tools)
+            model=config.llm_model,
+            provider=provider
+        )
+
+        # 도구 바인딩 (제공자 무관하게 동작)
+        return llm.bind_tools(self.tools)
 
     def _build_graph(self) -> StateGraph:
         """

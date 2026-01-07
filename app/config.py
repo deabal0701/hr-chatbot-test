@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     embedding_dimension: int = Field(default=1536, description="임베딩 차원 수")
     llm_model: str = Field(default="gpt-4-turbo-preview", description="LLM 모델")
 
+    # Anthropic (Phase 2)
+    anthropic_api_key: Optional[str] = Field(default=None, description="Anthropic API 키 (선택)")
+
+    # LLM Provider (Phase 2: OpenAI + Anthropic 지원)
+    llm_provider: str = Field(default="openai", description="LLM 제공자 (openai, anthropic)")
+    embedding_provider: str = Field(default="openai", description="임베딩 제공자 (openai)")
+
     # Application
     app_env: str = Field(default="development", description="애플리케이션 환경")
     app_host: str = Field(default="0.0.0.0", description="애플리케이션 호스트")
@@ -74,6 +81,26 @@ class Settings(BaseSettings):
         v = v.lower()
         if v not in valid_envs:
             raise ValueError(f"app_env must be one of {valid_envs}")
+        return v
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, v: str) -> str:
+        # Phase 2: OpenAI + Anthropic
+        valid_providers = ["openai", "anthropic"]
+        v = v.lower()
+        if v not in valid_providers:
+            raise ValueError(f"llm_provider must be one of {valid_providers}")
+        return v
+
+    @field_validator("embedding_provider")
+    @classmethod
+    def validate_embedding_provider(cls, v: str) -> str:
+        # Phase 2: Embedding은 OpenAI만 (Anthropic은 임베딩 미제공)
+        valid_providers = ["openai"]
+        v = v.lower()
+        if v not in valid_providers:
+            raise ValueError(f"embedding_provider must be one of {valid_providers}")
         return v
 
     @property

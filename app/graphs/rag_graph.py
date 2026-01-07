@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
 from app.config import settings
@@ -9,7 +8,7 @@ from app.models.schemas import DocumentSource, RAGResponse, SearchFilters
 from app.services.settings_service import settings_service
 from app.services.vector_store import vector_store
 from app.utils.logger import setup_logger, log_rag_step  # 통합 로깅 유틸리티
-from app.utils.llm_config import get_llm_settings, get_rag_settings  # 통합 LLM/RAG 설정
+from app.utils.llm_config import LLMConfigManager
 from app.utils.common import truncate_text  # 공통 유틸리티
 
 logger = setup_logger(__name__)
@@ -34,12 +33,17 @@ class RAGGraph:
         self.graph = self._build_graph()
 
     def _get_llm(self):
-        """매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성"""
-        llm_settings = get_llm_settings()
-        return ChatOpenAI(
-            model=llm_settings["model"],
-            temperature=llm_settings["temperature"],
-            api_key=llm_settings["api_key"]
+        """
+        매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성 (Phase 1: init_chat_model 적용)
+
+        RAG는 DB 설정의 temperature를 사용 (일반적으로 0.1)
+        """
+        # DB에서 temperature 읽기
+        temperature = settings_service.get_value("llm", "temperature", 0.1)
+
+        return LLMConfigManager.create_llm(
+            temperature=temperature,
+            # model과 provider는 DB 설정 사용
         )
 
     def _build_graph(self) -> StateGraph:
@@ -64,7 +68,7 @@ class RAGGraph:
         request_id = state.get("request_id", "unknown")
 
         # DB 설정에서 RAG 파라미터 가져오기
-        rag_settings = get_rag_settings()
+        rag_settings = LLMConfigManager.get_rag_settings()
         top_k = state.get("top_k") or rag_settings["top_k"]
         similarity_threshold = rag_settings["similarity_threshold"]
 
@@ -179,7 +183,7 @@ class RAGGraph:
         context_parts = []
 
         # DB 설정에서 max_context_length 가져오기
-        rag_settings = get_rag_settings()
+        rag_settings = LLMConfigManager.get_rag_settings()
         max_context_length = rag_settings["max_context_length"]
 
         for i, doc in enumerate(documents, 1):
@@ -207,7 +211,7 @@ class RAGGraph:
         request_id = inputs.get("request_id", "unknown")
 
         # DB 설정에서 기본 top_k 가져오기
-        rag_settings = get_rag_settings()
+        rag_settings = LLMConfigManager.get_rag_settings()
 
         # 초기 상태 설정
         initial_state: RAGState = {
@@ -242,7 +246,7 @@ class RAGGraph:
         request_id = inputs.get("request_id", "unknown")
 
         # DB 설정에서 기본 top_k 가져오기
-        rag_settings = get_rag_settings()
+        rag_settings = LLMConfigManager.get_rag_settings()
 
         # 초기 상태 설정
         initial_state: RAGState = {

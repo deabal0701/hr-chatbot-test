@@ -22,12 +22,17 @@ class SettingsService:
             "api_key": ("", "string", "OpenAI API Key", True),
             "organization_id": ("", "string", "OpenAI Organization ID (선택)", False),
         },
+        "anthropic": {
+            "api_key": ("", "string", "Anthropic API Key (Phase 2)", True),
+        },
         "embedding": {
             "model": ("text-embedding-3-small", "string", "임베딩 모델명", False),
+            "provider": ("openai", "string", "임베딩 제공자 (현재 openai만 지원)", False),
             "dimension": ("1536", "int", "벡터 차원 수", False),
         },
         "llm": {
             "model": ("gpt-4-turbo-preview", "string", "LLM 모델명", False),
+            "provider": ("openai", "string", "LLM 제공자 (openai, anthropic)", False),
             "temperature": ("0.1", "float", "생성 온도 (0.0-2.0)", False),
             "max_tokens": ("2000", "int", "최대 토큰 수", False),
         },
@@ -49,6 +54,7 @@ class SettingsService:
             "max_iterations": ("10", "int", "최대 반복 횟수 (1-20)", False),
             "timeout_seconds": ("60", "int", "전체 타임아웃 (초, 10-300)", False),
             "llm_model": ("gpt-4o", "string", "Agent용 LLM 모델", False),
+            "llm_provider": ("openai", "string", "Agent용 LLM 제공자 (openai, anthropic)", False),
             "llm_temperature": ("0.0", "float", "Agent LLM 온도 (0.0-2.0)", False),
             "enable_memory": ("true", "bool", "대화 메모리 활성화", False),
             "enable_streaming": ("false", "bool", "스트리밍 응답 (확장)", False),
