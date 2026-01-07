@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import documents, search, agent
+from app.api.routes import documents, search, agent, codes
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.utils.database import db_manager
@@ -56,6 +56,7 @@ app.add_middleware(
 app.include_router(search.router)
 app.include_router(documents.router)
 app.include_router(settings_router.router)
+app.include_router(codes.router, prefix="/api/admin/v1")  # 코드 관리 라우터 (Phase A)
 app.include_router(agent.router)  # AI Agent 라우터
 
 

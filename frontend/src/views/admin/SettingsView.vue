@@ -14,76 +14,90 @@
     <!-- 설정 탭 -->
     <div class="content-card">
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-        <!-- OpenAI 설정 -->
-        <el-tab-pane label="OpenAI" name="openai">
+        <!-- API 키 관리 (OpenAI + Anthropic 통합) -->
+        <el-tab-pane label="API 키 관리" name="api_keys">
           <div class="settings-section">
-            <h3>OpenAI API 설정</h3>
-            <el-form label-position="top" class="settings-form openai-form">
-              <el-form-item label="API Key">
-                <div class="api-key-input">
-                  <el-input
-                    v-model="formData.openai.api_key"
-                    :type="showApiKey ? 'text' : 'password'"
-                    placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    clearable
-                    class="api-key-field"
-                  >
-                    <template #suffix>
-                      <el-icon class="cursor-pointer" @click="showApiKey = !showApiKey">
-                        <View v-if="!showApiKey" />
-                        <Hide v-else />
-                      </el-icon>
-                    </template>
-                  </el-input>
-                  <el-button type="success" @click="validateApiKey" :loading="validating">
-                    검증
-                  </el-button>
-                </div>
-                <div v-if="apiKeyStatus" class="validation-status" :class="apiKeyStatus.valid ? 'success' : 'error'">
-                  {{ apiKeyStatus.message }}
-                </div>
-              </el-form-item>
+            <h3>API 키 관리</h3>
+            <p class="section-desc">LLM 제공자별 API 키를 설정합니다.</p>
 
-              <el-form-item label="Organization ID (선택)">
-                <el-input
-                  v-model="formData.openai.organization_id"
-                  placeholder="org-xxxxxxxxxxxxxxxxxxxxxxxx"
-                  clearable
-                  class="org-id-field"
-                />
-              </el-form-item>
-            </el-form>
-          </div>
-        </el-tab-pane>
+            <el-form label-position="top" class="settings-form">
+              <!-- OpenAI API Key -->
+              <div class="api-key-section">
+                <h4 class="provider-title">
+                  <span>OpenAI</span>
+                  <el-tag size="small" type="success">Primary</el-tag>
+                </h4>
 
-        <!-- Anthropic 설정 -->
-        <el-tab-pane label="Anthropic" name="anthropic">
-          <div class="settings-section">
-            <h3>Anthropic API 설정</h3>
-            <el-form label-position="top" class="settings-form openai-form">
-              <el-form-item label="API Key">
-                <div class="api-key-input">
+                <el-form-item label="API Key">
+                  <div class="api-key-input">
+                    <el-input
+                      v-model="formData.openai.api_key"
+                      :type="showApiKey ? 'text' : 'password'"
+                      placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      clearable
+                      class="api-key-field"
+                    >
+                      <template #suffix>
+                        <el-icon class="cursor-pointer" @click="showApiKey = !showApiKey">
+                          <View v-if="!showApiKey" />
+                          <Hide v-else />
+                        </el-icon>
+                      </template>
+                    </el-input>
+                  </div>
+                  <div class="form-help">
+                    OpenAI GPT 모델 및 임베딩 사용을 위한 API 키
+                    <a href="https://platform.openai.com/api-keys" target="_blank">API 키 발급받기 →</a>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="Organization ID (선택)">
                   <el-input
-                    v-model="formData.anthropic.api_key"
-                    :type="showAnthropicApiKey ? 'text' : 'password'"
-                    placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    v-model="formData.openai.organization_id"
+                    placeholder="org-xxxxxxxxxxxxxxxxxxxxxxxx"
                     clearable
-                    class="api-key-field"
-                  >
-                    <template #suffix>
-                      <el-icon class="cursor-pointer" @click="showAnthropicApiKey = !showAnthropicApiKey">
-                        <View v-if="!showAnthropicApiKey" />
-                        <Hide v-else />
-                      </el-icon>
-                    </template>
-                  </el-input>
-                </div>
-                <div class="form-help">
-                  Anthropic Claude 모델 사용을 위한 API 키를 입력하세요.
-                  <a href="https://console.anthropic.com/settings/keys" target="_blank">API 키 발급받기 →</a>
-                </div>
-              </el-form-item>
+                    style="max-width: 500px"
+                  />
+                </el-form-item>
+              </div>
+
+              <!-- Anthropic API Key -->
+              <div class="api-key-section">
+                <h4 class="provider-title">
+                  <span>Anthropic</span>
+                  <el-tag size="small" type="info">Optional</el-tag>
+                </h4>
+
+                <el-form-item label="API Key">
+                  <div class="api-key-input">
+                    <el-input
+                      v-model="formData.anthropic.api_key"
+                      :type="showAnthropicApiKey ? 'text' : 'password'"
+                      placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      clearable
+                      class="api-key-field"
+                    >
+                      <template #suffix>
+                        <el-icon class="cursor-pointer" @click="showAnthropicApiKey = !showAnthropicApiKey">
+                          <View v-if="!showAnthropicApiKey" />
+                          <Hide v-else />
+                        </el-icon>
+                      </template>
+                    </el-input>
+                  </div>
+                  <div class="form-help">
+                    Anthropic Claude 모델 사용을 위한 API 키
+                    <a href="https://console.anthropic.com/settings/keys" target="_blank">API 키 발급받기 →</a>
+                  </div>
+                </el-form-item>
+              </div>
             </el-form>
+
+            <div class="actions">
+              <el-button type="primary" @click="saveSettings" :loading="isSaving">
+                저장
+              </el-button>
+            </div>
           </div>
         </el-tab-pane>
 
@@ -98,11 +112,18 @@
                   v-model="formData.embedding.model"
                   style="width: 100%"
                   @change="onEmbeddingModelChange"
+                  :loading="embeddingModelsLoading"
                 >
-                  <el-option label="text-embedding-3-small (추천, 1536차원)" value="text-embedding-3-small" />
-                  <el-option label="text-embedding-3-large (3072차원)" value="text-embedding-3-large" />
-                  <el-option label="text-embedding-ada-002 (1536차원, 레거시)" value="text-embedding-ada-002" />
+                  <el-option
+                    v-for="model in embeddingModels"
+                    :key="model.code_value"
+                    :label="model.code_name"
+                    :value="model.code_value"
+                  />
                 </el-select>
+                <div class="form-help">
+                  문서 임베딩에 사용할 OpenAI 모델을 선택하세요
+                </div>
               </el-form-item>
 
               <el-form-item label="벡터 차원">
@@ -137,12 +158,21 @@
 
               <div class="form-item-with-link">
                 <el-form-item label="LLM 모델">
-                  <el-input
+                  <el-select
                     v-model="formData.llm.model"
-                    :placeholder="getLLMModelPlaceholder()"
-                    clearable
                     style="width: 100%"
-                  />
+                    :loading="llmModelsLoading"
+                    filterable
+                    allow-create
+                    placeholder="모델을 선택하거나 직접 입력"
+                  >
+                    <el-option
+                      v-for="model in currentLLMModels"
+                      :key="model.code_value"
+                      :label="model.code_name"
+                      :value="model.code_value"
+                    />
+                  </el-select>
                 </el-form-item>
                 <a :href="getPricingLink()" target="_blank" class="pricing-link">
                   가격 정보 보기 →
@@ -354,18 +384,26 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, View, Hide } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
+import codesApi from '@/api/codes'
 
-const activeTab = ref('openai')
+const activeTab = ref('api_keys')
 const isLoading = ref(false)
 const isSaving = ref(false)
 const validating = ref(false)
 const showApiKey = ref(false)
 const showAnthropicApiKey = ref(false)
 const apiKeyStatus = ref(null)
+
+// 코드 관리 (Phase C-2)
+const embeddingModels = ref([])
+const llmModelsOpenAI = ref([])
+const llmModelsAnthropic = ref([])
+const embeddingModelsLoading = ref(false)
+const llmModelsLoading = ref(false)
 
 // 설정 데이터 (타입별로 구조화)
 const formData = reactive({
@@ -557,42 +595,6 @@ const handleTabChange = () => {
   // 탭 변경 시 추가 로직이 필요하면 여기에
 }
 
-// 모델별 기본 차원 매핑
-const MODEL_DIMENSIONS = {
-  'text-embedding-3-small': 1536,
-  'text-embedding-3-large': 3072,
-  'text-embedding-ada-002': 1536
-}
-
-// 임베딩 모델 변경 시 차원 자동 설정
-const onEmbeddingModelChange = (model) => {
-  const dimension = MODEL_DIMENSIONS[model] || 1536
-  formData.embedding.dimension = dimension
-
-  // 3072 차원 모델 선택 시 경고
-  if (dimension !== 1536) {
-    ElMessageBox.alert(
-      `선택한 모델(${model})은 ${dimension} 차원을 사용합니다.\n` +
-      '현재 DB 스키마는 1536 차원으로 설정되어 있어 호환되지 않습니다.\n\n' +
-      'DB 스키마를 수정하거나 1536 차원 모델을 사용해주세요.',
-      '차원 불일치 경고',
-      {
-        confirmButtonText: '확인',
-        type: 'warning'
-      }
-    )
-  }
-}
-
-// LLM 제공자별 모델 placeholder
-const getLLMModelPlaceholder = () => {
-  const provider = formData.llm.provider
-  if (provider === 'anthropic') {
-    return 'claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-sonnet-20240229'
-  }
-  return 'gpt-4o, gpt-4-turbo-preview, gpt-4, gpt-3.5-turbo'
-}
-
 // LLM 제공자별 가격 정보 링크
 const getPricingLink = () => {
   const provider = formData.llm.provider
@@ -600,6 +602,69 @@ const getPricingLink = () => {
     return 'https://www.anthropic.com/pricing#anthropic-api'
   }
   return 'https://platform.openai.com/docs/pricing'
+}
+
+// 현재 provider에 따른 LLM 모델 목록 (Phase C-2)
+const currentLLMModels = computed(() => {
+  const provider = formData.llm.provider
+  if (provider === 'anthropic') {
+    return llmModelsAnthropic.value
+  }
+  return llmModelsOpenAI.value
+})
+
+// 코드 마스터에서 모델 목록 로드 (Phase C-2)
+const loadEmbeddingModels = async () => {
+  embeddingModelsLoading.value = true
+  try {
+    const response = await codesApi.getByGroup('EMBEDDING_MODEL', false)
+    embeddingModels.value = response.codes
+  } catch (error) {
+    console.error('임베딩 모델 목록 로드 실패:', error)
+    // 실패 시 빈 배열 유지 (하위 호환성)
+  } finally {
+    embeddingModelsLoading.value = false
+  }
+}
+
+const loadLLMModels = async () => {
+  llmModelsLoading.value = true
+  try {
+    const [openaiRes, anthropicRes] = await Promise.all([
+      codesApi.getByGroup('LLM_MODEL_OPENAI', false),
+      codesApi.getByGroup('LLM_MODEL_ANTHROPIC', false)
+    ])
+    llmModelsOpenAI.value = openaiRes.codes
+    llmModelsAnthropic.value = anthropicRes.codes
+  } catch (error) {
+    console.error('LLM 모델 목록 로드 실패:', error)
+    // 실패 시 빈 배열 유지 (하위 호환성)
+  } finally {
+    llmModelsLoading.value = false
+  }
+}
+
+// 임베딩 모델 변경 시 dimension 자동 설정 (Phase C-2)
+const onEmbeddingModelChange = (modelValue) => {
+  const selectedModel = embeddingModels.value.find(m => m.code_value === modelValue)
+  if (selectedModel && selectedModel.metadata && selectedModel.metadata.dimension) {
+    const dimension = selectedModel.metadata.dimension
+    formData.embedding.dimension = dimension
+
+    // 3072 차원 모델 선택 시 경고
+    if (dimension !== 1536) {
+      ElMessageBox.alert(
+        `선택한 모델(${selectedModel.code_name})은 ${dimension} 차원을 사용합니다.\n` +
+        '현재 DB 스키마는 1536 차원으로 설정되어 있어 호환되지 않습니다.\n\n' +
+        'DB 스키마를 수정하거나 1536 차원 모델을 사용해주세요.',
+        '차원 불일치 경고',
+        {
+          confirmButtonText: '확인',
+          type: 'warning'
+        }
+      )
+    }
+  }
 }
 
 // LLM 제공자 변경 시 처리
@@ -612,8 +677,13 @@ const onLLMProviderChange = (provider) => {
   }
 }
 
-onMounted(() => {
-  loadSettings()
+onMounted(async () => {
+  // 설정 및 코드 목록 병렬 로드
+  await Promise.all([
+    loadSettings(),
+    loadEmbeddingModels(),
+    loadLLMModels()
+  ])
 })
 </script>
 
@@ -634,6 +704,57 @@ onMounted(() => {
       font-size: 16px;
       font-weight: 500;
       color: var(--text-color-primary);
+    }
+
+    .section-desc {
+      margin: -10px 0 20px;
+      font-size: 14px;
+      color: #606266;
+    }
+  }
+
+  // API 키 섹션 스타일 (Phase C)
+  .api-key-section {
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: var(--el-fill-color-lighter);
+    border-radius: 8px;
+    border: 1px solid var(--el-border-color);
+    transition: background-color 0.3s, border-color 0.3s;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .provider-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 16px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--el-text-color-primary);
+    }
+
+    .el-form-item {
+      margin-bottom: 16px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  // 다크모드 대응
+  :deep(.el-form-item__label) {
+    color: var(--el-text-color-regular);
+  }
+
+  .form-help {
+    color: var(--el-text-color-secondary);
+
+    a {
+      color: var(--el-color-primary);
     }
   }
 

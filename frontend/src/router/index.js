@@ -61,6 +61,12 @@ const routes = [
         name: 'AdminSettings',
         component: () => import('@/views/admin/SettingsView.vue'),
         meta: { title: '시스템 설정' }
+      },
+      {
+        path: 'codes',
+        name: 'AdminCodes',
+        component: () => import('@/views/admin/CodesView.vue'),
+        meta: { title: '코드 관리' }
       }
     ]
   },

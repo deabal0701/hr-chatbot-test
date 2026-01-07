@@ -37,6 +37,11 @@
         <el-icon><Setting /></el-icon>
         <template #title>시스템 설정</template>
       </el-menu-item>
+
+      <el-menu-item index="/admin/codes">
+        <el-icon><Grid /></el-icon>
+        <template #title>코드 관리</template>
+      </el-menu-item>
     </el-menu>
 
     <!-- 하단 정보 -->
@@ -55,7 +60,8 @@ import {
   DataAnalysis,
   ChatDotSquare,
   Document,
-  Setting
+  Setting,
+  Grid
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
