@@ -315,3 +315,47 @@ CREATE TABLE public.users (
 );
 CREATE INDEX idx_users_email ON public.users USING btree (email);
 CREATE INDEX idx_users_username ON public.users USING btree (username);
+
+
+INSERT INTO public.app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 ('nl2sql','timeout_seconds','30','int','SQL 실행 타임아웃 (초)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
+	 ('nl2sql','max_rows','1000','int','최대 반환 행 수',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
+	 ('nl2sql','read_only_mode','true','bool','읽기 전용 모드',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
+	 ('chunking','default_chunk_size','1000','int','기본 청크 크기 (문자)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
+	 ('chunking','default_overlap','100','int','기본 오버랩 크기 (문자)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
+	 ('openai','api_key','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','string','OpenAI API Key',true,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.252249+09'),
+	 ('openai','organization_id','','string','OpenAI Organization ID (선택)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.293148+09'),
+	 ('embedding','model','text-embedding-3-small','string','임베딩 모델명',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:35:10.392819+09'),
+	 ('embedding','dimension','1536','int','벡터 차원 수',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:35:10.435874+09'),
+	 ('rag','top_k','5','int','검색 문서 수',false,'2025-11-29 21:28:33.4552+09','2025-11-29 23:26:26.109965+09');
+INSERT INTO public.app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 ('rag','similarity_threshold','0.3','float','유사도 임계값 (0.0-1.0)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 23:26:26.16976+09'),
+	 ('rag','max_context_length','4000','int','최대 컨텍스트 길이',false,'2025-11-29 21:28:33.4552+09','2025-11-29 23:26:26.203655+09'),
+	 ('llm','model','gpt-4.1-nano','string','LLM 모델명',false,'2025-11-29 21:28:33.4552+09','2025-12-30 10:12:40.291284+09'),
+	 ('llm','temperature','0.6','float','생성 온도 (0.0-2.0)',false,'2025-11-29 21:28:33.4552+09','2025-12-30 10:12:40.312987+09'),
+	 ('llm','max_tokens','2000','int','최대 토큰 수',false,'2025-11-29 21:28:33.4552+09','2025-12-30 10:12:40.332046+09'),
+	 ('agent','max_iterations','10','int','최대 반복 횟수 (1-20)',false,'2026-01-04 22:33:09.921925+09','2026-01-04 22:33:09.921925+09'),
+	 ('agent','timeout_seconds','60','int','전체 타임아웃 (초, 10-300)',false,'2026-01-04 22:33:09.967964+09','2026-01-04 22:33:09.967964+09'),
+	 ('agent','enable_memory','true','bool','대화 메모리 활성화',false,'2026-01-04 22:33:10.010695+09','2026-01-04 22:33:10.010695+09'),
+	 ('agent','enabled_tools','query_database,search_documents,calculate','string','사용 가능한 도구 (쉼표 구분)',false,'2026-01-04 22:33:10.050835+09','2026-01-04 22:33:10.050835+09'),
+	 ('embedding','provider','openai','string','임베딩 제공자 (현재 openai만 지원)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09');
+INSERT INTO public.app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 ('anthropic','api_key','','string','Anthropic API Key (Phase 2)',true,'2026-01-07 11:20:44.64738+09','2026-01-07 11:20:44.64738+09'),
+	 ('llm','provider','openai','string','LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09'),
+	 ('agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09');
+
+
+INSERT INTO public.code_master (code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,created_at,updated_at) VALUES
+	 ('LLM_PROVIDER','openai','OpenAI','OpenAI LLM 제공자','{"pricing_link": "https://platform.openai.com/docs/pricing", "default_model": "gpt-4o"}',1,true,true,'2026-01-07 14:36:19.101636+09','2026-01-07 14:36:19.101636+09'),
+	 ('LLM_PROVIDER','anthropic','Anthropic (Claude)','Anthropic Claude LLM 제공자','{"pricing_link": "https://www.anthropic.com/pricing#anthropic-api", "default_model": "claude-3-5-sonnet-20241022"}',2,true,true,'2026-01-07 14:36:19.101636+09','2026-01-07 14:36:19.101636+09'),
+	 ('LLM_MODEL_OPENAI','gpt-4o','GPT-4o','OpenAI GPT-4o 모델 (최신, 권장)',NULL,1,true,true,'2026-01-07 14:36:34.901102+09','2026-01-07 14:36:34.901102+09'),
+	 ('LLM_MODEL_OPENAI','gpt-4-turbo-preview','GPT-4 Turbo Preview','OpenAI GPT-4 Turbo Preview 모델',NULL,2,true,true,'2026-01-07 14:36:34.901102+09','2026-01-07 14:36:34.901102+09'),
+	 ('LLM_MODEL_OPENAI','gpt-4','GPT-4','OpenAI GPT-4 모델',NULL,3,true,true,'2026-01-07 14:36:34.901102+09','2026-01-07 14:36:34.901102+09'),
+	 ('LLM_MODEL_OPENAI','gpt-3.5-turbo','GPT-3.5 Turbo','OpenAI GPT-3.5 Turbo 모델',NULL,4,true,true,'2026-01-07 14:36:34.901102+09','2026-01-07 14:36:34.901102+09'),
+	 ('LLM_MODEL_ANTHROPIC','claude-3-5-sonnet-20241022','Claude 3.5 Sonnet','Anthropic Claude 3.5 Sonnet 모델 (최신, 권장)',NULL,1,true,true,'2026-01-07 14:36:41.760248+09','2026-01-07 14:36:41.760248+09'),
+	 ('LLM_MODEL_ANTHROPIC','claude-3-opus-20240229','Claude 3 Opus','Anthropic Claude 3 Opus 모델 (고성능)',NULL,2,true,true,'2026-01-07 14:36:41.760248+09','2026-01-07 14:36:41.760248+09'),
+	 ('LLM_MODEL_ANTHROPIC','claude-3-sonnet-20240229','Claude 3 Sonnet','Anthropic Claude 3 Sonnet 모델',NULL,3,true,true,'2026-01-07 14:36:41.760248+09','2026-01-07 14:36:41.760248+09'),
+	 ('EMBEDDING_MODEL','text-embedding-3-small','Text Embedding 3 Small (권장)','OpenAI Text Embedding 3 Small 모델','{"provider": "openai", "dimension": 1536}',1,true,true,'2026-01-07 14:36:50.956807+09','2026-01-07 14:36:50.956807+09');
+INSERT INTO public.code_master (code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,created_at,updated_at) VALUES
+	 ('EMBEDDING_MODEL','text-embedding-3-large','Text Embedding 3 Large','OpenAI Text Embedding 3 Large 모델 (고성능, 고비용)','{"provider": "openai", "dimension": 3072}',2,true,true,'2026-01-07 14:36:50.956807+09','2026-01-07 14:36:50.956807+09'),
+	 ('EMBEDDING_MODEL','text-embedding-ada-002','Text Embedding Ada-002 (레거시)','OpenAI Text Embedding Ada-002 모델 (이전 버전)','{"provider": "openai", "dimension": 1536}',3,true,true,'2026-01-07 14:36:50.956807+09','2026-01-07 14:36:50.956807+09');
