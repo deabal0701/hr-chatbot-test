@@ -1,353 +1,317 @@
--- =====================================================
--- HR Chatbot 데이터베이스 초기화 스크립트
--- 실행: python scripts/init_db.py
--- =====================================================
+-- public.app_settings definition
 
--- Enable pgvector extension (슈퍼유저 권한필요)
--- CREATE EXTENSION IF NOT EXISTS vector;
+-- Drop table
 
--- ===================================
--- 0. 기존 테이블 삭제 (의존성 역순)
--- ===================================
-DROP VIEW IF EXISTS v_document_chunks CASCADE;
-DROP TABLE IF EXISTS rag_search_log CASCADE;
-DROP TABLE IF EXISTS sql_execution_log CASCADE;
-DROP TABLE IF EXISTS query_log CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS salary CASCADE;
-DROP TABLE IF EXISTS job_history CASCADE;
-DROP TABLE IF EXISTS performance_review CASCADE;
-DROP TABLE IF EXISTS employee CASCADE;
-DROP TABLE IF EXISTS department CASCADE;
-DROP TABLE IF EXISTS hr_docs CASCADE;
+-- DROP TABLE public.app_settings;
 
--- ===================================
--- 1. 문서(텍스트)용 테이블 (청킹 지원)
--- ===================================
+CREATE TABLE public.app_settings (
+	id bigserial NOT NULL,
+	category varchar(50) NOT NULL,
+	"key" varchar(100) NOT NULL,
+	value text NOT NULL,
+	value_type varchar(20) DEFAULT 'string'::character varying NULL,
+	description text NULL,
+	is_secret bool DEFAULT false NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT app_settings_category_key_key UNIQUE (category, key),
+	CONSTRAINT app_settings_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_app_settings_category ON public.app_settings USING btree (category);
 
-CREATE TABLE hr_docs (
-  id              BIGSERIAL PRIMARY KEY,
-  title           TEXT NOT NULL,
-  doc_type        TEXT NOT NULL,           -- 'policy', 'job_posting', 'faq', 'guide'
-  language        TEXT DEFAULT 'ko',       -- 'ko', 'en'
-  content         TEXT NOT NULL,
-  metadata        JSONB,                   -- {"year":2024,"department":"HR","region":"Seoul"}
 
-  -- 임베딩 관련
-  embedding       VECTOR(1536),            -- text-embedding-3-small 차원수
-  embedding_model TEXT DEFAULT 'text-embedding-3-small',
-  indexed         BOOLEAN DEFAULT false,   -- 임베딩 완료 여부
-  embedded_at     TIMESTAMPTZ,             -- 임베딩 생성 일시
+-- public.code_master definition
 
-  -- 청킹 관련
-  chunk_index     INTEGER DEFAULT 0,       -- 청크 순서 (0부터 시작)
-  total_chunks    INTEGER DEFAULT 1,       -- 전체 청크 수
-  parent_doc_id   BIGINT REFERENCES hr_docs(id) ON DELETE CASCADE,  -- 원본 문서 ID
+-- Drop table
 
-  -- 소스 관련
-  source_type     TEXT DEFAULT 'ui_input', -- 'ui_input', 'pdf', 'web', 'api'
-  source_file     TEXT,                    -- 원본 파일명
-  content_hash    TEXT,                    -- 컨텐츠 MD5 해시 (중복 검사용)
+-- DROP TABLE public.code_master;
 
-  -- 타임스탬프
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  updated_at      TIMESTAMPTZ DEFAULT now()
+CREATE TABLE public.code_master (
+	code_id bigserial NOT NULL,
+	code_group varchar(50) NOT NULL,
+	code_value varchar(100) NOT NULL,
+	code_name varchar(200) NOT NULL,
+	description text NULL,
+	metadata jsonb NULL,
+	sort_order int4 DEFAULT 0 NULL,
+	is_active bool DEFAULT true NULL,
+	is_system bool DEFAULT false NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT code_master_code_group_code_value_key UNIQUE (code_group, code_value),
+	CONSTRAINT code_master_pkey PRIMARY KEY (code_id)
+);
+CREATE INDEX idx_code_master_active ON public.code_master USING btree (is_active);
+CREATE INDEX idx_code_master_group ON public.code_master USING btree (code_group);
+CREATE INDEX idx_code_master_group_active ON public.code_master USING btree (code_group, is_active);
+
+
+-- public.query_log definition
+
+-- Drop table
+
+-- DROP TABLE public.query_log;
+
+CREATE TABLE public.query_log (
+	id bigserial NOT NULL,
+	user_id text NULL,
+	query_text text NOT NULL,
+	query_type text NULL,
+	intent text NULL,
+	filters jsonb NULL,
+	response_time_ms int4 NULL,
+	success bool DEFAULT true NULL,
+	error_message text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT query_log_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_query_log_created ON public.query_log USING btree (created_at DESC);
+CREATE INDEX idx_query_log_type ON public.query_log USING btree (query_type);
+CREATE INDEX idx_query_log_user ON public.query_log USING btree (user_id);
+
+
+-- public.vect_test definition
+
+-- Drop table
+
+-- DROP TABLE public.vect_test;
+
+CREATE TABLE public.vect_test (
+	id serial4 NOT NULL,
+	emb public.vector NULL,
+	CONSTRAINT vect_test_pkey PRIMARY KEY (id)
 );
 
--- pgvector index (IVFFlat for approximate nearest neighbor search)
-CREATE INDEX idx_hr_docs_embedding ON hr_docs USING ivfflat (embedding vector_l2_ops) WITH (lists = 100);
 
--- 필터링용 인덱스
-CREATE INDEX idx_hr_docs_doc_type ON hr_docs(doc_type);
-CREATE INDEX idx_hr_docs_language ON hr_docs(language);
-CREATE INDEX idx_hr_docs_metadata ON hr_docs USING gin(metadata);
-CREATE INDEX idx_hr_docs_created_at ON hr_docs(created_at DESC);
-CREATE INDEX idx_hr_docs_indexed ON hr_docs(indexed);
-CREATE INDEX idx_hr_docs_source_type ON hr_docs(source_type);
-CREATE INDEX idx_hr_docs_parent_doc ON hr_docs(parent_doc_id);
-CREATE INDEX idx_hr_docs_content_hash ON hr_docs(content_hash);
+-- public.department definition
 
--- ===================================
--- 2. HR 구조화 데이터
--- ===================================
+-- Drop table
 
--- 부서 테이블
-CREATE TABLE department (
-  dept_id         BIGSERIAL PRIMARY KEY,
-  dept_name       TEXT NOT NULL,
-  dept_code       TEXT UNIQUE,
-  parent_dept_id  BIGINT REFERENCES department(dept_id),
-  region          TEXT,
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  updated_at      TIMESTAMPTZ DEFAULT now()
+-- DROP TABLE public.department;
+
+CREATE TABLE public.department (
+	dept_id bigserial NOT NULL,
+	dept_name text NOT NULL,
+	dept_code text NULL,
+	parent_dept_id int8 NULL,
+	region text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT department_dept_code_key UNIQUE (dept_code),
+	CONSTRAINT department_pkey PRIMARY KEY (dept_id),
+	CONSTRAINT department_parent_dept_id_fkey FOREIGN KEY (parent_dept_id) REFERENCES public.department(dept_id)
 );
+CREATE INDEX idx_department_parent ON public.department USING btree (parent_dept_id);
+CREATE INDEX idx_department_region ON public.department USING btree (region);
 
-CREATE INDEX idx_department_parent ON department(parent_dept_id);
-CREATE INDEX idx_department_region ON department(region);
 
--- 직원 테이블
-CREATE TABLE employee (
-  emp_id          BIGSERIAL PRIMARY KEY,
-  emp_no          TEXT UNIQUE NOT NULL,
-  name            TEXT NOT NULL,
-  name_en         TEXT,
-  gender          TEXT,
-  birth_date      DATE,
-  hire_date       DATE NOT NULL,
-  position        TEXT,                    -- 직급: 사원, 대리, 과장, 차장, 부장
-  job_family      TEXT,                    -- 직무: 개발, 기획, 디자인, 마케팅
-  department_id   BIGINT REFERENCES department(dept_id),
-  work_location   TEXT,
-  employment_type TEXT,                    -- 정규직, 계약직, 인턴
-  status          TEXT DEFAULT 'active',   -- active, resigned, on_leave
-  resignation_date DATE,
-  email           TEXT,
-  phone           TEXT,
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  updated_at      TIMESTAMPTZ DEFAULT now()
+-- public.employee definition
+
+-- Drop table
+
+-- DROP TABLE public.employee;
+
+CREATE TABLE public.employee (
+	emp_id bigserial NOT NULL,
+	emp_no text NOT NULL,
+	"name" text NOT NULL,
+	name_en text NULL,
+	gender text NULL,
+	birth_date date NULL,
+	hire_date date NOT NULL,
+	"position" text NULL,
+	job_family text NULL,
+	department_id int8 NULL,
+	work_location text NULL,
+	employment_type text NULL,
+	status text DEFAULT 'active'::text NULL,
+	resignation_date date NULL,
+	email text NULL,
+	phone text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT employee_emp_no_key UNIQUE (emp_no),
+	CONSTRAINT employee_pkey PRIMARY KEY (emp_id),
+	CONSTRAINT employee_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.department(dept_id)
 );
+CREATE INDEX idx_employee_department ON public.employee USING btree (department_id);
+CREATE INDEX idx_employee_emp_no ON public.employee USING btree (emp_no);
+CREATE INDEX idx_employee_hire_date ON public.employee USING btree (hire_date);
+CREATE INDEX idx_employee_job_family ON public.employee USING btree (job_family);
+CREATE INDEX idx_employee_status ON public.employee USING btree (status);
+CREATE INDEX idx_employee_work_location ON public.employee USING btree (work_location);
 
-CREATE INDEX idx_employee_emp_no ON employee(emp_no);
-CREATE INDEX idx_employee_hire_date ON employee(hire_date);
-CREATE INDEX idx_employee_department ON employee(department_id);
-CREATE INDEX idx_employee_status ON employee(status);
-CREATE INDEX idx_employee_job_family ON employee(job_family);
-CREATE INDEX idx_employee_work_location ON employee(work_location);
 
--- 직무 이력 테이블
-CREATE TABLE job_history (
-  id              BIGSERIAL PRIMARY KEY,
-  emp_id          BIGINT NOT NULL REFERENCES employee(emp_id) ON DELETE CASCADE,
-  from_date       DATE NOT NULL,
-  to_date         DATE,
-  department_id   BIGINT REFERENCES department(dept_id),
-  position        TEXT,
-  job_family      TEXT,
-  work_location   TEXT,
-  change_reason   TEXT,                    -- promotion, transfer, restructuring
-  created_at      TIMESTAMPTZ DEFAULT now()
+-- public.hr_docs definition
+
+-- Drop table
+
+-- DROP TABLE public.hr_docs;
+
+CREATE TABLE public.hr_docs (
+	id bigserial NOT NULL,
+	title text NOT NULL,
+	doc_type text NOT NULL,
+	"language" text DEFAULT 'ko'::text NULL,
+	"content" text NOT NULL,
+	metadata jsonb NULL,
+	embedding public.vector NULL,
+	embedding_model text DEFAULT 'text-embedding-3-small'::text NULL,
+	indexed bool DEFAULT false NULL,
+	embedded_at timestamptz NULL,
+	chunk_index int4 DEFAULT 0 NULL,
+	total_chunks int4 DEFAULT 1 NULL,
+	parent_doc_id int8 NULL,
+	source_type text DEFAULT 'ui_input'::text NULL,
+	source_file text NULL,
+	content_hash text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT hr_docs_pkey PRIMARY KEY (id),
+	CONSTRAINT hr_docs_parent_doc_id_fkey FOREIGN KEY (parent_doc_id) REFERENCES public.hr_docs(id) ON DELETE CASCADE
 );
+CREATE INDEX idx_hr_docs_content_hash ON public.hr_docs USING btree (content_hash);
+CREATE INDEX idx_hr_docs_created_at ON public.hr_docs USING btree (created_at DESC);
+CREATE INDEX idx_hr_docs_doc_type ON public.hr_docs USING btree (doc_type);
+CREATE INDEX idx_hr_docs_embedding ON public.hr_docs USING ivfflat (embedding) WITH (lists='100');
+CREATE INDEX idx_hr_docs_indexed ON public.hr_docs USING btree (indexed);
+CREATE INDEX idx_hr_docs_language ON public.hr_docs USING btree (language);
+CREATE INDEX idx_hr_docs_metadata ON public.hr_docs USING gin (metadata);
+CREATE INDEX idx_hr_docs_parent_doc ON public.hr_docs USING btree (parent_doc_id);
+CREATE INDEX idx_hr_docs_source_type ON public.hr_docs USING btree (source_type);
 
-CREATE INDEX idx_job_history_emp ON job_history(emp_id);
-CREATE INDEX idx_job_history_dates ON job_history(from_date, to_date);
 
--- 급여 테이블 (민감 정보)
-CREATE TABLE salary (
-  id              BIGSERIAL PRIMARY KEY,
-  emp_id          BIGINT NOT NULL REFERENCES employee(emp_id) ON DELETE CASCADE,
-  effective_date  DATE NOT NULL,
-  base_salary     NUMERIC(12, 2),
-  currency        TEXT DEFAULT 'KRW',
-  created_at      TIMESTAMPTZ DEFAULT now()
+-- public.job_history definition
+
+-- Drop table
+
+-- DROP TABLE public.job_history;
+
+CREATE TABLE public.job_history (
+	id bigserial NOT NULL,
+	emp_id int8 NOT NULL,
+	from_date date NOT NULL,
+	to_date date NULL,
+	department_id int8 NULL,
+	"position" text NULL,
+	job_family text NULL,
+	work_location text NULL,
+	change_reason text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT job_history_pkey PRIMARY KEY (id),
+	CONSTRAINT job_history_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.department(dept_id),
+	CONSTRAINT job_history_emp_id_fkey FOREIGN KEY (emp_id) REFERENCES public.employee(emp_id) ON DELETE CASCADE
 );
+CREATE INDEX idx_job_history_dates ON public.job_history USING btree (from_date, to_date);
+CREATE INDEX idx_job_history_emp ON public.job_history USING btree (emp_id);
 
-CREATE INDEX idx_salary_emp ON salary(emp_id);
-CREATE INDEX idx_salary_date ON salary(effective_date DESC);
 
--- 평가 테이블
-CREATE TABLE performance_review (
-  id              BIGSERIAL PRIMARY KEY,
-  emp_id          BIGINT NOT NULL REFERENCES employee(emp_id) ON DELETE CASCADE,
-  review_period   TEXT NOT NULL,           -- '2024-H1', '2024-H2'
-  reviewer_id     BIGINT REFERENCES employee(emp_id),
-  rating          TEXT,                    -- S, A, B, C, D
-  comments        TEXT,
-  created_at      TIMESTAMPTZ DEFAULT now()
+-- public.performance_review definition
+
+-- Drop table
+
+-- DROP TABLE public.performance_review;
+
+CREATE TABLE public.performance_review (
+	id bigserial NOT NULL,
+	emp_id int8 NOT NULL,
+	review_period text NOT NULL,
+	reviewer_id int8 NULL,
+	rating text NULL,
+	"comments" text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT performance_review_pkey PRIMARY KEY (id),
+	CONSTRAINT performance_review_emp_id_fkey FOREIGN KEY (emp_id) REFERENCES public.employee(emp_id) ON DELETE CASCADE,
+	CONSTRAINT performance_review_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES public.employee(emp_id)
 );
+CREATE INDEX idx_performance_emp ON public.performance_review USING btree (emp_id);
+CREATE INDEX idx_performance_period ON public.performance_review USING btree (review_period);
 
-CREATE INDEX idx_performance_emp ON performance_review(emp_id);
-CREATE INDEX idx_performance_period ON performance_review(review_period);
 
--- ===================================
--- 3. 로깅/감사 테이블
--- ===================================
+-- public.rag_search_log definition
 
--- 검색 쿼리 로그
-CREATE TABLE query_log (
-  id              BIGSERIAL PRIMARY KEY,
-  user_id         TEXT,
-  query_text      TEXT NOT NULL,
-  query_type      TEXT,                    -- 'rag', 'nl2sql', 'hybrid'
-  intent          TEXT,
-  filters         JSONB,
-  response_time_ms INTEGER,
-  success         BOOLEAN DEFAULT true,
-  error_message   TEXT,
-  created_at      TIMESTAMPTZ DEFAULT now()
+-- Drop table
+
+-- DROP TABLE public.rag_search_log;
+
+CREATE TABLE public.rag_search_log (
+	id bigserial NOT NULL,
+	query_log_id int8 NULL,
+	top_k int4 NULL,
+	retrieved_docs jsonb NULL,
+	llm_model text NULL,
+	llm_tokens int4 NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT rag_search_log_pkey PRIMARY KEY (id),
+	CONSTRAINT rag_search_log_query_log_id_fkey FOREIGN KEY (query_log_id) REFERENCES public.query_log(id) ON DELETE CASCADE
 );
+CREATE INDEX idx_rag_log_query ON public.rag_search_log USING btree (query_log_id);
 
-CREATE INDEX idx_query_log_user ON query_log(user_id);
-CREATE INDEX idx_query_log_created ON query_log(created_at DESC);
-CREATE INDEX idx_query_log_type ON query_log(query_type);
 
--- NL2SQL 실행 로그
-CREATE TABLE sql_execution_log (
-  id              BIGSERIAL PRIMARY KEY,
-  query_log_id    BIGINT REFERENCES query_log(id) ON DELETE CASCADE,
-  generated_sql   TEXT NOT NULL,
-  executed_sql    TEXT,
-  row_count       INTEGER,
-  execution_time_ms INTEGER,
-  success         BOOLEAN DEFAULT true,
-  error_message   TEXT,
-  created_at      TIMESTAMPTZ DEFAULT now()
+-- public.salary definition
+
+-- Drop table
+
+-- DROP TABLE public.salary;
+
+CREATE TABLE public.salary (
+	id bigserial NOT NULL,
+	emp_id int8 NOT NULL,
+	effective_date date NOT NULL,
+	base_salary numeric(12, 2) NULL,
+	currency text DEFAULT 'KRW'::text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT salary_pkey PRIMARY KEY (id),
+	CONSTRAINT salary_emp_id_fkey FOREIGN KEY (emp_id) REFERENCES public.employee(emp_id) ON DELETE CASCADE
 );
+CREATE INDEX idx_salary_date ON public.salary USING btree (effective_date DESC);
+CREATE INDEX idx_salary_emp ON public.salary USING btree (emp_id);
 
-CREATE INDEX idx_sql_log_query ON sql_execution_log(query_log_id);
-CREATE INDEX idx_sql_log_created ON sql_execution_log(created_at DESC);
 
--- RAG 검색 로그
-CREATE TABLE rag_search_log (
-  id              BIGSERIAL PRIMARY KEY,
-  query_log_id    BIGINT REFERENCES query_log(id) ON DELETE CASCADE,
-  top_k           INTEGER,
-  retrieved_docs  JSONB,                   -- [{"doc_id": 1, "score": 0.95, "title": "..."}, ...]
-  llm_model       TEXT,
-  llm_tokens      INTEGER,
-  created_at      TIMESTAMPTZ DEFAULT now()
+-- public.sql_execution_log definition
+
+-- Drop table
+
+-- DROP TABLE public.sql_execution_log;
+
+CREATE TABLE public.sql_execution_log (
+	id bigserial NOT NULL,
+	query_log_id int8 NULL,
+	generated_sql text NOT NULL,
+	executed_sql text NULL,
+	row_count int4 NULL,
+	execution_time_ms int4 NULL,
+	success bool DEFAULT true NULL,
+	error_message text NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT sql_execution_log_pkey PRIMARY KEY (id),
+	CONSTRAINT sql_execution_log_query_log_id_fkey FOREIGN KEY (query_log_id) REFERENCES public.query_log(id) ON DELETE CASCADE
 );
+CREATE INDEX idx_sql_log_created ON public.sql_execution_log USING btree (created_at DESC);
+CREATE INDEX idx_sql_log_query ON public.sql_execution_log USING btree (query_log_id);
 
-CREATE INDEX idx_rag_log_query ON rag_search_log(query_log_id);
 
--- ===================================
--- 4. 사용자/권한 테이블 (간단한 버전)
--- ===================================
-CREATE TABLE users (
-  id              BIGSERIAL PRIMARY KEY,
-  username        TEXT UNIQUE NOT NULL,
-  email           TEXT UNIQUE NOT NULL,
-  hashed_password TEXT NOT NULL,
-  full_name       TEXT,
-  role            TEXT DEFAULT 'user',     -- admin, hr_manager, user
-  department_id   BIGINT REFERENCES department(dept_id),
-  is_active       BOOLEAN DEFAULT true,
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  updated_at      TIMESTAMPTZ DEFAULT now()
+-- public.users definition
+
+-- Drop table
+
+-- DROP TABLE public.users;
+
+CREATE TABLE public.users (
+	id bigserial NOT NULL,
+	username text NOT NULL,
+	email text NOT NULL,
+	hashed_password text NOT NULL,
+	full_name text NULL,
+	"role" text DEFAULT 'user'::text NULL,
+	department_id int8 NULL,
+	is_active bool DEFAULT true NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT users_email_key UNIQUE (email),
+	CONSTRAINT users_pkey PRIMARY KEY (id),
+	CONSTRAINT users_username_key UNIQUE (username),
+	CONSTRAINT users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.department(dept_id)
 );
-
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-
--- ===================================
--- 5. 뷰 생성
--- ===================================
-
--- 청킹된 문서 조회 뷰
-CREATE OR REPLACE VIEW v_document_chunks AS
-SELECT
-    COALESCE(parent_doc_id, id) as document_id,
-    id as chunk_id,
-    title,
-    doc_type,
-    chunk_index,
-    total_chunks,
-    LENGTH(content) as content_length,
-    indexed,
-    source_type,
-    created_at
-FROM hr_docs
-ORDER BY COALESCE(parent_doc_id, id), chunk_index;
-
--- ===================================
--- 6. 샘플 데이터 (HR 구조화 데이터만)
--- ===================================
-
--- 부서 샘플 데이터
-INSERT INTO department (dept_name, dept_code, region) VALUES
-  ('경영지원본부', 'MGMT', '서울'),
-  ('인사팀', 'HR', '서울'),
-  ('재무팀', 'FIN', '서울'),
-  ('기술본부', 'TECH', '서울'),
-  ('개발1팀', 'DEV1', '서울'),
-  ('개발2팀', 'DEV2', '판교'),
-  ('데이터팀', 'DATA', '서울'),
-  ('마케팅본부', 'MKT', '서울'),
-  ('영업본부', 'SALES', '서울')
-ON CONFLICT (dept_code) DO NOTHING;
-
--- 직원 샘플 데이터
-INSERT INTO employee (emp_no, name, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, email)
-SELECT
-  'EMP' || LPAD(i::TEXT, 5, '0'),
-  '직원' || i,
-  CASE WHEN random() < 0.5 THEN '남' ELSE '여' END,
-  DATE '1980-01-01' + (random() * 365 * 20)::INTEGER,
-  DATE '2020-01-01' + (random() * 365 * 4)::INTEGER,
-  (ARRAY['사원', '대리', '과장', '차장', '부장'])[floor(random() * 5 + 1)],
-  (ARRAY['개발', '기획', '디자인', 'HR', '마케팅', '영업'])[floor(random() * 6 + 1)],
-  floor(random() * 9 + 1)::BIGINT,
-  (ARRAY['서울', '판교', '부산'])[floor(random() * 3 + 1)],
-  (ARRAY['정규직', '계약직'])[floor(random() * 2 + 1)],
-  'active',
-  'emp' || i || '@company.com'
-FROM generate_series(1, 100) AS i
-ON CONFLICT (emp_no) DO NOTHING;
-
--- ===================================
--- 7. 테이블 코멘트
--- ===================================
-COMMENT ON TABLE hr_docs IS '인사 관련 문서 및 벡터 검색용 테이블 (청킹 지원)';
-COMMENT ON TABLE employee IS '직원 정보 테이블';
-COMMENT ON TABLE department IS '부서 정보 테이블';
-COMMENT ON TABLE query_log IS '사용자 검색 쿼리 로그';
-COMMENT ON TABLE sql_execution_log IS 'NL2SQL 실행 로그';
-COMMENT ON VIEW v_document_chunks IS '청킹된 문서 조회용 뷰';
-
--- ===================================
--- 8. 시스템 설정 테이블
--- ===================================
-
-CREATE TABLE app_settings (
-  id              BIGSERIAL PRIMARY KEY,
-  category        VARCHAR(50) NOT NULL,       -- 'openai', 'embedding', 'llm', 'rag', 'nl2sql', 'chunking'
-  key             VARCHAR(100) NOT NULL,
-  value           TEXT NOT NULL,
-  value_type      VARCHAR(20) DEFAULT 'string',  -- 'string', 'int', 'float', 'bool', 'json'
-  description     TEXT,
-  is_secret       BOOLEAN DEFAULT FALSE,      -- API Key 등 마스킹 표시
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  updated_at      TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(category, key)
-);
-
-CREATE INDEX idx_app_settings_category ON app_settings(category);
-
-COMMENT ON TABLE app_settings IS '시스템 설정 테이블 (런타임 설정 관리)';
-
--- 기본 설정값 삽입
-INSERT INTO app_settings (category, key, value, value_type, description, is_secret) VALUES
-  -- OpenAI 설정
-  ('openai', 'api_key', '', 'string', 'OpenAI API Key', TRUE),
-  ('openai', 'organization_id', '', 'string', 'OpenAI Organization ID (선택)', FALSE),
-
-  -- 임베딩 설정
-  ('embedding', 'model', 'text-embedding-3-small', 'string', '임베딩 모델명', FALSE),
-  ('embedding', 'dimension', '1536', 'int', '벡터 차원 수', FALSE),
-
-  -- LLM 설정
-  ('llm', 'model', 'gpt-4-turbo-preview', 'string', 'LLM 모델명', FALSE),
-  ('llm', 'temperature', '0.1', 'float', '생성 온도 (0.0-2.0)', FALSE),
-  ('llm', 'max_tokens', '2000', 'int', '최대 토큰 수', FALSE),
-
-  -- RAG 설정
-  ('rag', 'top_k', '10', 'int', '검색 문서 수', FALSE),
-  ('rag', 'similarity_threshold', '0.7', 'float', '유사도 임계값 (0.0-1.0)', FALSE),
-  ('rag', 'max_context_length', '4000', 'int', '최대 컨텍스트 길이', FALSE),
-
-  -- NL2SQL 설정
-  ('nl2sql', 'timeout_seconds', '30', 'int', 'SQL 실행 타임아웃 (초)', FALSE),
-  ('nl2sql', 'max_rows', '1000', 'int', '최대 반환 행 수', FALSE),
-  ('nl2sql', 'read_only_mode', 'true', 'bool', '읽기 전용 모드', FALSE),
-
-  -- 청킹 설정
-  ('chunking', 'default_chunk_size', '1000', 'int', '기본 청크 크기 (문자)', FALSE),
-  ('chunking', 'default_overlap', '100', 'int', '기본 오버랩 크기 (문자)', FALSE)
-ON CONFLICT (category, key) DO NOTHING;
-
--- 완료 메시지
-DO $$
-BEGIN
-    RAISE NOTICE '==========================================';
-    RAISE NOTICE 'HR Chatbot 데이터베이스 초기화 완료!';
-    RAISE NOTICE '==========================================';
-END $$;
+CREATE INDEX idx_users_email ON public.users USING btree (email);
+CREATE INDEX idx_users_username ON public.users USING btree (username);
