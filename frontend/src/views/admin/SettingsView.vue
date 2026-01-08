@@ -33,11 +33,10 @@
                     v-model="formData.openai.api_key"
                     :type="showApiKey ? 'text' : 'password'"
                     placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    clearable
                     class="api-key-field"
                   >
                     <template #suffix>
-                      <el-icon class="cursor-pointer" @click="showApiKey = !showApiKey">
+                      <el-icon class="cursor-pointer" @click="toggleApiKeyVisibility('openai')">
                         <View v-if="!showApiKey" />
                         <Hide v-else />
                       </el-icon>
@@ -71,11 +70,10 @@
                     v-model="formData.anthropic.api_key"
                     :type="showAnthropicApiKey ? 'text' : 'password'"
                     placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    clearable
                     class="api-key-field"
                   >
                     <template #suffix>
-                      <el-icon class="cursor-pointer" @click="showAnthropicApiKey = !showAnthropicApiKey">
+                      <el-icon class="cursor-pointer" @click="toggleApiKeyVisibility('anthropic')">
                         <View v-if="!showAnthropicApiKey" />
                         <Hide v-else />
                       </el-icon>
@@ -520,6 +518,12 @@ const apiKeyStatus = ref(null)
 const testingConnection = ref(false)
 const externalConnectionStatus = ref(null)
 
+// 원본 API 키 저장 (reveal용)
+const originalApiKeys = reactive({
+  openai: '',
+  anthropic: ''
+})
+
 // 코드 관리 (Phase C-2)
 const embeddingModels = ref([])
 const llmModelsOpenAI = ref([])
@@ -817,6 +821,61 @@ const onLLMProviderChange = (provider) => {
     formData.llm.model = ''
   } else if (provider === 'openai' && formData.llm.model.startsWith('claude-')) {
     formData.llm.model = ''
+  }
+}
+
+// API 키 보기/숨기기 토글
+const toggleApiKeyVisibility = async (provider) => {
+  if (provider === 'openai') {
+    if (!showApiKey.value) {
+      // 숨김 -> 보임: reveal API 호출
+      if (formData.openai.api_key.includes('*')) {
+        try {
+          const response = await settingsApi.revealSetting('openai', 'api_key')
+          originalApiKeys.openai = formData.openai.api_key // 마스킹된 값 저장
+          formData.openai.api_key = response.value
+          showApiKey.value = true
+        } catch (error) {
+          console.error('API 키 조회 실패:', error)
+          ElMessage.error('API 키를 조회할 수 없습니다.')
+        }
+      } else {
+        // 이미 실제 값인 경우 그냥 토글
+        showApiKey.value = true
+      }
+    } else {
+      // 보임 -> 숨김: 마스킹된 값으로 복원
+      if (originalApiKeys.openai) {
+        formData.openai.api_key = originalApiKeys.openai
+        originalApiKeys.openai = ''
+      }
+      showApiKey.value = false
+    }
+  } else if (provider === 'anthropic') {
+    if (!showAnthropicApiKey.value) {
+      // 숨김 -> 보임: reveal API 호출
+      if (formData.anthropic.api_key.includes('*')) {
+        try {
+          const response = await settingsApi.revealSetting('anthropic', 'api_key')
+          originalApiKeys.anthropic = formData.anthropic.api_key // 마스킹된 값 저장
+          formData.anthropic.api_key = response.value
+          showAnthropicApiKey.value = true
+        } catch (error) {
+          console.error('API 키 조회 실패:', error)
+          ElMessage.error('API 키를 조회할 수 없습니다.')
+        }
+      } else {
+        // 이미 실제 값인 경우 그냥 토글
+        showAnthropicApiKey.value = true
+      }
+    } else {
+      // 보임 -> 숨김: 마스킹된 값으로 복원
+      if (originalApiKeys.anthropic) {
+        formData.anthropic.api_key = originalApiKeys.anthropic
+        originalApiKeys.anthropic = ''
+      }
+      showAnthropicApiKey.value = false
+    }
   }
 }
 

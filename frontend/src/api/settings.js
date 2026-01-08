@@ -28,6 +28,15 @@ export default {
   },
 
   /**
+   * 단일 설정 조회 (마스킹 없이)
+   * @param {string} category - 카테고리명
+   * @param {string} key - 설정 키
+   */
+  revealSetting(category, key) {
+    return apiClient.get(`${BASE_URL}/${category}/${key}/reveal`)
+  },
+
+  /**
    * 단일 설정 수정
    * @param {string} category - 카테고리명
    * @param {string} key - 설정 키

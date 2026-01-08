@@ -139,6 +139,44 @@ async def get_setting(category: str, key: str):
         )
 
 
+@router.get("/{category}/{key}/reveal", response_model=SettingItemResponse)
+async def reveal_setting(category: str, key: str):
+    """
+    단일 설정 조회 (마스킹 없이)
+
+    특정 카테고리의 특정 키 설정을 마스킹 없이 조회합니다.
+    주의: 민감한 정보(API 키 등)를 노출하므로 보안에 주의해야 합니다.
+    """
+    try:
+        setting = settings_service.get_setting(category, key)
+
+        if not setting:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"설정을 찾을 수 없습니다: {category}.{key}"
+            )
+
+        # 마스킹 처리 없이 원본 값 반환
+        return SettingItemResponse(
+            category=category,
+            key=key,
+            value=setting['value'],
+            value_type=setting.get('value_type', 'string'),
+            description=setting.get('description'),
+            is_secret=setting.get('is_secret', False),
+            updated_at=setting.get('updated_at')
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"설정 조회 실패: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
 # ============================================
 # 설정 수정
 # ============================================
