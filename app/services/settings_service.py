@@ -73,6 +73,19 @@ class SettingsService:
             "connection_pool_size": ("5", "int", "연결 풀 크기", False),
             "connection_timeout": ("10", "int", "연결 타임아웃 (초)", False),
         },
+        "prompt": {
+            "rag_system_prompt": ("", "text", "RAG 답변 생성용 시스템 프롬프트", False),
+            "rag_persona": ("기업용 지식 베이스 전문가", "string", "RAG 시스템의 페르소나", False),
+            "nl2sql_generation_prompt": ("", "text", "NL2SQL SQL 생성용 프롬프트", False),
+            "nl2sql_answer_prompt": ("", "text", "NL2SQL 답변 생성용 프롬프트", False),
+            "nl2sql_sql_persona": ("PostgreSQL 전문가", "string", "NL2SQL SQL 생성 시 페르소나", False),
+            "nl2sql_answer_persona": ("데이터 분석 전문가", "string", "NL2SQL 답변 생성 시 페르소나", False),
+            "agent_system_prompt": ("", "text", "Agent 시스템 프롬프트 (ReAct 패턴)", False),
+            "agent_persona": ("AI assistant for corporate knowledge base", "string", "Agent 페르소나", False),
+            "tool_sql_description": ("", "text", "SQL Tool 설명 (Agent용)", False),
+            "tool_rag_description": ("", "text", "RAG Tool 설명 (Agent용)", False),
+            "tool_calculator_description": ("", "text", "Calculator Tool 설명 (Agent용)", False),
+        },
     }
 
     # 환경변수 매핑 (category.key -> env_settings attribute)
@@ -203,11 +216,15 @@ class SettingsService:
             # 캐시에서 조회
             if category in self._cache and key in self._cache[category]:
                 cached = self._cache[category][key]
+                logger.debug(f"[GET DEBUG] {category}.{key} from cache, value length={len(cached.get('value', ''))}")
                 if cached['value']:  # 빈 문자열이 아닌 경우
                     return cached
+                else:
+                    logger.warning(f"[GET DEBUG] {category}.{key} cached but value is empty!")
         else:
             # 캐시 사용 안 함 - DB에서 직접 조회
             db_value = self._query_setting_from_db(category, key)
+            logger.debug(f"[GET DEBUG] {category}.{key} from DB (no cache), value length={len(db_value.get('value', '')) if db_value else 0}")
             if db_value and db_value['value']:
                 return db_value
 
@@ -295,11 +312,19 @@ class SettingsService:
 
         return result
 
-    def set_setting(self, category: str, key: str, value: str) -> bool:
+    def set_setting(self, category: str, key: str, value: str, changed_by: str = 'system', change_reason: str = None) -> bool:
         """
         단일 설정 저장
 
         DB에 upsert하고 캐시 갱신
+        프롬프트 카테고리의 경우 변경 이력 자동 저장
+
+        Args:
+            category: 설정 카테고리
+            key: 설정 키
+            value: 새로운 값
+            changed_by: 변경자 (기본값: 'system')
+            change_reason: 변경 사유 (선택)
         """
         if not self._ensure_table_exists():
             logger.error("app_settings 테이블이 없습니다.")
@@ -312,6 +337,18 @@ class SettingsService:
 
         try:
             with db_manager.get_cursor(commit=True) as cur:
+                # 프롬프트 카테고리인 경우 기존 값 조회 (이력 저장용)
+                old_value = None
+                if category == 'prompt':
+                    cur.execute("""
+                        SELECT value FROM app_settings
+                        WHERE category = %s AND key = %s
+                    """, (category, key))
+                    row = cur.fetchone()
+                    if row:
+                        old_value = row['value']
+
+                # 설정 저장 (UPSERT)
                 cur.execute("""
                     INSERT INTO app_settings (category, key, value, value_type, description, is_secret, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, NOW())
@@ -322,6 +359,18 @@ class SettingsService:
 
                 row = cur.fetchone()
                 updated_at = row['updated_at'] if row else datetime.now()
+
+                # 프롬프트 카테고리인 경우 이력 저장
+                if category == 'prompt' and old_value != value:
+                    try:
+                        cur.execute("""
+                            INSERT INTO prompt_history (category, key, old_value, new_value, changed_by, change_reason)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (category, key, old_value, value, changed_by, change_reason or 'Manual update'))
+                        logger.info(f"프롬프트 이력 저장: {category}.{key}")
+                    except Exception as hist_err:
+                        # 이력 저장 실패해도 설정 저장은 유지
+                        logger.error(f"프롬프트 이력 저장 실패 (무시): {hist_err}")
 
                 # 캐시 갱신
                 if category not in self._cache:
@@ -416,6 +465,169 @@ class SettingsService:
         for category in self.DEFAULTS:
             result[category] = self.get_masked_settings(category)
         return result
+
+    # ============================================================================
+    # 프롬프트 이력 관리
+    # ============================================================================
+
+    def get_prompt_history(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        프롬프트 변경 이력 조회
+
+        Args:
+            limit: 조회할 최대 개수 (기본: 100, 최대: 1000)
+
+        Returns:
+            이력 목록 (최신순)
+        """
+        # 최대 제한 적용
+        limit = min(limit, 1000)
+
+        try:
+            with db_manager.get_cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        category,
+                        key,
+                        old_value,
+                        new_value,
+                        changed_by,
+                        changed_at,
+                        change_reason
+                    FROM prompt_history
+                    ORDER BY changed_at DESC
+                    LIMIT %s
+                """, (limit,))
+
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+
+        except Exception as e:
+            logger.error(f"프롬프트 이력 조회 실패: {e}")
+            return []
+
+    def get_prompt_history_by_key(self, category: str, key: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        특정 프롬프트의 변경 이력 조회
+
+        Args:
+            category: 카테고리 (일반적으로 'prompt')
+            key: 프롬프트 키
+            limit: 조회할 최대 개수 (기본: 50, 최대: 500)
+
+        Returns:
+            해당 프롬프트의 이력 목록 (최신순)
+        """
+        # 최대 제한 적용
+        limit = min(limit, 500)
+
+        try:
+            with db_manager.get_cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        category,
+                        key,
+                        old_value,
+                        new_value,
+                        changed_by,
+                        changed_at,
+                        change_reason
+                    FROM prompt_history
+                    WHERE category = %s AND key = %s
+                    ORDER BY changed_at DESC
+                    LIMIT %s
+                """, (category, key, limit))
+
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+
+        except Exception as e:
+            logger.error(f"프롬프트 이력 조회 실패 ({category}.{key}): {e}")
+            return []
+
+    def restore_prompt_from_history(self, history_id: int, changed_by: str = 'system') -> bool:
+        """
+        특정 이력으로 프롬프트 복원
+
+        Args:
+            history_id: 복원할 이력 ID
+            changed_by: 복원 작업자 (기본값: 'system')
+
+        Returns:
+            성공 여부
+        """
+        try:
+            with db_manager.get_cursor(commit=True) as cur:
+                # 이력에서 이전 값 조회
+                cur.execute("""
+                    SELECT category, key, old_value, new_value, changed_at
+                    FROM prompt_history
+                    WHERE id = %s
+                """, (history_id,))
+
+                history = cur.fetchone()
+                if not history:
+                    logger.error(f"이력을 찾을 수 없습니다: {history_id}")
+                    return False
+
+                category = history['category']
+                key = history['key']
+                restore_value = history['old_value']  # 이전 값으로 복원
+
+                logger.info(f"[RESTORE DEBUG] history_id={history_id}, category={category}, key={key}")
+                logger.info(f"[RESTORE DEBUG] old_value length={len(restore_value) if restore_value else 0}")
+                logger.info(f"[RESTORE DEBUG] old_value preview={restore_value[:100] if restore_value else 'None'}")
+
+                if restore_value is None:
+                    logger.error(f"복원할 값이 없습니다 (최초 생성 이력): {history_id}")
+                    return False
+
+                # 현재 값 조회 (새로운 이력 저장용)
+                cur.execute("""
+                    SELECT value FROM app_settings
+                    WHERE category = %s AND key = %s
+                """, (category, key))
+
+                current_row = cur.fetchone()
+                current_value = current_row['value'] if current_row else None
+                logger.info(f"[RESTORE DEBUG] current_value length={len(current_value) if current_value else 0}")
+
+                # 프롬프트 값 업데이트
+                logger.info(f"[RESTORE DEBUG] Updating app_settings with restore_value")
+                cur.execute("""
+                    UPDATE app_settings
+                    SET value = %s, updated_at = NOW()
+                    WHERE category = %s AND key = %s
+                """, (restore_value, category, key))
+
+                affected_rows = cur.rowcount
+                logger.info(f"[RESTORE DEBUG] UPDATE affected {affected_rows} rows")
+
+                # 복원 작업도 이력에 기록
+                cur.execute("""
+                    INSERT INTO prompt_history (category, key, old_value, new_value, changed_by, change_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    category,
+                    key,
+                    current_value,
+                    restore_value,
+                    changed_by,
+                    f'Restored from history #{history_id} ({history["changed_at"]})'
+                ))
+
+                # 캐시 무효화 - 전체 캐시 재로드하도록 플래그 초기화
+                self._cache_loaded = False
+                logger.info(f"[RESTORE DEBUG] Cache invalidated, will reload on next access")
+
+                logger.info(f"프롬프트 복원 완료: {category}.{key} (history_id={history_id})")
+                return True
+
+        except Exception as e:
+            logger.error(f"프롬프트 복원 실패: {e}")
+            return False
 
 
 # 싱글톤 인스턴스

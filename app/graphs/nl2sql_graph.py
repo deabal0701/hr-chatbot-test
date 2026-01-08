@@ -7,6 +7,7 @@ from app.config import settings
 from app.models.schemas import NL2SQLResponse, SQLResult
 from app.services.schema_loader import schema_loader
 from app.services.settings_service import settings_service
+from app.services.prompt_service import prompt_service
 from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_nl2sql_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
@@ -88,37 +89,8 @@ class NL2SQLGraph:
         log_nl2sql_step(request_id, "1", "GENERATE", "SQL 생성 시작",
                         question=question[:40])
 
-        # 시스템 프롬프트
-        system_prompt = f"""당신은 PostgreSQL 전문가입니다.
-사용자의 자연어 질문을 PostgreSQL SQL 쿼리로 변환해주세요.
-
-# 데이터베이스 스키마
-{self.schema_description}
-
-# 중요한 규칙
-1. **반드시 SELECT 문만 생성하세요** (INSERT, UPDATE, DELETE, DROP 등은 절대 사용 금지)
-2. **테이블명과 컬럼명은 정확하게 사용하세요**
-3. **WHERE 절을 적절히 사용하여 결과를 필터링하세요**
-4. **집계 함수 사용 시 GROUP BY를 정확히 지정하세요**
-5. **날짜 비교 시 적절한 형변환을 사용하세요**
-6. **JOIN 시 명확한 조인 조건을 지정하세요**
-7. **SQL만 출력하고, 설명이나 마크다운 코드 블록은 포함하지 마세요**
-
-# 사용자 의도 파악 규칙
-- "표로 보여줘", "목록으로", "리스트로", "상세 정보" 등의 표현이 있으면 **개별 데이터를 조회**하세요 (COUNT 사용 금지)
-- "몇 명", "총 수", "개수" 등의 표현이 있을 때만 COUNT를 사용하세요
-- 이미 특정 수치("27명", "10건" 등)를 언급한 경우, 해당 데이터의 **상세 내용**을 원하는 것입니다 (COUNT 사용 금지)
-- 불확실한 경우, 상세 데이터를 조회하는 것이 더 유용합니다
-
-# LIMIT 사용 규칙 (조건부 적용)
-- **COUNT, SUM, AVG, MAX, MIN 등 집계 함수 사용 시**: LIMIT 절 사용 금지
-- **GROUP BY 사용 시**: LIMIT 절 사용 금지 (모든 그룹 결과 필요)
-- **개별 데이터 조회 시**: LIMIT 1000 사용 (대용량 방지)
-- 사용자가 "상위 5개만", "10개만 보여줘" 등 명시적으로 제한을 요청한 경우에만 해당 숫자를 LIMIT에 사용
-
-# 필드 매핑 규칙 (데이터베이스 언어에 맞춤)
-- 사용자 질문의 키워드를 스키마 정의에 정의된 실제 컬럼명과 정확히 매칭하세요.
-"""
+        # 시스템 프롬프트 (DB에서 동적 로드, 스키마 주입)
+        system_prompt = prompt_service.get_nl2sql_generation_prompt(self.schema_description)
 
         user_prompt = f"""질문: {question}
 
@@ -249,16 +221,8 @@ SQL만 출력하세요 (설명 없이)."""
         log_nl2sql_step(request_id, "4", "ANSWER", "답변 생성 시작",
                         row_count=result.row_count)
 
-        # 시스템 프롬프트
-        system_prompt = """당신은 데이터 분석 전문가입니다.
-                    SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요.
-
-                    답변 작성 시:
-                    1. 핵심 통계나 수치를 강조하세요
-                    2. 결과를 명확하고 간결하게 설명하세요
-                    3. 필요시 불릿 포인트를 사용하세요
-                    4. 데이터에서 발견되는 인사이트나 특징을 언급하세요
-                    """
+        # 시스템 프롬프트 (DB에서 동적 로드)
+        system_prompt = prompt_service.get_nl2sql_answer_prompt()
 
         # 결과 데이터 요약 (너무 길면 일부만)
         rows_summary = result.rows[:10] if len(result.rows) > 10 else result.rows

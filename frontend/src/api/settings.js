@@ -91,5 +91,31 @@ export default {
    */
   testExternalConnection(connection) {
     return apiClient.post(`${BASE_URL}/external-database/test`, connection)
+  },
+
+  /**
+   * 프롬프트 변경 이력 조회
+   * @param {number} limit - 조회할 최대 개수 (기본: 100)
+   */
+  getPromptHistory(limit = 100) {
+    return apiClient.get(`${BASE_URL}/prompt/history`, { params: { limit } })
+  },
+
+  /**
+   * 특정 프롬프트의 변경 이력 조회
+   * @param {string} category - 카테고리
+   * @param {string} key - 프롬프트 키
+   * @param {number} limit - 조회할 최대 개수 (기본: 50)
+   */
+  getPromptHistoryByKey(category, key, limit = 50) {
+    return apiClient.get(`${BASE_URL}/prompt/history/${category}/${key}`, { params: { limit } })
+  },
+
+  /**
+   * 프롬프트 복원
+   * @param {number} historyId - 복원할 이력 ID
+   */
+  restorePromptFromHistory(historyId) {
+    return apiClient.post(`${BASE_URL}/prompt/restore/${historyId}`)
   }
 }

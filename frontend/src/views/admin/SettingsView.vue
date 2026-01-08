@@ -486,6 +486,191 @@
             </el-form>
           </div>
         </el-tab-pane>
+
+        <!-- 프롬프트 설정 -->
+        <el-tab-pane label="프롬프트" name="prompt">
+          <div class="settings-section">
+            <h3>시스템 프롬프트 관리</h3>
+            <p class="section-desc">
+              LLM과의 상호작용에 사용되는 시스템 프롬프트를 관리합니다.
+              프롬프트 변경 시 모든 변경 이력이 자동으로 저장되며, 언제든지 이전 버전으로 원복할 수 있습니다.
+            </p>
+
+            <!-- RAG 프롬프트 -->
+            <el-divider content-position="left">
+              <span style="font-weight: 600;">RAG (문서 검색)</span>
+            </el-divider>
+
+            <el-form label-position="top" class="settings-form">
+              <el-form-item label="RAG 시스템 프롬프트">
+                <el-input
+                  v-model="formData.prompt.rag_system_prompt"
+                  type="textarea"
+                  :rows="12"
+                  placeholder="문서 검색 후 답변 생성 시 사용되는 시스템 프롬프트"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">
+                  문서 검색 후 답변 생성 시 사용됩니다.
+                  <el-button text type="primary" size="small" @click="showPromptPreview('rag_system_prompt')">
+                    프리뷰
+                  </el-button>
+                </div>
+              </el-form-item>
+
+              <el-form-item label="RAG 페르소나">
+                <el-input
+                  v-model="formData.prompt.rag_persona"
+                  placeholder="예: 기업용 지식 베이스 전문가"
+                  style="max-width: 500px"
+                />
+                <div class="form-help">RAG 시스템의 역할 정의</div>
+              </el-form-item>
+            </el-form>
+
+            <!-- NL2SQL 프롬프트 -->
+            <el-divider content-position="left">
+              <span style="font-weight: 600;">NL2SQL (자연어 → SQL)</span>
+            </el-divider>
+
+            <el-form label-position="top" class="settings-form">
+              <el-form-item label="SQL 생성 프롬프트">
+                <el-input
+                  v-model="formData.prompt.nl2sql_generation_prompt"
+                  type="textarea"
+                  :rows="15"
+                  placeholder="자연어를 SQL 쿼리로 변환하는 프롬프트"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">
+                  <el-icon><Warning /></el-icon>
+                  {schema_description} 변수는 자동으로 DB 스키마로 치환됩니다.
+                  <el-button text type="primary" size="small" @click="showPromptPreview('nl2sql_generation_prompt')">
+                    프리뷰
+                  </el-button>
+                </div>
+              </el-form-item>
+
+              <el-form-item label="답변 생성 프롬프트">
+                <el-input
+                  v-model="formData.prompt.nl2sql_answer_prompt"
+                  type="textarea"
+                  :rows="8"
+                  placeholder="SQL 결과를 자연어로 변환하는 프롬프트"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">SQL 실행 결과를 사용자가 이해하기 쉽게 자연어로 변환합니다.</div>
+              </el-form-item>
+
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="SQL 생성 페르소나">
+                    <el-input
+                      v-model="formData.prompt.nl2sql_sql_persona"
+                      placeholder="예: PostgreSQL 전문가"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="답변 생성 페르소나">
+                    <el-input
+                      v-model="formData.prompt.nl2sql_answer_persona"
+                      placeholder="예: 데이터 분석 전문가"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+
+            <!-- Agent 프롬프트 -->
+            <el-divider content-position="left">
+              <span style="font-weight: 600;">Agent (도구 선택)</span>
+            </el-divider>
+
+            <el-form label-position="top" class="settings-form">
+              <el-form-item label="Agent 시스템 프롬프트">
+                <el-input
+                  v-model="formData.prompt.agent_system_prompt"
+                  type="textarea"
+                  :rows="15"
+                  placeholder="Agent의 기본 동작 지침 및 도구 선택 규칙"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">
+                  ReAct 패턴 기반 도구 선택 및 실행 시 사용됩니다.
+                  <el-button text type="primary" size="small" @click="showPromptPreview('agent_system_prompt')">
+                    프리뷰
+                  </el-button>
+                </div>
+              </el-form-item>
+
+              <el-form-item label="Agent 페르소나">
+                <el-input
+                  v-model="formData.prompt.agent_persona"
+                  placeholder="예: AI assistant for corporate knowledge base"
+                  style="max-width: 500px"
+                />
+              </el-form-item>
+            </el-form>
+
+            <!-- Tool 설명 -->
+            <el-divider content-position="left">
+              <span style="font-weight: 600;">Tool 설명 (Agent 도구 선택 시 참조)</span>
+            </el-divider>
+
+            <el-form label-position="top" class="settings-form">
+              <el-form-item label="SQL Tool 설명">
+                <el-input
+                  v-model="formData.prompt.tool_sql_description"
+                  type="textarea"
+                  :rows="8"
+                  placeholder="SQL Tool 설명"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">Agent가 SQL Tool을 선택할 때 참조하는 설명</div>
+              </el-form-item>
+
+              <el-form-item label="RAG Tool 설명">
+                <el-input
+                  v-model="formData.prompt.tool_rag_description"
+                  type="textarea"
+                  :rows="8"
+                  placeholder="RAG Tool 설명"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">Agent가 RAG Tool을 선택할 때 참조하는 설명</div>
+              </el-form-item>
+
+              <el-form-item label="Calculator Tool 설명">
+                <el-input
+                  v-model="formData.prompt.tool_calculator_description"
+                  type="textarea"
+                  :rows="8"
+                  placeholder="Calculator Tool 설명"
+                  class="prompt-textarea"
+                />
+                <div class="form-help">Agent가 Calculator Tool을 선택할 때 참조하는 설명</div>
+              </el-form-item>
+            </el-form>
+
+            <!-- 프롬프트 관리 도구 -->
+            <el-divider />
+            <div class="prompt-actions">
+              <el-button @click="showPromptHistory">
+                <el-icon><Clock /></el-icon>
+                변경 이력 보기
+              </el-button>
+              <el-button @click="exportPrompts">
+                <el-icon><Download /></el-icon>
+                내보내기
+              </el-button>
+              <el-button @click="importPrompts">
+                <el-icon><Upload /></el-icon>
+                가져오기
+              </el-button>
+            </div>
+          </div>
+        </el-tab-pane>
       </el-tabs>
 
       <!-- 저장 버튼 -->
@@ -498,13 +683,64 @@
         </el-button>
       </div>
     </div>
+
+    <!-- 프롬프트 프리뷰 다이얼로그 -->
+    <el-dialog
+      v-model="promptPreviewVisible"
+      :title="promptPreviewData.title"
+      width="800px"
+    >
+      <div class="prompt-preview">
+        <pre>{{ promptPreviewData.content }}</pre>
+      </div>
+      <template #footer>
+        <el-button @click="promptPreviewVisible = false">닫기</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 프롬프트 이력 다이얼로그 -->
+    <el-dialog
+      v-model="promptHistoryVisible"
+      title="프롬프트 변경 이력"
+      width="900px"
+    >
+      <el-table
+        v-loading="promptHistoryLoading"
+        :data="promptHistoryData"
+        empty-text="변경 이력이 없습니다"
+      >
+        <el-table-column prop="key" label="프롬프트" width="200" />
+        <el-table-column prop="changed_at" label="변경 일시" width="180">
+          <template #default="scope">
+            {{ new Date(scope.row.changed_at).toLocaleString('ko-KR') }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="changed_by" label="변경자" width="120" />
+        <el-table-column prop="change_reason" label="변경 사유" min-width="150" />
+        <el-table-column label="작업" width="100" align="center">
+          <template #default="scope">
+            <el-button
+              type="primary"
+              size="small"
+              text
+              @click="restorePrompt(scope.row)"
+            >
+              복원
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="promptHistoryVisible = false">닫기</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, View, Hide, Warning } from '@element-plus/icons-vue'
+import { Refresh, View, Hide, Warning, Clock, Download, Upload } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -584,6 +820,19 @@ const formData = reactive({
   chunking: {
     default_chunk_size: 1000,
     default_overlap: 100
+  },
+  prompt: {
+    rag_system_prompt: '',
+    rag_persona: '',
+    nl2sql_generation_prompt: '',
+    nl2sql_answer_prompt: '',
+    nl2sql_sql_persona: '',
+    nl2sql_answer_persona: '',
+    agent_system_prompt: '',
+    agent_persona: '',
+    tool_sql_description: '',
+    tool_rag_description: '',
+    tool_calculator_description: ''
   }
 })
 
@@ -914,6 +1163,159 @@ const testExternalConnection = async () => {
   }
 }
 
+// ============================================================================
+// 프롬프트 관리 함수
+// ============================================================================
+
+// 프롬프트 프리뷰 다이얼로그 상태
+const promptPreviewVisible = ref(false)
+const promptPreviewData = ref({
+  title: '',
+  content: ''
+})
+
+// 프롬프트 이력 다이얼로그 상태
+const promptHistoryVisible = ref(false)
+const promptHistoryData = ref([])
+const promptHistoryLoading = ref(false)
+
+// 프롬프트 프리뷰 표시
+const showPromptPreview = (promptKey) => {
+  const promptTitles = {
+    rag_system_prompt: 'RAG 시스템 프롬프트',
+    nl2sql_generation_prompt: 'SQL 생성 프롬프트',
+    nl2sql_answer_prompt: 'SQL 답변 프롬프트',
+    agent_system_prompt: 'Agent 시스템 프롬프트',
+    tool_sql_description: 'SQL Tool 설명',
+    tool_rag_description: 'RAG Tool 설명',
+    tool_calculator_description: 'Calculator Tool 설명'
+  }
+
+  promptPreviewData.value = {
+    title: promptTitles[promptKey] || '프롬프트 프리뷰',
+    content: formData.prompt[promptKey] || ''
+  }
+  promptPreviewVisible.value = true
+}
+
+// 프롬프트 이력 조회
+const showPromptHistory = async () => {
+  promptHistoryVisible.value = true
+  promptHistoryLoading.value = true
+
+  try {
+    const response = await settingsApi.getPromptHistory(100)
+    promptHistoryData.value = response.history || []
+
+    if (promptHistoryData.value.length === 0) {
+      ElMessage.info('변경 이력이 없습니다.')
+    }
+  } catch (error) {
+    console.error('프롬프트 이력 조회 실패:', error)
+    ElMessage.error('프롬프트 이력을 조회할 수 없습니다.')
+    promptHistoryData.value = []
+  } finally {
+    promptHistoryLoading.value = false
+  }
+}
+
+// 프롬프트 원복 (특정 이력으로 되돌리기)
+const restorePrompt = async (historyItem) => {
+  try {
+    const changedAtFormatted = new Date(historyItem.changed_at).toLocaleString('ko-KR')
+    await ElMessageBox.confirm(
+      `${changedAtFormatted}의 상태로 복원하시겠습니까?`,
+      '프롬프트 복원',
+      {
+        confirmButtonText: '복원',
+        cancelButtonText: '취소',
+        type: 'warning'
+      }
+    )
+
+    // API 호출하여 복원
+    await settingsApi.restorePromptFromHistory(historyItem.id)
+
+    // 설정 다시 로드
+    await loadSettings()
+
+    ElMessage.success('프롬프트가 복원되었습니다.')
+    promptHistoryVisible.value = false
+
+    // 프롬프트 서비스 캐시 무효화 (백엔드에서 자동 처리됨)
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('프롬프트 복원 실패:', error)
+      ElMessage.error('프롬프트 복원에 실패했습니다.')
+    }
+  }
+}
+
+// 프롬프트 내보내기 (JSON)
+const exportPrompts = () => {
+  try {
+    const promptData = {
+      exported_at: new Date().toISOString(),
+      prompts: formData.prompt
+    }
+
+    const blob = new Blob([JSON.stringify(promptData, null, 2)], {
+      type: 'application/json'
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `prompts_${new Date().toISOString().split('T')[0]}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+
+    ElMessage.success('프롬프트가 내보내기 되었습니다.')
+  } catch (error) {
+    console.error('프롬프트 내보내기 실패:', error)
+    ElMessage.error('프롬프트 내보내기에 실패했습니다.')
+  }
+}
+
+// 프롬프트 가져오기 (JSON)
+const importPrompts = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'application/json'
+  input.onchange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      if (!data.prompts) {
+        throw new Error('잘못된 파일 형식입니다.')
+      }
+
+      await ElMessageBox.confirm(
+        '현재 프롬프트 설정을 덮어씁니다. 계속하시겠습니까?',
+        '프롬프트 가져오기',
+        {
+          confirmButtonText: '가져오기',
+          cancelButtonText: '취소',
+          type: 'warning'
+        }
+      )
+
+      // 프롬프트 데이터 덮어쓰기
+      Object.assign(formData.prompt, data.prompts)
+      ElMessage.success('프롬프트를 가져왔습니다. 저장 버튼을 눌러 적용하세요.')
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('프롬프트 가져오기 실패:', error)
+        ElMessage.error('프롬프트 가져오기에 실패했습니다.')
+      }
+    }
+  }
+  input.click()
+}
+
 onMounted(async () => {
   // 설정 및 코드 목록 병렬 로드
   await Promise.all([
@@ -1101,6 +1503,44 @@ onMounted(async () => {
 
     .el-icon {
       color: #e6a23c;
+    }
+  }
+
+  // 프롬프트 관리 스타일
+  .prompt-textarea {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+
+    :deep(textarea) {
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+    }
+  }
+
+  .prompt-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+
+  .prompt-preview {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 16px;
+    background-color: #f5f7fa;
+    border-radius: 4px;
+
+    pre {
+      margin: 0;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
   }
 }

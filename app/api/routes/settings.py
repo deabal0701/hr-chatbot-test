@@ -98,6 +98,90 @@ async def get_category_settings(category: str):
         )
 
 
+# ============================================
+# 프롬프트 이력 관리
+# ============================================
+
+@router.get("/prompt/history")
+async def get_prompt_history(limit: int = 100):
+    """
+    전체 프롬프트 변경 이력 조회
+
+    모든 프롬프트의 변경 이력을 최근 순으로 조회합니다.
+
+    Args:
+        limit: 조회할 최대 개수 (기본: 100, 최대: 1000)
+    """
+    try:
+        history = settings_service.get_prompt_history(limit)
+        return {"history": history}
+
+    except Exception as e:
+        logger.error(f"프롬프트 이력 조회 실패: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"프롬프트 이력 조회 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
+@router.get("/prompt/history/{category}/{key}")
+async def get_prompt_history_by_key(category: str, key: str, limit: int = 50):
+    """
+    특정 프롬프트의 변경 이력 조회
+
+    특정 카테고리/키의 프롬프트 변경 이력만 조회합니다.
+
+    Args:
+        category: 카테고리명
+        key: 프롬프트 키
+        limit: 조회할 최대 개수 (기본: 50, 최대: 500)
+    """
+    try:
+        history = settings_service.get_prompt_history_by_key(category, key, limit)
+        return {"history": history}
+
+    except Exception as e:
+        logger.error(f"프롬프트 이력 조회 실패: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"프롬프트 이력 조회 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
+@router.post("/prompt/restore/{history_id}")
+async def restore_prompt_from_history(history_id: int):
+    """
+    프롬프트 원복
+
+    특정 이력 ID로 프롬프트를 이전 상태로 되돌립니다.
+    """
+    try:
+        success = settings_service.restore_prompt_from_history(
+            history_id,
+            changed_by='admin'  # TODO: 향후 인증 시스템 연동 시 실제 사용자명 사용
+        )
+
+        if success:
+            return {
+                "success": True,
+                "message": "프롬프트가 복원되었습니다."
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="복원할 이력을 찾을 수 없습니다."
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"프롬프트 복원 실패: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"프롬프트 복원 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
 @router.get("/{category}/{key}", response_model=SettingItemResponse)
 async def get_setting(category: str, key: str):
     """

@@ -7,6 +7,7 @@ from app.config import settings
 from app.models.schemas import DocumentSource, RAGResponse, SearchFilters
 from app.services.settings_service import settings_service
 from app.services.vector_store import vector_store
+from app.services.prompt_service import prompt_service
 from app.utils.logger import setup_logger, log_rag_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager
 from app.utils.common import truncate_text  # 공통 유틸리티
@@ -122,17 +123,8 @@ class RAGGraph:
         log_rag_step(request_id, "2a", "CONTEXT", "컨텍스트 구성 완료",
                      context_length=len(context))
 
-        # 시스템 프롬프트
-        system_prompt = """당신은 기업용 지식 베이스 전문가입니다.
-제공된 문서를 기반으로 사용자의 질문에 정확하고 친절하게 답변해주세요.
-
-답변 시 주의사항:
-1. 반드시 제공된 문서의 내용만을 기반으로 답변하세요
-2. 문서에 정보가 없으면 "제공된 문서에서 해당 정보를 찾을 수 없습니다"라고 명확히 안내하세요
-3. 출처를 명시하세요 (예: "지식 베이스 문서에 따르면...")
-4. 답변은 명확하고 구체적으로 작성하세요
-5. 필요시 불릿 포인트나 번호를 사용하여 가독성을 높이세요
-"""
+        # 시스템 프롬프트 (DB에서 동적 로드)
+        system_prompt = prompt_service.get_rag_system_prompt()
 
         user_prompt = f"""질문: {question}
 

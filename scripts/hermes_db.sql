@@ -152,6 +152,38 @@ CREATE INDEX idx_sql_log_created ON public.sql_execution_log USING btree (create
 CREATE INDEX idx_sql_log_query ON public.sql_execution_log USING btree (query_log_id);
 
 
+
+-- 프롬프트 변경 이력 관리 테이블 생성
+-- 모든 프롬프트 변경 사항을 추적하고 원복 가능하도록 합니다.
+
+CREATE TABLE IF NOT EXISTS prompt_history (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    key VARCHAR(100) NOT NULL,
+    old_value TEXT,
+    new_value TEXT NOT NULL,
+    changed_by VARCHAR(100),  -- 변경자 (향후 인증 시스템 연동)
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    change_reason TEXT,  -- 변경 사유
+    CONSTRAINT fk_prompt_setting
+        FOREIGN KEY (category, key)
+        REFERENCES app_settings(category, key)
+        ON DELETE CASCADE
+);
+
+-- 인덱스 생성 (빠른 조회)
+CREATE INDEX idx_prompt_history_category_key ON prompt_history(category, key);
+CREATE INDEX idx_prompt_history_changed_at ON prompt_history(changed_at DESC);
+
+-- 코멘트 추가
+COMMENT ON TABLE prompt_history IS '프롬프트 변경 이력 테이블 (원복 기능 지원)';
+COMMENT ON COLUMN prompt_history.old_value IS '변경 전 값 (NULL이면 최초 생성)';
+COMMENT ON COLUMN prompt_history.new_value IS '변경 후 값';
+COMMENT ON COLUMN prompt_history.changed_by IS '변경자 정보 (향후 사용자 인증 연동)';
+COMMENT ON COLUMN prompt_history.change_reason IS '변경 사유 (선택)';
+
+
+
 INSERT INTO app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
 	 ('chunking','default_chunk_size','1000','int','기본 청크 크기 (문자)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
 	 ('chunking','default_overlap','100','int','기본 오버랩 크기 (문자)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
