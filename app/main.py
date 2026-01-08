@@ -8,6 +8,7 @@ from app.api.routes import documents, search, agent, codes
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.utils.database import db_manager
+from app.utils.external_database import external_db_manager
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 
@@ -23,14 +24,26 @@ async def lifespan(app: FastAPI):
     # LangSmith 초기화 (옵션)
     init_langsmith()
 
+    # 서비스 DB 초기화 (메타데이터용)
     db_manager.initialize()
-    logger.info("데이터베이스 연결 풀 초기화 완료")
+    logger.info("서비스 데이터베이스 연결 풀 초기화 완료")
+
+    # 외부 비즈니스 DB 초기화 (NL2SQL용)
+    try:
+        external_db_manager.initialize()
+        if external_db_manager.is_enabled():
+            logger.info("외부 비즈니스 데이터베이스 연결 풀 초기화 완료")
+        else:
+            logger.info("외부 DB 비활성화 (로컬 business 스키마 사용)")
+    except Exception as e:
+        logger.warning(f"외부 DB 초기화 실패 (계속 진행): {e}")
 
     yield
 
     # 종료
     logger.info("InsightLink 종료 중...")
     db_manager.close()
+    external_db_manager.close()
     logger.info("데이터베이스 연결 풀 종료 완료")
 
 

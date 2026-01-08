@@ -361,3 +361,100 @@ async def refresh_settings_cache():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"캐시 새로고침 중 오류가 발생했습니다: {str(e)}"
         )
+
+
+# ============================================
+# 외부 데이터베이스 연결 테스트
+# ============================================
+
+@router.post("/external-database/test")
+async def test_external_database_connection(request: dict):
+    """
+    외부 비즈니스 데이터베이스 연결 테스트
+
+    NL2SQL에서 사용할 외부 DB 연결 정보가 유효한지 테스트합니다.
+    """
+    try:
+        import psycopg
+
+        db_type = request.get("db_type", "postgresql")
+        host = request.get("host")
+        port = request.get("port", 5432)
+        database = request.get("database")
+        username = request.get("username")
+        password = request.get("password")
+        schema = request.get("schema", "business")
+
+        # 필수 파라미터 검증
+        if not all([host, database, username]):
+            return {
+                "success": False,
+                "message": "호스트, 데이터베이스, 사용자명은 필수입니다."
+            }
+
+        # PostgreSQL만 지원
+        if db_type != "postgresql":
+            return {
+                "success": False,
+                "message": f"지원하지 않는 DB 타입: {db_type} (현재 PostgreSQL만 지원)"
+            }
+
+        # 연결 URL 생성
+        connection_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+
+        # 연결 테스트
+        with psycopg.connect(connection_url, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                # 기본 연결 확인
+                cur.execute("SELECT 1")
+
+                # 스키마 존재 확인
+                cur.execute("""
+                    SELECT schema_name
+                    FROM information_schema.schemata
+                    WHERE schema_name = %s
+                """, (schema,))
+
+                if not cur.fetchone():
+                    return {
+                        "success": False,
+                        "message": f"스키마 '{schema}'가 존재하지 않습니다."
+                    }
+
+                # 스키마 내 테이블 개수 확인
+                cur.execute("""
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = %s AND table_type = 'BASE TABLE'
+                """, (schema,))
+
+                table_count = cur.fetchone()[0]
+
+        return {
+            "success": True,
+            "message": f"연결 성공! (스키마: {schema}, 테이블 수: {table_count})"
+        }
+
+    except psycopg.OperationalError as e:
+        error_msg = str(e).lower()
+        if "password authentication failed" in error_msg:
+            message = "인증 실패: 사용자명 또는 비밀번호가 올바르지 않습니다."
+        elif "does not exist" in error_msg:
+            message = "데이터베이스가 존재하지 않습니다."
+        elif "connection refused" in error_msg or "could not connect" in error_msg:
+            message = f"서버에 연결할 수 없습니다: {host}:{port}"
+        else:
+            message = f"연결 오류: {str(e)}"
+
+        logger.error(f"외부 DB 연결 테스트 실패: {message}")
+        return {
+            "success": False,
+            "message": message
+        }
+
+    except Exception as e:
+        logger.error(f"외부 DB 연결 테스트 중 예외 발생: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"연결 테스트 실패: {str(e)}"
+        }

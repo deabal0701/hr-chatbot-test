@@ -67,5 +67,20 @@ export default {
    */
   refreshCache() {
     return apiClient.post(`${BASE_URL}/refresh-cache`)
+  },
+
+  /**
+   * 외부 데이터베이스 연결 테스트
+   * @param {Object} connection - 연결 정보
+   * @param {string} connection.db_type - DB 타입 (postgresql, oracle, mysql)
+   * @param {string} connection.host - 호스트
+   * @param {number} connection.port - 포트
+   * @param {string} connection.database - DB 이름
+   * @param {string} connection.username - 사용자명
+   * @param {string} connection.password - 비밀번호
+   * @param {string} connection.schema - 스키마
+   */
+  testExternalConnection(connection) {
+    return apiClient.post(`${BASE_URL}/external-database/test`, connection)
   }
 }

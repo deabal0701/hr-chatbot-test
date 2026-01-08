@@ -257,7 +257,7 @@
         <!-- NL2SQL 설정 -->
         <el-tab-pane label="NL2SQL" name="nl2sql">
           <div class="settings-section">
-            <h3>NL2SQL 설정</h3>
+            <h3>NL2SQL 실행 설정</h3>
             <el-form label-position="top" class="settings-form">
               <el-form-item label="SQL 실행 타임아웃 (초)">
                 <el-input-number
@@ -283,6 +283,135 @@
                 <span class="switch-label">{{ formData.nl2sql.read_only_mode ? '활성화' : '비활성화' }}</span>
                 <div class="form-help">SELECT 쿼리만 허용 (보안상 권장)</div>
               </el-form-item>
+            </el-form>
+
+            <!-- 외부 비즈니스 데이터베이스 연결 설정 -->
+            <el-divider />
+            <h3>비즈니스 데이터베이스 연결</h3>
+            <p class="section-desc">
+              NL2SQL이 쿼리할 외부 데이터베이스를 설정합니다. <br>
+              비활성화하면 로컬 business 스키마를 사용합니다.
+            </p>
+
+            <el-form label-position="top" class="settings-form">
+              <el-form-item label="외부 DB 사용">
+                <el-switch v-model="formData.external_database.enabled" />
+                <span class="switch-label">{{ formData.external_database.enabled ? '활성화' : '비활성화' }}</span>
+                <div class="form-help">
+                  외부 DB 연결 사용 여부 (비활성화 시 로컬 DB의 business 스키마 사용)
+                </div>
+              </el-form-item>
+
+              <template v-if="formData.external_database.enabled">
+                <el-form-item label="DB 타입">
+                  <el-select v-model="formData.external_database.db_type" style="width: 100%">
+                    <el-option label="PostgreSQL" value="postgresql" />
+                    <el-option label="Oracle" value="oracle" disabled />
+                    <el-option label="MySQL" value="mysql" disabled />
+                    <el-option label="MS SQL Server" value="mssql" disabled />
+                  </el-select>
+                  <div class="form-help">
+                    현재 PostgreSQL만 지원됩니다
+                  </div>
+                </el-form-item>
+
+                <el-row :gutter="20">
+                  <el-col :span="16">
+                    <el-form-item label="호스트">
+                      <el-input
+                        v-model="formData.external_database.host"
+                        placeholder="localhost"
+                      />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="8">
+                    <el-form-item label="포트">
+                      <el-input-number
+                        v-model="formData.external_database.port"
+                        :min="1"
+                        :max="65535"
+                        style="width: 100%"
+                      />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+
+                <el-form-item label="데이터베이스 이름">
+                  <el-input
+                    v-model="formData.external_database.database"
+                    placeholder="chatbot_system"
+                  />
+                </el-form-item>
+
+                <el-form-item label="스키마">
+                  <el-input
+                    v-model="formData.external_database.schema"
+                    placeholder="business"
+                  />
+                  <div class="form-help">
+                    비즈니스 데이터가 저장된 스키마 이름
+                  </div>
+                </el-form-item>
+
+                <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="사용자명">
+                      <el-input v-model="formData.external_database.username" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="비밀번호">
+                      <el-input
+                        v-model="formData.external_database.password"
+                        type="password"
+                        show-password
+                      />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+
+                <el-form-item label="허용 테이블 (쉼표 구분)">
+                  <el-input
+                    v-model="formData.external_database.allowed_tables"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="employee, department, salary, job_history, performance_review"
+                  />
+                  <div class="form-help">
+                    <el-icon><Warning /></el-icon>
+                    NL2SQL이 쿼리할 수 있는 테이블만 입력하세요. 보안상 매우 중요합니다!
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="연결 풀 크기">
+                  <el-input-number
+                    v-model="formData.external_database.connection_pool_size"
+                    :min="1"
+                    :max="20"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">
+                    동시 접속 처리를 위한 연결 풀 크기
+                  </div>
+                </el-form-item>
+
+                <el-form-item>
+                  <el-button
+                    type="success"
+                    @click="testExternalConnection"
+                    :loading="testingConnection"
+                  >
+                    연결 테스트
+                  </el-button>
+                  <span
+                    v-if="externalConnectionStatus"
+                    :class="externalConnectionStatus.success ? 'text-success' : 'text-error'"
+                    style="margin-left: 12px;"
+                  >
+                    {{ externalConnectionStatus.message }}
+                  </span>
+                </el-form-item>
+              </template>
             </el-form>
           </div>
         </el-tab-pane>
@@ -386,7 +515,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, View, Hide } from '@element-plus/icons-vue'
+import { Refresh, View, Hide, Warning } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -397,6 +526,8 @@ const validating = ref(false)
 const showApiKey = ref(false)
 const showAnthropicApiKey = ref(false)
 const apiKeyStatus = ref(null)
+const testingConnection = ref(false)
+const externalConnectionStatus = ref(null)
 
 // 코드 관리 (Phase C-2)
 const embeddingModels = ref([])
@@ -434,6 +565,19 @@ const formData = reactive({
     timeout_seconds: 30,
     max_rows: 1000,
     read_only_mode: true
+  },
+  external_database: {
+    enabled: true,
+    db_type: 'postgresql',
+    host: 'localhost',
+    port: 5432,
+    database: 'chatbot_system',
+    username: 'postgres',
+    password: '',
+    schema: 'business',
+    allowed_tables: 'employee,department,job_history,performance_review,salary',
+    connection_pool_size: 5,
+    connection_timeout: 10
   },
   agent: {
     llm_provider: 'openai',
@@ -512,22 +656,30 @@ const saveSettings = async () => {
   isSaving.value = true
   try {
     const category = activeTab.value
-    const settings = {}
 
-    // 현재 탭의 설정을 문자열로 변환
-    Object.entries(formData[category]).forEach(([key, value]) => {
-      // enabled_tools는 배열을 쉼표 구분 문자열로 변환
-      if (category === 'agent' && key === 'enabled_tools' && Array.isArray(value)) {
-        settings[key] = value.join(',')
-      } else {
-        settings[key] = stringifyValue(value)
-      }
-    })
+    // NL2SQL 탭은 nl2sql과 external_database 두 카테고리를 모두 저장
+    const categoriesToSave = category === 'nl2sql'
+      ? ['nl2sql', 'external_database']
+      : [category]
 
-    await settingsApi.updateCategory(category, settings)
+    for (const cat of categoriesToSave) {
+      const settings = {}
 
-    // 원본 데이터 업데이트
-    originalData.value[category] = JSON.parse(JSON.stringify(formData[category]))
+      // 현재 카테고리의 설정을 문자열로 변환
+      Object.entries(formData[cat]).forEach(([key, value]) => {
+        // enabled_tools는 배열을 쉼표 구분 문자열로 변환
+        if (cat === 'agent' && key === 'enabled_tools' && Array.isArray(value)) {
+          settings[key] = value.join(',')
+        } else {
+          settings[key] = stringifyValue(value)
+        }
+      })
+
+      await settingsApi.updateCategory(cat, settings)
+
+      // 원본 데이터 업데이트
+      originalData.value[cat] = JSON.parse(JSON.stringify(formData[cat]))
+    }
 
     ElMessage.success('설정이 저장되었습니다.')
   } catch (error) {
@@ -674,6 +826,41 @@ const onLLMProviderChange = (provider) => {
     formData.llm.model = ''
   } else if (provider === 'openai' && formData.llm.model.startsWith('claude-')) {
     formData.llm.model = ''
+  }
+}
+
+// 외부 DB 연결 테스트
+const testExternalConnection = async () => {
+  testingConnection.value = true
+  externalConnectionStatus.value = null
+
+  try {
+    const response = await settingsApi.testExternalConnection({
+      db_type: formData.external_database.db_type,
+      host: formData.external_database.host,
+      port: formData.external_database.port,
+      database: formData.external_database.database,
+      username: formData.external_database.username,
+      password: formData.external_database.password,
+      schema: formData.external_database.schema
+    })
+
+    console.log('연결 테스트 응답:', response)
+    externalConnectionStatus.value = response
+    if (response.success) {
+      ElMessage.success('비즈니스 DB 연결 성공!')
+    } else {
+      ElMessage.error(response.message || '연결 실패')
+    }
+  } catch (error) {
+    console.error('연결 테스트 실패 (catch):', error)
+    console.error('에러 상세:', error.response?.data || error.message)
+
+    const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || '연결 테스트 중 오류 발생'
+    externalConnectionStatus.value = { success: false, message: errorMsg }
+    ElMessage.error(`연결 테스트 실패: ${errorMsg}`)
+  } finally {
+    testingConnection.value = false
   }
 }
 
@@ -855,6 +1042,28 @@ onMounted(async () => {
       &:hover {
         text-decoration: underline;
       }
+    }
+  }
+
+  // 연결 상태 표시
+  .text-success {
+    color: #67c23a;
+    font-size: 14px;
+  }
+
+  .text-error {
+    color: #f56c6c;
+    font-size: 14px;
+  }
+
+  // external_database 섹션 스타일
+  .form-help {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    .el-icon {
+      color: #e6a23c;
     }
   }
 }

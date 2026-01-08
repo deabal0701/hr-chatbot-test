@@ -60,6 +60,19 @@ class SettingsService:
             "enable_streaming": ("false", "bool", "스트리밍 응답 (확장)", False),
             "enabled_tools": ("query_database,search_documents,calculate", "string", "사용 가능한 도구 (쉼표 구분)", False),
         },
+        "external_database": {
+            "enabled": ("false", "bool", "외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)", False),
+            "db_type": ("postgresql", "string", "DB 타입 (postgresql, oracle, mysql)", False),
+            "host": ("localhost", "string", "DB 호스트", False),
+            "port": ("5432", "int", "DB 포트", False),
+            "database": ("chatbot_system", "string", "데이터베이스 이름", False),
+            "username": ("postgres", "string", "DB 사용자명", False),
+            "password": ("", "string", "DB 비밀번호", True),
+            "schema": ("business", "string", "비즈니스 데이터 스키마", False),
+            "allowed_tables": ("employee,department,job_history,performance_review,salary", "string", "NL2SQL 쿼리 허용 테이블 (쉼표 구분)", False),
+            "connection_pool_size": ("5", "int", "연결 풀 크기", False),
+            "connection_timeout": ("10", "int", "연결 타임아웃 (초)", False),
+        },
     }
 
     # 환경변수 매핑 (category.key -> env_settings attribute)

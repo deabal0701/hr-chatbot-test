@@ -9,7 +9,7 @@ from sqlparse.tokens import DML, DDL, Keyword
 from app.config import settings
 from app.models.schemas import SQLResult
 from app.services.settings_service import settings_service
-from app.utils.database import db_manager
+from app.utils.external_database import external_db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -26,16 +26,7 @@ class SQLValidationError(Exception):
 
 
 class SQLExecutorService:
-    """SQL 실행 서비스 (NL2SQL용)"""
-
-    # 허용된 테이블 목록 (스키마 로더와 일치)
-    # 테스트 환경: employee, department만 허용
-    # 프로덕션: 모든 테이블 추가 또는 None으로 설정하여 제한 해제
-    ALLOWED_TABLES = {
-        'employee', 'department'
-        # 'job_history', 'salary', 'performance_review', 
-        # 'attendance', 'leave_request', 'hr_docs'
-    }
+    """비즈니스 데이터 SQL 실행 서비스 (NL2SQL용)"""
 
     # 허용되지 않는 키워드 (DDL/DML)
     FORBIDDEN_KEYWORDS = {
@@ -99,11 +90,12 @@ class SQLExecutorService:
         except Exception as e:
             return False, f"SQL 파싱 오류: {str(e)}"
 
-        # 4. 테이블 이름 검증
+        # 4. 테이블 이름 검증 (동적으로 allowed_tables에서 가져옴)
+        allowed_tables = external_db_manager.get_allowed_tables()
         table_names = self._extract_table_names(sql)
         for table in table_names:
-            if table.lower() not in self.ALLOWED_TABLES:
-                return False, f"허용되지 않은 테이블: {table}"
+            if table.lower() not in allowed_tables:
+                return False, f"허용되지 않은 테이블: {table} (허용: {allowed_tables})"
 
         # 5. LIMIT 절 체크 (권장)
         if 'LIMIT' not in sql_upper:
@@ -204,11 +196,11 @@ class SQLExecutorService:
         # 2. LIMIT 추가
         sql = self._add_limit_if_missing(sql)
 
-        # 3. SQL 실행
+        # 3. 외부 DB에서 SQL 실행
         start_time = time.time()
 
         try:
-            with db_manager.get_cursor() as cur:
+            with external_db_manager.get_cursor() as cur:
                 # 타임아웃 설정
                 cur.execute(f"SET statement_timeout = {self.timeout * 1000}")
 
@@ -244,10 +236,13 @@ class SQLExecutorService:
     def explain_sql(self, sql: str) -> Dict[str, Any]:
         """SQL EXPLAIN 분석"""
         try:
-            with db_manager.get_cursor() as cur:
+            with external_db_manager.get_cursor() as cur:
                 cur.execute(f"EXPLAIN (FORMAT JSON) {sql}")
                 result = cur.fetchone()
-                return result[0] if result else {}
+                if result and isinstance(result, dict):
+                    # dict_row를 사용하므로 result는 dict
+                    return result.get('QUERY PLAN', {})
+                return {}
         except Exception as e:
             logger.error(f"EXPLAIN 실패: {e}")
             return {"error": str(e)}
@@ -259,9 +254,11 @@ class SQLExecutorService:
             return None
 
         try:
-            plan = explain_result[0]['Plan']
-            return plan.get('Total Cost')
-        except (KeyError, IndexError):
+            if isinstance(explain_result, list) and len(explain_result) > 0:
+                plan = explain_result[0].get('Plan', {})
+                return plan.get('Total Cost')
+            return None
+        except (KeyError, IndexError, AttributeError):
             return None
 
 

@@ -155,7 +155,7 @@ CREATE TABLE public.hr_docs (
 	"language" text DEFAULT 'ko'::text NULL,
 	"content" text NOT NULL,
 	metadata jsonb NULL,
-	embedding public.vector NULL,
+	embedding public.vector(1536) NULL,
 	embedding_model text DEFAULT 'text-embedding-3-small'::text NULL,
 	indexed bool DEFAULT false NULL,
 	embedded_at timestamptz NULL,
@@ -291,32 +291,6 @@ CREATE INDEX idx_sql_log_created ON public.sql_execution_log USING btree (create
 CREATE INDEX idx_sql_log_query ON public.sql_execution_log USING btree (query_log_id);
 
 
--- public.users definition
-
--- Drop table
-
--- DROP TABLE public.users;
-
-CREATE TABLE public.users (
-	id bigserial NOT NULL,
-	username text NOT NULL,
-	email text NOT NULL,
-	hashed_password text NOT NULL,
-	full_name text NULL,
-	"role" text DEFAULT 'user'::text NULL,
-	department_id int8 NULL,
-	is_active bool DEFAULT true NULL,
-	created_at timestamptz DEFAULT now() NULL,
-	updated_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT users_email_key UNIQUE (email),
-	CONSTRAINT users_pkey PRIMARY KEY (id),
-	CONSTRAINT users_username_key UNIQUE (username),
-	CONSTRAINT users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.department(dept_id)
-);
-CREATE INDEX idx_users_email ON public.users USING btree (email);
-CREATE INDEX idx_users_username ON public.users USING btree (username);
-
-
 INSERT INTO public.app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
 	 ('nl2sql','timeout_seconds','30','int','SQL 실행 타임아웃 (초)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
 	 ('nl2sql','max_rows','1000','int','최대 반환 행 수',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:28:33.4552+09'),
@@ -342,7 +316,18 @@ INSERT INTO public.app_settings (category,"key",value,value_type,description,is_
 INSERT INTO public.app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
 	 ('anthropic','api_key','','string','Anthropic API Key (Phase 2)',true,'2026-01-07 11:20:44.64738+09','2026-01-07 11:20:44.64738+09'),
 	 ('llm','provider','openai','string','LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09'),
-	 ('agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09');
+	 ('agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09'),
+	 ('external_database','enabled','false','bool','외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','db_type','postgresql','string','DB 타입 (postgresql, oracle, mysql)',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','host','115.68.223.220','string','DB 호스트',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','port','5432','int','DB 포트',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','database','hr_chatbot','string','데이터베이스 이름',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','username','chatuser','string','DB 사용자명',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','password','chatuser123','string','DB 비밀번호',true,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','schema','business','string','비즈니스 데이터 스키마',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','allowed_tables','employee,department,job_history,performance_review,salary','string','NL2SQL 쿼리 허용 테이블 (쉼표 구분)',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','connection_pool_size','5','int','연결 풀 크기',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09'),
+	 ('external_database','connection_timeout','10','int','연결 타임아웃 (초)',false,'2026-01-08 15:00:00+09','2026-01-08 15:00:00+09');
 
 
 INSERT INTO public.code_master (code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,created_at,updated_at) VALUES

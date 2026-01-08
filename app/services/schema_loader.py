@@ -1,25 +1,20 @@
 from typing import Any, Dict, List
 
-from app.utils.database import db_manager
+from app.utils.external_database import external_db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 
 class SchemaLoaderService:
-    """데이터베이스 스키마 메타데이터 로더"""
-
-    # 테스트용: LLM에 전달할 테이블 제한 (None이면 전체 테이블 사용)
-    # 최소한의 스키마만 LLM에 전달하여 토큰 사용량 및 처리 시간 감소
-    # 프로덕션에서는 None으로 설정하거나 필요한 테이블만 지정
-    ALLOWED_TABLES = ['employee', 'department']
+    """비즈니스 데이터베이스 스키마 메타데이터 로더 (NL2SQL용)"""
 
     def __init__(self):
         self._schema_cache: Dict[str, Any] = {}
 
     def load_schema_metadata(self, refresh: bool = False) -> Dict[str, Any]:
         """
-        스키마 메타데이터 로드
+        비즈니스 DB 스키마 메타데이터 로드
         Args:
             refresh: 캐시 무시하고 새로 로드
         Returns:
@@ -28,8 +23,10 @@ class SchemaLoaderService:
         if not refresh and self._schema_cache:
             return self._schema_cache
 
+        schema_name = external_db_manager.get_schema_name()
         schema = {
-            "database": "hr_chatbot",
+            "database": "business_data",
+            "schema": schema_name,
             "tables": []
         }
 
@@ -48,32 +45,39 @@ class SchemaLoaderService:
             schema["tables"].append(table_info)
 
         self._schema_cache = schema
-        logger.info(f"스키마 메타데이터 로드 완료: {len(tables)}개 테이블")
+        logger.info(f"스키마 메타데이터 로드 완료: {schema_name}.* {len(tables)}개 테이블")
         return schema
 
     def _get_tables(self) -> List[str]:
-        """public 스키마의 테이블 목록 조회 (ALLOWED_TABLES로 필터링)"""
-        with db_manager.get_cursor() as cur:
+        """비즈니스 스키마의 테이블 목록 조회 (allowed_tables 설정으로 필터링)"""
+        schema_name = external_db_manager.get_schema_name()
+        allowed_tables = external_db_manager.get_allowed_tables()
+
+        with external_db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT table_name
                 FROM information_schema.tables
-                WHERE table_schema = 'public'
+                WHERE table_schema = %s
                   AND table_type = 'BASE TABLE'
                 ORDER BY table_name
-            """)
+            """, (schema_name,))
             all_tables = [row['table_name'] for row in cur.fetchall()]
-            
-            # ALLOWED_TABLES가 설정되어 있으면 필터링
-            if self.ALLOWED_TABLES:
-                filtered_tables = [t for t in all_tables if t in self.ALLOWED_TABLES]
-                logger.info(f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 (허용: {self.ALLOWED_TABLES})")
+
+            # allowed_tables 설정으로 필터링 (보안)
+            if allowed_tables:
+                filtered_tables = [t for t in all_tables if t in allowed_tables]
+                logger.info(
+                    f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 "
+                    f"(허용: {allowed_tables})"
+                )
                 return filtered_tables
-            
+
             return all_tables
 
     def _get_columns(self, table_name: str) -> List[Dict[str, Any]]:
         """테이블의 컬럼 정보 조회"""
-        with db_manager.get_cursor() as cur:
+        schema_name = external_db_manager.get_schema_name()
+        with external_db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT
                     column_name,
@@ -82,10 +86,10 @@ class SchemaLoaderService:
                     column_default,
                     character_maximum_length
                 FROM information_schema.columns
-                WHERE table_schema = 'public'
+                WHERE table_schema = %s
                   AND table_name = %s
                 ORDER BY ordinal_position
-            """, (table_name,))
+            """, (schema_name, table_name))
 
             columns = []
             for row in cur.fetchall():
@@ -103,20 +107,22 @@ class SchemaLoaderService:
 
     def _get_primary_key(self, table_name: str) -> List[str]:
         """테이블의 기본 키 조회"""
-        with db_manager.get_cursor() as cur:
+        schema_name = external_db_manager.get_schema_name()
+        with external_db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT a.attname
                 FROM pg_index i
                 JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-                WHERE i.indrelid = %s::regclass
+                WHERE i.indrelid = (%s || '.' || %s)::regclass
                   AND i.indisprimary
-            """, (table_name,))
+            """, (schema_name, table_name))
 
             return [row['attname'] for row in cur.fetchall()]
 
     def _get_foreign_keys(self, table_name: str) -> List[Dict[str, str]]:
         """테이블의 외래 키 조회"""
-        with db_manager.get_cursor() as cur:
+        schema_name = external_db_manager.get_schema_name()
+        with external_db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT
                     kcu.column_name,
@@ -130,8 +136,9 @@ class SchemaLoaderService:
                   ON ccu.constraint_name = tc.constraint_name
                   AND ccu.table_schema = tc.table_schema
                 WHERE tc.constraint_type = 'FOREIGN KEY'
+                  AND tc.table_schema = %s
                   AND tc.table_name = %s
-            """, (table_name,))
+            """, (schema_name, table_name))
 
             fks = []
             for row in cur.fetchall():
@@ -144,20 +151,21 @@ class SchemaLoaderService:
 
     def _get_indexes(self, table_name: str) -> List[str]:
         """테이블의 인덱스 조회"""
-        with db_manager.get_cursor() as cur:
+        schema_name = external_db_manager.get_schema_name()
+        with external_db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT indexname
                 FROM pg_indexes
-                WHERE schemaname = 'public'
+                WHERE schemaname = %s
                   AND tablename = %s
-            """, (table_name,))
+            """, (schema_name, table_name))
 
             return [row['indexname'] for row in cur.fetchall()]
 
     def _get_sample_data(self, table_name: str, limit: int = 3) -> List[Dict[str, Any]]:
         """테이블의 샘플 데이터 조회"""
         try:
-            with db_manager.get_cursor() as cur:
+            with external_db_manager.get_cursor() as cur:
                 # 민감한 정보는 마스킹
                 if table_name == 'salary':
                     cur.execute(f"""
