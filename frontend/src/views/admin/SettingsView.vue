@@ -29,22 +29,20 @@
                 </h4>
 
                 <el-form-item label="API Key">
-                  <div class="api-key-input">
-                    <el-input
-                      v-model="formData.openai.api_key"
-                      :type="showApiKey ? 'text' : 'password'"
-                      placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      clearable
-                      class="api-key-field"
-                    >
-                      <template #suffix>
-                        <el-icon class="cursor-pointer" @click="showApiKey = !showApiKey">
-                          <View v-if="!showApiKey" />
-                          <Hide v-else />
-                        </el-icon>
-                      </template>
-                    </el-input>
-                  </div>
+                  <el-input
+                    v-model="formData.openai.api_key"
+                    :type="showApiKey ? 'text' : 'password'"
+                    placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    clearable
+                    class="api-key-field"
+                  >
+                    <template #suffix>
+                      <el-icon class="cursor-pointer" @click="showApiKey = !showApiKey">
+                        <View v-if="!showApiKey" />
+                        <Hide v-else />
+                      </el-icon>
+                    </template>
+                  </el-input>
                   <div class="form-help">
                     OpenAI GPT 모델 및 임베딩 사용을 위한 API 키
                     <a href="https://platform.openai.com/api-keys" target="_blank">API 키 발급받기 →</a>
@@ -69,22 +67,20 @@
                 </h4>
 
                 <el-form-item label="API Key">
-                  <div class="api-key-input">
-                    <el-input
-                      v-model="formData.anthropic.api_key"
-                      :type="showAnthropicApiKey ? 'text' : 'password'"
-                      placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      clearable
-                      class="api-key-field"
-                    >
-                      <template #suffix>
-                        <el-icon class="cursor-pointer" @click="showAnthropicApiKey = !showAnthropicApiKey">
-                          <View v-if="!showAnthropicApiKey" />
-                          <Hide v-else />
-                        </el-icon>
-                      </template>
-                    </el-input>
-                  </div>
+                  <el-input
+                    v-model="formData.anthropic.api_key"
+                    :type="showAnthropicApiKey ? 'text' : 'password'"
+                    placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    clearable
+                    class="api-key-field"
+                  >
+                    <template #suffix>
+                      <el-icon class="cursor-pointer" @click="showAnthropicApiKey = !showAnthropicApiKey">
+                        <View v-if="!showAnthropicApiKey" />
+                        <Hide v-else />
+                      </el-icon>
+                    </template>
+                  </el-input>
                   <div class="form-help">
                     Anthropic Claude 모델 사용을 위한 API 키
                     <a href="https://console.anthropic.com/settings/keys" target="_blank">API 키 발급받기 →</a>
@@ -93,11 +89,6 @@
               </div>
             </el-form>
 
-            <div class="actions">
-              <el-button type="primary" @click="saveSettings" :loading="isSaving">
-                저장
-              </el-button>
-            </div>
           </div>
         </el-tab-pane>
 
@@ -958,33 +949,20 @@ onMounted(async () => {
     }
   }
 
-  // API Key 입력 필드 - 넓게
-  .api-key-field {
-    min-width: 600px;
+  // API 키 섹션 내부의 입력 필드만 크게
+  .api-key-section {
+    .api-key-field {
+      width: 100%;
 
-    :deep(.el-input__inner) {
-      font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 14px;
-      letter-spacing: 0.5px;
+      :deep(.el-input__inner) {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+      }
     }
-  }
 
-  // Organization ID 필드도 동일하게
-  .org-id-field {
-    width: 700px;
-
-    :deep(.el-input__inner) {
-      font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 14px;
-    }
-  }
-
-  .api-key-input {
-    display: flex;
-    gap: 12px;
-
-    .el-input {
-      flex: 1;
+    .el-form-item {
+      max-width: none;
     }
   }
 
