@@ -52,12 +52,16 @@
       <!-- 검색 모드 선택 -->
       <div class="sidebar-section content-card">
         <h4>검색 모드</h4>
-        <el-radio-group v-model="searchMode" @change="handleModeChange">
-          <el-radio-button value="auto">Auto</el-radio-button>
-          <el-radio-button value="rag">RAG</el-radio-button>
-          <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
-          <el-radio-button value="agent">Agent</el-radio-button>
-        </el-radio-group>
+        <div class="mode-selector-wrapper">
+          <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-primary">
+            <el-radio-button value="auto">Auto</el-radio-button>
+          </el-radio-group>
+          <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
+            <el-radio-button value="rag">RAG</el-radio-button>
+            <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
+            <el-radio-button value="agent">Agent</el-radio-button>
+          </el-radio-group>
+        </div>
         <p class="mode-description">
           <template v-if="searchMode === 'auto'">
             질문을 분석하여 자동으로 적합한 검색 방식을 선택합니다.
@@ -253,7 +257,14 @@ watch(messages, async () => {
     color: var(--text-color-primary);
   }
 
-  .el-radio-group {
+  .mode-selector-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mode-row-primary,
+  .mode-row-secondary {
     display: flex;
     width: 100%;
 
