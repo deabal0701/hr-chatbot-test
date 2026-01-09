@@ -11,7 +11,7 @@ from app.services.prompt_service import prompt_service
 from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_nl2sql_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
-from app.utils.common import truncate_text  # 공통 유틸리티
+from app.utils.common import truncate_text, strip_markdown_code_block  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
@@ -24,8 +24,8 @@ class NL2SQLState(TypedDict):
     validated: bool                 # 검증 통과 여부
     validation_error: str
     sql_result: SQLResult
-    answer: str                     # 죄종 답변
-    metadata: Dict[str, Any]        # 메타 데이터 
+    answer: str                     # 최종 답변
+    metadata: Dict[str, Any]        # 메타 데이터
     request_id: str                 # 요청 추적용 ID
 
 
@@ -119,14 +119,9 @@ SQL만 출력하세요 (설명 없이)."""
             # Response 원문 로깅
             logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response원문 AIMessage: {response}")
             logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
-            
-            sql = response.content.strip()
 
-            # 마크다운 코드 블록 제거 (```sql ... ```)
-            if sql.startswith("```"):
-                lines = sql.split("\n")
-                sql = "\n".join(lines[1:-1]) if len(lines) > 2 else sql
-                sql = sql.replace("```sql", "").replace("```", "").strip()
+            # SQL 추출 및 마크다운 코드 블록 제거
+            sql = strip_markdown_code_block(response.content, language="sql")
 
             state["generated_sql"] = sql
             state["schema_description"] = self.schema_description
@@ -294,11 +289,9 @@ SQL만 출력하세요 (설명 없이)."""
         log_nl2sql_step(request_id, "ERR", "ERROR", f"오류 처리 완료", error=error_msg[:50])
         return state
 
-    async def ainvoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
-        """그래프 비동기 실행"""
-        request_id = inputs.get("request_id", "unknown")
-
-        initial_state: NL2SQLState = {
+    def _prepare_initial_state(self, inputs: Dict[str, Any]) -> NL2SQLState:
+        """초기 상태 준비 (ainvoke와 invoke 공통 로직)"""
+        return {
             "question": inputs["question"],
             "schema_description": "",
             "generated_sql": "",
@@ -307,15 +300,11 @@ SQL만 출력하세요 (설명 없이)."""
             "sql_result": None,
             "answer": "",
             "metadata": {},
-            "request_id": request_id
+            "request_id": inputs.get("request_id", "unknown")
         }
 
-        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작", question=inputs["question"][:40])
-
-        result = await self.graph.ainvoke(initial_state)
-
-        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
-
+    def _build_response(self, result: NL2SQLState) -> NL2SQLResponse:
+        """실행 결과를 NL2SQLResponse로 변환"""
         return NL2SQLResponse(
             answer=result["answer"],
             sql=result["generated_sql"],
@@ -323,21 +312,26 @@ SQL만 출력하세요 (설명 없이)."""
             metadata=result["metadata"]
         )
 
+    async def ainvoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
+        """그래프 비동기 실행"""
+        # 초기 상태 준비 (공통 로직)
+        initial_state = self._prepare_initial_state(inputs)
+        request_id = initial_state["request_id"]
+
+        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작", question=inputs["question"][:40])
+
+        result = await self.graph.ainvoke(initial_state)
+
+        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
+
+        # 응답 구성 (공통 로직)
+        return self._build_response(result)
+
     def invoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
         """그래프 동기 실행"""
-        request_id = inputs.get("request_id", "unknown")
-
-        initial_state: NL2SQLState = {
-            "question": inputs["question"],
-            "schema_description": "",
-            "generated_sql": "",
-            "validated": False,
-            "validation_error": "",
-            "sql_result": None,
-            "answer": "",
-            "metadata": {},
-            "request_id": request_id
-        }
+        # 초기 상태 준비 (공통 로직)
+        initial_state = self._prepare_initial_state(inputs)
+        request_id = initial_state["request_id"]
 
         log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작 (동기)",
                         question=inputs["question"][:40])
@@ -348,12 +342,8 @@ SQL만 출력하세요 (설명 없이)."""
                         has_sql=bool(result["generated_sql"]),
                         answer_length=len(result["answer"]))
 
-        return NL2SQLResponse(
-            answer=result["answer"],
-            sql=result["generated_sql"],
-            result=result.get("sql_result"),
-            metadata=result["metadata"]
-        )
+        # 응답 구성 (공통 로직)
+        return self._build_response(result)
 
 
 # 싱글톤 인스턴스

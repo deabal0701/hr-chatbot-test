@@ -137,3 +137,41 @@ def mask_sensitive_data(text: str, keywords: Optional[list] = None) -> str:
     
     return masked_text
 
+
+def strip_markdown_code_block(text: str, language: str = "sql") -> str:
+    """
+    마크다운 코드 블록 제거
+
+    LLM이 SQL이나 코드를 ```sql ... ``` 형태로 반환할 때 사용
+
+    Args:
+        text: 원본 텍스트 (마크다운 코드 블록 포함 가능)
+        language: 코드 언어 (기본: "sql")
+
+    Returns:
+        코드 블록이 제거된 순수 텍스트
+
+    Example:
+        >>> text = "```sql\\nSELECT * FROM users\\n```"
+        >>> strip_markdown_code_block(text)
+        'SELECT * FROM users'
+    """
+    if not text:
+        return text
+
+    text = text.strip()
+
+    # ```로 시작하는 경우 마크다운 코드 블록으로 판단
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # 첫 줄과 마지막 줄 제거
+        if len(lines) > 2:
+            text = "\n".join(lines[1:-1])
+        else:
+            text = text  # 코드 블록이 비정상적인 경우 원본 유지
+
+        # 언어 지정자 제거 (예: ```sql, ```python)
+        text = text.replace(f"```{language}", "").replace("```", "").strip()
+
+    return text
+

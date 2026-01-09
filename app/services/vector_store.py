@@ -26,6 +26,13 @@ def get_chunking_settings():
 class VectorStoreService:
     """벡터 검색 서비스 (pgvector 기반)"""
 
+    # 스니펫 관련 상수
+    DEFAULT_SNIPPET_LENGTH = 200  # 문서 스니펫 기본 길이 (문자)
+
+    # 청킹 기본값 (fallback, DB 설정 우선)
+    DEFAULT_CHUNK_SIZE = 1000
+    DEFAULT_CHUNK_OVERLAP = 100
+
     def __init__(self):
         # 기본값 저장 (초기화 시점)
         self._default_api_key = settings.openai_api_key
@@ -50,6 +57,22 @@ class VectorStoreService:
     def embedding_dimension(self) -> int:
         """현재 임베딩 차원 (DB 설정 우선)"""
         return settings_service.get_value("embedding", "dimension", self._default_embedding_dimension)
+
+    def _create_snippet(self, content: str, max_length: Optional[int] = None) -> str:
+        """
+        컨텐츠 스니펫 생성
+
+        Args:
+            content: 원본 컨텐츠
+            max_length: 최대 길이 (None이면 기본값 사용)
+
+        Returns:
+            스니펫 문자열
+        """
+        length = max_length or self.DEFAULT_SNIPPET_LENGTH
+        if len(content) <= length:
+            return content
+        return content[:length] + "..."
 
     def embed_text(self, text: str) -> List[float]:
         """텍스트를 벡터로 임베딩 (LangChain OpenAIEmbeddings 사용)"""
@@ -190,9 +213,9 @@ class VectorStoreService:
                     logger.info(f"  -> 임계값 미달로 제외됨 (similarity={similarity:.4f} < {similarity_threshold})")
                     continue
 
-                # 컨텐츠 스니펫 생성 (처음 200자)
+                # 컨텐츠 스니펫 생성
                 content = row.get('content', '')
-                snippet = content[:200] + "..." if len(content) > 200 else content
+                snippet = self._create_snippet(content)
 
                 doc = DocumentSource(
                     id=row['id'],
@@ -591,9 +614,8 @@ class VectorStoreService:
 
         # 청킹 필요 여부 및 예상 청크 수 계산
         content_length = len(content)
-        default_chunk_size = 1000
-        needs_chunking = content_length > default_chunk_size
-        recommended_chunks = max(1, (content_length // default_chunk_size) + (1 if content_length % default_chunk_size else 0))
+        needs_chunking = content_length > self.DEFAULT_CHUNK_SIZE
+        recommended_chunks = max(1, (content_length // self.DEFAULT_CHUNK_SIZE) + (1 if content_length % self.DEFAULT_CHUNK_SIZE else 0))
 
         logger.info(f"문서 저장 완료 (임베딩 없음): ID={doc_id}, title='{title}', length={content_length}")
 

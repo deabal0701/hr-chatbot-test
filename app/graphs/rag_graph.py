@@ -198,15 +198,14 @@ class RAGGraph:
 
         return "\n".join(context_parts)
 
-    async def ainvoke(self, inputs: Dict[str, Any]) -> RAGResponse:
-        """그래프 비동기 실행"""
+    def _prepare_initial_state(self, inputs: Dict[str, Any]) -> RAGState:
+        """초기 상태 준비 (ainvoke와 invoke 공통 로직)"""
         request_id = inputs.get("request_id", "unknown")
 
         # DB 설정에서 기본 top_k 가져오기
         rag_settings = LLMConfigManager.get_rag_settings()
 
-        # 초기 상태 설정
-        initial_state: RAGState = {
+        return {
             "question": inputs["question"],
             "filters": inputs.get("filters", {}),
             "top_k": inputs.get("top_k") or rag_settings["top_k"],
@@ -215,6 +214,20 @@ class RAGGraph:
             "metadata": {},
             "request_id": request_id
         }
+
+    def _build_response(self, result: RAGState) -> RAGResponse:
+        """실행 결과를 RAGResponse로 변환"""
+        return RAGResponse(
+            answer=result["answer"],
+            sources=result["retrieved_docs"],
+            metadata=result["metadata"]
+        )
+
+    async def ainvoke(self, inputs: Dict[str, Any]) -> RAGResponse:
+        """그래프 비동기 실행"""
+        # 초기 상태 준비 (공통 로직)
+        initial_state = self._prepare_initial_state(inputs)
+        request_id = initial_state["request_id"]
 
         log_rag_step(request_id, "0", "INIT", "RAG 그래프 실행 시작",
                      question=inputs["question"][:40], top_k=initial_state["top_k"])
@@ -226,30 +239,14 @@ class RAGGraph:
                      docs_found=len(result["retrieved_docs"]),
                      answer_length=len(result["answer"]))
 
-        # 응답 구성
-        return RAGResponse(
-            answer=result["answer"],
-            sources=result["retrieved_docs"],
-            metadata=result["metadata"]
-        )
+        # 응답 구성 (공통 로직)
+        return self._build_response(result)
 
     def invoke(self, inputs: Dict[str, Any]) -> RAGResponse:
         """그래프 동기 실행"""
-        request_id = inputs.get("request_id", "unknown")
-
-        # DB 설정에서 기본 top_k 가져오기
-        rag_settings = LLMConfigManager.get_rag_settings()
-
-        # 초기 상태 설정
-        initial_state: RAGState = {
-            "question": inputs["question"],
-            "filters": inputs.get("filters", {}),
-            "top_k": inputs.get("top_k") or rag_settings["top_k"],
-            "retrieved_docs": [],
-            "answer": "",
-            "metadata": {},
-            "request_id": request_id
-        }
+        # 초기 상태 준비 (공통 로직)
+        initial_state = self._prepare_initial_state(inputs)
+        request_id = initial_state["request_id"]
 
         log_rag_step(request_id, "0", "INIT", "RAG 그래프 실행 시작 (동기)",
                      question=inputs["question"][:40], top_k=initial_state["top_k"])
@@ -261,12 +258,8 @@ class RAGGraph:
                      docs_found=len(result["retrieved_docs"]),
                      answer_length=len(result["answer"]))
 
-        # 응답 구성
-        return RAGResponse(
-            answer=result["answer"],
-            sources=result["retrieved_docs"],
-            metadata=result["metadata"]
-        )
+        # 응답 구성 (공통 로직)
+        return self._build_response(result)
 
 
 # 싱글톤 인스턴스

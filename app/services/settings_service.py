@@ -255,14 +255,14 @@ class SettingsService:
 
         return None
 
-    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = False) -> Any:
+    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = True) -> Any:
         """설정 값만 조회 (타입 변환 포함)
 
         Args:
             category: 설정 카테고리
             key: 설정 키
             default: 기본값
-            use_cache: 캐시 사용 여부 (기본 False - 매번 DB 조회)
+            use_cache: 캐시 사용 여부 (기본 True - 성능 최적화)
         """
         setting = self.get_setting(category, key, use_cache=use_cache)
         if not setting:
