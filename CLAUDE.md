@@ -480,6 +480,6 @@ For questions about specific files, refer to PYTHON_CODE_GUIDE.md which document
 나는 가상환경으로 conda를 사용하고  있고, 가상환경의 이름은 my-env3.11_chat2 이다. 테스트시나 파이썬 실행시 이를 이용하라.
 
 DB확인시는 아래를 이용하라.
-postgresql://hermesuser:hermesuser123!@115.68.223.220:5432/hermesdb
+postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb
 
 
