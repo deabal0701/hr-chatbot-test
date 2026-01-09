@@ -498,9 +498,9 @@
 
               <el-form-item label="사용 가능한 도구">
                 <el-checkbox-group v-model="formData.agent.enabled_tools">
-                  <el-checkbox label="query_database">DB 조회 (NL2SQL)</el-checkbox>
-                  <el-checkbox label="search_documents">문서 검색 (RAG)</el-checkbox>
-                  <el-checkbox label="calculate">계산기</el-checkbox>
+                  <el-checkbox label="query_database_tool">DB 조회 (NL2SQL)</el-checkbox>
+                  <el-checkbox label="search_documents_tool">문서 검색 (RAG)</el-checkbox>
+                  <el-checkbox label="calculate_tool">계산기</el-checkbox>
                 </el-checkbox-group>
                 <div class="form-help">Agent가 사용할 수 있는 도구를 선택하세요</div>
               </el-form-item>
@@ -836,7 +836,7 @@ const formData = reactive({
     max_iterations: 10,
     timeout_seconds: 60,
     enable_memory: true,
-    enabled_tools: ['query_database', 'search_documents', 'calculate']
+    enabled_tools: ['query_database_tool', 'search_documents_tool', 'calculate_tool']
   },
   chunking: {
     default_chunk_size: 1000,
@@ -875,6 +875,14 @@ const loadSettings = async () => {
           // enabled_tools는 쉼표 구분 문자열을 배열로 변환
           if (cat.category === 'agent' && setting.key === 'enabled_tools' && typeof value === 'string') {
             value = value.split(',').map(t => t.trim()).filter(t => t)
+
+            // 구 형식을 신 형식으로 자동 마이그레이션 (_tool 접미사 추가)
+            const toolMapping = {
+              'query_database': 'query_database_tool',
+              'search_documents': 'search_documents_tool',
+              'calculate': 'calculate_tool'
+            }
+            value = value.map(tool => toolMapping[tool] || tool)
           }
 
           formData[cat.category][setting.key] = value

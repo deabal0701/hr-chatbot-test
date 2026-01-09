@@ -284,7 +284,7 @@ SQL만 출력하세요 (설명 없이)."""
 
 # LangChain tool 래퍼 (함수 형태)
 @tool
-def query_database(question: str) -> str:
+def query_database_tool(question: str) -> str:
     """
     Query the database using natural language.
 

@@ -53,12 +53,12 @@ class SettingsService:
         "agent": {
             "max_iterations": ("10", "int", "최대 반복 횟수 (1-20)", False),
             "timeout_seconds": ("60", "int", "전체 타임아웃 (초, 10-300)", False),
-            "llm_model": ("gpt-4o", "string", "Agent용 LLM 모델", False),
+            # llm_model은 전역 llm.model 사용 (agent.llm_model 설정 제거됨)
             "llm_provider": ("openai", "string", "Agent용 LLM 제공자 (openai, anthropic)", False),
             "llm_temperature": ("0.0", "float", "Agent LLM 온도 (0.0-2.0)", False),
             "enable_memory": ("true", "bool", "대화 메모리 활성화", False),
             "enable_streaming": ("false", "bool", "스트리밍 응답 (확장)", False),
-            "enabled_tools": ("query_database,search_documents,calculate", "string", "사용 가능한 도구 (쉼표 구분)", False),
+            "enabled_tools": ("query_database_tool,search_documents_tool,calculate_tool", "string", "사용 가능한 도구 (쉼표 구분)", False),
         },
         "external_database": {
             "enabled": ("false", "bool", "외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)", False),

@@ -16,19 +16,27 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
  */
 export const agentSearch = async ({ question, sessionId = null, config = {} }) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/api/v1/agent/search`, {
+    // config 객체를 전달하지 않으면 서버가 DB 설정을 사용함
+    // config를 명시적으로 전달하면 해당 값이 우선됨
+    const requestBody = {
       question,
       session_id: sessionId,
-      config: {
-        max_iterations: config.maxIterations || 10,
+      verbose: config.verbose || false
+    }
+
+    // config가 명시적으로 제공된 경우만 전달 (빈 객체는 전달하지 않음)
+    if (config && Object.keys(config).length > 0 && config.maxIterations) {
+      requestBody.config = {
+        max_iterations: config.maxIterations,
         enable_memory: config.enableMemory !== false,
-        llm_model: config.llmModel || 'gpt-4o',
         llm_temperature: config.llmTemperature || 0.0,
         timeout_seconds: config.timeoutSeconds || 60,
+        // llm_model은 서버 DB 설정 사용 (하드코딩 제거)
         ...config
-      },
-      verbose: config.verbose || false
-    })
+      }
+    }
+
+    const response = await axios.post(`${API_BASE_URL}/api/v1/agent/search`, requestBody)
     // 디버깅 로그 (개발 환경에서만)
     if (import.meta.env.DEV) {
       console.log('[Agent API Raw Response]', response)

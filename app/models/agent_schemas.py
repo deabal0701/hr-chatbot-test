@@ -9,7 +9,7 @@ Agent 전용 스키마
 
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from langchain_core.messages import BaseMessage
 
 
@@ -89,15 +89,35 @@ class AgentConfig(BaseModel):
     - 도구 선택 전략
     - LLM 모델 선택
     - 타임아웃 설정
+
+    주의: llm_model은 None일 경우 DB 설정(app_settings)에서 자동 로드됩니다.
     """
     max_iterations: int = Field(default=10, ge=1, le=20, description="최대 반복 횟수")
-    llm_model: str = Field(default="gpt-4o", description="사용할 LLM 모델")
+    llm_model: Optional[str] = Field(default=None, description="사용할 LLM 모델 (None=DB 설정 사용)")
     llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="LLM 온도")
     enable_memory: bool = Field(default=True, description="메모리 활성화 여부")
     enable_streaming: bool = Field(default=False, description="스트리밍 응답 (확장)")
     tools_whitelist: Optional[List[str]] = Field(None, description="사용 가능한 도구 목록 (None=전체)")
     tools_blacklist: Optional[List[str]] = Field(None, description="사용 금지 도구 목록")
     timeout_seconds: int = Field(default=60, ge=10, le=300, description="전체 타임아웃(초)")
+
+    @model_validator(mode='after')
+    def set_default_llm_model(self) -> 'AgentConfig':
+        """llm_model이 None이면 DB 설정에서 로드"""
+        if self.llm_model is None:
+            # 순환 import 방지를 위해 함수 내부에서 import
+            from app.services.settings_service import settings_service
+            from app.config import settings
+            from app.utils.logger import logger
+
+            # DB 설정 → .env → 하드코딩 순서로 fallback
+            self.llm_model = settings_service.get_value("llm", "model", settings.llm_model)
+            logger.info(f"[AgentConfig] @model_validator: llm_model loaded from DB/env: {self.llm_model}")
+        else:
+            from app.utils.logger import logger
+            logger.info(f"[AgentConfig] @model_validator: llm_model already set: {self.llm_model}")
+
+        return self
 
     def is_tool_allowed(self, tool_name: str) -> bool:
         """도구 사용 가능 여부 확인"""

@@ -19,9 +19,10 @@ logger = setup_logger(__name__)
 class LLMConfigManager:
     """LLM 설정 통합 관리 클래스 (Phase 2: 다중 제공자 지원)"""
 
-    # 제공자별 기본 모델 매핑
+    # 제공자별 기본 모델 매핑 (더 이상 사용되지 않음, DB 설정 우선)
+    # 이 값들은 DB/env에 아무 설정도 없을 때만 최후의 fallback으로 사용됨
     DEFAULT_MODELS = {
-        "openai": "gpt-4o",
+        "openai": "gpt-4o-mini",  # 비용 효율적인 기본값
         "anthropic": "claude-3-5-sonnet-20241022",
     }
 
@@ -118,14 +119,13 @@ class LLMConfigManager:
 
         # 2. 모델 결정
         if model is None:
-            # DB 설정 확인
-            db_model = settings_service.get_value("llm", "model", None)
-            if db_model:
-                model = db_model
-            else:
-                # Provider별 기본 모델 사용
-                model = LLMConfigManager.DEFAULT_MODELS.get(provider, "gpt-4o")
-                logger.debug(f"모델 미지정, provider 기본 모델 사용: {model}")
+            # DB 설정 → .env → Provider별 기본 모델 순서로 fallback
+            model = settings_service.get_value(
+                "llm",
+                "model",
+                settings.llm_model  # .env의 llm_model 값 사용 (기본: gpt-4-turbo-preview)
+            )
+            logger.debug(f"모델 미지정, DB/설정 기본 모델 사용: {model}")
 
         # 3. 최대 토큰 수
         if max_tokens is None:
@@ -156,8 +156,10 @@ class LLMConfigManager:
                 logger.warning(f"{provider} 실패, OpenAI로 fallback 시도")
                 try:
                     fallback_api_key = settings_service.get_value("openai", "api_key", settings.openai_api_key)
+                    # Fallback 모델도 DB 설정 사용
+                    fallback_model = settings_service.get_value("llm", "model", settings.llm_model)
                     return ChatOpenAI(
-                        model="gpt-4o",
+                        model=fallback_model,
                         temperature=temperature,
                         api_key=fallback_api_key,
                         max_tokens=max_tokens,

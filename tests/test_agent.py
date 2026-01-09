@@ -93,24 +93,31 @@ class TestAgentSchemas:
         """Agent 설정 기본값"""
         config = AgentConfig()
         assert config.max_iterations == 10
-        assert config.llm_model == "gpt-4o"
+        # llm_model은 DB 설정에서 자동 로드 (None → DB 설정값)
+        assert config.llm_model is not None  # DB 설정 또는 .env 값
         assert config.enable_memory is True
 
     def test_tool_whitelist(self):
         """도구 화이트리스트"""
-        config = AgentConfig(tools_whitelist=["query_database", "calculate"])
+        config = AgentConfig(
+            tools_whitelist=["query_database_tool", "calculate_tool"],
+            tools_blacklist=None
+        )
 
-        assert config.is_tool_allowed("query_database") is True
-        assert config.is_tool_allowed("calculate") is True
-        assert config.is_tool_allowed("search_documents") is False
+        assert config.is_tool_allowed("query_database_tool") is True
+        assert config.is_tool_allowed("calculate_tool") is True
+        assert config.is_tool_allowed("search_documents_tool") is False
 
     def test_tool_blacklist(self):
         """도구 블랙리스트"""
-        config = AgentConfig(tools_blacklist=["search_documents"])
+        config = AgentConfig(
+            tools_whitelist=None,
+            tools_blacklist=["search_documents_tool"]
+        )
 
-        assert config.is_tool_allowed("query_database") is True
-        assert config.is_tool_allowed("calculate") is True
-        assert config.is_tool_allowed("search_documents") is False
+        assert config.is_tool_allowed("query_database_tool") is True
+        assert config.is_tool_allowed("calculate_tool") is True
+        assert config.is_tool_allowed("search_documents_tool") is False
 
 
 @pytest.mark.asyncio
@@ -131,7 +138,7 @@ class TestAgentGraph:
 
         assert result.success is True
         assert "300" in result.answer
-        assert "calculate" in result.tools_used
+        assert "calculate_tool" in result.tools_used
 
     @pytest.mark.skip(reason="Requires actual LLM and DB connection")
     async def test_multistep_question(self):
@@ -147,8 +154,8 @@ class TestAgentGraph:
 
         assert result.success is True
         assert len(result.steps) >= 2
-        assert "query_database" in result.tools_used
-        assert "calculate" in result.tools_used
+        assert "query_database_tool" in result.tools_used
+        assert "calculate_tool" in result.tools_used
 
 
 @pytest.mark.asyncio
@@ -191,7 +198,7 @@ class TestAgentAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["total"] >= 3
-        assert any(t["name"] == "query_database" for t in data["tools"])
+        assert any(t["name"] == "query_database_tool" for t in data["tools"])
 
 
 class TestMemoryStore:

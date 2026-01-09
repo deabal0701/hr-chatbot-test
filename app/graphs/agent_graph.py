@@ -37,9 +37,9 @@ from app.models.agent_schemas import (
     AgentStep,
     AgentConfig
 )
-from app.tools.sql_tool import query_database
-from app.tools.rag_tool import search_documents
-from app.tools.calculator_tool import calculate
+from app.tools.sql_tool import query_database_tool
+from app.tools.rag_tool import search_documents_tool
+from app.tools.calculator_tool import calculate_tool
 from app.services.settings_service import settings_service
 from app.config import settings
 from app.utils.logger import setup_logger, log_agent_step  # 통합 로깅 유틸리티
@@ -92,9 +92,9 @@ class InsightAgentGraph:
         - 컨텍스트별 도구 선택
         """
         return [
-            query_database,      # SQL Tool
-            search_documents,    # RAG Tool
-            calculate,          # Calculator Tool
+            query_database_tool,      # SQL Tool
+            search_documents_tool,    # RAG Tool
+            calculate_tool,           # Calculator Tool
         ]
 
     def _get_llm(self, config: AgentConfig):
@@ -110,6 +110,8 @@ class InsightAgentGraph:
         # Agent 설정에서 provider 가져오기 (Phase 1: openai만 지원)
         provider = getattr(config, 'llm_provider', None) or \
                    settings_service.get_value("agent", "llm_provider", "openai")
+
+        logger.info(f"[_get_llm] Creating LLM: model={config.llm_model}, provider={provider}, temperature={config.llm_temperature}")
 
         # LLMConfigManager를 통해 LLM 생성 (init_chat_model 사용)
         llm = LLMConfigManager.create_llm(
@@ -359,9 +361,9 @@ class InsightAgentGraph:
         base_prompt = """You are an AI assistant for corporate knowledge base and database systems with access to multiple tools.
 
 **Available Tools:**
-1. query_database: Query corporate database (for structured data like counts, statistics, records)
-2. search_documents: Search corporate documents (for policies, regulations, guidelines, FAQs)
-3. calculate: Perform mathematical calculations (for percentages, averages, etc.)
+1. query_database_tool: Query corporate database (for structured data like counts, statistics, records)
+2. search_documents_tool: Search corporate documents (for policies, regulations, guidelines, FAQs)
+3. calculate_tool: Perform mathematical calculations (for percentages, averages, etc.)
 
 **Instructions:**
 1. Think step by step before taking action
@@ -378,9 +380,9 @@ class InsightAgentGraph:
 - Final Answer: Provide comprehensive answer in Korean
 
 **Tool Selection Guidelines:**
-- Structured data/statistics → query_database
-- Documents/policies/regulations → search_documents
-- Calculations → calculate
+- Structured data/statistics → query_database_tool
+- Documents/policies/regulations → search_documents_tool
+- Calculations → calculate_tool
 - Complex queries → combine multiple tools
 
 **Important:**

@@ -263,7 +263,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
 
 # LangChain tool 래퍼
 @tool
-def calculate(expression: str) -> str:
+def calculate_tool(expression: str) -> str:
     """
     Perform mathematical calculations.
 

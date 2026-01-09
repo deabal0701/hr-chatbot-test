@@ -238,9 +238,9 @@ const getModeLabel = (mode) => {
 
 const getToolLabel = (toolName) => {
   const labels = {
-    query_database: 'DB 조회',
-    search_documents: '문서 검색',
-    calculate: '계산'
+    query_database_tool: 'DB 조회',
+    search_documents_tool: '문서 검색',
+    calculate_tool: '계산'
   }
   return labels[toolName] || toolName
 }
@@ -249,9 +249,9 @@ const getToolIcon = (toolName) => {
   // Element Plus 아이콘 컴포넌트는 템플릿에서 직접 사용해야 하므로
   // 여기서는 아이콘 이름만 반환
   const icons = {
-    query_database: 'DataLine',
-    search_documents: 'Document',
-    calculate: 'Calculator'
+    query_database_tool: 'DataLine',
+    search_documents_tool: 'Document',
+    calculate_tool: 'Calculator'
   }
   return icons[toolName] || 'Tools'
 }

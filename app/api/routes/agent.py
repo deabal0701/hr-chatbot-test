@@ -100,22 +100,26 @@ async def agent_search(request: AgentRequest):
         if request.config is None:
             config.max_iterations = settings_service.get_value("agent", "max_iterations", config.max_iterations)
             config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", config.timeout_seconds)
-            config.llm_model = settings_service.get_value("agent", "llm_model", config.llm_model)
+            # llm_model은 "llm" 카테고리에서 읽음 (전역 LLM 설정 사용)
+            original_model = config.llm_model
+            config.llm_model = settings_service.get_value("llm", "model", config.llm_model)
+            logger.info(f"[{request_id}] LLM 모델 로딩: {original_model} → {config.llm_model} (from DB/env)")
             config.llm_temperature = settings_service.get_value("agent", "llm_temperature", config.llm_temperature)
             config.enable_memory = settings_service.get_value("agent", "enable_memory", config.enable_memory)
             config.enable_streaming = settings_service.get_value("agent", "enable_streaming", config.enable_streaming)
 
             # enabled_tools는 쉼표 구분 문자열로 저장되므로 리스트로 변환
-            tools_str = settings_service.get_value("agent", "enabled_tools", "query_database,search_documents,calculate")
+            tools_str = settings_service.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool")
             if tools_str:
                 enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
                 # tools_whitelist로 설정 (None이 아닌 경우만 사용)
                 if enabled_tools:
                     config.tools_whitelist = enabled_tools
 
-        logger.debug(f"[{request_id}] Agent 설정: max_iterations={config.max_iterations}, "
-                     f"timeout={config.timeout_seconds}s, memory={config.enable_memory}, "
-                     f"tools_whitelist={config.tools_whitelist}")
+        logger.info(f"[{request_id}] Agent 설정: max_iterations={config.max_iterations}, "
+                    f"timeout={config.timeout_seconds}s, memory={config.enable_memory}, "
+                    f"llm_model={config.llm_model}, "
+                    f"tools_whitelist={config.tools_whitelist}")
 
         # 입력 구성
         inputs = {
@@ -414,9 +418,9 @@ async def test_tool(
         from app.tools.calculator_tool import CalculatorTool
 
         tool_map = {
-            "query_database": SQLQueryTool,
-            "search_documents": DocumentSearchTool,
-            "calculate": CalculatorTool
+            "query_database_tool": SQLQueryTool,
+            "search_documents_tool": DocumentSearchTool,
+            "calculate_tool": CalculatorTool
         }
 
         if tool_name not in tool_map:

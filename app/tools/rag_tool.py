@@ -272,7 +272,7 @@ Examples:
 
 # LangChain tool 래퍼
 @tool
-def search_documents(
+def search_documents_tool(
     question: str,
     top_k: int = 5,
     doc_type: Optional[str] = None
