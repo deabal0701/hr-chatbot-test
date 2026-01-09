@@ -265,15 +265,31 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
 @tool
 def calculate_tool(expression: str) -> str:
     """
-    Perform mathematical calculations.
+    수학 계산을 수행합니다.
 
-    Use this for arithmetic operations, percentages, averages, etc.
+    이 도구를 사용하는 경우:
+    - 산술 연산 (덧셈, 뺄셈, 곱셈, 나눗셈)
+    - 백분율 계산 (예: "15% of 100", "100 * 0.15")
+    - 평균, 합계 계산 (예: "sum([10,20,30])", "평균")
+    - 비교 연산 (예: "100 * 1.15")
+
+    지원되는 연산:
+    - 기본: +, -, *, /, //, %, **
+    - 함수: abs, round, min, max, sum, len, pow, sqrt, ceil, floor
 
     Args:
-        expression: Mathematical expression (e.g., "100 * 1.15", "sum([10,20,30])")
+        expression: 수학 표현식 (예: "100 * 1.15", "sum([10,20,30])", "(50+30)/2")
 
     Returns:
-        Calculation result
+        계산 결과
+
+    예시:
+        - "100 * 0.15" → 15.0
+        - "(5000 + 6000) / 2" → 5500.0
+        - "sum([10, 20, 30])" → 60
+        - "round(123.456, 2)" → 123.46
+
+    보안: 화이트리스트된 연산만 지원 (eval() 사용 안 함)
     """
     tool_instance = CalculatorTool()
     result = tool_instance.execute(expression=expression)

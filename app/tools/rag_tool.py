@@ -278,17 +278,31 @@ def search_documents_tool(
     doc_type: Optional[str] = None
 ) -> str:
     """
-    Search corporate documents and regulations.
+    회사 문서, 정책, 규정을 검색합니다.
 
-    Use this for policy, regulation, guideline, FAQ queries.
+    이 도구를 사용하는 경우:
+    - 회사 정책 (예: "재택근무 정책", "출장 규정", "휴가 규정")
+    - 회사 규정 및 가이드라인 (예: "보안 가이드라인", "법인카드 사용 규정")
+    - 업무 절차 및 워크플로우
+    - FAQ 및 공지사항
+    - 복리후생, 컴플라이언스, 교육 정보
+
+    이 도구를 사용하지 않는 경우:
+    - 구조화된 데이터나 통계 (query_database_tool 사용)
+    - 계산 작업 (calculate_tool 사용)
 
     Args:
-        question: Natural language question about documents
-        top_k: Number of documents to retrieve (default: 5)
-        doc_type: Filter by type (policy, guide, faq, notice)
+        question: 정책/규정에 대한 자연어 질문
+        top_k: 검색할 문서 수 (기본값: 5)
+        doc_type: 문서 유형 필터 (선택사항: policy, guide, faq, notice)
 
     Returns:
-        Relevant document snippets
+        제목과 메타데이터를 포함한 관련 문서 발췌
+
+    예시:
+        - "재택근무 정책이 뭐야?" → 재택근무 정책 문서 반환
+        - "출장 규정은?" → 출장 정책 반환
+        - "보안 가이드라인은?" → 보안 가이드라인 반환
     """
     tool_instance = DocumentSearchTool()
     result = tool_instance.execute(

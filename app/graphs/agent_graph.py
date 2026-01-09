@@ -266,7 +266,7 @@ class InsightAgentGraph:
 
         OpenAI API 요구사항:
         - ToolMessage는 반드시 tool_calls가 있는 AIMessage 다음에만 올 수 있음
-        - 고아 ToolMessage (이전에 tool_calls가 없는 경우) 제거
+        - 모든 tool_call_id에 대한 응답이 있어야 함 (실패한 경우에도 에러 메시지 포함)
         """
         if not messages:
             logger.warning("_validate_messages: 입력 메시지가 비어있음")
@@ -287,9 +287,11 @@ class InsightAgentGraph:
                         last_has_tool_calls = hasattr(last_msg, "tool_calls") and bool(last_msg.tool_calls)
 
                 if not last_has_tool_calls:
-                    logger.warning(f"[{i}] Skipping orphaned ToolMessage: {msg.content[:50] if msg.content else 'empty'}...")
-                    continue
-                logger.debug(f"[{i}] Keeping ToolMessage (follows tool_calls)")
+                    # CRITICAL: 고아 ToolMessage도 유지해야 함 (OpenAI API 요구사항)
+                    # 실패한 도구 호출에 대한 응답도 포함되어야 함
+                    logger.warning(f"[{i}] ToolMessage without preceding tool_calls (possibly error response): {msg.content[:50] if msg.content else 'empty'}...")
+                    # continue를 제거하여 메시지를 유지
+                logger.debug(f"[{i}] Keeping ToolMessage")
 
             # 다른 메시지 타입 로깅
             if isinstance(msg, AIMessage):

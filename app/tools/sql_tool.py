@@ -286,15 +286,30 @@ SQL만 출력하세요 (설명 없이)."""
 @tool
 def query_database_tool(question: str) -> str:
     """
-    Query the database using natural language.
+    자연어로 회사 데이터베이스를 조회합니다.
 
-    Use this for structured data queries from database tables.
+    이 도구를 사용하는 경우:
+    - 직원 수, 통계 (예: "2024년 입사자 수", "서울 근무 직원 몇 명")
+    - 직원 정보 (이름, 직급, 부서, 입사일)
+    - 급여 정보 및 변경 이력
+    - 인사 이력 및 승진 기록
+    - 성과 평가 데이터
+    - 부서 정보
+
+    이 도구를 사용하지 않는 경우:
+    - 회사 정책이나 규정 (search_documents_tool 사용)
+    - 이미 조회한 데이터의 계산 (calculate_tool 사용)
 
     Args:
-        question: Natural language question about the database
+        question: 데이터베이스 테이블에 대한 자연어 질문 (employee, department, salary, job_history, performance_review)
 
     Returns:
-        Query results as formatted text
+        데이터베이스 테이블에서 조회한 포맷된 결과
+
+    예시:
+        - "2024년에 입사한 직원은 몇 명?" → 2024년 입사자 수 반환
+        - "김철수의 현재 급여는?" → 직원의 현재 급여 반환
+        - "개발팀에 몇 명 있어?" → 개발팀 직원 수 반환
     """
     tool_instance = SQLQueryTool()
     result = tool_instance.execute(question=question)

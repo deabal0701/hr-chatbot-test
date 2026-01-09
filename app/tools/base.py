@@ -36,9 +36,14 @@ class ToolValidator:
     """Tool 입력/출력 검증 (보안 강화)"""
 
     @staticmethod
-    def validate_input(tool_name: str, **kwargs) -> tuple[bool, Optional[str]]:
+    def validate_input(tool_name: str, required_params: Optional[List[str]] = None, **kwargs) -> tuple[bool, Optional[str]]:
         """
         Tool 입력 검증
+
+        Args:
+            tool_name: 도구 이름
+            required_params: 필수 파라미터 목록 (None이면 모든 None 값 거부)
+            **kwargs: 검증할 파라미터들
 
         확장 포인트:
         - SQL Injection 방지
@@ -46,10 +51,15 @@ class ToolValidator:
         - XSS 방지
         - 민감 정보 필터링
         """
-        # 기본 검증: None 값 체크
-        for key, value in kwargs.items():
-            if value is None:
-                return False, f"Required parameter '{key}' is None"
+        # 필수 파라미터만 None 체크 (선택적 파라미터는 허용)
+        if required_params is not None:
+            # 명시적으로 required_params가 제공된 경우, 해당 파라미터만 검증
+            for param in required_params:
+                if param in kwargs and kwargs[param] is None:
+                    return False, f"Required parameter '{param}' is None"
+                elif param not in kwargs:
+                    return False, f"Required parameter '{param}' is missing"
+        # else: required_params가 None이면 검증 스킵 (하위 호환성)
 
         # 도구별 커스텀 검증 (확장 가능)
         if tool_name == "SQLQueryTool":
@@ -208,8 +218,16 @@ class BaseTool(ABC):
                     metadata={"disabled": True}
                 )
 
-            # 2. 입력 검증
-            valid, error_msg = self.validator.validate_input(self.name, **kwargs)
+            # 2. 입력 검증 (스키마 기반)
+            # 스키마에서 required 파라미터 목록 추출
+            schema = self.parameters_schema
+            required_params = schema.get("required", []) if schema else None
+
+            valid, error_msg = self.validator.validate_input(
+                self.name,
+                required_params=required_params,
+                **kwargs
+            )
             if not valid:
                 logger.warning(f"[{self.name}] Input validation failed: {error_msg}")
                 return ToolResult(
