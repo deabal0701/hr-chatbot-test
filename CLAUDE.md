@@ -476,4 +476,10 @@ vectors = embeddings.embed_documents(texts)  # Batch
 
 For questions about specific files, refer to PYTHON_CODE_GUIDE.md which documents every module in detail.
 
+중요: 
+나는 가상환경으로 conda를 사용하고  있고, 가상환경의 이름은 my-env3.11_chat2 이다. 테스트시나 파이썬 실행시 이를 이용하라.
+
+DB확인시는 아래를 이용하라.
+postgresql://hermesuser:hermesuser123!@115.68.223.220:5432/hermesdb
+
 

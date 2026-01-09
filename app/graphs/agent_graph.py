@@ -29,14 +29,13 @@ from langchain_core.messages import (
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
+from langgraph.checkpoint.memory import InMemorySaver
 
 from app.models.agent_schemas import (
     AgentRequest,
     AgentResponse,
     AgentStep,
-    AgentConfig,
-    AgentMemory,
-    session_memory_store
+    AgentConfig
 )
 from app.tools.sql_tool import query_database
 from app.tools.rag_tool import search_documents
@@ -75,10 +74,13 @@ class InsightAgentGraph:
         # 도구 등록
         self.tools = self._get_tools()
 
+        # Checkpointer 초기화 (InMemorySaver)
+        self.checkpointer = InMemorySaver()
+
         # 그래프 빌드
         self.graph = self._build_graph()
 
-        logger.info(f"[InsightAgentGraph] Initialized with {len(self.tools)} tools")
+        logger.info(f"[InsightAgentGraph] Initialized with {len(self.tools)} tools and InMemorySaver")
 
     def _get_tools(self) -> List:
         """
@@ -151,7 +153,7 @@ class InsightAgentGraph:
         # 도구 실행 후 다시 agent로 (루프)
         workflow.add_edge("tools", "agent")
 
-        return workflow.compile()
+        return workflow.compile(checkpointer=self.checkpointer)
 
     def _agent_node(self, state: AgentState) -> AgentState:
         """
@@ -171,19 +173,11 @@ class InsightAgentGraph:
                       "LLM 의사결정 시작",
                       messages_count=len(state["messages"]))
 
-        # 1. 메모리 로딩 (멀티턴 대화)
-        if config.enable_memory and session_id:
-            memory = session_memory_store.get_memory(session_id)
-
-            # 첫 호출 시 시스템 프롬프트 + 메모리 컨텍스트 추가
-            if iteration == 0:
-                system_prompt = self._get_system_prompt(memory)
-                state["messages"] = [SystemMessage(content=system_prompt)] + list(state["messages"])
-        else:
-            # 메모리 비활성화 시 기본 시스템 프롬프트
-            if iteration == 0:
-                system_prompt = self._get_system_prompt(None)
-                state["messages"] = [SystemMessage(content=system_prompt)] + list(state["messages"])
+        # 1. 시스템 프롬프트 추가 (첫 호출 시만)
+        # InMemorySaver가 자동으로 messages를 유지하므로 별도 메모리 로딩 불필요
+        if iteration == 0:
+            system_prompt = self._get_system_prompt()
+            state["messages"] = [SystemMessage(content=system_prompt)] + list(state["messages"])
 
         # 1.5. 메시지 검증: ToolMessage는 반드시 AIMessage with tool_calls 다음에 와야 함
         messages = self._validate_messages(list(state["messages"]))
@@ -355,9 +349,12 @@ class InsightAgentGraph:
             
             return "end"
 
-    def _get_system_prompt(self, memory: AgentMemory = None) -> str:
+    def _get_system_prompt(self) -> str:
         """
         시스템 프롬프트 생성
+
+        Note: InMemorySaver가 자동으로 대화 히스토리를 유지하므로
+        별도의 메모리 컨텍스트를 프롬프트에 추가할 필요 없음
         """
         base_prompt = """You are an AI assistant for corporate knowledge base and database systems with access to multiple tools.
 
@@ -394,22 +391,11 @@ class InsightAgentGraph:
 - **Do NOT return empty responses - always synthesize tool results into a clear answer**
 """
 
-        # 메모리 컨텍스트 추가 (멀티턴 대화)
-        if memory and memory.messages:
-            context = memory.get_context_string(max_length=1000)
-            base_prompt += f"""
-
-**Previous Conversation Context:**
-{context}
-
-Use this context to provide more relevant and personalized answers.
-"""
-
         return base_prompt
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> AgentResponse:
         """
-        Agent 비동기 실행
+        Agent 비동기 실행 (InMemorySaver 사용)
 
         확장 포인트:
         - 스트리밍 응답
@@ -440,8 +426,9 @@ Use this context to provide more relevant and personalized answers.
                       session_id=session_id)
 
         try:
-            # 그래프 실행
-            result = await self.graph.ainvoke(initial_state)
+            # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
+            graph_config = {"configurable": {"thread_id": session_id}}
+            result = await self.graph.ainvoke(initial_state, config=graph_config)
 
             # 실행 시간 계산
             execution_time_ms = int((time.time() - start_time) * 1000)
@@ -467,20 +454,8 @@ Use this context to provide more relevant and personalized answers.
                           execution_time_ms=execution_time_ms,
                           answer_length=len(final_answer))
 
-            # 메모리 저장 (멀티턴 대화)
-            if config.enable_memory and session_id:
-                memory = session_memory_store.get_memory(session_id)
-                memory.add_message("user", question)
-                memory.add_message("assistant", final_answer)
-
-                # 메트릭 기록
-                metrics = session_memory_store.get_metrics(session_id)
-                metrics.record_request(
-                    iterations=result["iteration_count"],
-                    tools_used=tools_used,
-                    response_time_ms=execution_time_ms,
-                    success=True
-                )
+            # InMemorySaver가 자동으로 대화 히스토리를 관리하므로 별도 저장 불필요
+            logger.debug(f"[{request_id}] InMemorySaver에 대화 히스토리 자동 저장됨 (thread_id={session_id})")
 
             return AgentResponse(
                 answer=final_answer,  # ← 수정: 직접 추출한 답변 사용
@@ -500,17 +475,6 @@ Use this context to provide more relevant and personalized answers.
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
             logger.error(f"[{request_id}] Agent 실행 실패: {e}", exc_info=True)
-
-            # 메트릭 기록 (실패)
-            if config.enable_memory and session_id:
-                metrics = session_memory_store.get_metrics(session_id)
-                metrics.record_request(
-                    iterations=0,
-                    tools_used=[],
-                    response_time_ms=execution_time_ms,
-                    success=False,
-                    error_type=type(e).__name__
-                )
 
             return AgentResponse(
                 answer=f"Agent 실행 중 오류가 발생했습니다: {str(e)}",

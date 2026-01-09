@@ -21,8 +21,7 @@ from app.graphs.agent_graph import agent_graph
 from app.models.agent_schemas import (
     AgentRequest,
     AgentResponse,
-    AgentConfig,
-    session_memory_store
+    AgentConfig
 )
 from app.utils.logger import setup_logger
 from app.services.settings_service import settings_service
@@ -149,7 +148,7 @@ async def agent_search(request: AgentRequest):
 @router.get("/sessions", response_model=List[str])
 async def list_sessions():
     """
-    활성 세션 목록 조회
+    활성 세션 목록 조회 (InMemorySaver 기반)
 
     **Returns:**
     - 활성 세션 ID 목록
@@ -159,8 +158,21 @@ async def list_sessions():
     - 페이지네이션
     """
     try:
-        sessions = session_memory_store.list_sessions()
-        logger.info(f"Active sessions: {len(sessions)}")
+        # InMemorySaver에서 thread 목록 가져오기
+        checkpointer = agent_graph.checkpointer
+        sessions = []
+
+        # InMemorySaver의 내부 storage에서 thread_id 추출
+        if hasattr(checkpointer, 'storage'):
+            # storage는 dict[tuple[str, ...], Any] 형태
+            # tuple의 첫 번째 요소가 thread_id
+            thread_ids = set()
+            for key in checkpointer.storage.keys():
+                if key and len(key) > 0:
+                    thread_ids.add(key[0])
+            sessions = sorted(list(thread_ids))
+
+        logger.info(f"Active sessions (InMemorySaver): {len(sessions)}")
         return sessions
 
     except Exception as e:
@@ -174,30 +186,56 @@ async def list_sessions():
 @router.get("/sessions/{session_id}/memory")
 async def get_session_memory(session_id: str):
     """
-    세션 메모리 조회
+    세션 메모리 조회 (InMemorySaver 기반)
 
     **Parameters:**
-    - session_id: 세션 ID
+    - session_id: 세션 ID (thread_id)
 
     **Returns:**
-    - 세션의 대화 히스토리 및 메타데이터
+    - 세션의 대화 히스토리 및 체크포인트 메타데이터
 
     **확장:**
     - 메시지 필터링 (날짜, 역할)
     - 요약 제공
     """
     try:
-        memory = session_memory_store.get_memory(session_id)
+        checkpointer = agent_graph.checkpointer
+
+        # InMemorySaver에서 체크포인트 가져오기
+        config = {"configurable": {"thread_id": session_id}}
+
+        # 가장 최근 체크포인트 가져오기
+        checkpoint = checkpointer.get(config)
+
+        if not checkpoint:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+
+        # 체크포인트에서 메시지 추출
+        messages = checkpoint.get("channel_values", {}).get("messages", [])
+
+        # 메시지를 직렬화 가능한 형태로 변환
+        serialized_messages = []
+        for msg in messages:
+            if hasattr(msg, "content"):
+                serialized_messages.append({
+                    "type": type(msg).__name__,
+                    "content": str(msg.content),
+                    "role": getattr(msg, "type", "unknown")
+                })
 
         return {
-            "session_id": memory.session_id,
-            "messages": memory.messages,
-            "message_count": len(memory.messages),
-            "created_at": memory.created_at.isoformat(),
-            "updated_at": memory.updated_at.isoformat(),
-            "summary": memory.summary
+            "session_id": session_id,
+            "messages": serialized_messages,
+            "message_count": len(serialized_messages),
+            "checkpoint_id": checkpoint.get("id"),
+            "metadata": checkpoint.get("metadata", {})
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"세션 메모리 조회 실패: {e}", exc_info=True)
         raise HTTPException(
@@ -209,10 +247,10 @@ async def get_session_memory(session_id: str):
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: str):
     """
-    세션 삭제
+    세션 삭제 (InMemorySaver 체크포인트 삭제)
 
     **Parameters:**
-    - session_id: 삭제할 세션 ID
+    - session_id: 삭제할 세션 ID (thread_id)
 
     **Returns:**
     - 삭제 성공 메시지
@@ -222,14 +260,29 @@ async def delete_session(session_id: str):
     - 삭제 전 백업
     """
     try:
-        session_memory_store.clear_memory(session_id)
-        logger.info(f"Session deleted: {session_id}")
+        checkpointer = agent_graph.checkpointer
 
-        return {
-            "success": True,
-            "message": f"Session {session_id} deleted successfully"
-        }
+        # InMemorySaver의 storage에서 해당 thread_id의 모든 체크포인트 삭제
+        if hasattr(checkpointer, 'storage'):
+            keys_to_delete = [key for key in checkpointer.storage.keys() if key and len(key) > 0 and key[0] == session_id]
+            for key in keys_to_delete:
+                del checkpointer.storage[key]
 
+            logger.info(f"Session deleted (InMemorySaver): {session_id}, checkpoints removed: {len(keys_to_delete)}")
+
+            return {
+                "success": True,
+                "message": f"Session {session_id} deleted successfully",
+                "checkpoints_removed": len(keys_to_delete)
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Checkpointer storage not accessible"
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"세션 삭제 실패: {e}", exc_info=True)
         raise HTTPException(
@@ -241,13 +294,17 @@ async def delete_session(session_id: str):
 @router.get("/sessions/{session_id}/metrics")
 async def get_session_metrics(session_id: str):
     """
-    세션 메트릭 조회
+    세션 메트릭 조회 (기본 정보)
 
     **Parameters:**
-    - session_id: 세션 ID
+    - session_id: 세션 ID (thread_id)
 
     **Returns:**
-    - 세션의 사용 통계 (요청 수, 평균 응답 시간, 성공률 등)
+    - 세션의 기본 통계 (체크포인트 수, 메시지 수 등)
+
+    **Note:**
+    - InMemorySaver는 상세 메트릭을 자동 추적하지 않음
+    - 상세 메트릭이 필요하면 별도 메트릭 시스템 구축 필요 (Prometheus 등)
 
     **확장:**
     - 시계열 데이터 (그래프용)
@@ -255,17 +312,27 @@ async def get_session_metrics(session_id: str):
     - 비용 추정
     """
     try:
-        metrics = session_memory_store.get_metrics(session_id)
+        checkpointer = agent_graph.checkpointer
+
+        # 해당 세션의 체크포인트 수 계산
+        checkpoint_count = 0
+        if hasattr(checkpointer, 'storage'):
+            checkpoint_count = sum(1 for key in checkpointer.storage.keys() if key and len(key) > 0 and key[0] == session_id)
+
+        # 최근 체크포인트에서 메시지 수 가져오기
+        config = {"configurable": {"thread_id": session_id}}
+        checkpoint = checkpointer.get(config)
+
+        message_count = 0
+        if checkpoint:
+            messages = checkpoint.get("channel_values", {}).get("messages", [])
+            message_count = len(messages)
 
         return {
-            "session_id": metrics.session_id,
-            "total_requests": metrics.total_requests,
-            "total_iterations": metrics.total_iterations,
-            "total_tools_called": metrics.total_tools_called,
-            "avg_response_time_ms": metrics.avg_response_time_ms,
-            "success_rate": metrics.success_rate,
-            "tool_usage": metrics.tool_usage,
-            "error_types": metrics.error_types
+            "session_id": session_id,
+            "checkpoint_count": checkpoint_count,
+            "message_count": message_count,
+            "note": "InMemorySaver는 상세 메트릭을 추적하지 않습니다. 상세 메트릭이 필요하면 별도 시스템을 구축하세요."
         }
 
     except Exception as e:

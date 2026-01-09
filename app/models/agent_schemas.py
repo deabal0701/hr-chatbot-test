@@ -37,12 +37,12 @@ class AgentStep(BaseModel):
 
 class AgentMemory(BaseModel):
     """
-    Agent 대화 메모리 (멀티턴 지원)
+    [DEPRECATED] Agent 대화 메모리 (멀티턴 지원)
 
-    확장 포인트:
-    - 장기 메모리: 벡터 DB 저장
-    - 요약 메모리: 긴 대화 압축
-    - 컨텍스트 윈도우 관리
+    이 클래스는 더 이상 사용되지 않습니다.
+    InMemorySaver가 자동으로 대화 히스토리를 관리합니다.
+
+    보존 이유: 기존 코드와의 호환성 유지
     """
     session_id: str = Field(..., description="세션 ID")
     messages: List[Dict[str, Any]] = Field(default_factory=list, description="메시지 히스토리")
@@ -164,12 +164,14 @@ class AgentResponse(BaseModel):
 
 class AgentMetrics(BaseModel):
     """
-    Agent 성능 메트릭 (확장)
+    [DEPRECATED] Agent 성능 메트릭
 
-    확장 포인트:
-    - Prometheus 메트릭 연동
-    - 대시보드 시각화
-    - 알림 설정
+    이 클래스는 더 이상 사용되지 않습니다.
+    InMemorySaver는 자동 메트릭 추적을 제공하지 않습니다.
+
+    상세 메트릭이 필요한 경우 Prometheus, OpenTelemetry 등 별도 시스템 사용 권장
+
+    보존 이유: 기존 코드와의 호환성 유지
     """
     session_id: str
     total_requests: int = 0
@@ -216,12 +218,17 @@ class AgentMetrics(BaseModel):
 
 class SessionMemoryStore:
     """
-    세션별 메모리 저장소 (싱글톤)
+    [DEPRECATED] 세션별 메모리 저장소 (싱글톤)
 
-    확장 포인트:
-    - Redis 저장
-    - PostgreSQL 저장
-    - TTL 기반 자동 삭제
+    이 클래스는 더 이상 사용되지 않습니다.
+    InMemorySaver가 LangGraph의 checkpointer로 대화 히스토리를 관리합니다.
+
+    보존 이유: 기존 코드와의 호환성 유지 (향후 제거 예정)
+
+    마이그레이션:
+    - LangGraph의 InMemorySaver 사용
+    - thread_id를 통한 세션 관리
+    - checkpointer.get(config) / checkpointer.storage로 접근
     """
     _instance = None
     _memories: Dict[str, AgentMemory] = {}
@@ -233,35 +240,34 @@ class SessionMemoryStore:
         return cls._instance
 
     def get_memory(self, session_id: str) -> AgentMemory:
-        """메모리 가져오기 (없으면 생성)"""
+        """[DEPRECATED] 메모리 가져오기 (없으면 생성)"""
         if session_id not in self._memories:
             self._memories[session_id] = AgentMemory(session_id=session_id)
         return self._memories[session_id]
 
     def clear_memory(self, session_id: str):
-        """메모리 삭제"""
+        """[DEPRECATED] 메모리 삭제"""
         if session_id in self._memories:
             del self._memories[session_id]
 
     def get_metrics(self, session_id: str) -> AgentMetrics:
-        """메트릭 가져오기 (없으면 생성)"""
+        """[DEPRECATED] 메트릭 가져오기 (없으면 생성)"""
         if session_id not in self._metrics:
             self._metrics[session_id] = AgentMetrics(session_id=session_id)
         return self._metrics[session_id]
 
     def list_sessions(self) -> List[str]:
-        """활성 세션 목록"""
+        """[DEPRECATED] 활성 세션 목록"""
         return list(self._memories.keys())
 
     def cleanup_old_sessions(self, max_age_hours: int = 24):
         """
-        오래된 세션 정리
-
-        확장: 실제로는 created_at 기반 정리
+        [DEPRECATED] 오래된 세션 정리
         """
-        # TODO: 구현
         pass
 
 
-# 글로벌 메모리 저장소 인스턴스
+# [DEPRECATED] 글로벌 메모리 저장소 인스턴스
+# InMemorySaver로 마이그레이션됨
+# 이 인스턴스는 하위 호환성을 위해서만 유지됨
 session_memory_store = SessionMemoryStore()
