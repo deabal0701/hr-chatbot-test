@@ -257,6 +257,11 @@ SQL만 출력하세요 (설명 없이)."""
 
         try:
             response = llm.invoke(messages)
+
+            # RAW 응답 로그 추가
+            logger.info(f"[{request_id}] [NL2SQL-4b] [LLM-RAW-OUTPUT] Response원문 AIMessage: {response}")
+            logger.info(f"[{request_id}] [NL2SQL-4b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
+
             answer = response.content
 
             state["answer"] = answer

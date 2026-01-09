@@ -90,48 +90,6 @@
           </div>
         </el-tab-pane>
 
-        <!-- 임베딩 설정 -->
-        <el-tab-pane label="임베딩" name="embedding">
-          <div class="settings-section">
-            <h3>임베딩 모델 설정</h3>
-
-            <el-form label-position="top" class="settings-form">
-              <el-form-item label="임베딩 모델">
-                <el-select
-                  v-model="formData.embedding.model"
-                  style="width: 100%"
-                  @change="onEmbeddingModelChange"
-                  :loading="embeddingModelsLoading"
-                >
-                  <el-option
-                    v-for="model in embeddingModels"
-                    :key="model.code_value"
-                    :label="model.code_name"
-                    :value="model.code_value"
-                  />
-                </el-select>
-                <div class="form-help">
-                  문서 임베딩에 사용할 OpenAI 모델을 선택하세요
-                </div>
-              </el-form-item>
-
-              <el-form-item label="벡터 차원">
-                <el-input-number
-                  v-model="formData.embedding.dimension"
-                  :min="256"
-                  :max="3072"
-                  :step="256"
-                  style="width: 100%"
-                  disabled
-                />
-                <div class="form-help">
-                  모델에 따라 자동 설정됩니다. (현재 DB: 1536 고정)
-                </div>
-              </el-form-item>
-            </el-form>
-          </div>
-        </el-tab-pane>
-
         <!-- LLM 설정 -->
         <el-tab-pane label="LLM" name="llm">
           <div class="settings-section">
@@ -192,53 +150,146 @@
           </div>
         </el-tab-pane>
 
-        <!-- RAG 설정 -->
-        <el-tab-pane label="RAG" name="rag">
+        <!-- RAG 설정 (청킹 + 임베딩 + RAG 통합) -->
+        <el-tab-pane label="RAG 설정" name="rag">
           <div class="settings-section">
-            <h3>RAG 검색 설정</h3>
+            <h3>RAG 문서 검색 설정</h3>
+            <p class="section-desc">
+              문서 전처리부터 검색까지 전 과정을 설정합니다. 청킹/임베딩 설정 변경 시 문서를 재임베딩해야 적용됩니다.
+            </p>
+
             <el-form label-position="top" class="settings-form">
-              <el-form-item label="검색 문서 수 (Top-K)">
-                <el-input-number
-                  v-model="formData.rag.top_k"
-                  :min="1"
-                  :max="50"
-                  style="width: 100%"
-                />
-                <div class="form-help">질문에 대해 검색할 유사 문서 수</div>
-              </el-form-item>
+              <!-- 섹션 1: 청킹 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Edit /></el-icon>
+                  1단계: 문서 청킹 (전처리)
+                  <el-tag size="small" type="warning">재임베딩 필요</el-tag>
+                </h4>
+                <p class="section-desc">긴 문서를 작은 조각으로 나누는 방법을 설정합니다.</p>
 
-              <el-form-item label="유사도 측정 방식">
-                <el-select
-                  v-model="formData.rag.distance_metric"
-                  style="width: 100%"
-                  disabled
-                >
-                  <el-option label="Cosine Distance (코사인 거리)" value="cosine" />
-                </el-select>
-                <div class="form-help">벡터 간 유사도를 측정하는 알고리즘 (텍스트 임베딩에 권장)</div>
-              </el-form-item>
+                <el-form-item label="청크 크기 (문자)">
+                  <el-input-number
+                    v-model="formData.chunking.default_chunk_size"
+                    :min="100"
+                    :max="5000"
+                    :step="100"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">문서를 나눌 때 기본 청크 크기</div>
+                </el-form-item>
 
-              <el-form-item label="유사도 임계값">
-                <el-slider
-                  v-model="formData.rag.similarity_threshold"
-                  :min="0"
-                  :max="1"
-                  :step="0.05"
-                  show-input
-                />
-                <div class="form-help">이 값 이상의 유사도를 가진 문서만 반환 (0.0-1.0)</div>
-              </el-form-item>
+                <el-form-item label="오버랩 (문자)">
+                  <el-input-number
+                    v-model="formData.chunking.default_overlap"
+                    :min="0"
+                    :max="500"
+                    :step="10"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">청크 간 중복되는 문자 수 (문맥 유지용)</div>
+                </el-form-item>
+              </div>
 
-              <el-form-item label="최대 컨텍스트 길이">
-                <el-input-number
-                  v-model="formData.rag.max_context_length"
-                  :min="1000"
-                  :max="16000"
-                  :step="500"
-                  style="width: 100%"
-                />
-                <div class="form-help">LLM에 전달할 최대 컨텍스트 길이 (문자)</div>
-              </el-form-item>
+              <el-divider />
+
+              <!-- 섹션 2: 임베딩 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Connection /></el-icon>
+                  2단계: 벡터 임베딩
+                  <el-tag size="small" type="warning">재임베딩 필요</el-tag>
+                </h4>
+                <p class="section-desc">텍스트를 벡터로 변환하는 모델을 설정합니다.</p>
+
+                <el-form-item label="임베딩 모델">
+                  <el-select
+                    v-model="formData.embedding.model"
+                    style="width: 100%"
+                    @change="onEmbeddingModelChange"
+                    :loading="embeddingModelsLoading"
+                  >
+                    <el-option
+                      v-for="model in embeddingModels"
+                      :key="model.code_value"
+                      :label="model.code_name"
+                      :value="model.code_value"
+                    />
+                  </el-select>
+                  <div class="form-help">
+                    문서 임베딩에 사용할 OpenAI 모델을 선택하세요
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="벡터 차원">
+                  <el-input-number
+                    v-model="formData.embedding.dimension"
+                    :min="256"
+                    :max="3072"
+                    :step="256"
+                    style="width: 100%"
+                    disabled
+                  />
+                  <div class="form-help">
+                    모델에 따라 자동 설정됩니다. (현재 DB: 1536 고정)
+                  </div>
+                </el-form-item>
+              </div>
+
+              <el-divider />
+
+              <!-- 섹션 3: RAG 검색 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Search /></el-icon>
+                  3단계: RAG 검색 파라미터
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                </h4>
+                <p class="section-desc">사용자 질문과 유사한 문서를 찾는 방법을 설정합니다.</p>
+
+                <el-form-item label="검색 문서 수 (Top-K)">
+                  <el-input-number
+                    v-model="formData.rag.top_k"
+                    :min="1"
+                    :max="50"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">질문에 대해 검색할 유사 문서 수</div>
+                </el-form-item>
+
+                <el-form-item label="유사도 측정 방식">
+                  <el-select
+                    v-model="formData.rag.distance_metric"
+                    style="width: 100%"
+                    disabled
+                  >
+                    <el-option label="Cosine Distance (코사인 거리)" value="cosine" />
+                  </el-select>
+                  <div class="form-help">벡터 간 유사도를 측정하는 알고리즘 (텍스트 임베딩에 권장)</div>
+                </el-form-item>
+
+                <el-form-item label="유사도 임계값">
+                  <el-slider
+                    v-model="formData.rag.similarity_threshold"
+                    :min="0"
+                    :max="1"
+                    :step="0.05"
+                    show-input
+                  />
+                  <div class="form-help">이 값 이상의 유사도를 가진 문서만 반환 (0.0-1.0)</div>
+                </el-form-item>
+
+                <el-form-item label="최대 컨텍스트 길이">
+                  <el-input-number
+                    v-model="formData.rag.max_context_length"
+                    :min="1000"
+                    :max="16000"
+                    :step="500"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">LLM에 전달할 최대 컨텍스트 길이 (문자)</div>
+                </el-form-item>
+              </div>
             </el-form>
           </div>
         </el-tab-pane>
@@ -452,36 +503,6 @@
                   <el-checkbox label="calculate">계산기</el-checkbox>
                 </el-checkbox-group>
                 <div class="form-help">Agent가 사용할 수 있는 도구를 선택하세요</div>
-              </el-form-item>
-            </el-form>
-          </div>
-        </el-tab-pane>
-
-        <!-- 청킹 설정 -->
-        <el-tab-pane label="청킹" name="chunking">
-          <div class="settings-section">
-            <h3>문서 청킹 설정</h3>
-            <el-form label-position="top" class="settings-form">
-              <el-form-item label="기본 청크 크기 (문자)">
-                <el-input-number
-                  v-model="formData.chunking.default_chunk_size"
-                  :min="100"
-                  :max="5000"
-                  :step="100"
-                  style="width: 100%"
-                />
-                <div class="form-help">문서를 나눌 때 기본 청크 크기</div>
-              </el-form-item>
-
-              <el-form-item label="기본 오버랩 (문자)">
-                <el-input-number
-                  v-model="formData.chunking.default_overlap"
-                  :min="0"
-                  :max="500"
-                  :step="10"
-                  style="width: 100%"
-                />
-                <div class="form-help">청크 간 중복되는 문자 수 (문맥 유지용)</div>
               </el-form-item>
             </el-form>
           </div>
@@ -740,7 +761,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, View, Hide, Warning, Clock, Download, Upload } from '@element-plus/icons-vue'
+import { Refresh, View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -901,10 +922,14 @@ const saveSettings = async () => {
   try {
     const category = activeTab.value
 
-    // NL2SQL 탭은 nl2sql과 external_database 두 카테고리를 모두 저장
+    // 탭별로 저장할 카테고리 결정
+    // NL2SQL 탭: nl2sql + external_database
+    // RAG 탭: rag + embedding + chunking
     const categoriesToSave = category === 'nl2sql'
       ? ['nl2sql', 'external_database']
-      : [category]
+      : category === 'rag'
+        ? ['rag', 'embedding', 'chunking']
+        : [category]
 
     for (const cat of categoriesToSave) {
       const settings = {}
@@ -1349,6 +1374,36 @@ onMounted(async () => {
       margin: -10px 0 20px;
       font-size: 14px;
       color: #606266;
+    }
+  }
+
+  // RAG 통합 탭 섹션 스타일
+  .setting-section {
+    padding: 16px 0;
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--el-text-color-primary);
+
+      .el-icon {
+        font-size: 18px;
+        color: var(--el-color-primary);
+      }
+
+      .el-tag {
+        margin-left: auto;
+      }
+    }
+
+    .section-desc {
+      margin: -8px 0 16px;
+      font-size: 13px;
+      color: var(--el-text-color-secondary);
     }
   }
 
