@@ -1,0 +1,399 @@
+<template>
+  <div class="user-chat-layout" :class="{ 'sidebar-collapsed': !sidebarVisible }">
+    <!-- Mobile overlay -->
+    <div
+      v-if="sidebarVisible && isMobile"
+      class="sidebar-overlay"
+      @click="closeSidebar"
+    />
+
+    <!-- Desktop sidebar toggle button (when collapsed) -->
+    <button
+      v-if="!sidebarVisible && !isMobile"
+      class="sidebar-expand-btn"
+      @click="toggleSidebar"
+      title="사이드바 열기"
+    >
+      <el-icon :size="20"><Expand /></el-icon>
+    </button>
+
+    <!-- Sidebar -->
+    <transition name="sidebar-slide">
+      <UserChatSidebar
+        v-show="sidebarVisible"
+        :class="{ 'mobile-visible': sidebarVisible && isMobile }"
+        :is-mobile="isMobile"
+        @new-chat="handleNewChat"
+        @select-chat="handleSelectChat"
+        @close="closeSidebar"
+        @toggle="toggleSidebar"
+      />
+    </transition>
+
+    <!-- Main Chat Area -->
+    <div class="chat-area">
+      <!-- Desktop header with actions -->
+      <header v-if="!isMobile" class="desktop-header">
+        <div class="header-left"></div>
+        <div class="header-actions">
+          <button class="action-btn" @click="handleShare" title="공유하기">
+            <el-icon :size="18"><Share /></el-icon>
+            <span>공유하기</span>
+          </button>
+          <button class="action-btn" @click="handleSave" title="저장하기">
+            <el-icon :size="18"><Download /></el-icon>
+            <span>저장하기</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Mobile header with toggle -->
+      <header v-if="isMobile" class="mobile-header">
+        <button class="sidebar-toggle-btn" @click="toggleSidebar">
+          <el-icon :size="20"><Menu /></el-icon>
+        </button>
+        <h1 class="logo-text">InsightLink</h1>
+        <div class="header-actions-mobile">
+          <button class="action-btn-icon" @click="handleShare" title="공유하기">
+            <el-icon :size="18"><Share /></el-icon>
+          </button>
+          <button class="action-btn-icon" @click="handleSave" title="저장하기">
+            <el-icon :size="18"><Download /></el-icon>
+          </button>
+        </div>
+      </header>
+
+      <!-- Chat View -->
+      <UserChatView :hide-header="true" />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useStore } from 'vuex'
+import { Menu, Expand, Share, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
+import UserChatView from '@/views/user/UserChatView.vue'
+
+const store = useStore()
+
+const windowWidth = ref(window.innerWidth)
+const MOBILE_BREAKPOINT = 768
+
+const isMobile = computed(() => windowWidth.value <= MOBILE_BREAKPOINT)
+const sidebarVisible = computed(() => store.state.app.userSidebarVisible)
+
+const toggleSidebar = () => {
+  store.dispatch('app/toggleUserSidebar')
+}
+
+const closeSidebar = () => {
+  if (isMobile.value) {
+    store.dispatch('app/setUserSidebarVisible', false)
+  }
+}
+
+const handleNewChat = () => {
+  // Additional logic if needed
+}
+
+const handleSelectChat = (chatId) => {
+  // Additional logic if needed
+}
+
+// 공유하기 기능
+const handleShare = async () => {
+  const messages = store.state.chat.messages
+  if (messages.length === 0) {
+    ElMessage.warning('공유할 대화 내용이 없습니다.')
+    return
+  }
+
+  // 대화 내용을 텍스트로 변환
+  const chatText = messages.map(msg => {
+    const role = msg.role === 'user' ? '사용자' : 'AI'
+    return `[${role}]\n${msg.content}`
+  }).join('\n\n---\n\n')
+
+  try {
+    await navigator.clipboard.writeText(chatText)
+    ElMessage.success('대화 내용이 클립보드에 복사되었습니다.')
+  } catch {
+    ElMessage.error('클립보드 복사에 실패했습니다.')
+  }
+}
+
+// 저장하기 기능
+const handleSave = () => {
+  const messages = store.state.chat.messages
+  if (messages.length === 0) {
+    ElMessage.warning('저장할 대화 내용이 없습니다.')
+    return
+  }
+
+  // 대화 내용을 마크다운으로 변환
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('ko-KR')
+  const timeStr = now.toLocaleTimeString('ko-KR')
+
+  let markdown = `# InsightLink 대화 기록\n\n`
+  markdown += `- 저장 일시: ${dateStr} ${timeStr}\n`
+  markdown += `- 메시지 수: ${messages.length}개\n\n---\n\n`
+
+  messages.forEach(msg => {
+    const role = msg.role === 'user' ? '👤 사용자' : '🤖 AI'
+    markdown += `## ${role}\n\n${msg.content}\n\n`
+
+    // RAG 소스가 있으면 추가
+    if (msg.ragResult?.sources?.length > 0) {
+      markdown += `<details>\n<summary>📚 참조 문서</summary>\n\n`
+      msg.ragResult.sources.forEach((src, idx) => {
+        markdown += `${idx + 1}. **${src.title}** (유사도: ${(src.score * 100).toFixed(1)}%)\n`
+      })
+      markdown += `\n</details>\n\n`
+    }
+
+    // SQL 결과가 있으면 추가
+    if (msg.nl2sqlResult?.sql) {
+      markdown += `<details>\n<summary>🔍 SQL 쿼리</summary>\n\n\`\`\`sql\n${msg.nl2sqlResult.sql}\n\`\`\`\n\n</details>\n\n`
+    }
+
+    markdown += `---\n\n`
+  })
+
+  // 파일 다운로드
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `insightlink-chat-${now.toISOString().slice(0, 10)}.md`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+
+  ElMessage.success('대화 내용이 저장되었습니다.')
+}
+
+const handleResize = () => {
+  windowWidth.value = window.innerWidth
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+  // Set initial sidebar state based on screen size
+  if (isMobile.value) {
+    store.dispatch('app/setUserSidebarVisible', false)
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+</script>
+
+<style lang="scss" scoped>
+.user-chat-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: #212121;
+}
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0; // Prevent flex item from overflowing
+}
+
+// Desktop header
+.desktop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid #303030;
+  background-color: #212121;
+  flex-shrink: 0;
+
+  .header-left {
+    flex: 1;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background-color: transparent;
+  border: 1px solid #424242;
+  border-radius: 8px;
+  color: #b4b4b4;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: #2a2a2a;
+    border-color: #525252;
+    color: #ececec;
+  }
+}
+
+.action-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #b4b4b4;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: #2a2a2a;
+    color: #ececec;
+  }
+}
+
+.mobile-header {
+  display: none;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px;
+  border-bottom: 1px solid #303030;
+  background-color: #212121;
+  flex-shrink: 0;
+
+  .sidebar-toggle-btn {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: #ececec;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: #2a2a2a;
+    }
+  }
+
+  .logo-text {
+    flex: 1;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+    text-align: center;
+  }
+
+  .header-actions-mobile {
+    display: flex;
+    gap: 4px;
+  }
+}
+
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Sidebar transition
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(-100%);
+}
+
+// Mobile responsive
+@media (max-width: 768px) {
+  .user-chat-layout {
+    position: relative;
+  }
+
+  .mobile-header {
+    display: flex;
+  }
+
+  :deep(.user-chat-sidebar) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+
+    &.mobile-visible {
+      transform: translateX(0);
+    }
+  }
+}
+
+@media (min-width: 769px) {
+  .sidebar-overlay {
+    display: none;
+  }
+}
+
+// Desktop sidebar expand button (when collapsed)
+.sidebar-expand-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  width: 40px;
+  height: 40px;
+  background-color: var(--user-sidebar-bg, #171717);
+  border: 1px solid var(--user-sidebar-border, #2a2a2a);
+  border-radius: 8px;
+  color: var(--user-sidebar-text, #ececec);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: var(--user-sidebar-hover-bg, #212121);
+  }
+}
+</style>

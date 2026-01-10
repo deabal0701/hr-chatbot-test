@@ -165,6 +165,27 @@
   --description-content-color: #e5e5e5;
 }
 
+// User Chat Sidebar (ChatGPT 스타일)
+:root {
+  --user-sidebar-width: 260px;
+  --user-sidebar-bg: #f7f7f8;
+  --user-sidebar-border: #e5e5e5;
+  --user-sidebar-text: #202020;
+  --user-sidebar-text-muted: #6b6b6b;
+  --user-sidebar-hover-bg: #ececec;
+  --user-sidebar-active-bg: #e3e3e3;
+}
+
+[data-theme="dark"] {
+  --user-sidebar-bg: #171717;
+  --user-sidebar-border: #2a2a2a;
+  --user-sidebar-text: #ececec;
+  --user-sidebar-text-muted: #8e8e8e;
+  --user-sidebar-hover-bg: #212121;
+  --user-sidebar-active-bg: #2a2a2a;
+}
+
 // Layout variables (same for both themes)
 $sidebar-width: 220px;
 $header-height: 60px;
+$user-sidebar-width: 260px;

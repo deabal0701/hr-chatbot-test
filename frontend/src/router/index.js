@@ -6,11 +6,11 @@ const routes = [
     redirect: '/chat'
   },
 
-  // 일반 사용자 채팅 (메인 페이지)
+  // 일반 사용자 채팅 (메인 페이지) - ChatGPT 스타일 레이아웃
   {
     path: '/chat',
     name: 'UserChat',
-    component: () => import('@/views/user/UserChatView.vue'),
+    component: () => import('@/components/user/UserChatLayout.vue'),
     meta: { title: 'InsightLink' }
   },
 

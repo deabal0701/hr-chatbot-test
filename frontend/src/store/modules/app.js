@@ -30,6 +30,9 @@ export default {
     userRole: 'admin',    // 'admin' | 'user'
     sidebarCollapsed: false,
 
+    // 사용자 채팅 사이드바 상태
+    userSidebarVisible: true,
+
     // 앱 설정
     apiHealthy: true,
     darkMode: getStoredTheme()  // 다크모드 상태
@@ -70,13 +73,20 @@ export default {
         // localStorage 사용 불가시 무시
       }
       applyTheme(state.darkMode)
+    },
+    TOGGLE_USER_SIDEBAR(state) {
+      state.userSidebarVisible = !state.userSidebarVisible
+    },
+    SET_USER_SIDEBAR_VISIBLE(state, visible) {
+      state.userSidebarVisible = visible
     }
   },
 
   getters: {
     isAdmin: (state) => state.userRole === 'admin',
     isAuthenticated: (state) => state.user !== null,
-    isDarkMode: (state) => state.darkMode
+    isDarkMode: (state) => state.darkMode,
+    isUserSidebarVisible: (state) => state.userSidebarVisible
   },
 
   actions: {
@@ -101,6 +111,12 @@ export default {
     // 앱 초기화 시 저장된 테마 적용
     initTheme({ state }) {
       applyTheme(state.darkMode)
+    },
+    toggleUserSidebar({ commit }) {
+      commit('TOGGLE_USER_SIDEBAR')
+    },
+    setUserSidebarVisible({ commit }, visible) {
+      commit('SET_USER_SIDEBAR_VISIBLE', visible)
     }
   }
 }

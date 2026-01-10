@@ -1,7 +1,7 @@
 <template>
-  <div class="user-chat-view">
-    <!-- 헤더 -->
-    <header class="chat-header">
+  <div class="user-chat-view" :class="{ 'no-header': hideHeader }">
+    <!-- 헤더 (hideHeader가 false일 때만 표시) -->
+    <header v-if="!hideHeader" class="chat-header">
       <div class="header-left">
         <div class="header-logo">
           <div class="logo-icon">
@@ -22,7 +22,7 @@
     </header>
 
     <!-- 메인 콘텐츠 -->
-    <main class="chat-main">
+    <main class="chat-main" ref="chatMainRef">
       <div class="chat-content">
         <!-- 환영 메시지 (대화 시작 전) -->
         <div v-if="messages.length === 0" class="welcome-section">
@@ -52,7 +52,7 @@
         </div>
 
         <!-- 메시지 목록 -->
-        <div v-else class="messages-container" ref="messagesContainer">
+        <div v-else class="messages-container">
           <UserChatMessage
             v-for="message in messages"
             :key="message.id"
@@ -172,11 +172,19 @@ import { useStore } from 'vuex'
 import { Setting, Operation, ArrowDown, Promotion, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 
+// Props
+const props = defineProps({
+  hideHeader: {
+    type: Boolean,
+    default: false
+  }
+})
+
 const router = useRouter()
 const store = useStore()
 
 const inputRef = ref(null)
-const messagesContainer = ref(null)
+const chatMainRef = ref(null)
 const inputText = ref('')
 
 const messages = computed(() => store.state.chat.messages)
@@ -237,11 +245,11 @@ const autoResize = () => {
   }
 }
 
-// 메시지 추가 시 스크롤
+// 메시지 추가 시 스크롤 (chat-main 요소 기준)
 watch(messages, async () => {
   await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  if (chatMainRef.value) {
+    chatMainRef.value.scrollTop = chatMainRef.value.scrollHeight
   }
 }, { deep: true })
 </script>
@@ -250,9 +258,15 @@ watch(messages, async () => {
 .user-chat-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background-color: #212121;
   color: #ececec;
+
+  &.no-header {
+    .chat-main {
+      height: 100%;
+    }
+  }
 }
 
 // 헤더
@@ -318,16 +332,35 @@ watch(messages, async () => {
 // 메인 콘텐츠
 .chat-main {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   justify-content: center;
+
+  // 스크롤바 스타일링 (화면 오른쪽 끝에 위치)
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: #424242;
+    border-radius: 4px;
+
+    &:hover {
+      background-color: #555555;
+    }
+  }
 }
 
 .chat-content {
   width: 100%;
   max-width: 1000px;
-  height: 100%;
-  overflow-y: auto;
+  height: fit-content;
+  min-height: 100%;
   padding: 0 32px;
 }
 
@@ -412,8 +445,6 @@ watch(messages, async () => {
 // 메시지 컨테이너
 .messages-container {
   padding: 40px 0;
-  overflow-y: auto;
-  height: 100%;
 }
 
 // 로딩 인디케이터
