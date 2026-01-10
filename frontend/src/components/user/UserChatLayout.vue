@@ -52,7 +52,7 @@
         <button class="sidebar-toggle-btn" @click="toggleSidebar">
           <el-icon :size="20"><Menu /></el-icon>
         </button>
-        <h1 class="logo-text">InsightLink</h1>
+        <h1 class="logo-text">MUREUM</h1>
         <div class="header-actions-mobile">
           <button class="action-btn-icon" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
@@ -138,7 +138,7 @@ const handleSave = () => {
   const dateStr = now.toLocaleDateString('ko-KR')
   const timeStr = now.toLocaleTimeString('ko-KR')
 
-  let markdown = `# InsightLink 대화 기록\n\n`
+  let markdown = `# MUREUM 대화 기록\n\n`
   markdown += `- 저장 일시: ${dateStr} ${timeStr}\n`
   markdown += `- 메시지 수: ${messages.length}개\n\n---\n\n`
 
@@ -168,7 +168,7 @@ const handleSave = () => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `insightlink-chat-${now.toISOString().slice(0, 10)}.md`
+  link.download = `mureum-chat-${now.toISOString().slice(0, 10)}.md`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

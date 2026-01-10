@@ -11,7 +11,7 @@ const routes = [
     path: '/chat',
     name: 'UserChat',
     component: () => import('@/components/user/UserChatLayout.vue'),
-    meta: { title: 'InsightLink' }
+    meta: { title: 'MUREUM' }
   },
 
   // 관리자 라우트
@@ -85,7 +85,7 @@ const router = createRouter({
 
 // 페이지 타이틀 업데이트
 router.afterEach((to) => {
-  const appTitle = import.meta.env.VITE_APP_TITLE || 'InsightLink'
+  const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
   document.title = to.meta.title ? `${to.meta.title} - ${appTitle}` : appTitle
 })
 

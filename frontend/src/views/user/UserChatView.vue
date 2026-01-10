@@ -10,7 +10,7 @@
               <polyline points="16 5 12 9 8 5"></polyline>
             </svg>
           </div>
-          <h1 class="logo-text">InsightLink</h1>
+          <h1 class="logo-text">MUREUM</h1>
         </div>
       </div>
       <div class="header-right">

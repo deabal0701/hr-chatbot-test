@@ -54,7 +54,7 @@ const apiHealthy = computed(() => store.state.app.apiHealthy)
 const isDarkMode = computed(() => store.state.app.darkMode)
 
 const pageTitle = computed(() => {
-  return route.meta.title || 'InsightLink'
+  return route.meta.title || 'MUREUM'
 })
 
 // 다크모드 토글

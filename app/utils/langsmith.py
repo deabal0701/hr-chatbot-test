@@ -53,7 +53,7 @@ def setup_langsmith() -> bool:
         if settings.langchain_project:
             os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
         else:
-            os.environ["LANGCHAIN_PROJECT"] = "hr-chatbot-insightlink"
+            os.environ["LANGCHAIN_PROJECT"] = "chatbot-mureum"
 
         logger.info(
             f"✅ LangSmith 트레이싱이 활성화되었습니다. "
@@ -88,7 +88,7 @@ def get_langsmith_url(run_id: Optional[str] = None) -> Optional[str]:
     if not settings.langsmith_enabled:
         return None
 
-    project_name = os.environ.get("LANGCHAIN_PROJECT", "hr-chatbot-insightlink")
+    project_name = os.environ.get("LANGCHAIN_PROJECT", "chatbot-mureum")
     base_url = f"https://smith.langchain.com/o/default/projects/{project_name}"
 
     if run_id:

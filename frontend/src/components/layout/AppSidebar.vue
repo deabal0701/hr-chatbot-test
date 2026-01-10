@@ -5,7 +5,7 @@
       <el-icon :size="28" color="#409eff">
         <ChatDotRound />
       </el-icon>
-      <span v-if="!isCollapsed" class="logo-text">InsightLink</span>
+      <span v-if="!isCollapsed" class="logo-text">MUREUM</span>
     </div>
 
     <!-- 메뉴 -->

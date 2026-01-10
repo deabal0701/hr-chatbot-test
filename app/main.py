@@ -19,7 +19,7 @@ logger = setup_logger(__name__)
 async def lifespan(app: FastAPI):
     """애플리케이션 시작/종료 이벤트"""
     # 시작
-    logger.info(f"InsightLink 시작: env={settings.app_env}")
+    logger.info(f"MUREUM 시작: env={settings.app_env}")
 
     # LangSmith 초기화 (옵션)
     init_langsmith()
@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # 종료
-    logger.info("InsightLink 종료 중...")
+    logger.info("MUREUM 종료 중...")
     db_manager.close()
     external_db_manager.close()
     logger.info("데이터베이스 연결 풀 종료 완료")
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 
 # FastAPI 앱 생성
 app = FastAPI(
-    title="InsightLink API",
+    title="MUREUM API",
     description="기업용 지식 베이스 기반 AI 어시스턴트 API",
     version="1.0.0",
     lifespan=lifespan
@@ -78,7 +78,7 @@ app.include_router(agent.router)  # AI Agent 라우터
 async def root():
     """루트 엔드포인트"""
     return {
-        "service": "InsightLink API",
+        "service": "MUREUM API",
         "version": "1.0.0",
         "status": "running",
         "environment": settings.app_env

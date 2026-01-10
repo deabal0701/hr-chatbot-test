@@ -9,7 +9,7 @@
           <el-icon :size="48" color="#409eff">
             <ChatDotRound />
           </el-icon>
-          <h3>InsightLink에 오신 것을 환영합니다</h3>
+          <h3>MUREUM에 오신 것을 환영합니다</h3>
           <p>문서 기반 질문을 자유롭게 해주세요.</p>
           <div class="example-queries">
             <p class="example-title">예시 질문:</p>

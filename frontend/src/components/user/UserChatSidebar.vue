@@ -10,7 +10,7 @@
             <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <span class="logo-text">InsightLink</span>
+        <span class="logo-text">MUREUM</span>
       </div>
       <!-- Desktop collapse button -->
       <button v-if="!isMobile" class="collapse-btn" @click="$emit('toggle')" title="사이드바 접기">
