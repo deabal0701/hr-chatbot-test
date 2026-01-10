@@ -47,20 +47,24 @@
       </div>
     </div>
 
-    <!-- Footer with Admin Link -->
+    <!-- Footer with User Label (관리자 링크 주석처리 - 로그인 기능 없음) -->
     <div class="sidebar-footer">
-      <router-link to="/admin" class="admin-link">
+      <!-- <router-link to="/admin" class="admin-link">
         <el-icon><Setting /></el-icon>
         <span>Admin</span>
-      </router-link>
+      </router-link> -->
+      <div class="user-link">
+        <el-icon><User /></el-icon>
+        <span>User</span>
+      </div>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { computed, inject } from 'vue'
+import { computed } from 'vue'
 import { useStore } from 'vuex'
-import { Close, EditPen, ChatLineRound, Setting, Fold } from '@element-plus/icons-vue'
+import { Close, EditPen, ChatLineRound, Fold, User } from '@element-plus/icons-vue'
 
 const props = defineProps({
   isMobile: {
@@ -253,6 +257,16 @@ const handleSelectChat = (chatId) => {
       background-color: var(--user-sidebar-hover-bg);
       color: var(--user-sidebar-text);
     }
+  }
+
+  .user-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--user-sidebar-text-muted);
+    font-size: 14px;
   }
 }
 

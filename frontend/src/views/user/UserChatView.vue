@@ -14,10 +14,12 @@
         </div>
       </div>
       <div class="header-right">
-        <el-button text class="header-btn" @click="goToAdmin">
+        <!-- 관리자 링크 주석처리 (로그인 기능 없음) -->
+        <!-- <el-button text class="header-btn" @click="goToAdmin">
           <el-icon><Setting /></el-icon>
           <span class="btn-text">Admin</span>
-        </el-button>
+        </el-button> -->
+        <span class="user-label">User</span>
       </div>
     </header>
 
@@ -208,10 +210,10 @@ const exampleQueries = [
   '부서별 직원 수는?'
 ]
 
-// 관리자 페이지로 이동
-const goToAdmin = () => {
-  router.push('/admin')
-}
+// 관리자 페이지로 이동 (주석처리 - 로그인 기능 없음)
+// const goToAdmin = () => {
+//   router.push('/admin')
+// }
 
 // 모드 변경
 const handleModeChange = (mode) => {
@@ -259,6 +261,8 @@ watch(messages, async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
   background-color: #212121;
   color: #ececec;
 
@@ -327,11 +331,18 @@ watch(messages, async () => {
       margin-top: 1px;
     }
   }
+
+  .user-label {
+    color: #8e8e8e;
+    font-size: 14px;
+    font-weight: 500;
+  }
 }
 
 // 메인 콘텐츠
 .chat-main {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -359,8 +370,6 @@ watch(messages, async () => {
 .chat-content {
   width: 100%;
   max-width: 1000px;
-  height: fit-content;
-  min-height: 100%;
   padding: 0 32px;
 }
 
@@ -370,7 +379,7 @@ watch(messages, async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  min-height: 100%;
   text-align: center;
   padding-bottom: 80px;
 
