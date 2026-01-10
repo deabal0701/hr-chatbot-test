@@ -1,7 +1,13 @@
 // 전역 스타일
 
+// 로컬 폰트 정의 (변수용)
+@use '../fonts/fonts' as fonts;
+
 // CSS 변수 정의
 @use './variables';
+
+// @font-face 선언 (@use 이후에 포함)
+@import '../fonts/font-faces';
 
 // SCSS 변수 (레거시 호환용)
 $primary-color: #409eff;
@@ -19,6 +25,11 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  font-family: fonts.$font-family-sans;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-color-page);
   color: var(--text-color-primary);
   transition: var(--theme-transition);
