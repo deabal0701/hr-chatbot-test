@@ -14,7 +14,6 @@ from app.models.schemas import (
     SearchResponse,
 )
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
-from app.utils.common import generate_request_id  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 

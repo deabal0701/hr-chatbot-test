@@ -44,7 +44,6 @@ from app.services.settings_service import settings_service
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager  # 통합 LLM 설정
-from app.utils.common import generate_request_id  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
