@@ -50,56 +50,50 @@ def setup_logger(name: str) -> logging.Logger:
 logger = setup_logger("hr_chatbot")
 
 
-def log_structured_step(
+def log_step(
     request_id: str,
-    module: str,  # "AGENT", "RAG", "NL2SQL", "API"
+    module: str,
     step: str,
     stage: str,
     message: str,
     **kwargs
 ):
     """
-    구조화된 로깅 헬퍼 (통합)
-    
-    모든 그래프 및 API 라우트에서 사용 가능한 통합 로깅 함수.
-    기존 log_*_step 함수들을 대체하며, 호환성 유지.
-    
+    통합 로깅 함수
+
+    모든 그래프(AGENT, RAG, NL2SQL) 및 API에서 사용하는 단일 로깅 함수.
+
     Args:
-        request_id: 요청 고유 ID
+        request_id: 요청 고유 ID (8자리)
         module: 모듈명 (AGENT, RAG, NL2SQL, API 등)
-        step: 단계 (0, 1, 2 또는 INIT, END 등)
-        stage: 스테이지 (THINK, ACTION, FINISH 등)
+        step: 단계 번호 또는 식별자 (0, 1, 2, INIT, END, ERR 등)
+        stage: 처리 스테이지 (INIT, THINK, ACTION, GENERATE, COMPLETE 등)
         message: 로그 메시지
-        **kwargs: 추가 정보 (key=value 형태로 출력)
-    
+        **kwargs: 추가 정보 (key=value 형태로 출력, 값이 잘리지 않음)
+
+    출력 형식:
+        [request_id] [MODULE-step] [STAGE] message | key1=value1 | key2=value2
+
     Example:
-        >>> log_structured_step("abc123", "AGENT", "0", "INIT", "시작", max_iter=10)
-        [abc123] [AGENT-0] [INIT] 시작 | max_iter=10
+        >>> log_step("abc123", "AGENT", "0", "INIT", "Agent 실행 시작", max_iter=10, model="gpt-4o")
+        [abc123] [AGENT-0] [INIT] Agent 실행 시작 | max_iter=10 | model=gpt-4o
+
+        >>> log_step("abc123", "NL2SQL", "1", "GENERATE", "SQL 생성 완료", sql="SELECT * FROM employee WHERE ...")
+        [abc123] [NL2SQL-1] [GENERATE] SQL 생성 완료 | sql=SELECT * FROM employee WHERE ...
+
+        >>> log_step("abc123", "RAG", "2", "LLM-OUTPUT", "답변 생성 완료", answer="재택근무 정책은...")
+        [abc123] [RAG-2] [LLM-OUTPUT] 답변 생성 완료 | answer=재택근무 정책은...
     """
-    extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()]) if kwargs else ""
+    # 추가 정보를 key=value 형태로 포맷팅 (값을 자르지 않음)
+    extra_parts = []
+    for key, value in kwargs.items():
+        extra_parts.append(f"{key}={value}")
+
+    extra_info = " | ".join(extra_parts) if extra_parts else ""
+
+    # 로그 메시지 구성
     log_message = f"[{request_id}] [{module}-{step}] [{stage}] {message}"
     if extra_info:
         log_message += f" | {extra_info}"
-    
+
     logger.info(log_message)
-
-
-# 하위 호환성을 위한 별칭 함수들 (Deprecated)
-def log_agent_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """[Deprecated] log_structured_step 사용 권장"""
-    log_structured_step(request_id, "AGENT", step, stage, message, **kwargs)
-
-
-def log_rag_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """[Deprecated] log_structured_step 사용 권장"""
-    log_structured_step(request_id, "RAG", step, stage, message, **kwargs)
-
-
-def log_nl2sql_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """[Deprecated] log_structured_step 사용 권장"""
-    log_structured_step(request_id, "NL2SQL", step, stage, message, **kwargs)
-
-
-def log_api_step(request_id: str, step: str, stage: str, message: str, **kwargs):
-    """[Deprecated] log_structured_step 사용 권장"""
-    log_structured_step(request_id, "API", step, stage, message, **kwargs)

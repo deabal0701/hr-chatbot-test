@@ -42,7 +42,7 @@ from app.tools.rag_tool import search_documents_tool
 from app.tools.calculator_tool import calculate_tool
 from app.services.settings_service import settings_service
 from app.config import settings
-from app.utils.logger import setup_logger, log_agent_step  # 통합 로깅 유틸리티
+from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager  # 통합 LLM 설정
 from app.utils.common import generate_request_id  # 공통 유틸리티
 
@@ -171,9 +171,9 @@ class InsightAgentGraph:
         session_id = state.get("session_id", "")
         config = state.get("config", AgentConfig())
 
-        log_agent_step(request_id, str(iteration), "THINK",
-                      "LLM 의사결정 시작",
-                      messages_count=len(state["messages"]))
+        log_step(request_id, "AGENT", str(iteration), "THINK",
+                "LLM 의사결정 시작",
+                messages_count=len(state["messages"]))
 
         # 1. 시스템 프롬프트 추가 (첫 호출 시만)
         # InMemorySaver가 자동으로 messages를 유지하므로 별도 메모리 로딩 불필요
@@ -220,8 +220,8 @@ class InsightAgentGraph:
             # 4. 도구 호출 로그
             if hasattr(response, "tool_calls") and response.tool_calls:
                 tool_names = [tc["name"] for tc in response.tool_calls]
-                log_agent_step(request_id, str(iteration), "ACTION",
-                              f"도구 호출 결정: {', '.join(tool_names)}")
+                log_step(request_id, "AGENT", str(iteration), "ACTION",
+                        f"도구 호출 결정: {', '.join(tool_names)}")
 
                 # 도구 필터링 (whitelist/blacklist)
                 filtered_calls = []
@@ -229,8 +229,8 @@ class InsightAgentGraph:
                     if config.is_tool_allowed(tc["name"]):
                         filtered_calls.append(tc)
                     else:
-                        log_agent_step(request_id, str(iteration), "BLOCKED",
-                                      f"도구 호출 차단: {tc['name']}")
+                        log_step(request_id, "AGENT", str(iteration), "BLOCKED",
+                                f"도구 호출 차단: {tc['name']}")
 
                 # 필터링된 도구만 유지
                 if filtered_calls != response.tool_calls:
@@ -238,9 +238,9 @@ class InsightAgentGraph:
                     state["messages"][-1] = response
 
             else:
-                log_agent_step(request_id, str(iteration), "FINISH",
-                              "최종 답변 생성",
-                              answer_length=len(response.content) if response.content else 0)
+                log_step(request_id, "AGENT", str(iteration), "FINISH",
+                        "최종 답변 생성",
+                        answer_length=len(response.content) if response.content else 0)
                 
                 # 디버깅: 최종 답변 내용 로그
                 if response.content:
@@ -320,18 +320,18 @@ class InsightAgentGraph:
 
         # 1. 최대 반복 체크
         if state["iteration_count"] >= config.max_iterations:
-            log_agent_step(request_id, "LIMIT", "STOP",
-                          "최대 반복 횟수 도달",
-                          max_iterations=config.max_iterations)
+            log_step(request_id, "AGENT", "LIMIT", "STOP",
+                    "최대 반복 횟수 도달",
+                    max_iterations=config.max_iterations)
             state["final_answer"] = "최대 반복 횟수에 도달했습니다. 질문을 더 구체적으로 작성해주세요."
             return "end"
 
         # 2. 타임아웃 체크
         elapsed = time.time() - start_time
         if elapsed > config.timeout_seconds:
-            log_agent_step(request_id, "TIMEOUT", "STOP",
-                          "타임아웃 도달",
-                          elapsed_seconds=int(elapsed))
+            log_step(request_id, "AGENT", "TIMEOUT", "STOP",
+                    "타임아웃 도달",
+                    elapsed_seconds=int(elapsed))
             state["final_answer"] = "요청 처리 시간이 초과되었습니다."
             return "end"
 
@@ -425,9 +425,9 @@ class InsightAgentGraph:
             "start_time": start_time
         }
 
-        log_agent_step(request_id, "0", "INIT", "Agent 실행 시작",
-                      question=question[:50],
-                      session_id=session_id)
+        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작",
+                question=question[:50],
+                session_id=session_id)
 
         try:
             # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
@@ -452,11 +452,11 @@ class InsightAgentGraph:
             # 디버깅: 최종 답변 확인
             logger.info(f"[{request_id}] [EXTRACT] Final answer extracted: length={len(final_answer)}, preview={final_answer[:100] if final_answer else '(empty)'}")
 
-            log_agent_step(request_id, "END", "COMPLETE", "Agent 실행 완료",
-                          iterations=result["iteration_count"],
-                          tools_count=len(tools_used),
-                          execution_time_ms=execution_time_ms,
-                          answer_length=len(final_answer))
+            log_step(request_id, "AGENT", "END", "COMPLETE", "Agent 실행 완료",
+                    iterations=result["iteration_count"],
+                    tools_count=len(tools_used),
+                    execution_time_ms=execution_time_ms,
+                    answer_length=len(final_answer))
 
             # InMemorySaver가 자동으로 대화 히스토리를 관리하므로 별도 저장 불필요
             logger.debug(f"[{request_id}] InMemorySaver에 대화 히스토리 자동 저장됨 (thread_id={session_id})")

@@ -8,9 +8,8 @@ from app.models.schemas import DocumentSource, RAGResponse, SearchFilters
 from app.services.settings_service import settings_service
 from app.services.vector_store import vector_store
 from app.services.prompt_service import prompt_service
-from app.utils.logger import setup_logger, log_rag_step  # 통합 로깅 유틸리티
+from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager
-from app.utils.common import truncate_text  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
@@ -76,10 +75,10 @@ class RAGGraph:
         # SearchFilters 객체 생성
         filters = SearchFilters(**filters_dict) if filters_dict else None
 
-        log_rag_step(request_id, "1", "RETRIEVE", "벡터 검색 시작",
-                     question=question[:40], top_k=top_k,
-                     similarity_threshold=similarity_threshold,
-                     has_filters=bool(filters_dict))
+        log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 시작",
+                question=question, top_k=top_k,
+                similarity_threshold=similarity_threshold,
+                has_filters=bool(filters_dict))
 
         # 벡터 검색 (similarity_threshold도 DB 설정 적용)
         documents = vector_store.search_similar_documents(
@@ -98,10 +97,10 @@ class RAGGraph:
         # 검색 결과 상세 로그
         if documents:
             doc_summaries = [f"{d.title}(유사도:{d.similarity_score:.2f})" for d in documents[:3]]
-            log_rag_step(request_id, "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견",
-                         top_docs=", ".join(doc_summaries))
+            log_step(request_id, "RAG", "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견",
+                    top_docs=", ".join(doc_summaries))
         else:
-            log_rag_step(request_id, "1", "RETRIEVE", "벡터 검색 완료 - 관련 문서 없음")
+            log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 완료 - 관련 문서 없음")
 
         return state
 
@@ -112,16 +111,16 @@ class RAGGraph:
         request_id = state.get("request_id", "unknown")
 
         if not documents:
-            log_rag_step(request_id, "2", "GENERATE", "문서 없음 - 기본 응답 반환")
+            log_step(request_id, "RAG", "2", "GENERATE", "문서 없음 - 기본 응답 반환")
             state["answer"] = "관련 문서를 찾을 수 없습니다. 다른 질문을 시도해주세요."
             return state
 
         # 컨텍스트 구성
-        log_rag_step(request_id, "2a", "CONTEXT", "컨텍스트 구성 시작",
-                     doc_count=len(documents))
+        log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 시작",
+                doc_count=len(documents))
         context = self._build_context(documents)
-        log_rag_step(request_id, "2a", "CONTEXT", "컨텍스트 구성 완료",
-                     context_length=len(context))
+        log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 완료",
+                context_length=len(context))
 
         # 시스템 프롬프트 (DB에서 동적 로드)
         system_prompt = prompt_service.get_rag_system_prompt()
@@ -143,13 +142,13 @@ class RAGGraph:
         llm_model = settings_service.get_value("llm", "model", settings.llm_model)
 
         # LLM 입력 로그
-        log_rag_step(request_id, "2b", "LLM-INPUT", "LLM 호출 시작",
-                     model=llm_model,
-                     system_prompt_length=len(system_prompt),
-                     user_prompt_length=len(user_prompt),
-                     context_length=len(context))
-        log_rag_step(request_id, "2b", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
-        log_rag_step(request_id, "2b", "LLM-INPUT", f"CONTEXT: {truncate_text(context)}")
+        log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작",
+                model=llm_model,
+                system_prompt_length=len(system_prompt),
+                user_prompt_length=len(user_prompt),
+                context_length=len(context))
+        log_step(request_id, "RAG", "2b", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
+        log_step(request_id, "RAG", "2b", "LLM-INPUT", f"CONTEXT: {context}")
 
         try:
             response = llm.invoke(messages)
@@ -160,9 +159,9 @@ class RAGGraph:
             state["metadata"]["context_length"] = len(context)
 
             # LLM 출력 로그
-            log_rag_step(request_id, "2b", "LLM-OUTPUT", "LLM 답변 생성 완료",
-                         answer_length=len(answer))
-            log_rag_step(request_id, "2b", "LLM-OUTPUT", f"ANSWER: {truncate_text(answer)}")
+            log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료",
+                    answer_length=len(answer))
+            log_step(request_id, "RAG", "2b", "LLM-OUTPUT", f"ANSWER: {answer}")
 
         except Exception as e:
             logger.error(f"[{request_id}] [RAG-2b] [LLM] LLM 호출 실패: {e}")
@@ -229,15 +228,15 @@ class RAGGraph:
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
-        log_rag_step(request_id, "0", "INIT", "RAG 그래프 실행 시작",
-                     question=inputs["question"][:40], top_k=initial_state["top_k"])
+        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작",
+                question=inputs["question"], top_k=initial_state["top_k"])
 
         # 그래프 실행
         result = await self.graph.ainvoke(initial_state)
 
-        log_rag_step(request_id, "3", "COMPLETE", "RAG 그래프 실행 완료",
-                     docs_found=len(result["retrieved_docs"]),
-                     answer_length=len(result["answer"]))
+        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료",
+                docs_found=len(result["retrieved_docs"]),
+                answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
         return self._build_response(result)
@@ -248,15 +247,15 @@ class RAGGraph:
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
-        log_rag_step(request_id, "0", "INIT", "RAG 그래프 실행 시작 (동기)",
-                     question=inputs["question"][:40], top_k=initial_state["top_k"])
+        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작 (동기)",
+                question=inputs["question"], top_k=initial_state["top_k"])
 
         # 그래프 실행
         result = self.graph.invoke(initial_state)
 
-        log_rag_step(request_id, "3", "COMPLETE", "RAG 그래프 실행 완료 (동기)",
-                     docs_found=len(result["retrieved_docs"]),
-                     answer_length=len(result["answer"]))
+        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료 (동기)",
+                docs_found=len(result["retrieved_docs"]),
+                answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
         return self._build_response(result)

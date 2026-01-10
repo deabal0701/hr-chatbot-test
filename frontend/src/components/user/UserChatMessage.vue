@@ -137,7 +137,7 @@
             <span class="timestamp">{{ formatTime(message.timestamp) }}</span>
           </div>
           <div class="meta-right">
-            <button class="action-btn" title="복사">
+            <button class="action-btn" title="복사" @click="copyContent">
               <el-icon><CopyDocument /></el-icon>
             </button>
           </div>
@@ -150,6 +150,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   message: {
@@ -263,6 +264,17 @@ const formatTime = (timestamp) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// 현재 메시지 내용만 복사
+const copyContent = async () => {
+  try {
+    const content = props.message.content || ''
+    await navigator.clipboard.writeText(content)
+    ElMessage.success('답변이 클립보드에 복사되었습니다.')
+  } catch {
+    ElMessage.error('클립보드 복사에 실패했습니다.')
+  }
 }
 </script>
 

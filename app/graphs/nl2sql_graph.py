@@ -9,9 +9,9 @@ from app.services.schema_loader import schema_loader
 from app.services.settings_service import settings_service
 from app.services.prompt_service import prompt_service
 from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
-from app.utils.logger import setup_logger, log_nl2sql_step  # 통합 로깅 유틸리티
+from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
-from app.utils.common import truncate_text, strip_markdown_code_block  # 공통 유틸리티
+from app.utils.common import strip_markdown_code_block  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
@@ -86,8 +86,8 @@ class NL2SQLGraph:
         question = state["question"]
         request_id = state.get("request_id", "unknown")
 
-        log_nl2sql_step(request_id, "1", "GENERATE", "SQL 생성 시작",
-                        question=question[:40])
+        log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작",
+                question=question[:40])
 
         # 시스템 프롬프트 (DB에서 동적 로드, 스키마 주입)
         system_prompt = prompt_service.get_nl2sql_generation_prompt(self.schema_description)
@@ -107,8 +107,8 @@ SQL만 출력하세요 (설명 없이)."""
         llm_model = settings_service.get_value("llm", "model", settings.llm_model)
 
         # LLM 입력 로그
-        log_nl2sql_step(request_id, "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt))
-        log_nl2sql_step(request_id, "1a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
+        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt))
+        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
 
         try:
             logger.info(f"[{request_id}] [LLM-INFO] LLM Original Object : {llm}")
@@ -128,8 +128,8 @@ SQL만 출력하세요 (설명 없이)."""
             state["metadata"] = {"llm_model": llm_model}
 
             # LLM 출력 로그
-            log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
-            log_nl2sql_step(request_id, "1b", "LLM-OUTPUT", f"GENERATED_SQL: {truncate_text(sql)}")
+            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
+            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", f"GENERATED_SQL: {sql}")
 
         except Exception as e:
             logger.error(f"[{request_id}] [NL2SQL-1] [LLM] SQL 생성 실패: {e}")
@@ -145,12 +145,12 @@ SQL만 출력하세요 (설명 없이)."""
         request_id = state.get("request_id", "unknown")
 
         if not sql:
-            log_nl2sql_step(request_id, "2", "VALIDATE", "검증 실패 - SQL 없음")
+            log_step(request_id, "NL2SQL", "2", "VALIDATE", "검증 실패 - SQL 없음")
             state["validated"] = False
             state["validation_error"] = "생성된 SQL이 없습니다"
             return state
 
-        log_nl2sql_step(request_id, "2", "VALIDATE", "SQL 검증 시작")
+        log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 시작")
 
         try:
             is_valid, error_msg = sql_executor.validate_sql(sql)
@@ -158,12 +158,12 @@ SQL만 출력하세요 (설명 없이)."""
             if is_valid:
                 state["validated"] = True
                 state["validation_error"] = ""
-                log_nl2sql_step(request_id, "2", "VALIDATE", "SQL 검증 성공")
+                log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 성공")
             else:
                 state["validated"] = False
                 state["validation_error"] = error_msg
-                log_nl2sql_step(request_id, "2", "VALIDATE", f"SQL 검증 실패",
-                                error=error_msg[:50])
+                log_step(request_id, "NL2SQL", "2", "VALIDATE", f"SQL 검증 실패",
+                        error=error_msg)
 
         except Exception as e:
             state["validated"] = False
@@ -176,7 +176,7 @@ SQL만 출력하세요 (설명 없이)."""
         """조건부 엣지: 검증 성공 시 execute, 실패 시 error"""
         request_id = state.get("request_id", "unknown")
         decision = "execute" if state["validated"] else "error"
-        log_nl2sql_step(request_id, "2x", "BRANCH", f"분기 결정 → {decision.upper()}")
+        log_step(request_id, "NL2SQL", "2x", "BRANCH", f"분기 결정 → {decision.upper()}")
         return decision
 
     def _execute_sql(self, state: NL2SQLState) -> NL2SQLState:
@@ -184,7 +184,7 @@ SQL만 출력하세요 (설명 없이)."""
         sql = state["generated_sql"]
         request_id = state.get("request_id", "unknown")
 
-        log_nl2sql_step(request_id, "3", "EXECUTE", "SQL 실행 시작")
+        log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 시작")
 
         try:
             result = sql_executor.execute_sql(sql, validate=False)  # 이미 검증됨
@@ -192,7 +192,7 @@ SQL만 출력하세요 (설명 없이)."""
             state["metadata"]["execution_time_ms"] = result.execution_time_ms
             state["metadata"]["row_count"] = result.row_count
 
-            log_nl2sql_step(request_id, "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
+            log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
 
         except (SQLExecutionError, SQLValidationError) as e:
             logger.error(f"[{request_id}] [NL2SQL-3] [EXECUTE] SQL 실행 실패: {e}")
@@ -209,12 +209,12 @@ SQL만 출력하세요 (설명 없이)."""
         request_id = state.get("request_id", "unknown")
 
         if not result or result.row_count == 0:
-            log_nl2sql_step(request_id, "4", "ANSWER", "결과 없음 - 기본 응답 반환")
+            log_step(request_id, "NL2SQL", "4", "ANSWER", "결과 없음 - 기본 응답 반환")
             state["answer"] = "조회된 결과가 없습니다."
             return state
 
-        log_nl2sql_step(request_id, "4", "ANSWER", "답변 생성 시작",
-                        row_count=result.row_count)
+        log_step(request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작",
+                row_count=result.row_count)
 
         # 시스템 프롬프트 (DB에서 동적 로드)
         system_prompt = prompt_service.get_nl2sql_answer_prompt()
@@ -243,12 +243,12 @@ SQL만 출력하세요 (설명 없이)."""
         llm = self._get_llm()
 
         # LLM 입력 로그 (답변 생성)
-        log_nl2sql_step(request_id, "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
-                        system_prompt_length=len(system_prompt),
-                        user_prompt_length=len(user_prompt),
-                        data_rows=len(rows_summary))
-        log_nl2sql_step(request_id, "4a", "LLM-INPUT", f"USER_PROMPT: {truncate_text(user_prompt)}")
-        log_nl2sql_step(request_id, "4a", "LLM-INPUT", f"DATA_SAMPLE: {truncate_text(str(rows_summary))}")
+        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
+                system_prompt_length=len(system_prompt),
+                user_prompt_length=len(user_prompt),
+                data_rows=len(rows_summary))
+        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
+        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", f"DATA_SAMPLE: {rows_summary}")
 
         try:
             response = llm.invoke(messages)
@@ -261,9 +261,9 @@ SQL만 출력하세요 (설명 없이)."""
 
             state["answer"] = answer
             # LLM 출력 로그 (답변 생성)
-            log_nl2sql_step(request_id, "4b", "LLM-OUTPUT", "답변 생성 완료",
-                            answer_length=len(answer))
-            log_nl2sql_step(request_id, "4b", "LLM-OUTPUT", f"ANSWER: {truncate_text(answer)}")
+            log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료",
+                    answer_length=len(answer))
+            log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", f"ANSWER: {answer}")
 
         except Exception as e:
             logger.error(f"[{request_id}] [NL2SQL-4] [LLM] 답변 생성 실패: {e}")
@@ -286,7 +286,7 @@ SQL만 출력하세요 (설명 없이)."""
 3. 질문을 더 구체적으로 작성
 """
 
-        log_nl2sql_step(request_id, "ERR", "ERROR", f"오류 처리 완료", error=error_msg[:50])
+        log_step(request_id, "NL2SQL", "ERR", "ERROR", f"오류 처리 완료", error=error_msg)
         return state
 
     def _prepare_initial_state(self, inputs: Dict[str, Any]) -> NL2SQLState:
@@ -318,11 +318,11 @@ SQL만 출력하세요 (설명 없이)."""
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
-        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작", question=inputs["question"][:40])
+        log_step(request_id, "NL2SQL", "0", "INIT", "NL2SQL 그래프 실행 시작", question=inputs["question"])
 
         result = await self.graph.ainvoke(initial_state)
 
-        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
+        log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
         return self._build_response(result)
@@ -333,14 +333,14 @@ SQL만 출력하세요 (설명 없이)."""
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
-        log_nl2sql_step(request_id, "0", "INIT", "NL2SQL 그래프 실행 시작 (동기)",
-                        question=inputs["question"][:40])
+        log_step(request_id, "NL2SQL", "0", "INIT", "NL2SQL 그래프 실행 시작 (동기)",
+                question=inputs["question"])
 
         result = self.graph.invoke(initial_state)
 
-        log_nl2sql_step(request_id, "5", "COMPLETE", "NL2SQL 그래프 실행 완료 (동기)",
-                        has_sql=bool(result["generated_sql"]),
-                        answer_length=len(result["answer"]))
+        log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료 (동기)",
+                has_sql=bool(result["generated_sql"]),
+                answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
         return self._build_response(result)

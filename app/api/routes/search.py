@@ -13,17 +13,12 @@ from app.models.schemas import (
     SearchRequest,
     SearchResponse,
 )
-from app.utils.logger import setup_logger, log_api_step  # 통합 로깅 유틸리티
+from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.utils.common import generate_request_id  # 공통 유틸리티
 
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
-
-
-def log_step(request_id: str, step: int, stage: str, message: str, **kwargs):
-    """단계별 로그 출력 헬퍼 (하위 호환)"""
-    log_api_step(request_id, str(step), stage, message, **kwargs)
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -37,17 +32,19 @@ async def search(request: SearchRequest):
     start_time = time.time()
     request_id = str(uuid.uuid4())[:8]  # 요청 추적용 ID
 
+    logger.info(f"[{request_id}] ========== 검색 요청 처리 시작 ==========")
+
     try:
         # STEP 1: 사용자 요청 수신
-        log_step(request_id, 1, "REQUEST", "사용자 요청 수신", query=request.query[:50], mode=request.mode, top_k=request.top_k)
+        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신", query=request.query, mode=request.mode, top_k=request.top_k)
 
         # STEP 2: 모드 결정
         if request.mode == "auto":
             query_type = _classify_query_intent(request.query)
-            log_step(request_id, 2, "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
+            log_step(request_id, "API", "2", "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
         else:
             query_type = request.mode
-            log_step(request_id, 2, "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
+            log_step(request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
         # 입력 데이터 구성
         inputs = {
@@ -59,7 +56,7 @@ async def search(request: SearchRequest):
 
         # STEP 3: 검색 실행
         if query_type == "nl2sql":
-            log_step(request_id, 3, "NL2SQL", "NL2SQL 그래프 실행 시작")
+            log_step(request_id, "API", "3", "NL2SQL", "NL2SQL 그래프 실행 시작")
             nl2sql_result = await nl2sql_graph.ainvoke(inputs)
             response = SearchResponse(
                 query=request.query,
@@ -69,9 +66,9 @@ async def search(request: SearchRequest):
                 metadata=nl2sql_result.metadata,
                 response_time_ms=int((time.time() - start_time) * 1000)
             )
-            log_step(request_id, 4, "NL2SQL", "NL2SQL 그래프 실행 완료", sql_generated=bool(nl2sql_result.sql))
+            log_step(request_id, "API", "4", "NL2SQL", "NL2SQL 그래프 실행 완료", sql_generated=bool(nl2sql_result.sql))
         else:  # rag
-            log_step(request_id, 3, "RAG", "RAG 그래프 실행 시작")
+            log_step(request_id, "API", "3", "RAG", "RAG 그래프 실행 시작")
             rag_result = await rag_graph.ainvoke(inputs)
             response = SearchResponse(
                 query=request.query,
@@ -81,10 +78,10 @@ async def search(request: SearchRequest):
                 metadata=rag_result.metadata,
                 response_time_ms=int((time.time() - start_time) * 1000)
             )
-            log_step(request_id, 4, "RAG", "RAG 그래프 실행 완료", sources_count=len(rag_result.sources))
+            log_step(request_id, "API", "4", "RAG", "RAG 그래프 실행 완료", sources_count=len(rag_result.sources))
 
         # STEP 5: 응답 완료
-        log_step(request_id, 5, "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
+        log_step(request_id, "API", "5", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
 
         logger.info(f"[{request_id}] ========== 검색 요청 처리 완료 ==========")
 
@@ -104,8 +101,8 @@ async def search_rag(request: SearchRequest):
     request_id = str(uuid.uuid4())[:8]
 
     try:
-        log_step(request_id, 1, "RAG-API", "RAG 전용 검색 요청 수신",
-                 query=request.query[:50], top_k=request.top_k)
+        log_step(request_id, "API", "1", "RAG-API", "RAG 전용 검색 요청 수신",
+                query=request.query, top_k=request.top_k)
 
         inputs = {
             "question": request.query,
@@ -114,11 +111,11 @@ async def search_rag(request: SearchRequest):
             "request_id": request_id
         }
 
-        log_step(request_id, 2, "RAG-API", "RAG 그래프 실행 시작")
+        log_step(request_id, "API", "2", "RAG-API", "RAG 그래프 실행 시작")
         result = await rag_graph.ainvoke(inputs)
 
-        log_step(request_id, 3, "RAG-API", "RAG 검색 완료",
-                 sources_count=len(result.sources), answer_length=len(result.answer))
+        log_step(request_id, "API", "3", "RAG-API", "RAG 검색 완료",
+                sources_count=len(result.sources), answer_length=len(result.answer))
         return result
 
     except Exception as e:
@@ -135,8 +132,8 @@ async def search_nl2sql(request: SearchRequest):
     request_id = str(uuid.uuid4())[:8]
 
     try:
-        log_step(request_id, 1, "NL2SQL-API", "NL2SQL 전용 검색 요청 수신",
-                 query=request.query[:50])
+        log_step(request_id, "API", "1", "NL2SQL-API", "NL2SQL 전용 검색 요청 수신",
+                query=request.query)
 
         inputs = {
             "question": request.query,
@@ -144,12 +141,11 @@ async def search_nl2sql(request: SearchRequest):
             "request_id": request_id
         }
 
-        log_step(request_id, 2, "NL2SQL-API", "NL2SQL 그래프 실행 시작")
+        log_step(request_id, "API", "2", "NL2SQL-API", "NL2SQL 그래프 실행 시작")
         result = await nl2sql_graph.ainvoke(inputs)
 
-        sql_preview = result.sql[:80] + "..." if result.sql and len(result.sql) > 80 else result.sql
-        log_step(request_id, 3, "NL2SQL-API", "NL2SQL 검색 완료",
-                 sql_preview=sql_preview, answer_length=len(result.answer))
+        log_step(request_id, "API", "3", "NL2SQL-API", "NL2SQL 검색 완료",
+                sql=result.sql, answer_length=len(result.answer))
         return result
 
     except Exception as e:
