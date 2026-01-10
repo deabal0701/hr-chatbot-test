@@ -402,11 +402,11 @@ html, body {
 
     &.is-active,
     &.active {
-      background-color: rgba(16, 163, 127, 0.15) !important;
-      color: #10a37f !important;
+      background-color: rgba(255, 255, 255, 0.1) !important;
+      color: #ffffff !important;
 
       .mode-name {
-        color: #10a37f !important;
+        color: #ffffff !important;
       }
     }
 

@@ -273,13 +273,14 @@ watch(messages, async () => {
     .logo-icon {
       width: 32px;
       height: 32px;
-      background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
+      background-color: var(--icon-bg, #333333);
+      border: 1px solid var(--icon-bg-border, #555555);
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
-      
+      color: var(--icon-color, #ffffff);
+
       svg {
         width: 18px;
         height: 18px;
@@ -344,13 +345,14 @@ watch(messages, async () => {
     width: 84px;
     height: 84px;
     border-radius: 24px;
-    background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
+    background-color: var(--icon-bg, #333333);
+    border: 2px solid var(--icon-bg-border, #555555);
     display: flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 28px;
-    color: #ffffff;
-    box-shadow: 0 8px 24px rgba(16, 163, 127, 0.2);
+    color: var(--icon-color, #ffffff);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     transform: rotate(-5deg);
   }
 
@@ -381,8 +383,8 @@ watch(messages, async () => {
 
   .example-btn {
     padding: 14px 22px;
-    background-color: #2f2f2f;
-    border: 1px solid #424242;
+    background-color: var(--icon-bg, #333333);
+    border: 1px solid var(--icon-bg-border, #555555);
     border-radius: 16px;
     color: #e0e0e0;
     font-size: 14px;
@@ -395,12 +397,12 @@ watch(messages, async () => {
 
     .btn-icon {
       font-size: 16px;
-      color: #10a37f;
+      color: var(--icon-color-secondary, #cccccc);
     }
 
     &:hover {
-      background-color: #383838;
-      border-color: #10a37f;
+      background-color: #424242;
+      border-color: #666666;
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
@@ -425,11 +427,12 @@ watch(messages, async () => {
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background-color: #10a37f;
+    background-color: var(--icon-bg, #333333);
+    border: 1px solid var(--icon-bg-border, #555555);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--icon-color, #ffffff);
     flex-shrink: 0;
 
     svg {
@@ -451,7 +454,7 @@ watch(messages, async () => {
     span {
       width: 6px;
       height: 6px;
-      background-color: #10a37f;
+      background-color: var(--icon-color-secondary, #cccccc);
       border-radius: 50%;
       animation: typing 1.4s infinite ease-in-out both;
 
@@ -566,14 +569,14 @@ watch(messages, async () => {
   flex-shrink: 0;
 
   &.active {
-    background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
-    color: #fff;
+    background-color: var(--icon-color, #ffffff);
+    color: var(--icon-bg, #333333);
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 
     &:hover {
       transform: scale(1.05);
-      box-shadow: 0 6px 16px rgba(16, 163, 127, 0.4);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
     }
   }
 

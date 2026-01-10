@@ -11,6 +11,13 @@
   --color-danger: #f56c6c;
   --color-info: #909399;
 
+  // Icon colors (monochrome - Option D: Dark Gray for light mode)
+  --icon-bg: #f0f0f0;
+  --icon-bg-border: #cccccc;
+  --icon-color: #333333;
+  --icon-color-secondary: #555555;
+  --icon-color-muted: #888888;
+
   // Background colors
   --bg-color: #f5f7fa;
   --bg-color-page: #f5f7fa;
@@ -86,6 +93,13 @@
   --color-warning: #e6a23c;
   --color-danger: #f56c6c;
   --color-info: #909399;
+
+  // Icon colors (monochrome - Option D: Dark Gray)
+  --icon-bg: #333333;
+  --icon-bg-border: #555555;
+  --icon-color: #ffffff;
+  --icon-color-secondary: #cccccc;
+  --icon-color-muted: #888888;
 
   // Background colors
   --bg-color: #1a1a1a;

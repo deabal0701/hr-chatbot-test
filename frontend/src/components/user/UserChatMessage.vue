@@ -304,11 +304,12 @@ const formatTime = (timestamp) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  
+  color: var(--icon-color, #ffffff);
+
   &.assistant {
-    background: linear-gradient(135deg, #10a37f 0%, #0d8a6c 100%);
-    box-shadow: 0 4px 12px rgba(16, 163, 127, 0.2);
+    background-color: var(--icon-bg, #333333);
+    border: 1px solid var(--icon-bg-border, #555555);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
   svg {
@@ -374,7 +375,7 @@ const formatTime = (timestamp) => {
       border-radius: 6px;
       font-family: 'Fira Code', monospace;
       font-size: 14px;
-      color: #10a37f;
+      color: var(--icon-color-secondary, #cccccc);
       font-weight: 500;
     }
 
@@ -423,10 +424,10 @@ const formatTime = (timestamp) => {
     display: flex;
     align-items: center;
     gap: 10px;
-    
+
     .el-icon {
       font-size: 18px;
-      color: #10a37f;
+      color: var(--icon-color-secondary, #cccccc);
     }
   }
 
@@ -461,7 +462,7 @@ const formatTime = (timestamp) => {
   transition: border-color 0.2s;
 
   &:hover {
-    border-color: #10a37f;
+    border-color: #666666;
   }
 
   .source-header {
@@ -495,9 +496,9 @@ const formatTime = (timestamp) => {
 
     .source-score {
       font-size: 11px;
-      color: #10a37f;
+      color: var(--icon-color-secondary, #cccccc);
       font-weight: 600;
-      background-color: rgba(16, 163, 127, 0.1);
+      background-color: rgba(255, 255, 255, 0.1);
       padding: 2px 6px;
       border-radius: 4px;
     }
@@ -567,7 +568,7 @@ const formatTime = (timestamp) => {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background-color: #10a37f;
+      background-color: var(--icon-color-secondary, #cccccc);
       margin-top: 6px;
     }
 
@@ -595,8 +596,8 @@ const formatTime = (timestamp) => {
         gap: 6px;
         font-size: 12px;
         font-weight: 700;
-        color: #10a37f;
-        background-color: rgba(16, 163, 127, 0.1);
+        color: var(--icon-color-secondary, #cccccc);
+        background-color: rgba(255, 255, 255, 0.1);
         padding: 2px 8px;
         border-radius: 6px;
 
@@ -666,7 +667,7 @@ const formatTime = (timestamp) => {
       font-weight: 600;
       color: #b4b4b4;
 
-      &.success { color: #10a37f; }
+      &.success { color: var(--icon-color-secondary, #cccccc); }
       &.error { color: #ff6b6b; }
     }
   }
