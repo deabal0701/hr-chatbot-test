@@ -185,7 +185,7 @@ COMMENT ON COLUMN prompt_history.change_reason IS '변경 사유 (선택)';
 
 
 INSERT INTO app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 ('openai','api_key','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','string','OpenAI API Key',true,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.252249+09'),
+	 ('openai','api_key','********','string','OpenAI API Key',true,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.252249+09'),
 	 ('openai','organization_id','','string','OpenAI Organization ID (선택)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.293148+09'),
 	 ('agent','max_iterations','10','int','최대 반복 횟수 (1-20)',false,'2026-01-04 22:33:09.921925+09','2026-01-04 22:33:09.921925+09'),
 	 ('agent','timeout_seconds','60','int','전체 타임아웃 (초, 10-300)',false,'2026-01-04 22:33:09.967964+09','2026-01-04 22:33:09.967964+09'),
