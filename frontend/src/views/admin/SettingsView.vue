@@ -931,13 +931,16 @@ const saveSettings = async () => {
     const category = activeTab.value
 
     // 탭별로 저장할 카테고리 결정
+    // API 키 탭: openai + anthropic
     // NL2SQL 탭: nl2sql + external_database
     // RAG 탭: rag + embedding + chunking
-    const categoriesToSave = category === 'nl2sql'
-      ? ['nl2sql', 'external_database']
-      : category === 'rag'
-        ? ['rag', 'embedding', 'chunking']
-        : [category]
+    const categoriesToSave = category === 'api_keys'
+      ? ['openai', 'anthropic']
+      : category === 'nl2sql'
+        ? ['nl2sql', 'external_database']
+        : category === 'rag'
+          ? ['rag', 'embedding', 'chunking']
+          : [category]
 
     for (const cat of categoriesToSave) {
       const settings = {}

@@ -7,7 +7,7 @@
 @use './variables';
 
 // @font-face 선언 (@use 이후에 포함)
-@import '../fonts/font-faces';
+@use '../fonts/font-faces';
 
 // SCSS 변수 (레거시 호환용)
 $primary-color: #409eff;
