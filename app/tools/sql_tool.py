@@ -172,7 +172,15 @@ Examples:
                     "generated_sql": sql,
                     "row_count": result.row_count,
                     "execution_time_ms": result.execution_time_ms,
-                    "cached": False
+                    "cached": False,
+                    # 구조화된 SQL 결과 (프론트엔드 테이블 표시용)
+                    "sql_result": {
+                        "sql": sql,
+                        "columns": result.columns,
+                        "rows": result.rows[:100],  # 최대 100개 행
+                        "row_count": result.row_count,
+                        "execution_time_ms": result.execution_time_ms
+                    }
                 }
             )
 
@@ -282,6 +290,8 @@ SQL만 출력하세요 (설명 없이)."""
         return formatted
 
 
+import json
+
 # LangChain tool 래퍼 (함수 형태)
 @tool
 def query_database_tool(question: str) -> str:
@@ -304,7 +314,7 @@ def query_database_tool(question: str) -> str:
         question: 데이터베이스 테이블에 대한 자연어 질문 (employee, department, salary, job_history, performance_review)
 
     Returns:
-        데이터베이스 테이블에서 조회한 포맷된 결과
+        데이터베이스 테이블에서 조회한 포맷된 결과 (JSON 형태로 sql_result 포함)
 
     예시:
         - "2024년에 입사한 직원은 몇 명?" → 2024년 입사자 수 반환
@@ -315,6 +325,12 @@ def query_database_tool(question: str) -> str:
     result = tool_instance.execute(question=question)
 
     if result.success:
-        return str(result.data)
+        # SQL 결과를 JSON 형태로 반환 (프론트엔드에서 테이블 표시용)
+        sql_result = result.metadata.get("sql_result") if result.metadata else None
+        response = {
+            "answer": str(result.data),
+            "sql_result": sql_result
+        }
+        return json.dumps(response, ensure_ascii=False, default=str)
     else:
-        return f"Error: {result.error}"
+        return json.dumps({"answer": f"Error: {result.error}", "sql_result": None}, ensure_ascii=False)

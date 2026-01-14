@@ -69,12 +69,12 @@ const store = useStore()
 
 const isCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const activeMenu = computed(() => route.path)
-const isDarkMode = computed(() => store.state.app.darkMode)
+const isDarkMode = computed(() => store.getters['app/isDarkMode'])
 
-// 다크모드에 따른 메뉴 색상
+// 다크모드에 따른 메뉴 색상 (_variables.scss 와 동기화)
 const menuBgColor = computed(() => isDarkMode.value ? '#1f1f1f' : '#304156')
 const menuTextColor = computed(() => isDarkMode.value ? '#a3a3a3' : '#bfcbd9')
-const menuActiveColor = computed(() => '#409eff')
+const menuActiveColor = '#409eff'
 </script>
 
 <style lang="scss" scoped>

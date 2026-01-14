@@ -51,7 +51,7 @@ const route = useRoute()
 const store = useStore()
 
 const apiHealthy = computed(() => store.state.app.apiHealthy)
-const isDarkMode = computed(() => store.state.app.darkMode)
+const isDarkMode = computed(() => store.getters['app/isDarkMode'])
 
 const pageTitle = computed(() => {
   return route.meta.title || 'MUREUM'

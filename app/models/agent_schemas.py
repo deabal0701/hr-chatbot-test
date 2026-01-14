@@ -13,6 +13,15 @@ from pydantic import BaseModel, Field, model_validator
 from langchain_core.messages import BaseMessage
 
 
+class AgentSQLResult(BaseModel):
+    """Agent에서 사용하는 SQL 결과 (NL2SQL과 유사한 구조)"""
+    sql: Optional[str] = Field(None, description="실행된 SQL 쿼리")
+    columns: List[str] = Field(default_factory=list, description="컬럼명 목록")
+    rows: List[Dict[str, Any]] = Field(default_factory=list, description="결과 행들")
+    row_count: int = Field(0, description="전체 행 수")
+    execution_time_ms: Optional[int] = Field(None, description="실행 시간(ms)")
+
+
 class AgentStep(BaseModel):
     """Agent의 개별 실행 단계"""
     step_number: int = Field(..., description="단계 번호")
@@ -21,6 +30,7 @@ class AgentStep(BaseModel):
     action_input: Dict[str, Any] = Field(..., description="도구 입력 파라미터")
     observation: str = Field(..., description="도구 실행 결과")
     timestamp: datetime = Field(default_factory=datetime.now, description="실행 시각")
+    sql_result: Optional[AgentSQLResult] = Field(None, description="SQL 도구 실행 시 상세 결과")
 
     class Config:
         json_schema_extra = {

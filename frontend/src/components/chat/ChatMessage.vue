@@ -99,6 +99,46 @@
                   <div v-if="step.observation" class="step-observation">
                     <strong>👁️ 관찰:</strong> {{ step.observation }}
                   </div>
+
+                  <!-- Agent SQL 결과 표시 (query_database_tool 사용 시) -->
+                  <div v-if="step.sql_result" class="step-sql-result">
+                    <el-collapse>
+                      <el-collapse-item title="SQL 쿼리 및 결과 보기" name="sql">
+                        <div class="sql-section">
+                          <div class="sql-label">실행된 SQL:</div>
+                          <pre class="sql-code">{{ step.sql_result.sql }}</pre>
+                        </div>
+                        <div v-if="step.sql_result.rows?.length > 0" class="result-section">
+                          <div class="result-summary">
+                            총 {{ step.sql_result.row_count }}개 행 조회됨
+                            <span v-if="step.sql_result.execution_time_ms">
+                              ({{ step.sql_result.execution_time_ms }}ms)
+                            </span>
+                          </div>
+                          <el-table
+                            :data="step.sql_result.rows.slice(0, 10)"
+                            size="small"
+                            border
+                            max-height="300"
+                          >
+                            <el-table-column
+                              v-for="col in step.sql_result.columns"
+                              :key="col"
+                              :prop="col"
+                              :label="col"
+                              min-width="100"
+                            />
+                          </el-table>
+                          <div v-if="step.sql_result.row_count > 10" class="more-rows">
+                            ... 외 {{ step.sql_result.row_count - 10 }}개 행
+                          </div>
+                        </div>
+                        <div v-else class="no-results">
+                          조회 결과가 없습니다.
+                        </div>
+                      </el-collapse-item>
+                    </el-collapse>
+                  </div>
                 </div>
               </div>
             </div>
@@ -340,6 +380,55 @@ const formatTime = (timestamp) => {
         border-radius: 4px;
         font-family: monospace;
         font-size: 12px;
+      }
+
+      .step-sql-result {
+        margin-top: 12px;
+
+        .sql-section {
+          margin-bottom: 12px;
+
+          .sql-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-color-regular);
+            margin-bottom: 4px;
+          }
+
+          .sql-code {
+            background-color: var(--bg-color-code);
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 0;
+            color: var(--text-color-primary);
+            transition: var(--theme-transition);
+          }
+        }
+
+        .result-section {
+          .result-summary {
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-color-secondary);
+          }
+
+          .more-rows {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-color-secondary);
+            text-align: center;
+          }
+        }
+
+        .no-results {
+          font-size: 12px;
+          color: var(--text-color-placeholder);
+          text-align: center;
+          padding: 12px;
+        }
       }
     }
   }

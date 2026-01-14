@@ -35,7 +35,8 @@ from app.models.agent_schemas import (
     AgentRequest,
     AgentResponse,
     AgentStep,
-    AgentConfig
+    AgentConfig,
+    AgentSQLResult
 )
 from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
@@ -500,7 +501,10 @@ class InsightAgentGraph:
         확장 포인트:
         - Thought 추출 (LLM의 내부 추론)
         - 타임스탬프 정확도 향상
+        - SQL 결과 구조화 데이터 추출 (프론트엔드 테이블 표시용)
         """
+        import json as json_module
+
         steps = []
         step_num = 0
 
@@ -511,10 +515,37 @@ class InsightAgentGraph:
 
                     # 다음 메시지에서 observation 찾기
                     observation = ""
+                    sql_result = None
+
                     if i + 1 < len(messages):
                         next_msg = messages[i + 1]
                         if isinstance(next_msg, ToolMessage):
-                            observation = str(next_msg.content)[:500]
+                            raw_content = str(next_msg.content)
+
+                            # SQL 도구인 경우 JSON 파싱하여 sql_result 추출
+                            if tool_call["name"] == "query_database_tool":
+                                try:
+                                    parsed = json_module.loads(raw_content)
+                                    # answer 부분만 observation으로 사용
+                                    observation = str(parsed.get("answer", raw_content))[:500]
+
+                                    # sql_result 추출
+                                    sql_data = parsed.get("sql_result")
+                                    if sql_data:
+                                        sql_result = AgentSQLResult(
+                                            sql=sql_data.get("sql"),
+                                            columns=sql_data.get("columns", []),
+                                            rows=sql_data.get("rows", []),
+                                            row_count=sql_data.get("row_count", 0),
+                                            execution_time_ms=sql_data.get("execution_time_ms")
+                                        )
+                                        logger.debug(f"[STEP {step_num}] SQL result extracted: {sql_result.row_count} rows, {len(sql_result.columns)} columns")
+                                except json_module.JSONDecodeError:
+                                    # JSON 파싱 실패 시 원본 사용
+                                    observation = raw_content[:500]
+                                    logger.warning(f"[STEP {step_num}] Failed to parse SQL tool response as JSON")
+                            else:
+                                observation = raw_content[:500]
                         else:
                             observation = str(next_msg.content)[:500]
 
@@ -527,7 +558,8 @@ class InsightAgentGraph:
                         action=tool_call["name"],
                         action_input=tool_call["args"],
                         observation=observation,
-                        timestamp=datetime.now()
+                        timestamp=datetime.now(),
+                        sql_result=sql_result
                     ))
 
         return steps
