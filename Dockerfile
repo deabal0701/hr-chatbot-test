@@ -42,12 +42,12 @@ RUN mkdir -p logs
 COPY .env.docker .env
 
 # 포트 노출
-EXPOSE 18090
+EXPOSE 19090
 
 # 헬스체크 설정
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:18090/health || exit 1
+    CMD curl -f http://localhost:19090/health || exit 1
 
 # 애플리케이션 실행
 # uvicorn으로 FastAPI 앱 실행
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "18090"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "19090"]

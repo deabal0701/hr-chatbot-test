@@ -3,9 +3,9 @@
  *
  * LLM 제공자, 모델, 임베딩 모델 등 코드성 데이터 관리
  */
-import axios from 'axios'
+import apiClient from './index'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const BASE_URL = '/api/admin/v1/codes'
 
 const codesApi = {
   /**
@@ -14,8 +14,7 @@ const codesApi = {
    */
   async getGroups() {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/admin/v1/codes/groups`)
-      return response.data
+      return await apiClient.get(`${BASE_URL}/groups`)
     } catch (error) {
       console.error('코드 그룹 조회 실패:', error)
       throw error
@@ -30,10 +29,9 @@ const codesApi = {
    */
   async getByGroup(codeGroup, includeInactive = false) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/admin/v1/codes/${codeGroup}`, {
+      return await apiClient.get(`${BASE_URL}/${codeGroup}`, {
         params: { include_inactive: includeInactive }
       })
-      return response.data
     } catch (error) {
       console.error(`코드 조회 실패 (${codeGroup}):`, error)
       throw error
@@ -47,8 +45,7 @@ const codesApi = {
    */
   async getById(codeId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/admin/v1/codes/item/${codeId}`)
-      return response.data
+      return await apiClient.get(`${BASE_URL}/item/${codeId}`)
     } catch (error) {
       console.error(`코드 조회 실패 (ID: ${codeId}):`, error)
       throw error
@@ -69,8 +66,7 @@ const codesApi = {
    */
   async create(codeData) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/admin/v1/codes`, codeData)
-      return response.data
+      return await apiClient.post(BASE_URL, codeData)
     } catch (error) {
       console.error('코드 생성 실패:', error)
       throw error
@@ -90,8 +86,7 @@ const codesApi = {
    */
   async update(codeId, codeData) {
     try {
-      const response = await axios.put(`${API_BASE_URL}/api/admin/v1/codes/${codeId}`, codeData)
-      return response.data
+      return await apiClient.put(`${BASE_URL}/${codeId}`, codeData)
     } catch (error) {
       console.error(`코드 수정 실패 (ID: ${codeId}):`, error)
       throw error
@@ -105,7 +100,7 @@ const codesApi = {
    */
   async delete(codeId) {
     try {
-      await axios.delete(`${API_BASE_URL}/api/admin/v1/codes/${codeId}`)
+      await apiClient.delete(`${BASE_URL}/${codeId}`)
     } catch (error) {
       console.error(`코드 삭제 실패 (ID: ${codeId}):`, error)
       throw error
@@ -120,11 +115,7 @@ const codesApi = {
    */
   async reorder(codeGroup, codeIds) {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/admin/v1/codes/${codeGroup}/reorder`,
-        { code_ids: codeIds }
-      )
-      return response.data
+      return await apiClient.post(`${BASE_URL}/${codeGroup}/reorder`, { code_ids: codeIds })
     } catch (error) {
       console.error(`코드 순서 변경 실패 (${codeGroup}):`, error)
       throw error

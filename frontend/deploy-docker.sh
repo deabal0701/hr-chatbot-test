@@ -20,7 +20,7 @@ export DOCKER_NETWORK_NAME="mureum-network"
 export ENV_FILE=".env.docker"
 export DOCKERFILE="Dockerfile"
 export NGINX_CONF="nginx.conf"
-export FRONTEND_PORT="18080"
+export FRONTEND_PORT="19080"
 
 # ============================================================
 # 기본 설정 (환경변수가 없을 때 사용)
@@ -38,7 +38,7 @@ DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-mureum-network}"
 ENV_FILE="${ENV_FILE:-.env.docker}"
 DOCKERFILE="${DOCKERFILE:-Dockerfile}"
 NGINX_CONF="${NGINX_CONF:-nginx.conf}"
-FRONTEND_PORT="${FRONTEND_PORT:-18080}"
+FRONTEND_PORT="${FRONTEND_PORT:-19080}"
 
 # ============================================================
 # 이하 코드는 수정하지 마세요
@@ -195,7 +195,7 @@ deploy_container() {
     docker run -d \\
         --name \"$DOCKER_CONTAINER_NAME\" \\
         --network \"$DOCKER_NETWORK_NAME\" \\
-        -p \"$FRONTEND_PORT:18080\" \\
+        -p \"$FRONTEND_PORT:19080\" \\
         --restart unless-stopped \\
         \"$DOCKER_IMAGE_NAME:latest\"
     '"

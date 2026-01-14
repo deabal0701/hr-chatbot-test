@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Application
     app_env: str = Field(default="development", description="애플리케이션 환경")
     app_host: str = Field(default="0.0.0.0", description="애플리케이션 호스트")
-    app_port: int = Field(default=18090, description="애플리케이션 포트")
+    app_port: int = Field(default=19090, description="애플리케이션 포트")
     log_level: str = Field(default="INFO", description="로그 레벨")
 
     # Security
