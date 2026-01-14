@@ -238,9 +238,7 @@ class InsightAgentGraph:
                     state["messages"][-1] = response
 
             else:
-                log_step(request_id, "AGENT", str(iteration), "FINISH",
-                        "최종 답변 생성",
-                        answer_length=len(response.content) if response.content else 0)
+                log_step(request_id, "AGENT", str(iteration), "FINISH", "최종 답변 생성",  answer_length=len(response.content) if response.content else 0)
                 
                 # 디버깅: 최종 답변 내용 로그
                 if response.content:

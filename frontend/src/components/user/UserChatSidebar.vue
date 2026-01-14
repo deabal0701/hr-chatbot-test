@@ -289,4 +289,71 @@ const handleSelectChat = (chatId) => {
     }
   }
 }
+
+// ===========================================
+// 모바일 반응형 스타일
+// ===========================================
+@media (max-width: 768px) {
+  .user-chat-sidebar {
+    width: 280px;
+    max-width: 85vw;
+  }
+
+  .sidebar-header {
+    padding: 14px;
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+    }
+
+    .logo-text {
+      font-size: 16px;
+    }
+
+    .close-btn {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  .new-chat-section {
+    padding: 12px;
+
+    .new-chat-btn {
+      height: 40px;
+      font-size: 13px;
+    }
+  }
+
+  .chat-history-section {
+    padding: 0 10px;
+
+    .section-title {
+      font-size: 11px;
+      padding: 10px 6px 6px;
+    }
+
+    .chat-item {
+      padding: 10px;
+      font-size: 13px;
+      gap: 10px;
+    }
+  }
+
+  .sidebar-footer {
+    padding: 12px;
+
+    .user-link {
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+  }
+}
 </style>

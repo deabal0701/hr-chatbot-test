@@ -733,4 +733,265 @@ const copyContent = async () => {
     }
   }
 }
+
+// ===========================================
+// 모바일 반응형 스타일
+// ===========================================
+@media (max-width: 768px) {
+  .chat-message {
+    margin-bottom: 24px;
+  }
+
+  .message-row {
+    gap: 12px;
+  }
+
+  .avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  .message-content {
+    max-width: calc(100% - 50px);
+  }
+
+  .user-message {
+    padding: 10px 16px;
+    border-radius: 16px;
+    font-size: 15px;
+  }
+
+  .assistant-message {
+    font-size: 15px;
+    line-height: 1.7;
+
+    .answer-text {
+      :deep(pre) {
+        padding: 14px;
+        border-radius: 10px;
+        margin: 12px 0;
+
+        code {
+          font-size: 12px;
+        }
+      }
+
+      :deep(code) {
+        font-size: 13px;
+        padding: 1px 4px;
+      }
+
+      :deep(ul), :deep(ol) {
+        padding-left: 20px;
+        li { margin-bottom: 6px; }
+      }
+    }
+  }
+
+  // 토글 섹션들
+  .sources-section, .sql-section, .agent-section {
+    margin-top: 16px;
+    border-radius: 10px;
+  }
+
+  .sources-toggle, .sql-toggle, .agent-toggle {
+    padding: 10px 12px;
+    font-size: 13px;
+
+    .toggle-left {
+      gap: 8px;
+
+      .el-icon {
+        font-size: 16px;
+      }
+    }
+  }
+
+  // 소스 리스트
+  .sources-list-container {
+    padding: 0 12px 12px;
+  }
+
+  .sources-list {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .source-card {
+    min-width: 100%;
+    padding: 12px;
+
+    .source-header {
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+
+      .source-index {
+        width: 18px;
+        height: 18px;
+        font-size: 10px;
+      }
+
+      .source-title {
+        font-size: 12px;
+        max-width: 150px;
+      }
+
+      .source-score {
+        font-size: 10px;
+      }
+    }
+
+    .source-text {
+      font-size: 12px;
+      -webkit-line-clamp: 2;
+    }
+  }
+
+  // SQL 섹션
+  .sql-content {
+    padding: 12px;
+
+    .sql-header {
+      font-size: 10px;
+      margin-bottom: 10px;
+    }
+
+    pre code {
+      font-size: 11px;
+    }
+  }
+
+  // Agent 섹션
+  .agent-steps-container {
+    padding: 14px 12px;
+  }
+
+  .agent-step-item {
+    gap: 12px;
+
+    .step-marker {
+      width: 10px;
+
+      .step-dot {
+        width: 6px;
+        height: 6px;
+      }
+    }
+
+    .step-body {
+      padding-bottom: 18px;
+
+      .step-header {
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 6px;
+
+        .step-tool {
+          font-size: 11px;
+          padding: 2px 6px;
+
+          .el-icon { font-size: 12px; }
+        }
+
+        .step-name {
+          font-size: 11px;
+        }
+      }
+
+      .step-main {
+        .step-thought {
+          font-size: 13px;
+          margin-bottom: 10px;
+        }
+
+        .step-observation {
+          padding: 10px;
+
+          .obs-label {
+            font-size: 10px;
+            margin-bottom: 4px;
+          }
+
+          .obs-content {
+            font-size: 12px;
+          }
+        }
+      }
+    }
+  }
+
+  .agent-summary {
+    padding-top: 12px;
+    gap: 16px;
+    flex-wrap: wrap;
+
+    .summary-item {
+      gap: 2px;
+
+      .label {
+        font-size: 10px;
+      }
+
+      .value {
+        font-size: 12px;
+      }
+    }
+  }
+
+  // 메시지 푸터
+  .message-footer {
+    margin-top: 12px;
+    padding-top: 10px;
+
+    .meta-left {
+      gap: 8px;
+    }
+
+    .mode-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+
+    .timestamp {
+      font-size: 11px;
+    }
+  }
+}
+
+// 매우 작은 화면 (375px 이하)
+@media (max-width: 375px) {
+  .message-row {
+    gap: 10px;
+  }
+
+  .avatar {
+    width: 26px;
+    height: 26px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .user-message {
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+
+  .assistant-message {
+    font-size: 14px;
+  }
+
+  .source-card .source-header .source-title {
+    max-width: 120px;
+  }
+}
 </style>

@@ -715,4 +715,190 @@ watch(messages, async () => {
     color: var(--text-color-secondary);
   }
 }
+
+// ===========================================
+// 모바일 반응형 스타일
+// ===========================================
+@media (max-width: 768px) {
+  .chat-header {
+    padding: 12px 16px;
+
+    .header-logo {
+      gap: 8px;
+
+      .logo-icon {
+        width: 28px;
+        height: 28px;
+
+        svg {
+          width: 16px;
+          height: 16px;
+        }
+      }
+
+      .logo-text {
+        font-size: 17px;
+      }
+    }
+
+    .theme-toggle-btn {
+      width: 32px;
+      height: 32px;
+      margin-right: 8px;
+
+      .el-icon {
+        font-size: 16px;
+      }
+    }
+
+    .user-label {
+      font-size: 13px;
+    }
+  }
+
+  .chat-content {
+    padding: 0 16px;
+  }
+
+  .welcome-section {
+    padding-bottom: 40px;
+
+    .welcome-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      margin-bottom: 20px;
+
+      svg {
+        width: 36px;
+        height: 36px;
+      }
+    }
+
+    .welcome-title {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .welcome-subtitle {
+      font-size: 15px;
+      margin-bottom: 28px;
+      padding: 0 8px;
+    }
+  }
+
+  .example-queries {
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    padding: 0 8px;
+
+    .example-btn {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      justify-content: flex-start;
+
+      .btn-icon {
+        font-size: 14px;
+      }
+    }
+  }
+
+  .messages-container {
+    padding: 24px 0;
+  }
+
+  .chat-footer {
+    padding: 12px 16px 20px;
+  }
+
+  .input-wrapper {
+    padding: 10px 12px;
+    border-radius: 16px;
+    gap: 8px;
+  }
+
+  .mode-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+    gap: 6px;
+
+    span {
+      display: none; // 모바일에서 텍스트 숨김
+    }
+
+    .arrow {
+      display: none;
+    }
+  }
+
+  .chat-input {
+    font-size: 15px;
+  }
+
+  .send-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .footer-note {
+    font-size: 11px;
+    margin-top: 8px;
+  }
+
+  .loading-indicator {
+    gap: 12px;
+    padding: 16px 0;
+
+    .assistant-avatar-small {
+      width: 28px;
+      height: 28px;
+
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    .loading-text {
+      font-size: 13px;
+    }
+  }
+}
+
+// 매우 작은 화면 (375px 이하)
+@media (max-width: 375px) {
+  .chat-content {
+    padding: 0 12px;
+  }
+
+  .chat-footer {
+    padding: 10px 12px 16px;
+  }
+
+  .welcome-section {
+    .welcome-title {
+      font-size: 22px;
+    }
+
+    .welcome-subtitle {
+      font-size: 14px;
+    }
+  }
+
+  .example-queries .example-btn {
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+}
 </style>
