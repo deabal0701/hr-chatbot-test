@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
@@ -43,6 +43,11 @@ const sidebarCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const toggleSidebar = () => {
   store.dispatch('app/toggleSidebar')
 }
+
+// 관리자 화면 진입 시 currentView 설정
+onMounted(() => {
+  store.dispatch('app/setCurrentView', 'admin')
+})
 </script>
 
 <style lang="scss" scoped>

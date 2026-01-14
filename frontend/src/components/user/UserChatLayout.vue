@@ -36,6 +36,15 @@
       <header v-if="!isMobile" class="desktop-header">
         <div class="header-left"></div>
         <div class="header-actions">
+          <!-- 테마 토글 버튼 (아이콘만) -->
+          <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
+            <el-button
+              circle
+              :icon="isDarkMode ? Sunny : Moon"
+              @click="toggleDarkMode"
+              class="theme-toggle-btn"
+            />
+          </el-tooltip>
           <button class="action-btn" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
             <span>공유하기</span>
@@ -54,6 +63,10 @@
         </button>
         <h1 class="logo-text">MUREUM</h1>
         <div class="header-actions-mobile">
+          <!-- 테마 토글 버튼 -->
+          <button class="action-btn-icon" @click="toggleDarkMode" :title="isDarkMode ? '라이트 모드' : '다크 모드'">
+            <el-icon :size="18"><Sunny v-if="isDarkMode" /><Moon v-else /></el-icon>
+          </button>
           <button class="action-btn-icon" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
           </button>
@@ -72,7 +85,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
-import { Menu, Expand, Share, Download } from '@element-plus/icons-vue'
+import { Menu, Expand, Share, Download, Sunny, Moon } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
 import UserChatView from '@/views/user/UserChatView.vue'
@@ -84,6 +97,12 @@ const MOBILE_BREAKPOINT = 768
 
 const isMobile = computed(() => windowWidth.value <= MOBILE_BREAKPOINT)
 const sidebarVisible = computed(() => store.state.app.userSidebarVisible)
+
+// 테마 관련
+const isDarkMode = computed(() => store.getters['app/isDarkMode'])
+const toggleDarkMode = () => {
+  store.dispatch('app/toggleDarkMode')
+}
 
 const toggleSidebar = () => {
   store.dispatch('app/toggleUserSidebar')
@@ -200,7 +219,8 @@ onUnmounted(() => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background-color: #212121;
+  background-color: var(--user-sidebar-bg);
+  transition: var(--theme-transition);
 }
 
 .chat-area {
@@ -217,9 +237,10 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 24px;
-  border-bottom: 1px solid #303030;
-  background-color: #212121;
+  border-bottom: 1px solid var(--user-sidebar-border);
+  background-color: var(--user-sidebar-bg);
   flex-shrink: 0;
+  transition: var(--theme-transition);
 
   .header-left {
     flex: 1;
@@ -231,24 +252,38 @@ onUnmounted(() => {
   }
 }
 
+// 테마 토글 버튼 (el-button circle 스타일)
+.theme-toggle-btn {
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color-overlay);
+  color: var(--text-color-regular);
+  transition: var(--theme-transition);
+
+  &:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background-color: var(--bg-color-hover);
+  }
+}
+
 .action-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
   background-color: transparent;
-  border: 1px solid #424242;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: #b4b4b4;
+  color: var(--text-color-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background-color: #2a2a2a;
-    border-color: #525252;
-    color: #ececec;
+    background-color: var(--bg-color-hover);
+    border-color: var(--color-primary);
+    color: var(--text-color-primary);
   }
 }
 
@@ -261,13 +296,13 @@ onUnmounted(() => {
   background-color: transparent;
   border: none;
   border-radius: 8px;
-  color: #b4b4b4;
+  color: var(--text-color-secondary);
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background-color: #2a2a2a;
-    color: #ececec;
+    background-color: var(--bg-color-hover);
+    color: var(--text-color-primary);
   }
 }
 
@@ -276,16 +311,17 @@ onUnmounted(() => {
   align-items: center;
   padding: 12px 16px;
   gap: 12px;
-  border-bottom: 1px solid #303030;
-  background-color: #212121;
+  border-bottom: 1px solid var(--user-sidebar-border);
+  background-color: var(--user-sidebar-bg);
   flex-shrink: 0;
+  transition: var(--theme-transition);
 
   .sidebar-toggle-btn {
     background: none;
     border: none;
     padding: 8px;
     cursor: pointer;
-    color: #ececec;
+    color: var(--text-color-primary);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -293,7 +329,7 @@ onUnmounted(() => {
     transition: all 0.2s;
 
     &:hover {
-      background-color: #2a2a2a;
+      background-color: var(--bg-color-hover);
     }
   }
 
@@ -301,7 +337,7 @@ onUnmounted(() => {
     flex: 1;
     font-size: 18px;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--text-color-primary);
     margin: 0;
     text-align: center;
   }

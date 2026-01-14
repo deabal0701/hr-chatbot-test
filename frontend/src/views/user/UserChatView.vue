@@ -14,6 +14,13 @@
         </div>
       </div>
       <div class="header-right">
+        <!-- 테마 토글 버튼 -->
+        <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
+          <button class="theme-toggle-btn" @click="toggleDarkMode">
+            <el-icon v-if="isDarkMode"><Sunny /></el-icon>
+            <el-icon v-else><Moon /></el-icon>
+          </button>
+        </el-tooltip>
         <!-- 관리자 링크 주석처리 (로그인 기능 없음) -->
         <!-- <el-button text class="header-btn" @click="goToAdmin">
           <el-icon><Setting /></el-icon>
@@ -168,22 +175,37 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
-import { Setting, Operation, ArrowDown, Promotion, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound } from '@element-plus/icons-vue'
+import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, Sunny, Moon } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 
 // Props
-const props = defineProps({
+defineProps({
   hideHeader: {
     type: Boolean,
     default: false
   }
 })
 
-const router = useRouter()
 const store = useStore()
+
+// 테마 관련
+const isDarkMode = computed(() => store.getters['app/isDarkMode'])
+
+const toggleDarkMode = () => {
+  store.dispatch('app/toggleDarkMode')
+}
+
+// 사용자 화면 진입 시 currentView 설정
+onMounted(() => {
+  store.dispatch('app/setCurrentView', 'user')
+})
+
+// 사용자 화면 이탈 시 관리자로 복원 (선택적)
+onUnmounted(() => {
+  store.dispatch('app/setCurrentView', 'admin')
+})
 
 const inputRef = ref(null)
 const chatMainRef = ref(null)
@@ -263,8 +285,9 @@ watch(messages, async () => {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  background-color: #212121;
-  color: #ececec;
+  background-color: var(--user-sidebar-bg);
+  color: var(--user-sidebar-text);
+  transition: var(--theme-transition);
 
   &.no-header {
     .chat-main {
@@ -279,9 +302,10 @@ watch(messages, async () => {
   justify-content: space-between;
   align-items: center;
   padding: 14px 24px;
-  border-bottom: 1px solid #303030;
-  background-color: #212121;
+  border-bottom: 1px solid var(--user-sidebar-border);
+  background-color: var(--user-sidebar-bg);
   z-index: 10;
+  transition: var(--theme-transition);
 
   .header-logo {
     display: flex;
@@ -308,14 +332,14 @@ watch(messages, async () => {
     .logo-text {
       font-size: 19px;
       font-weight: 700;
-      color: #ffffff;
+      color: var(--text-color-primary);
       margin: 0;
       letter-spacing: -0.01em;
     }
   }
 
   .header-btn {
-    color: #8e8e8e;
+    color: var(--user-sidebar-text-muted);
     font-size: 14px;
     font-weight: 500;
     display: flex;
@@ -323,7 +347,7 @@ watch(messages, async () => {
     gap: 6px;
 
     &:hover {
-      color: #ffffff;
+      color: var(--text-color-primary);
       background-color: transparent;
     }
 
@@ -333,9 +357,33 @@ watch(messages, async () => {
   }
 
   .user-label {
-    color: #8e8e8e;
+    color: var(--user-sidebar-text-muted);
     font-size: 14px;
     font-weight: 500;
+  }
+
+  .theme-toggle-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color-input);
+    color: var(--text-color-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    margin-right: 12px;
+
+    &:hover {
+      background-color: var(--bg-color-hover);
+      border-color: var(--color-primary);
+    }
+
+    .el-icon {
+      font-size: 18px;
+    }
   }
 }
 
@@ -358,11 +406,11 @@ watch(messages, async () => {
   }
 
   &::-webkit-scrollbar-thumb {
-    background-color: #424242;
+    background-color: var(--scrollbar-thumb);
     border-radius: 4px;
 
     &:hover {
-      background-color: #555555;
+      background-color: var(--border-color);
     }
   }
 }
@@ -402,13 +450,13 @@ watch(messages, async () => {
     font-size: 36px;
     font-weight: 700;
     margin: 0 0 16px;
-    color: #ffffff;
+    color: var(--text-color-primary);
     letter-spacing: -0.02em;
   }
 
   .welcome-subtitle {
     font-size: 17px;
-    color: #b4b4b4;
+    color: var(--text-color-secondary);
     margin: 0 0 40px;
     max-width: 480px;
     line-height: 1.6;
@@ -425,10 +473,10 @@ watch(messages, async () => {
 
   .example-btn {
     padding: 14px 22px;
-    background-color: var(--icon-bg, #333333);
-    border: 1px solid var(--icon-bg-border, #555555);
+    background-color: var(--icon-bg);
+    border: 1px solid var(--icon-bg-border);
     border-radius: 16px;
-    color: #e0e0e0;
+    color: var(--text-color-primary);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -439,12 +487,12 @@ watch(messages, async () => {
 
     .btn-icon {
       font-size: 16px;
-      color: var(--icon-color-secondary, #cccccc);
+      color: var(--icon-color-secondary);
     }
 
     &:hover {
-      background-color: #424242;
-      border-color: #666666;
+      background-color: var(--bg-color-hover);
+      border-color: var(--border-color);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
@@ -505,7 +553,7 @@ watch(messages, async () => {
 
   .loading-text {
     font-size: 14px;
-    color: #8e8e8e;
+    color: var(--text-color-secondary);
     font-weight: 500;
   }
 }
@@ -524,7 +572,8 @@ watch(messages, async () => {
 // 푸터 (입력 영역)
 .chat-footer {
   padding: 20px 32px 32px;
-  background-color: #212121;
+  background-color: var(--user-sidebar-bg);
+  transition: var(--theme-transition);
 }
 
 .input-container {
@@ -537,15 +586,15 @@ watch(messages, async () => {
   align-items: flex-end;
   gap: 12px;
   padding: 14px 18px;
-  background-color: #2f2f2f;
+  background-color: var(--bg-color-input);
   border-radius: 20px;
-  border: 1px solid #424242;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--box-shadow-light);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s;
 
   &:focus-within {
-    border-color: #525252;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    border-color: var(--color-primary);
+    box-shadow: var(--box-shadow);
   }
 }
 
@@ -555,10 +604,10 @@ watch(messages, async () => {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background-color: #3d3d3d;
+  background-color: var(--icon-bg);
   border: none;
   border-radius: 12px;
-  color: #efefef;
+  color: var(--text-color-primary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -566,12 +615,12 @@ watch(messages, async () => {
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: #4a4a4a;
+    background-color: var(--bg-color-hover);
   }
 
   .arrow {
     font-size: 12px;
-    color: #8e8e8e;
+    color: var(--text-color-secondary);
   }
 }
 
@@ -581,7 +630,7 @@ watch(messages, async () => {
   background: transparent;
   border: none;
   outline: none;
-  color: #ffffff;
+  color: var(--text-color-primary);
   font-size: 16px;
   line-height: 1.6;
   resize: none;
@@ -589,7 +638,7 @@ watch(messages, async () => {
   padding: 4px 0;
 
   &::placeholder {
-    color: #7d7d7d;
+    color: var(--text-color-placeholder);
   }
 }
 
@@ -599,8 +648,8 @@ watch(messages, async () => {
   height: 38px;
   border-radius: 12px;
   border: none;
-  background-color: #3d3d3d;
-  color: #7d7d7d;
+  background-color: var(--icon-bg);
+  color: var(--text-color-placeholder);
   cursor: not-allowed;
   display: flex;
   align-items: center;
@@ -609,10 +658,10 @@ watch(messages, async () => {
   flex-shrink: 0;
 
   &.active {
-    background-color: var(--icon-color, #ffffff);
-    color: var(--icon-bg, #333333);
+    background-color: var(--color-primary);
+    color: #ffffff;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--box-shadow);
 
     &:hover {
       transform: scale(1.05);
@@ -629,25 +678,25 @@ watch(messages, async () => {
 .footer-note {
   text-align: center;
   font-size: 12px;
-  color: #6e6e6e;
+  color: var(--text-color-secondary);
   margin: 12px 0 0;
 }
 
 // 드롭다운 메뉴 스타일 (전역 스타일 필요)
 :deep(.mode-dropdown) {
-  background-color: #303030 !important;
-  border: 1px solid #424242 !important;
+  background-color: var(--bg-color-card) !important;
+  border: 1px solid var(--border-color) !important;
 
   .el-dropdown-menu__item {
-    color: #ececec !important;
+    color: var(--text-color-primary) !important;
 
     &:hover {
-      background-color: #424242 !important;
+      background-color: var(--bg-color-hover) !important;
     }
 
     &.active {
-      background-color: #424242 !important;
-      color: #10a37f !important;
+      background-color: var(--bg-color-hover) !important;
+      color: var(--color-primary) !important;
     }
   }
 }
@@ -663,7 +712,7 @@ watch(messages, async () => {
 
   .mode-desc {
     font-size: 12px;
-    color: #8e8e8e;
+    color: var(--text-color-secondary);
   }
 }
 </style>

@@ -338,21 +338,21 @@ const copyContent = async () => {
 
 // 사용자 메시지
 .user-message {
-  background-color: #2f2f2f;
+  background-color: var(--chat-bubble-user-bg);
   padding: 12px 20px;
   border-radius: 18px;
-  color: #ffffff;
+  color: var(--chat-bubble-user-text);
   font-size: 16px;
   line-height: 1.6;
   width: fit-content;
   margin-left: auto;
-  border: 1px solid #424242;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--box-shadow-light);
 }
 
 // AI 메시지
 .assistant-message {
-  color: #ececec;
+  color: var(--chat-bubble-assistant-text);
   font-size: 16px;
   line-height: 1.8;
   padding-top: 6px;
@@ -366,34 +366,34 @@ const copyContent = async () => {
     }
 
     :deep(pre) {
-      background-color: #1a1a1a;
+      background-color: var(--bg-color-code);
       padding: 20px;
       border-radius: 12px;
       overflow-x: auto;
       margin: 16px 0;
-      border: 1px solid #333;
+      border: 1px solid var(--border-color);
 
       code {
         font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
         font-size: 14px;
-        color: #e6e6e6;
+        color: var(--text-color-primary);
         line-height: 1.5;
       }
     }
 
     :deep(code) {
-      background-color: #383838;
+      background-color: var(--bg-color-hover);
       padding: 2px 6px;
       border-radius: 6px;
       font-family: 'Fira Code', monospace;
       font-size: 14px;
-      color: var(--icon-color-secondary, #cccccc);
+      color: var(--text-color-regular);
       font-weight: 500;
     }
 
     :deep(strong) {
       font-weight: 700;
-      color: #ffffff;
+      color: var(--text-color-primary);
     }
 
     :deep(ul), :deep(ol) {
@@ -407,10 +407,10 @@ const copyContent = async () => {
 // 공통 토글 섹션 (Sources, SQL, Agent)
 .sources-section, .sql-section, .agent-section {
   margin-top: 24px;
-  border: 1px solid #383838;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
-  background-color: #262626;
+  background-color: var(--bg-color-card);
 }
 
 .sources-toggle, .sql-toggle, .agent-toggle {
@@ -421,15 +421,15 @@ const copyContent = async () => {
   padding: 12px 16px;
   background: none;
   border: none;
-  color: #b4b4b4;
+  color: var(--text-color-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background-color: #2f2f2f;
-    color: #ffffff;
+    background-color: var(--bg-color-hover);
+    color: var(--text-color-primary);
   }
 
   .toggle-left {
@@ -439,7 +439,7 @@ const copyContent = async () => {
 
     .el-icon {
       font-size: 18px;
-      color: var(--icon-color-secondary, #cccccc);
+      color: var(--text-color-secondary);
     }
   }
 
@@ -454,7 +454,7 @@ const copyContent = async () => {
 // 소스 리스트
 .sources-list-container {
   padding: 0 16px 16px;
-  background-color: #262626;
+  background-color: var(--bg-color-card);
 }
 
 .sources-list {
@@ -467,14 +467,14 @@ const copyContent = async () => {
 .source-card {
   flex: 1;
   min-width: 260px;
-  background-color: #1e1e1e;
-  border: 1px solid #333;
+  background-color: var(--bg-color-overlay);
+  border: 1px solid var(--border-color-light);
   border-radius: 10px;
   padding: 14px;
   transition: border-color 0.2s;
 
   &:hover {
-    border-color: #666666;
+    border-color: var(--border-color);
   }
 
   .source-header {
@@ -484,8 +484,8 @@ const copyContent = async () => {
     margin-bottom: 10px;
 
     .source-index {
-      background-color: #333;
-      color: #8e8e8e;
+      background-color: var(--bg-color-hover);
+      color: var(--text-color-secondary);
       width: 20px;
       height: 20px;
       border-radius: 4px;
@@ -498,7 +498,7 @@ const copyContent = async () => {
 
     .source-title {
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--text-color-primary);
       font-size: 13px;
       flex: 1;
       white-space: nowrap;
@@ -508,9 +508,9 @@ const copyContent = async () => {
 
     .source-score {
       font-size: 11px;
-      color: var(--icon-color-secondary, #cccccc);
+      color: var(--text-color-secondary);
       font-weight: 600;
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: var(--bg-color-hover);
       padding: 2px 6px;
       border-radius: 4px;
     }
@@ -518,7 +518,7 @@ const copyContent = async () => {
 
   .source-text {
     font-size: 13px;
-    color: #9a9a9a;
+    color: var(--text-color-secondary);
     line-height: 1.6;
     margin: 0;
     display: -webkit-box;
@@ -531,13 +531,13 @@ const copyContent = async () => {
 // SQL 섹션
 .sql-content {
   padding: 16px;
-  background-color: #1a1a1a;
-  border-top: 1px solid #333;
+  background-color: var(--bg-color-code);
+  border-top: 1px solid var(--border-color-light);
 
   .sql-header {
     font-size: 11px;
     font-weight: 700;
-    color: #666;
+    color: var(--text-color-secondary);
     text-transform: uppercase;
     margin-bottom: 12px;
     letter-spacing: 0.1em;
@@ -548,7 +548,7 @@ const copyContent = async () => {
     code {
       font-family: 'Fira Code', monospace;
       font-size: 13px;
-      color: #e0e0e0;
+      color: var(--text-color-primary);
       line-height: 1.5;
     }
   }
@@ -557,8 +557,8 @@ const copyContent = async () => {
 // Agent 섹션
 .agent-steps-container {
   padding: 20px 16px;
-  background-color: #1e1e1e;
-  border-top: 1px solid #333;
+  background-color: var(--bg-color-overlay);
+  border-top: 1px solid var(--border-color-light);
 }
 
 .agent-steps {
@@ -580,14 +580,14 @@ const copyContent = async () => {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background-color: var(--icon-color-secondary, #cccccc);
+      background-color: var(--color-primary);
       margin-top: 6px;
     }
 
     .step-line {
       width: 2px;
       flex: 1;
-      background-color: #333;
+      background-color: var(--border-color-light);
       margin: 4px 0;
     }
   }
@@ -608,8 +608,8 @@ const copyContent = async () => {
         gap: 6px;
         font-size: 12px;
         font-weight: 700;
-        color: var(--icon-color-secondary, #cccccc);
-        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--color-primary);
+        background-color: var(--bg-color-hover);
         padding: 2px 8px;
         border-radius: 6px;
 
@@ -619,35 +619,35 @@ const copyContent = async () => {
       .step-name {
         font-size: 12px;
         font-weight: 600;
-        color: #666;
+        color: var(--text-color-secondary);
       }
     }
 
     .step-main {
       .step-thought {
         font-size: 14px;
-        color: #e0e0e0;
+        color: var(--text-color-primary);
         line-height: 1.6;
         margin-bottom: 12px;
       }
 
       .step-observation {
-        background-color: #141414;
-        border: 1px solid #2a2a2a;
+        background-color: var(--bg-color-code);
+        border: 1px solid var(--border-color-light);
         border-radius: 8px;
         padding: 12px;
 
         .obs-label {
           font-size: 11px;
           font-weight: 700;
-          color: #555;
+          color: var(--text-color-secondary);
           margin-bottom: 6px;
           text-transform: uppercase;
         }
 
         .obs-content {
           font-size: 13px;
-          color: #888;
+          color: var(--text-color-regular);
           line-height: 1.5;
         }
       }
@@ -658,7 +658,7 @@ const copyContent = async () => {
 .agent-summary {
   margin-top: 8px;
   padding-top: 16px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-color-light);
   display: flex;
   gap: 24px;
 
@@ -669,7 +669,7 @@ const copyContent = async () => {
 
     .label {
       font-size: 11px;
-      color: #666;
+      color: var(--text-color-secondary);
       font-weight: 700;
       text-transform: uppercase;
     }
@@ -677,10 +677,10 @@ const copyContent = async () => {
     .value {
       font-size: 13px;
       font-weight: 600;
-      color: #b4b4b4;
+      color: var(--text-color-regular);
 
-      &.success { color: var(--icon-color-secondary, #cccccc); }
-      &.error { color: #ff6b6b; }
+      &.success { color: var(--color-success); }
+      &.error { color: var(--color-danger); }
     }
   }
 }
@@ -692,7 +692,7 @@ const copyContent = async () => {
   justify-content: space-between;
   margin-top: 16px;
   padding-top: 12px;
-  
+
   .meta-left {
     display: flex;
     align-items: center;
@@ -700,8 +700,8 @@ const copyContent = async () => {
   }
 
   .mode-badge {
-    background-color: #333;
-    color: #999;
+    background-color: var(--bg-color-hover);
+    color: var(--text-color-secondary);
     font-size: 11px;
     font-weight: 700;
     padding: 2px 8px;
@@ -712,13 +712,13 @@ const copyContent = async () => {
 
   .timestamp {
     font-size: 12px;
-    color: #666;
+    color: var(--text-color-secondary);
   }
 
   .action-btn {
     background: none;
     border: none;
-    color: #555;
+    color: var(--text-color-secondary);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
@@ -728,8 +728,8 @@ const copyContent = async () => {
     justify-content: center;
 
     &:hover {
-      color: #b4b4b4;
-      background-color: #333;
+      color: var(--text-color-primary);
+      background-color: var(--bg-color-hover);
     }
   }
 }
