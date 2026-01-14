@@ -5,11 +5,11 @@ from langgraph.graph import END, StateGraph
 
 from app.config import settings
 from app.models.schemas import DocumentSource, RAGResponse, SearchFilters
-from app.services.settings_service import settings_service
-from app.services.vector_store import vector_store
-from app.services.prompt_service import prompt_service
+from app.core.config.settings_service import settings_service
+from app.core.vector.vector_store import vector_store
+from app.core.llm.prompt_service import prompt_service
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
-from app.utils.llm_config import LLMConfigManager
+from app.core.llm.llm_config import LLMConfigManager
 
 logger = setup_logger(__name__)
 

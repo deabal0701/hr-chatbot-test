@@ -1,7 +1,9 @@
 """LLM 설정 통합 관리 (Phase 2: 다중 제공자 지원)
 
-중복된 LLM 설정 로딩 로직을 통합하여 일관성 유지.
-Phase 2: OpenAI + Anthropic 지원 (init_chat_model 사용)
+위치: app/core/llm/llm_config.py
+- LLM 설정 로딩 (DB → 환경변수 → 기본값)
+- 다중 제공자 지원 (OpenAI, Anthropic)
+- init_chat_model 기반 통합 인터페이스
 """
 from typing import Dict, Optional
 
@@ -10,10 +12,20 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
 from app.config import settings
-from app.services.settings_service import settings_service
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_settings_service = None
+
+
+def _get_settings_service():
+    global _settings_service
+    if _settings_service is None:
+        from app.core.config.settings_service import settings_service
+        _settings_service = settings_service
+    return _settings_service
 
 
 class LLMConfigManager:
@@ -40,6 +52,8 @@ class LLMConfigManager:
         Raises:
             ValueError: API 키가 설정되지 않은 경우
         """
+        settings_service = _get_settings_service()
+
         if provider == "openai":
             api_key = settings_service.get_value("openai", "api_key", settings.openai_api_key)
         elif provider == "anthropic":
@@ -66,25 +80,27 @@ class LLMConfigManager:
     def get_llm_settings(temperature: Optional[float] = None) -> Dict[str, str]:
         """
         LLM 설정 가져오기 (DB → 환경변수 → 기본값 순서로 fallback)
-        
+
         Args:
             temperature: 생성 온도 (None이면 DB 설정 사용)
-        
+
         Returns:
             LLM 설정 딕셔너리
         """
+        settings_service = _get_settings_service()
+
         config = {
             "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
             "model": settings_service.get_value("llm", "model", settings.llm_model),
         }
-        
+
         if temperature is not None:
             config["temperature"] = temperature
         else:
             config["temperature"] = settings_service.get_value("llm", "temperature", 0.1)
-        
+
         return config
-    
+
     @staticmethod
     def create_llm(
         temperature: float = 0.0,
@@ -108,6 +124,8 @@ class LLMConfigManager:
         Returns:
             BaseChatModel 인스턴스 (제공자 독립적)
         """
+        settings_service = _get_settings_service()
+
         # 1. Provider 결정 (파라미터 → DB → 환경변수 → 기본값)
         if provider is None:
             provider = settings_service.get_value("llm", "provider", settings.llm_provider)
@@ -171,46 +189,51 @@ class LLMConfigManager:
 
             # OpenAI도 실패한 경우 예외 전파
             raise
-    
+
     @staticmethod
     def get_embedding_settings() -> Dict[str, str]:
         """
         임베딩 설정 가져오기
-        
+
         Returns:
             임베딩 설정 딕셔너리
         """
+        settings_service = _get_settings_service()
+
         return {
             "api_key": settings_service.get_value("openai", "api_key", settings.openai_api_key),
             "model": settings_service.get_value("embedding", "model", settings.embedding_model),
             "dimension": settings_service.get_value("embedding", "dimension", settings.embedding_dimension),
         }
-    
+
     @staticmethod
     def get_rag_settings() -> Dict:
         """
         RAG 관련 설정 가져오기
-        
+
         Returns:
             RAG 설정 딕셔너리
         """
+        settings_service = _get_settings_service()
+
         return {
             "top_k": settings_service.get_value("rag", "top_k", 10),
             "similarity_threshold": settings_service.get_value("rag", "similarity_threshold", 0.7),
             "max_context_length": settings_service.get_value("rag", "max_context_length", 4000),
         }
-    
+
     @staticmethod
     def get_nl2sql_settings() -> Dict:
         """
         NL2SQL 관련 설정 가져오기
-        
+
         Returns:
             NL2SQL 설정 딕셔너리
         """
+        settings_service = _get_settings_service()
+
         return {
             "timeout_seconds": settings_service.get_value("nl2sql", "timeout_seconds", 30),
             "max_rows": settings_service.get_value("nl2sql", "max_rows", 1000),
             "read_only_mode": settings_service.get_value("nl2sql", "read_only_mode", True),
         }
-

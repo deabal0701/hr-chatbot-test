@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     app_port: int = Field(default=19090, description="애플리케이션 포트")
     log_level: str = Field(default="INFO", description="로그 레벨")
 
+    # CORS
+    cors_origins: str = Field(
+        default="*",
+        description="CORS 허용 도메인 (쉼표로 구분, '*'는 전체 허용)"
+    )
+
     # Security
     secret_key: str = Field(..., description="JWT 시크릿 키")
     algorithm: str = Field(default="HS256", description="JWT 알고리즘")

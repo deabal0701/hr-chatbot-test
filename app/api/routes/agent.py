@@ -24,7 +24,7 @@ from app.models.agent_schemas import (
     AgentConfig
 )
 from app.utils.logger import setup_logger
-from app.services.settings_service import settings_service
+from app.core.config.settings_service import settings_service
 
 logger = setup_logger(__name__)
 

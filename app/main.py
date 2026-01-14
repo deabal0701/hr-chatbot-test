@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 from app.api.routes import documents, search, agent, codes
 from app.api.routes import settings as settings_router
 from app.config import settings
-from app.utils.database import db_manager
-from app.utils.external_database import external_db_manager
+from app.core.database.connection import db_manager
+from app.core.database.external import external_db_manager
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 
@@ -55,10 +55,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS 설정
+# CORS 설정 (환경변수 CORS_ORIGINS로 제어, 기본값: "*")
+cors_origins = (
+    ["*"] if settings.cors_origins == "*"
+    else [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.is_development else ["https://yourdomain.com"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

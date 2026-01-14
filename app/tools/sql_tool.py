@@ -17,12 +17,12 @@ from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.tools.base import BaseTool, ToolResult
-from app.services.sql_executor import sql_executor
-from app.services.schema_loader import schema_loader
-from app.services.settings_service import settings_service
+from app.core.database.sql_executor import sql_executor
+from app.core.database.schema_loader import schema_loader
+from app.core.config.settings_service import settings_service
 from app.config import settings
 from app.utils.logger import setup_logger
-from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
+from app.core.llm.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
 
 logger = setup_logger(__name__)
 

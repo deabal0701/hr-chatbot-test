@@ -1,3 +1,11 @@
+"""SQL 실행 및 검증 서비스
+
+위치: app/core/database/sql_executor.py
+- SQL Injection 방지
+- DDL/DML 차단
+- 테이블 화이트리스트 검증
+- 타임아웃 및 LIMIT 적용
+"""
 import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -8,11 +16,29 @@ from sqlparse.tokens import DML, DDL, Keyword
 
 from app.config import settings
 from app.models.schemas import SQLResult
-from app.services.settings_service import settings_service
-from app.utils.external_database import external_db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_settings_service = None
+_external_db_manager = None
+
+
+def _get_settings_service():
+    global _settings_service
+    if _settings_service is None:
+        from app.core.config.settings_service import settings_service
+        _settings_service = settings_service
+    return _settings_service
+
+
+def _get_external_db_manager():
+    global _external_db_manager
+    if _external_db_manager is None:
+        from app.core.database.external import external_db_manager
+        _external_db_manager = external_db_manager
+    return _external_db_manager
 
 
 class SQLExecutionError(Exception):
@@ -44,17 +70,17 @@ class SQLExecutorService:
     @property
     def timeout(self) -> int:
         """현재 타임아웃 설정 (DB 설정 우선)"""
-        return settings_service.get_value("nl2sql", "timeout_seconds", self._default_timeout)
+        return _get_settings_service().get_value("nl2sql", "timeout_seconds", self._default_timeout)
 
     @property
     def max_rows(self) -> int:
         """현재 최대 행 수 설정 (DB 설정 우선)"""
-        return settings_service.get_value("nl2sql", "max_rows", self._default_max_rows)
+        return _get_settings_service().get_value("nl2sql", "max_rows", self._default_max_rows)
 
     @property
     def read_only(self) -> bool:
         """현재 읽기 전용 모드 설정 (DB 설정 우선)"""
-        return settings_service.get_value("nl2sql", "read_only_mode", self._default_read_only)
+        return _get_settings_service().get_value("nl2sql", "read_only_mode", self._default_read_only)
 
     def validate_sql(self, sql: str) -> Tuple[bool, Optional[str]]:
         """
@@ -91,6 +117,7 @@ class SQLExecutorService:
             return False, f"SQL 파싱 오류: {str(e)}"
 
         # 4. 테이블 이름 검증 (동적으로 allowed_tables에서 가져옴)
+        external_db_manager = _get_external_db_manager()
         allowed_tables = external_db_manager.get_allowed_tables()
         table_names = self._extract_table_names(sql)
         for table in table_names:
@@ -201,6 +228,7 @@ class SQLExecutorService:
 
         # 3. 외부 DB에서 SQL 실행
         start_time = time.time()
+        external_db_manager = _get_external_db_manager()
 
         try:
             with external_db_manager.get_cursor() as cur:
@@ -238,6 +266,7 @@ class SQLExecutorService:
 
     def explain_sql(self, sql: str) -> Dict[str, Any]:
         """SQL EXPLAIN 분석"""
+        external_db_manager = _get_external_db_manager()
         try:
             with external_db_manager.get_cursor() as cur:
                 cur.execute(f"EXPLAIN (FORMAT JSON) {sql}")

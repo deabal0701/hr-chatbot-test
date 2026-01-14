@@ -5,12 +5,12 @@ from langgraph.graph import END, StateGraph
 
 from app.config import settings
 from app.models.schemas import NL2SQLResponse, SQLResult
-from app.services.schema_loader import schema_loader
-from app.services.settings_service import settings_service
-from app.services.prompt_service import prompt_service
-from app.services.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
+from app.core.database.schema_loader import schema_loader
+from app.core.config.settings_service import settings_service
+from app.core.llm.prompt_service import prompt_service
+from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
-from app.utils.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
+from app.core.llm.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
 from app.utils.common import strip_markdown_code_block  # 공통 유틸리티
 
 logger = setup_logger(__name__)

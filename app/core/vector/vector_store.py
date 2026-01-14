@@ -1,3 +1,10 @@
+"""벡터 검색 서비스 (pgvector 기반)
+
+위치: app/core/vector/vector_store.py
+- 임베딩 생성 (OpenAI)
+- 벡터 검색 (코사인 유사도)
+- 문서 저장/청킹 처리
+"""
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -7,19 +14,45 @@ from langchain_openai import OpenAIEmbeddings
 
 from app.config import settings
 from app.models.schemas import DocumentSource, SearchFilters
-from app.services.settings_service import settings_service
-from app.utils.database import db_manager
 from app.utils.logger import setup_logger
-from app.utils.text_chunker import TextChunker, chunk_text
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_settings_service = None
+_db_manager = None
+_text_chunker_module = None
+
+
+def _get_settings_service():
+    global _settings_service
+    if _settings_service is None:
+        from app.core.config.settings_service import settings_service
+        _settings_service = settings_service
+    return _settings_service
+
+
+def _get_db_manager():
+    global _db_manager
+    if _db_manager is None:
+        from app.core.database.connection import db_manager
+        _db_manager = db_manager
+    return _db_manager
+
+
+def _get_text_chunker_module():
+    global _text_chunker_module
+    if _text_chunker_module is None:
+        from app.core.vector import text_chunker as tc
+        _text_chunker_module = tc
+    return _text_chunker_module
 
 
 def get_chunking_settings():
     """DB 설정에서 청킹 관련 설정 가져오기 (DB → 기본값)"""
     return {
-        "chunk_size": settings_service.get_value("chunking", "default_chunk_size", 1000),
-        "chunk_overlap": settings_service.get_value("chunking", "default_overlap", 100),
+        "chunk_size": _get_settings_service().get_value("chunking", "default_chunk_size", 1000),
+        "chunk_overlap": _get_settings_service().get_value("chunking", "default_overlap", 100),
     }
 
 
@@ -41,7 +74,7 @@ class VectorStoreService:
 
     def _get_embeddings(self) -> OpenAIEmbeddings:
         """매 요청 시 DB 설정을 반영한 OpenAIEmbeddings 인스턴스 생성"""
-        api_key = settings_service.get_value("openai", "api_key", self._default_api_key)
+        api_key = _get_settings_service().get_value("openai", "api_key", self._default_api_key)
         model = self.embedding_model
         return OpenAIEmbeddings(
             model=model,
@@ -51,12 +84,12 @@ class VectorStoreService:
     @property
     def embedding_model(self) -> str:
         """현재 임베딩 모델 (DB 설정 우선)"""
-        return settings_service.get_value("embedding", "model", self._default_embedding_model)
+        return _get_settings_service().get_value("embedding", "model", self._default_embedding_model)
 
     @property
     def embedding_dimension(self) -> int:
         """현재 임베딩 차원 (DB 설정 우선)"""
-        return settings_service.get_value("embedding", "dimension", self._default_embedding_dimension)
+        return _get_settings_service().get_value("embedding", "dimension", self._default_embedding_dimension)
 
     def _create_snippet(self, content: str, max_length: Optional[int] = None) -> str:
         """
@@ -104,6 +137,7 @@ class VectorStoreService:
         embedding = self.embed_text(content)
         embedding_array = np.array(embedding)
 
+        db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
                 INSERT INTO hr_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
@@ -161,7 +195,7 @@ class VectorStoreService:
 
         # 유사도 임계값 (DB 설정 우선)
         if similarity_threshold is None:
-            similarity_threshold = settings_service.get_value("rag", "similarity_threshold", settings.rag_similarity_threshold)
+            similarity_threshold = _get_settings_service().get_value("rag", "similarity_threshold", settings.rag_similarity_threshold)
 
         # 벡터 검색 쿼리 (코사인 거리 사용)
         # <=> 연산자: 코사인 거리 (0 = 동일, 2 = 정반대)
@@ -184,6 +218,7 @@ class VectorStoreService:
         # 파라미터 순서: SELECT의 embedding 1번 + WHERE 필터들 + ORDER BY embedding + LIMIT
         query_params = [query_embedding_array] + filter_params + [query_embedding_array, top_k]
 
+        db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
             cur.execute(query_sql, query_params)
             rows = cur.fetchall()
@@ -234,6 +269,7 @@ class VectorStoreService:
 
     def get_document_by_id(self, doc_id: int) -> Optional[Dict[str, Any]]:
         """ID로 문서 조회"""
+        db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT id, title, doc_type, language, content, metadata, created_at, updated_at
@@ -246,6 +282,7 @@ class VectorStoreService:
 
     def delete_document(self, doc_id: int) -> bool:
         """문서 삭제"""
+        db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("DELETE FROM hr_docs WHERE id = %s", (doc_id,))
             affected = cur.rowcount
@@ -256,6 +293,7 @@ class VectorStoreService:
         embedding = self.embed_text(content)
         embedding_array = np.array(embedding)
 
+        db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
                 UPDATE hr_docs
@@ -301,12 +339,14 @@ class VectorStoreService:
                 "total_chars": 전체 문자 수
             }
         """
+        tc = _get_text_chunker_module()
+
         # DB 설정에서 청킹 파라미터 가져오기
         chunking_settings = get_chunking_settings()
         chunk_size = chunk_size or chunking_settings["chunk_size"]
         chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
 
-        content_hash = TextChunker.calculate_hash(content)
+        content_hash = tc.TextChunker.calculate_hash(content)
 
         # 자동 청킹 비활성화 또는 짧은 텍스트면 단일 문서로 저장
         if not auto_chunk or len(content) <= chunk_size:
@@ -331,7 +371,7 @@ class VectorStoreService:
             }
 
         # 텍스트 청킹
-        chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        chunks = tc.chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         total_chunks = len(chunks)
 
         if total_chunks == 0:
@@ -398,6 +438,7 @@ class VectorStoreService:
         embedding = self.embed_text(content)
         embedding_array = np.array(embedding)
 
+        db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
                 INSERT INTO hr_docs (
@@ -436,15 +477,18 @@ class VectorStoreService:
         chunk_overlap: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """청킹 미리보기 (DB 설정 사용)"""
+        tc = _get_text_chunker_module()
+
         chunking_settings = get_chunking_settings()
         chunk_size = chunk_size or chunking_settings["chunk_size"]
         chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
 
-        chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        chunker = tc.TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         return chunker.preview_chunks(content)
 
     def get_document_with_chunks(self, doc_id: int) -> Optional[Dict[str, Any]]:
         """문서와 모든 청크 조회"""
+        db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
             # 문서 조회
             cur.execute("""
@@ -478,6 +522,7 @@ class VectorStoreService:
 
     def delete_document_with_chunks(self, doc_id: int) -> int:
         """문서와 모든 청크 삭제"""
+        db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             # parent_doc_id가 doc_id인 청크들도 삭제 (CASCADE로 자동 삭제되지만 명시적으로)
             cur.execute("""
@@ -540,6 +585,7 @@ class VectorStoreService:
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
             # 전체 카운트 조회
             cur.execute(f"""
@@ -584,8 +630,10 @@ class VectorStoreService:
 
         1차적으로 문서를 저장하고, 청킹은 별도 API로 실행
         """
-        content_hash = TextChunker.calculate_hash(content)
+        tc = _get_text_chunker_module()
+        content_hash = tc.TextChunker.calculate_hash(content)
 
+        db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
                 INSERT INTO hr_docs (
@@ -685,6 +733,9 @@ class VectorStoreService:
         delete_original: bool
     ) -> Dict[str, Any]:
         """단일 문서 청킹 실행"""
+        tc = _get_text_chunker_module()
+        db_manager = _get_db_manager()
+
         # 원본 문서 조회
         with db_manager.get_cursor() as cur:
             cur.execute("""
@@ -729,7 +780,7 @@ class VectorStoreService:
             }
 
         # 텍스트 청킹
-        chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        chunks = tc.chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         total_chunks = len(chunks)
 
         if total_chunks == 0:
@@ -831,6 +882,9 @@ class VectorStoreService:
                 "needs_reindex": 재인덱싱 필요 여부
             }
         """
+        tc = _get_text_chunker_module()
+        db_manager = _get_db_manager()
+
         # 기존 문서 조회
         with db_manager.get_cursor() as cur:
             cur.execute("""
@@ -868,7 +922,7 @@ class VectorStoreService:
             updates.append("embedding = NULL")
             updates.append("indexed = false")
             updates.append("content_hash = %s")
-            params.append(TextChunker.calculate_hash(content))
+            params.append(tc.TextChunker.calculate_hash(content))
 
         if language is not None:
             updates.append("language = %s")

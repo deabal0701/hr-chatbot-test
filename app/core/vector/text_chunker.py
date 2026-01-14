@@ -1,6 +1,11 @@
-"""텍스트 청킹 유틸리티"""
+"""텍스트 청킹 유틸리티
+
+위치: app/core/vector/text_chunker.py
+- 텍스트를 의미 있는 단위로 분할
+- 재귀적 분할 알고리즘
+- 청크 병합 및 최적화
+"""
 import hashlib
-import re
 from dataclasses import dataclass
 from typing import List, Optional
 

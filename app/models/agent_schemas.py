@@ -116,7 +116,7 @@ class AgentConfig(BaseModel):
         """llm_model이 None이면 DB 설정에서 로드"""
         if self.llm_model is None:
             # 순환 import 방지를 위해 함수 내부에서 import
-            from app.services.settings_service import settings_service
+            from app.core.config.settings_service import settings_service
             from app.config import settings
             from app.utils.logger import logger
 

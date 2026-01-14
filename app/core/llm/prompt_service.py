@@ -1,13 +1,25 @@
 """프롬프트 관리 서비스
 
-DB에 저장된 프롬프트를 조회하고 캐싱하여 성능을 최적화합니다.
+위치: app/core/llm/prompt_service.py
+- DB에 저장된 프롬프트를 조회하고 캐싱하여 성능을 최적화합니다.
 """
 import time
-from typing import Dict, Optional
-from app.services.settings_service import settings_service
+from typing import Dict
+
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_settings_service = None
+
+
+def _get_settings_service():
+    global _settings_service
+    if _settings_service is None:
+        from app.core.config.settings_service import settings_service
+        _settings_service = settings_service
+    return _settings_service
 
 
 class PromptService:
@@ -42,6 +54,7 @@ class PromptService:
 
         # DB에서 조회
         try:
+            settings_service = _get_settings_service()
             value = settings_service.get_value('prompt', prompt_key, default)
 
             # 캐시 저장
@@ -64,6 +77,7 @@ class PromptService:
             성공 여부
         """
         try:
+            settings_service = _get_settings_service()
             success = settings_service.set_setting('prompt', prompt_key, value)
             if success:
                 # 캐시 무효화

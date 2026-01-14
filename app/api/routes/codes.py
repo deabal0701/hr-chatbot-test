@@ -13,7 +13,7 @@ from app.models.schemas import (
     CodeUpdateRequest,
     CodeReorderRequest,
 )
-from app.services.code_service import code_service
+from app.api.services.code_service import code_service
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)

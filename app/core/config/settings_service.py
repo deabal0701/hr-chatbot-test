@@ -2,15 +2,30 @@
 
 런타임에 설정을 조회/수정할 수 있는 서비스.
 DB 설정 → 환경변수 → 기본값 순서로 fallback.
+
+위치: app/core/config/settings_service.py
+- 공통 설정 조회 기능 제공
+- 모든 서비스, 그래프, 도구에서 사용
 """
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
 from app.config import settings as env_settings
-from app.utils.database import db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_db_manager = None
+
+
+def _get_db_manager():
+    """DB 매니저 지연 로딩"""
+    global _db_manager
+    if _db_manager is None:
+        from app.core.database.connection import db_manager
+        _db_manager = db_manager
+    return _db_manager
 
 
 class SettingsService:
@@ -109,6 +124,7 @@ class SettingsService:
     def _ensure_table_exists(self) -> bool:
         """설정 테이블 존재 여부 확인"""
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT EXISTS (
@@ -132,6 +148,7 @@ class SettingsService:
             return
 
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT category, key, value, value_type, description, is_secret, updated_at
@@ -182,6 +199,7 @@ class SettingsService:
             return None
 
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT value, value_type, description, is_secret, updated_at
@@ -336,6 +354,7 @@ class SettingsService:
             return False
 
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 # 프롬프트 카테고리인 경우 기존 값 조회 (이력 저장용)
                 old_value = None
@@ -417,6 +436,7 @@ class SettingsService:
             return False
 
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 # 해당 카테고리의 모든 설정을 기본값으로 업데이트
                 for key, (value, value_type, desc, is_secret) in self.DEFAULTS[category].items():
@@ -484,6 +504,7 @@ class SettingsService:
         limit = min(limit, 1000)
 
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT
@@ -523,6 +544,7 @@ class SettingsService:
         limit = min(limit, 500)
 
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT
@@ -559,6 +581,7 @@ class SettingsService:
             성공 여부
         """
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 # 이력에서 이전 값 조회
                 cur.execute("""

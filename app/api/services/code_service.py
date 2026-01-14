@@ -1,14 +1,26 @@
 """코드 마스터 관리 서비스 (Phase A: 코드 관리 시스템)
 
-LLM 제공자, 모델, 임베딩 모델 등 코드성 데이터를 동적으로 관리
+위치: app/api/services/code_service.py
+- LLM 제공자, 모델, 임베딩 모델 등 코드성 데이터를 동적으로 관리
+- API Route 전용 서비스
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from app.utils.database import db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_db_manager = None
+
+
+def _get_db_manager():
+    global _db_manager
+    if _db_manager is None:
+        from app.core.database.connection import db_manager
+        _db_manager = db_manager
+    return _db_manager
 
 
 class CodeService:
@@ -23,6 +35,7 @@ class CodeService:
             코드 그룹 목록 (중복 제거, 정렬됨)
         """
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT DISTINCT code_group
@@ -51,6 +64,7 @@ class CodeService:
             코드 목록 (sort_order 순으로 정렬)
         """
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 # 활성 여부 필터 추가
                 active_filter = "" if include_inactive else "AND is_active = true"
@@ -106,6 +120,7 @@ class CodeService:
             코드 정보 (없으면 None)
         """
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT
@@ -181,6 +196,7 @@ class CodeService:
             is_active = code_data.get('is_active', True)
             is_system = False  # 사용자 생성 코드는 항상 False
 
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 # 중복 체크
                 cur.execute("""
@@ -272,6 +288,7 @@ class CodeService:
             # WHERE 조건 파라미터
             params.append(code_id)
 
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 sql = f"""
                     UPDATE code_master
@@ -321,6 +338,7 @@ class CodeService:
                     f"{existing_code['code_group']}.{existing_code['code_value']}"
                 )
 
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
                     DELETE FROM code_master
@@ -358,6 +376,7 @@ class CodeService:
             ValueError: 그룹 불일치, 코드 누락 등
         """
         try:
+            db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 # 해당 그룹의 모든 코드 조회
                 cur.execute("""

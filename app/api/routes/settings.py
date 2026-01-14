@@ -18,7 +18,7 @@ from app.models.schemas import (
     ApiKeyValidationRequest,
     ApiKeyValidationResponse,
 )
-from app.services.settings_service import settings_service
+from app.core.config.settings_service import settings_service
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)

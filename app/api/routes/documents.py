@@ -32,7 +32,7 @@ from app.models.schemas import (
     # 공통
     MessageResponse,
 )
-from app.services.vector_store import vector_store
+from app.core.vector.vector_store import vector_store
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)

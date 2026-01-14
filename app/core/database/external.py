@@ -1,6 +1,7 @@
 """
 범용 외부 데이터베이스 연결 관리자
 
+위치: app/core/database/external.py
 NL2SQL 쿼리 대상이 되는 비즈니스 데이터베이스 연결을 관리합니다.
 - 로컬 business 스키마 또는 원격 DB 지원
 - PostgreSQL, Oracle, MySQL, MS SQL Server 등 확장 가능
@@ -15,10 +16,21 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from app.services.settings_service import settings_service
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_settings_service = None
+
+
+def _get_settings_service():
+    """settings_service 지연 로딩"""
+    global _settings_service
+    if _settings_service is None:
+        from app.core.config.settings_service import settings_service
+        _settings_service = settings_service
+    return _settings_service
 
 
 class ExternalDatabaseManager:
@@ -30,6 +42,7 @@ class ExternalDatabaseManager:
 
     def _load_config(self) -> Dict[str, Any]:
         """설정에서 DB 연결 정보 로드"""
+        settings_service = _get_settings_service()
         config = {
             "enabled": settings_service.get_value("external_database", "enabled", True),
             "db_type": settings_service.get_value("external_database", "db_type", "postgresql"),
@@ -166,8 +179,8 @@ class ExternalDatabaseManager:
         # enabled=false인 경우 로컬 DB의 business 스키마 사용
         config = self._config_cache or self._load_config()
         if not config["enabled"]:
-            # 로컬 DB 사용 (app/utils/database.py의 db_manager 재사용)
-            from app.utils.database import db_manager
+            # 로컬 DB 사용
+            from app.core.database.connection import db_manager
             with db_manager.get_connection() as conn:
                 # search_path를 business 스키마로 설정
                 with conn.cursor() as cur:

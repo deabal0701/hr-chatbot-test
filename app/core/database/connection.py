@@ -1,3 +1,10 @@
+"""데이터베이스 연결 관리
+
+위치: app/core/database/connection.py
+- PostgreSQL 연결 풀 관리
+- pgvector 등록
+- 커넥션/커서 컨텍스트 매니저
+"""
 from contextlib import contextmanager
 from typing import Generator, Optional
 import sys

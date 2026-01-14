@@ -1,9 +1,26 @@
+"""스키마 메타데이터 로더
+
+위치: app/core/database/schema_loader.py
+- 비즈니스 DB 스키마 조회
+- 테이블/컬럼/키/인덱스 정보
+- LLM용 스키마 설명 생성
+"""
 from typing import Any, Dict, List
 
-from app.utils.external_database import external_db_manager
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 순환 import 방지를 위해 지연 import
+_external_db_manager = None
+
+
+def _get_external_db_manager():
+    global _external_db_manager
+    if _external_db_manager is None:
+        from app.core.database.external import external_db_manager
+        _external_db_manager = external_db_manager
+    return _external_db_manager
 
 
 class SchemaLoaderService:
@@ -23,6 +40,7 @@ class SchemaLoaderService:
         if not refresh and self._schema_cache:
             return self._schema_cache
 
+        external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         schema = {
             "database": "business_data",
@@ -50,6 +68,7 @@ class SchemaLoaderService:
 
     def _get_tables(self) -> List[str]:
         """비즈니스 스키마의 테이블 목록 조회 (allowed_tables 설정으로 필터링)"""
+        external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         allowed_tables = external_db_manager.get_allowed_tables()
 
@@ -76,6 +95,7 @@ class SchemaLoaderService:
 
     def _get_columns(self, table_name: str) -> List[Dict[str, Any]]:
         """테이블의 컬럼 정보 조회"""
+        external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         with external_db_manager.get_cursor() as cur:
             cur.execute("""
@@ -107,6 +127,7 @@ class SchemaLoaderService:
 
     def _get_primary_key(self, table_name: str) -> List[str]:
         """테이블의 기본 키 조회"""
+        external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         with external_db_manager.get_cursor() as cur:
             cur.execute("""
@@ -121,6 +142,7 @@ class SchemaLoaderService:
 
     def _get_foreign_keys(self, table_name: str) -> List[Dict[str, str]]:
         """테이블의 외래 키 조회"""
+        external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         with external_db_manager.get_cursor() as cur:
             cur.execute("""
@@ -151,6 +173,7 @@ class SchemaLoaderService:
 
     def _get_indexes(self, table_name: str) -> List[str]:
         """테이블의 인덱스 조회"""
+        external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         with external_db_manager.get_cursor() as cur:
             cur.execute("""
@@ -164,6 +187,7 @@ class SchemaLoaderService:
 
     def _get_sample_data(self, table_name: str, limit: int = 3) -> List[Dict[str, Any]]:
         """테이블의 샘플 데이터 조회"""
+        external_db_manager = _get_external_db_manager()
         try:
             with external_db_manager.get_cursor() as cur:
                 # 민감한 정보는 마스킹
