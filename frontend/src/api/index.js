@@ -1,8 +1,12 @@
 import axios from 'axios'
 
 // API 클라이언트 인스턴스 생성
+// 환경별 설정:
+//   - 로컬 개발 (npm run dev)  : .env.development → VITE_API_URL=http://localhost:8000
+//   - Docker 배포 (nginx proxy): .env.docker      → VITE_API_URL= (빈 문자열, 상대경로 사용)
+//   - 프로덕션 빌드            : .env.production  → VITE_API_URL=https://api.yourcompany.com
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || '',
   timeout: 60000, // NL2SQL은 시간이 걸릴 수 있음
   headers: {
     'Content-Type': 'application/json'
