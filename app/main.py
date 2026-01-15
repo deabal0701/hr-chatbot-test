@@ -89,7 +89,7 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.get("/api/v1/health")
 async def health_check():
     """헬스 체크"""
     try:
