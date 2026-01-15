@@ -14,8 +14,8 @@ from app.utils.langsmith import init_langsmith
 
 logger = setup_logger(__name__)
 
-
-@asynccontextmanager
+# 앱 실행시 한번만 실행, 종료시 clean-up하는 데코레이션.
+@asynccontextmanager 
 async def lifespan(app: FastAPI):
     """애플리케이션 시작/종료 이벤트"""
     # 시작
@@ -128,10 +128,50 @@ async def api_info():
             "embedding": settings.embedding_model
         },
         "endpoints": {
-            "search": "/api/v1/search, /api/v1/rag, /api/v1/nl2sql",
-            "agent": "/api/v1/agent/search (멀티스텝, 멀티턴 대화)",
-            "admin_documents": "/api/admin/v1/documents",
-            "admin_settings": "/api/admin/v1/settings"
+            "search": {
+                "POST /api/v1/search": "통합 검색 (auto/rag/nl2sql 모드)",
+                "POST /api/v1/rag": "RAG 검색 전용",
+                "POST /api/v1/nl2sql": "NL2SQL 검색 전용"
+            },
+            "agent": {
+                "POST /api/v1/agent/search": "AI Agent 검색 (멀티스텝, 멀티턴)",
+                "GET /api/v1/agent/sessions": "활성 세션 목록",
+                "GET /api/v1/agent/sessions/{session_id}/memory": "세션 메모리 조회",
+                "DELETE /api/v1/agent/sessions/{session_id}": "세션 삭제",
+                "GET /api/v1/agent/sessions/{session_id}/metrics": "세션 메트릭",
+                "GET /api/v1/agent/tools": "사용 가능한 도구 목록",
+                "POST /api/v1/agent/test-tool": "도구 단독 테스트"
+            },
+            "admin_documents": {
+                "POST /api/admin/v1/documents": "문서 저장",
+                "GET /api/admin/v1/documents": "문서 목록 조회",
+                "GET /api/admin/v1/documents/{doc_id}": "문서 상세 조회",
+                "PUT /api/admin/v1/documents/{doc_id}": "문서 수정",
+                "DELETE /api/admin/v1/documents/{doc_id}": "문서 삭제",
+                "POST /api/admin/v1/documents/bulk-delete": "문서 일괄 삭제",
+                "POST /api/admin/v1/documents/embedding/execute": "임베딩 실행",
+                "POST /api/admin/v1/documents/embedding/preview": "청킹 미리보기"
+            },
+            "admin_settings": {
+                "GET /api/admin/v1/settings": "전체 설정 조회",
+                "GET /api/admin/v1/settings/{category}": "카테고리별 설정 조회",
+                "GET /api/admin/v1/settings/{category}/{key}": "단일 설정 조회",
+                "PUT /api/admin/v1/settings/{category}/{key}": "단일 설정 수정",
+                "PUT /api/admin/v1/settings/{category}": "카테고리 설정 일괄 수정",
+                "POST /api/admin/v1/settings/{category}/reset": "카테고리 설정 초기화",
+                "POST /api/admin/v1/settings/validate-api-key": "API 키 검증",
+                "POST /api/admin/v1/settings/refresh-cache": "설정 캐시 새로고침",
+                "POST /api/admin/v1/settings/external-database/test": "외부 DB 연결 테스트"
+            },
+            "admin_codes": {
+                "GET /api/admin/v1/codes/groups": "코드 그룹 목록",
+                "GET /api/admin/v1/codes/{code_group}": "그룹별 코드 목록",
+                "GET /api/admin/v1/codes/item/{code_id}": "코드 단건 조회",
+                "POST /api/admin/v1/codes": "코드 생성",
+                "PUT /api/admin/v1/codes/{code_id}": "코드 수정",
+                "DELETE /api/admin/v1/codes/{code_id}": "코드 삭제",
+                "POST /api/admin/v1/codes/{code_group}/reorder": "코드 순서 변경"
+            }
         }
     }
 
