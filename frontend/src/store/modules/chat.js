@@ -145,13 +145,17 @@ export default {
             mode: state.searchMode
           })
 
-          // AI 응답 메시지 추가
+          // AI 응답 메시지 추가 (통합 SearchResponse 구조)
           commit('ADD_MESSAGE', {
             role: 'assistant',
             content: response.answer,
             queryType: response.query_type,
-            ragResult: response.rag_result,
-            nl2sqlResult: response.nl2sql_result,
+            // NL2SQL 전용 필드
+            sql: response.sql,
+            sqlResult: response.sql_result,
+            // RAG 전용 필드
+            sources: response.sources,
+            // 공통 필드
             responseTimeMs: response.response_time_ms,
             metadata: response.metadata
           })

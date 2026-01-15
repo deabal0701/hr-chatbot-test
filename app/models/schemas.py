@@ -68,14 +68,6 @@ class DocumentSource(BaseModel):
     similarity_score: Optional[float] = None
 
 
-class RAGResponse(BaseModel):
-    """RAG 검색 응답"""
-    answer: str = Field(..., description="자연어 답변")
-    sources: List[DocumentSource] = Field(default_factory=list, description="근거 문서")
-    query_type: str = "rag"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
 class SQLResult(BaseModel):
     """SQL 실행 결과"""
     columns: List[str]
@@ -84,24 +76,68 @@ class SQLResult(BaseModel):
     execution_time_ms: int
 
 
+class SearchResponse(BaseModel):
+    """통합 검색 응답
+
+    모든 검색 모드(rag, nl2sql, auto)에서 동일한 응답 구조를 사용.
+    query_type에 따라 관련 필드만 값이 채워짐.
+    """
+    # ========== 공통 필드 (항상 존재) ==========
+    query: str = Field(..., description="원본 검색 질의")
+    answer: str = Field(..., description="자연어 답변")
+    query_type: str = Field(..., description="검색 타입 (rag, nl2sql, auto)")
+    response_time_ms: int = Field(..., description="응답 시간 (밀리초)")
+
+    # ========== NL2SQL 전용 (nl2sql일 때만 값 존재) ==========
+    sql: Optional[str] = Field(None, description="생성된 SQL 쿼리")
+    sql_result: Optional[SQLResult] = Field(None, description="SQL 실행 결과")
+
+    # ========== RAG 전용 (rag일 때만 값 존재) ==========
+    sources: Optional[List[DocumentSource]] = Field(None, description="참고 문서 목록")
+
+    # ========== 메타데이터 ==========
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="추가 메타데이터")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "query": "2024년 입사자 수는?",
+                "answer": "2024년에 총 27명이 입사했습니다.",
+                "query_type": "nl2sql",
+                "response_time_ms": 1523,
+                "sql": "SELECT COUNT(*) FROM employee WHERE YEAR(hire_date) = 2024",
+                "sql_result": {
+                    "columns": ["count"],
+                    "rows": [{"count": 27}],
+                    "row_count": 1,
+                    "execution_time_ms": 45
+                },
+                "sources": None,
+                "metadata": {"model": "gpt-4o"}
+            }
+        }
+    }
+
+
+# ===================================
+# Deprecated 스키마 (하위 호환용, 추후 삭제 예정)
+# ===================================
+
+class RAGResponse(BaseModel):
+    """RAG 검색 응답 (Deprecated: SearchResponse 사용 권장)"""
+    answer: str = Field(..., description="자연어 답변")
+    sources: List[DocumentSource] = Field(default_factory=list, description="근거 문서")
+    query_type: str = "rag"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class NL2SQLResponse(BaseModel):
-    """NL2SQL 검색 응답"""
+    """NL2SQL 검색 응답 (Deprecated: SearchResponse 사용 권장)"""
     answer: str = Field(..., description="자연어 요약")
     sql: str = Field(..., description="실행된 SQL")
     result: Optional[SQLResult] = None
     query_type: str = "nl2sql"
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class SearchResponse(BaseModel):
-    """통합 검색 응답"""
-    query: str
-    answer: str
-    query_type: str  # 'rag', 'nl2sql', 'hybrid'
-    rag_result: Optional[RAGResponse] = None
-    nl2sql_result: Optional[NL2SQLResponse] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    response_time_ms: int
 
 
 # ===================================

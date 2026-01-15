@@ -19,47 +19,47 @@
         </span>
       </div>
 
-      <!-- NL2SQL 결과 -->
-      <div v-if="message.nl2sqlResult" class="nl2sql-result">
+      <!-- NL2SQL 결과 (통합 SearchResponse 구조) -->
+      <div v-if="message.sql" class="nl2sql-result">
         <el-collapse>
           <el-collapse-item title="실행된 SQL 쿼리" name="sql">
-            <pre class="sql-code">{{ message.nl2sqlResult.sql }}</pre>
+            <pre class="sql-code">{{ message.sql }}</pre>
           </el-collapse-item>
-          <el-collapse-item v-if="message.nl2sqlResult.result" title="조회 결과" name="result">
+          <el-collapse-item v-if="message.sqlResult" title="조회 결과" name="result">
             <div class="result-summary">
-              총 {{ message.nl2sqlResult.result.row_count }}개 행 조회됨
+              총 {{ message.sqlResult.row_count }}개 행 조회됨
             </div>
             <el-table
-              v-if="message.nl2sqlResult.result.rows.length > 0"
-              :data="message.nl2sqlResult.result.rows.slice(0, 10)"
+              v-if="message.sqlResult.rows.length > 0"
+              :data="message.sqlResult.rows.slice(0, 10)"
               size="small"
               border
               max-height="300"
             >
               <el-table-column
-                v-for="col in message.nl2sqlResult.result.columns"
+                v-for="col in message.sqlResult.columns"
                 :key="col"
                 :prop="col"
                 :label="col"
                 min-width="100"
               />
             </el-table>
-            <div v-if="message.nl2sqlResult.result.row_count > 10" class="more-rows">
-              ... 외 {{ message.nl2sqlResult.result.row_count - 10 }}개 행
+            <div v-if="message.sqlResult.row_count > 10" class="more-rows">
+              ... 외 {{ message.sqlResult.row_count - 10 }}개 행
             </div>
           </el-collapse-item>
         </el-collapse>
       </div>
 
-      <!-- RAG 출처 -->
-      <div v-if="message.ragResult?.sources?.length > 0" class="rag-sources">
+      <!-- RAG 출처 (통합 SearchResponse 구조) -->
+      <div v-if="message.sources?.length > 0" class="rag-sources">
         <div class="sources-title">
           <el-icon><Document /></el-icon>
-          참고 문서 ({{ message.ragResult.sources.length }}개)
+          참고 문서 ({{ message.sources.length }}개)
         </div>
         <div class="sources-list">
           <SourceCard
-            v-for="source in message.ragResult.sources"
+            v-for="source in message.sources"
             :key="source.id"
             :source="source"
           />

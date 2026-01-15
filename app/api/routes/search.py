@@ -8,10 +8,9 @@ from app.graphs.nl2sql_graph import nl2sql_graph
 from app.graphs.rag_graph import rag_graph
 from app.models.schemas import (
     ErrorResponse,
-    NL2SQLResponse,
-    RAGResponse,
     SearchRequest,
     SearchResponse,
+    SQLResult,
 )
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 
@@ -57,13 +56,26 @@ async def search(request: SearchRequest):
         if query_type == "nl2sql":
             log_step(request_id, "API", "3", "NL2SQL", "NL2SQL 그래프 실행 시작")
             nl2sql_result = await nl2sql_graph.ainvoke(inputs)
+
+            # SQL 결과를 SQLResult로 변환
+            sql_result_data = None
+            if nl2sql_result.result:
+                sql_result_data = SQLResult(
+                    columns=nl2sql_result.result.columns,
+                    rows=nl2sql_result.result.rows,
+                    row_count=nl2sql_result.result.row_count,
+                    execution_time_ms=nl2sql_result.result.execution_time_ms
+                )
+
             response = SearchResponse(
                 query=request.query,
                 answer=nl2sql_result.answer,
                 query_type="nl2sql",
-                nl2sql_result=nl2sql_result,
-                metadata=nl2sql_result.metadata,
-                response_time_ms=int((time.time() - start_time) * 1000)
+                response_time_ms=int((time.time() - start_time) * 1000),
+                sql=nl2sql_result.sql,
+                sql_result=sql_result_data,
+                sources=None,
+                metadata=nl2sql_result.metadata
             )
             log_step(request_id, "API", "4", "NL2SQL", "NL2SQL 그래프 실행 완료", sql_generated=bool(nl2sql_result.sql))
         else:  # rag
@@ -73,9 +85,11 @@ async def search(request: SearchRequest):
                 query=request.query,
                 answer=rag_result.answer,
                 query_type="rag",
-                rag_result=rag_result,
-                metadata=rag_result.metadata,
-                response_time_ms=int((time.time() - start_time) * 1000)
+                response_time_ms=int((time.time() - start_time) * 1000),
+                sql=None,
+                sql_result=None,
+                sources=rag_result.sources,
+                metadata=rag_result.metadata
             )
             log_step(request_id, "API", "4", "RAG", "RAG 그래프 실행 완료", sources_count=len(rag_result.sources))
 
@@ -94,9 +108,10 @@ async def search(request: SearchRequest):
         )
 
 
-@router.post("/rag", response_model=RAGResponse)
+@router.post("/rag", response_model=SearchResponse)
 async def search_rag(request: SearchRequest):
     """RAG 검색 전용 엔드포인트"""
+    start_time = time.time()
     request_id = str(uuid.uuid4())[:8]
 
     try:
@@ -115,7 +130,17 @@ async def search_rag(request: SearchRequest):
 
         log_step(request_id, "API", "3", "RAG-API", "RAG 검색 완료",
                 sources_count=len(result.sources), answer_length=len(result.answer))
-        return result
+
+        return SearchResponse(
+            query=request.query,
+            answer=result.answer,
+            query_type="rag",
+            response_time_ms=int((time.time() - start_time) * 1000),
+            sql=None,
+            sql_result=None,
+            sources=result.sources,
+            metadata=result.metadata
+        )
 
     except Exception as e:
         logger.error(f"[{request_id}] [ERROR] RAG 검색 실패: {e}", exc_info=True)
@@ -125,9 +150,10 @@ async def search_rag(request: SearchRequest):
         )
 
 
-@router.post("/nl2sql", response_model=NL2SQLResponse)
+@router.post("/nl2sql", response_model=SearchResponse)
 async def search_nl2sql(request: SearchRequest):
     """NL2SQL 검색 전용 엔드포인트"""
+    start_time = time.time()
     request_id = str(uuid.uuid4())[:8]
 
     try:
@@ -145,7 +171,27 @@ async def search_nl2sql(request: SearchRequest):
 
         log_step(request_id, "API", "3", "NL2SQL-API", "NL2SQL 검색 완료",
                 sql=result.sql, answer_length=len(result.answer))
-        return result
+
+        # SQL 결과를 SQLResult로 변환
+        sql_result_data = None
+        if result.result:
+            sql_result_data = SQLResult(
+                columns=result.result.columns,
+                rows=result.result.rows,
+                row_count=result.result.row_count,
+                execution_time_ms=result.result.execution_time_ms
+            )
+
+        return SearchResponse(
+            query=request.query,
+            answer=result.answer,
+            query_type="nl2sql",
+            response_time_ms=int((time.time() - start_time) * 1000),
+            sql=result.sql,
+            sql_result=sql_result_data,
+            sources=None,
+            metadata=result.metadata
+        )
 
     except Exception as e:
         logger.error(f"[{request_id}] [ERROR] NL2SQL 검색 실패: {e}", exc_info=True)
