@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     # LangSmith 초기화 (옵션)
     init_langsmith()
 
-    # 서비스 DB 초기화 (메타데이터용)
+    # 서비스 DB 초기화 (운영데이터용)
     db_manager.initialize()
     logger.info("서비스 데이터베이스 연결 풀 초기화 완료")
 

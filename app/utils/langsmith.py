@@ -56,7 +56,7 @@ def setup_langsmith() -> bool:
             os.environ["LANGCHAIN_PROJECT"] = "chatbot-mureum"
 
         logger.info(
-            f"✅ LangSmith 트레이싱이 활성화되었습니다. "
+            f"=> LangSmith 트레이싱이 활성화되었습니다. "
             f"프로젝트: {os.environ.get('LANGCHAIN_PROJECT')}"
         )
         logger.info(

@@ -1,9 +1,7 @@
 import logging
 import sys
 from typing import Any, Dict
-
 from pythonjsonlogger import jsonlogger
-
 from app.config import settings
 
 
@@ -47,17 +45,10 @@ def setup_logger(name: str) -> logging.Logger:
 
 
 # 기본 로거
-logger = setup_logger("hr_chatbot")
+logger = setup_logger("chatbot_mureum")
 
 
-def log_step(
-    request_id: str,
-    module: str,
-    step: str,
-    stage: str,
-    message: str,
-    **kwargs
-):
+def log_step(request_id: str, module: str, step: str, stage: str, message: str, **kwargs):
     """
     통합 로깅 함수
 
