@@ -120,27 +120,6 @@ class SearchResponse(BaseModel):
 
 
 # ===================================
-# Deprecated 스키마 (하위 호환용, 추후 삭제 예정)
-# ===================================
-
-class RAGResponse(BaseModel):
-    """RAG 검색 응답 (Deprecated: SearchResponse 사용 권장)"""
-    answer: str = Field(..., description="자연어 답변")
-    sources: List[DocumentSource] = Field(default_factory=list, description="근거 문서")
-    query_type: str = "rag"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class NL2SQLResponse(BaseModel):
-    """NL2SQL 검색 응답 (Deprecated: SearchResponse 사용 권장)"""
-    answer: str = Field(..., description="자연어 요약")
-    sql: str = Field(..., description="실행된 SQL")
-    result: Optional[SQLResult] = None
-    query_type: str = "nl2sql"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-# ===================================
 # 문서 관련 스키마
 # ===================================
 

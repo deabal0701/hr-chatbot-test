@@ -4,7 +4,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.config import settings
-from app.models.schemas import NL2SQLResponse, SQLResult
+from app.models.schemas import SearchResponse, SQLResult
+import time
 from app.core.database.schema_loader import schema_loader
 from app.core.config.settings_service import settings_service
 from app.core.llm.prompt_service import prompt_service
@@ -303,17 +304,23 @@ SQL만 출력하세요 (설명 없이)."""
             "request_id": inputs.get("request_id", "unknown")
         }
 
-    def _build_response(self, result: NL2SQLState) -> NL2SQLResponse:
-        """실행 결과를 NL2SQLResponse로 변환"""
-        return NL2SQLResponse(
+    def _build_response(self, result: NL2SQLState, response_time_ms: int = 0) -> SearchResponse:
+        """실행 결과를 SearchResponse로 변환"""
+        return SearchResponse(
+            query=result["question"],
             answer=result["answer"],
+            query_type="nl2sql",
+            response_time_ms=response_time_ms,
             sql=result["generated_sql"],
-            result=result.get("sql_result"),
+            sql_result=result.get("sql_result"),
+            sources=None,
             metadata=result["metadata"]
         )
 
-    async def ainvoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
+    async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
         """그래프 비동기 실행"""
+        start_time = time.time()
+
         # 초기 상태 준비 (공통 로직)
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
@@ -322,13 +329,17 @@ SQL만 출력하세요 (설명 없이)."""
 
         result = await self.graph.ainvoke(initial_state)
 
+        response_time_ms = int((time.time() - start_time) * 1000)
+
         log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
-        return self._build_response(result)
+        return self._build_response(result, response_time_ms)
 
-    def invoke(self, inputs: Dict[str, Any]) -> NL2SQLResponse:
+    def invoke(self, inputs: Dict[str, Any]) -> SearchResponse:
         """그래프 동기 실행"""
+        start_time = time.time()
+
         # 초기 상태 준비 (공통 로직)
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
@@ -338,12 +349,14 @@ SQL만 출력하세요 (설명 없이)."""
 
         result = self.graph.invoke(initial_state)
 
+        response_time_ms = int((time.time() - start_time) * 1000)
+
         log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료 (동기)",
                 has_sql=bool(result["generated_sql"]),
                 answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
-        return self._build_response(result)
+        return self._build_response(result, response_time_ms)
 
 
 # 싱글톤 인스턴스

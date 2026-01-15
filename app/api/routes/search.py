@@ -1,18 +1,14 @@
-import time
 import uuid
-from typing import Union
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.graphs.nl2sql_graph import nl2sql_graph
 from app.graphs.rag_graph import rag_graph
 from app.models.schemas import (
-    ErrorResponse,
     SearchRequest,
     SearchResponse,
-    SQLResult,
 )
-from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
+from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
@@ -23,78 +19,56 @@ router = APIRouter(prefix="/api/v1", tags=["search"])
 async def search(request: SearchRequest):
     """
     통합 검색 엔드포인트
-    - mode가 'auto'인 경우 자동으로 RAG/NL2SQL 선택
-    - mode가 'rag'인 경우 RAG 검색만 수행
-    - mode가 'nl2sql'인 경우 NL2SQL 검색만 수행
+
+    - mode='auto': 자동으로 RAG/NL2SQL 선택 (기본값)
+    - mode='rag': RAG 검색 (문서 기반)
+    - mode='nl2sql': NL2SQL 검색 (데이터베이스 쿼리)
     """
-    start_time = time.time()
-    request_id = str(uuid.uuid4())[:8]  # 요청 추적용 ID
+    request_id = str(uuid.uuid4())[:8]
 
     logger.info(f"[{request_id}] ========== 검색 요청 처리 시작 ==========")
 
     try:
         # STEP 1: 사용자 요청 수신
-        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신", query=request.query, mode=request.mode, top_k=request.top_k)
+        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신",
+                query=request.query, mode=request.mode, top_k=request.top_k)
 
         # STEP 2: 모드 결정
         if request.mode == "auto":
             query_type = _classify_query_intent(request.query)
-            log_step(request_id, "API", "2", "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
+            log_step(request_id, "API", "2", "CLASSIFY",
+                    f"자동 분류 완료 → {query_type.upper()}",
+                    original_mode="auto", detected_type=query_type)
         else:
             query_type = request.mode
-            log_step(request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
+            log_step(request_id, "API", "2", "CLASSIFY",
+                    f"사용자 지정 모드 사용 → {query_type.upper()}")
 
         # 입력 데이터 구성
         inputs = {
             "question": request.query,
             "filters": request.filters.model_dump() if request.filters else {},
             "top_k": request.top_k,
-            "request_id": request_id  # 그래프에서도 추적 가능하도록
+            "request_id": request_id
         }
 
-        # STEP 3: 검색 실행
+        # STEP 3: 검색 실행 (Graph가 직접 SearchResponse 반환)
         if query_type == "nl2sql":
             log_step(request_id, "API", "3", "NL2SQL", "NL2SQL 그래프 실행 시작")
-            nl2sql_result = await nl2sql_graph.ainvoke(inputs)
-
-            # SQL 결과를 SQLResult로 변환
-            sql_result_data = None
-            if nl2sql_result.result:
-                sql_result_data = SQLResult(
-                    columns=nl2sql_result.result.columns,
-                    rows=nl2sql_result.result.rows,
-                    row_count=nl2sql_result.result.row_count,
-                    execution_time_ms=nl2sql_result.result.execution_time_ms
-                )
-
-            response = SearchResponse(
-                query=request.query,
-                answer=nl2sql_result.answer,
-                query_type="nl2sql",
-                response_time_ms=int((time.time() - start_time) * 1000),
-                sql=nl2sql_result.sql,
-                sql_result=sql_result_data,
-                sources=None,
-                metadata=nl2sql_result.metadata
-            )
-            log_step(request_id, "API", "4", "NL2SQL", "NL2SQL 그래프 실행 완료", sql_generated=bool(nl2sql_result.sql))
+            response = await nl2sql_graph.ainvoke(inputs)
+            log_step(request_id, "API", "4", "NL2SQL", "NL2SQL 그래프 실행 완료",
+                    sql_generated=bool(response.sql))
         else:  # rag
             log_step(request_id, "API", "3", "RAG", "RAG 그래프 실행 시작")
-            rag_result = await rag_graph.ainvoke(inputs)
-            response = SearchResponse(
-                query=request.query,
-                answer=rag_result.answer,
-                query_type="rag",
-                response_time_ms=int((time.time() - start_time) * 1000),
-                sql=None,
-                sql_result=None,
-                sources=rag_result.sources,
-                metadata=rag_result.metadata
-            )
-            log_step(request_id, "API", "4", "RAG", "RAG 그래프 실행 완료", sources_count=len(rag_result.sources))
+            response = await rag_graph.ainvoke(inputs)
+            log_step(request_id, "API", "4", "RAG", "RAG 그래프 실행 완료",
+                    sources_count=len(response.sources) if response.sources else 0)
 
         # STEP 5: 응답 완료
-        log_step(request_id, "API", "5", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
+        log_step(request_id, "API", "5", "RESPONSE", "응답 생성 완료",
+                query_type=response.query_type,
+                response_time_ms=response.response_time_ms,
+                answer_length=len(response.answer))
 
         logger.info(f"[{request_id}] ========== 검색 요청 처리 완료 ==========")
 
@@ -105,99 +79,6 @@ async def search(request: SearchRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"검색 중 오류가 발생했습니다: {str(e)}"
-        )
-
-
-@router.post("/rag", response_model=SearchResponse)
-async def search_rag(request: SearchRequest):
-    """RAG 검색 전용 엔드포인트"""
-    start_time = time.time()
-    request_id = str(uuid.uuid4())[:8]
-
-    try:
-        log_step(request_id, "API", "1", "RAG-API", "RAG 전용 검색 요청 수신",
-                query=request.query, top_k=request.top_k)
-
-        inputs = {
-            "question": request.query,
-            "filters": request.filters.model_dump() if request.filters else {},
-            "top_k": request.top_k,
-            "request_id": request_id
-        }
-
-        log_step(request_id, "API", "2", "RAG-API", "RAG 그래프 실행 시작")
-        result = await rag_graph.ainvoke(inputs)
-
-        log_step(request_id, "API", "3", "RAG-API", "RAG 검색 완료",
-                sources_count=len(result.sources), answer_length=len(result.answer))
-
-        return SearchResponse(
-            query=request.query,
-            answer=result.answer,
-            query_type="rag",
-            response_time_ms=int((time.time() - start_time) * 1000),
-            sql=None,
-            sql_result=None,
-            sources=result.sources,
-            metadata=result.metadata
-        )
-
-    except Exception as e:
-        logger.error(f"[{request_id}] [ERROR] RAG 검색 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"RAG 검색 중 오류가 발생했습니다: {str(e)}"
-        )
-
-
-@router.post("/nl2sql", response_model=SearchResponse)
-async def search_nl2sql(request: SearchRequest):
-    """NL2SQL 검색 전용 엔드포인트"""
-    start_time = time.time()
-    request_id = str(uuid.uuid4())[:8]
-
-    try:
-        log_step(request_id, "API", "1", "NL2SQL-API", "NL2SQL 전용 검색 요청 수신",
-                query=request.query)
-
-        inputs = {
-            "question": request.query,
-            "filters": request.filters.model_dump() if request.filters else {},
-            "request_id": request_id
-        }
-
-        log_step(request_id, "API", "2", "NL2SQL-API", "NL2SQL 그래프 실행 시작")
-        result = await nl2sql_graph.ainvoke(inputs)
-
-        log_step(request_id, "API", "3", "NL2SQL-API", "NL2SQL 검색 완료",
-                sql=result.sql, answer_length=len(result.answer))
-
-        # SQL 결과를 SQLResult로 변환
-        sql_result_data = None
-        if result.result:
-            sql_result_data = SQLResult(
-                columns=result.result.columns,
-                rows=result.result.rows,
-                row_count=result.result.row_count,
-                execution_time_ms=result.result.execution_time_ms
-            )
-
-        return SearchResponse(
-            query=request.query,
-            answer=result.answer,
-            query_type="nl2sql",
-            response_time_ms=int((time.time() - start_time) * 1000),
-            sql=result.sql,
-            sql_result=sql_result_data,
-            sources=None,
-            metadata=result.metadata
-        )
-
-    except Exception as e:
-        logger.error(f"[{request_id}] [ERROR] NL2SQL 검색 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"NL2SQL 검색 중 오류가 발생했습니다: {str(e)}"
         )
 
 
