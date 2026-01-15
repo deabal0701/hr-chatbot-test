@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from typing import Any, Dict
@@ -5,6 +6,13 @@ from typing import Any, Dict
 from pythonjsonlogger import jsonlogger
 
 from app.config import settings
+
+
+def format_value_for_log(value: Any) -> str:
+    """로그 출력을 위해 값을 포맷팅 (한글이 유니코드 이스케이프되지 않도록)"""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, default=str)
+    return str(value)
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
@@ -27,7 +35,11 @@ def setup_logger(name: str) -> logging.Logger:
 
     logger.setLevel(getattr(logging, settings.log_level))
 
-    # 콘솔 핸들러
+    # 콘솔 핸들러 (UTF-8 인코딩으로 한글 출력 지원)
+    # Windows에서 한글이 깨지지 않도록 UTF-8 스트림 사용
+    if sys.platform == 'win32':
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     handler = logging.StreamHandler(sys.stdout)
 
     # 프로덕션 환경에서는 JSON 포맷 사용
@@ -84,10 +96,11 @@ def log_step(
         >>> log_step("abc123", "RAG", "2", "LLM-OUTPUT", "답변 생성 완료", answer="재택근무 정책은...")
         [abc123] [RAG-2] [LLM-OUTPUT] 답변 생성 완료 | answer=재택근무 정책은...
     """
-    # 추가 정보를 key=value 형태로 포맷팅 (값을 자르지 않음)
+    # 추가 정보를 key=value 형태로 포맷팅 (값을 자르지 않음, 한글 유지)
     extra_parts = []
     for key, value in kwargs.items():
-        extra_parts.append(f"{key}={value}")
+        formatted_value = format_value_for_log(value)
+        extra_parts.append(f"{key}={formatted_value}")
 
     extra_info = " | ".join(extra_parts) if extra_parts else ""
 

@@ -1,0 +1,49 @@
+table_name,column_name,column_name_ko,data_type,description,is_pk,is_fk
+employee,emp_id,사원ID,bigserial,사원 ID (PK),Y,N
+employee,emp_no,사원번호,text,사원 번호 (유니크),N,N
+employee,name,사원명,text,사원명,N,N
+employee,name_en,사원영문명,text,사원 영문명,N,N
+employee,gender,성별,text,성별,N,N
+employee,birth_date,생년월일,date,생년월일,N,N
+employee,hire_date,입사일,date,입사일,N,N
+employee,position,직급,text,직급 / 직위,N,N
+employee,job_family,직무그룹,text,직무 그룹,N,N
+employee,department_id,소속부서ID,int8,소속 부서 ID,N,Y
+employee,work_location,근무지,text,근무지,N,N
+employee,employment_type,고용형태,text,고용 형태 (정규직/계약직 등),N,N
+employee,status,재직상태,text,재직 상태 (active/resigned 등),N,N
+employee,resignation_date,퇴사일,date,퇴사일,N,N
+employee,email,이메일,text,이메일 주소,N,N
+employee,phone,연락처,text,연락처,N,N
+employee,created_at,생성일시,timestamptz,생성 일시,N,N
+employee,updated_at,수정일시,timestamptz,수정 일시,N,N
+department,dept_id,부서ID,bigserial,부서 ID (PK),Y,N
+department,dept_name,부서명,text,부서명,N,N
+department,dept_code,부서코드,text,부서 코드 (유니크),N,N
+department,parent_dept_id,상위부서ID,int8,상위 부서 ID,N,Y
+department,region,지역,text,부서 지역,N,N
+department,created_at,생성일시,timestamptz,생성 일시,N,N
+department,updated_at,수정일시,timestamptz,수정 일시,N,N
+job_history,id,이력ID,bigserial,이력 ID (PK),Y,N
+job_history,emp_id,사원ID,int8,사원 ID,N,Y
+job_history,from_date,시작일자,date,시작 일자,N,N
+job_history,to_date,종료일자,date,종료 일자,N,N
+job_history,department_id,부서ID,int8,부서 ID,N,Y
+job_history,position,직급,text,직급 / 직위,N,N
+job_history,job_family,직무그룹,text,직무 그룹,N,N
+job_history,work_location,근무지,text,근무지,N,N
+job_history,change_reason,변경사유,text,변경 사유,N,N
+job_history,created_at,생성일시,timestamptz,생성 일시,N,N
+performance_review,id,성과평가ID,bigserial,성과 평가 ID (PK),Y,N
+performance_review,emp_id,사원ID,int8,평가 대상 사원 ID,N,Y
+performance_review,review_period,평가기간,text,평가 기간 (예: 2024-H1),N,N
+performance_review,reviewer_id,평가자ID,int8,평가자 사원 ID,N,Y
+performance_review,rating,평가등급,text,평가 등급,N,N
+performance_review,comments,평가의견,text,평가 의견,N,N
+performance_review,created_at,생성일시,timestamptz,생성 일시,N,N
+salary,id,급여ID,bigserial,급여 ID (PK),Y,N
+salary,emp_id,사원ID,int8,사원 ID,N,Y
+salary,effective_date,적용일자,date,급여 적용 일자,N,N
+salary,base_salary,기본급여,numeric(12_2),기본 급여,N,N
+salary,currency,통화코드,text,통화 코드 (기본: KRW),N,N
+salary,created_at,생성일시,timestamptz,생성 일시,N,N

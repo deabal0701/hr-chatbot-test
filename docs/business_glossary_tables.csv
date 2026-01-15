@@ -1,0 +1,6 @@
+table_name,table_name_ko,description
+employee,사원,사원 기본 정보 테이블
+department,부서,부서 정보 테이블
+job_history,직무이력,사원 인사 이동 및 직무 이력 테이블
+performance_review,성과평가,사원 성과 평가 테이블
+salary,급여,사원 급여 정보 테이블

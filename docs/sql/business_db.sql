@@ -124,6 +124,96 @@ CREATE INDEX idx_salary_date ON public.salary USING btree (effective_date DESC);
 CREATE INDEX idx_salary_emp ON public.salary USING btree (emp_id);
 
 
+
+
+-- =========================
+-- employee (사원 정보)
+-- =========================
+
+COMMENT ON TABLE public.employee IS '사원 기본 정보 테이블';
+
+COMMENT ON COLUMN public.employee.emp_id IS '사원 ID (PK)';
+COMMENT ON COLUMN public.employee.emp_no IS '사원 번호 (유니크)';
+COMMENT ON COLUMN public.employee."name" IS '사원명';
+COMMENT ON COLUMN public.employee.name_en IS '사원 영문명';
+COMMENT ON COLUMN public.employee.gender IS '성별';
+COMMENT ON COLUMN public.employee.birth_date IS '생년월일';
+COMMENT ON COLUMN public.employee.hire_date IS '입사일';
+COMMENT ON COLUMN public.employee."position" IS '직급 / 직위';
+COMMENT ON COLUMN public.employee.job_family IS '직무 그룹';
+COMMENT ON COLUMN public.employee.department_id IS '소속 부서 ID';
+COMMENT ON COLUMN public.employee.work_location IS '근무지';
+COMMENT ON COLUMN public.employee.employment_type IS '고용 형태 (정규직/계약직 등)';
+COMMENT ON COLUMN public.employee.status IS '재직 상태 (active, resigned 등)';
+COMMENT ON COLUMN public.employee.resignation_date IS '퇴사일';
+COMMENT ON COLUMN public.employee.email IS '이메일 주소';
+COMMENT ON COLUMN public.employee.phone IS '연락처';
+COMMENT ON COLUMN public.employee.created_at IS '생성 일시';
+COMMENT ON COLUMN public.employee.updated_at IS '수정 일시';
+
+
+-- =========================
+-- department (부서 정보)
+-- =========================
+
+COMMENT ON TABLE public.department IS '부서 정보 테이블';
+
+COMMENT ON COLUMN public.department.dept_id IS '부서 ID (PK)';
+COMMENT ON COLUMN public.department.dept_name IS '부서명';
+COMMENT ON COLUMN public.department.dept_code IS '부서 코드 (유니크)';
+COMMENT ON COLUMN public.department.parent_dept_id IS '상위 부서 ID';
+COMMENT ON COLUMN public.department.region IS '부서 지역';
+COMMENT ON COLUMN public.department.created_at IS '생성 일시';
+COMMENT ON COLUMN public.department.updated_at IS '수정 일시';
+
+
+-- =========================
+-- job_history (인사 이동 이력)
+-- =========================
+
+COMMENT ON TABLE public.job_history IS '사원 인사 이동 및 직무 이력 테이블';
+
+COMMENT ON COLUMN public.job_history.id IS '이력 ID (PK)';
+COMMENT ON COLUMN public.job_history.emp_id IS '사원 ID';
+COMMENT ON COLUMN public.job_history.from_date IS '시작 일자';
+COMMENT ON COLUMN public.job_history.to_date IS '종료 일자';
+COMMENT ON COLUMN public.job_history.department_id IS '부서 ID';
+COMMENT ON COLUMN public.job_history."position" IS '직급 / 직위';
+COMMENT ON COLUMN public.job_history.job_family IS '직무 그룹';
+COMMENT ON COLUMN public.job_history.work_location IS '근무지';
+COMMENT ON COLUMN public.job_history.change_reason IS '변경 사유';
+COMMENT ON COLUMN public.job_history.created_at IS '생성 일시';
+
+
+-- =========================
+-- performance_review (성과 평가)
+-- =========================
+
+COMMENT ON TABLE public.performance_review IS '사원 성과 평가 테이블';
+
+COMMENT ON COLUMN public.performance_review.id IS '성과 평가 ID (PK)';
+COMMENT ON COLUMN public.performance_review.emp_id IS '평가 대상 사원 ID';
+COMMENT ON COLUMN public.performance_review.review_period IS '평가 기간 (예: 2024-H1)';
+COMMENT ON COLUMN public.performance_review.reviewer_id IS '평가자 사원 ID';
+COMMENT ON COLUMN public.performance_review.rating IS '평가 등급';
+COMMENT ON COLUMN public.performance_review."comments" IS '평가 의견';
+COMMENT ON COLUMN public.performance_review.created_at IS '생성 일시';
+
+
+-- =========================
+-- salary (급여 정보)
+-- =========================
+
+COMMENT ON TABLE public.salary IS '사원 급여 정보 테이블';
+
+COMMENT ON COLUMN public.salary.id IS '급여 ID (PK)';
+COMMENT ON COLUMN public.salary.emp_id IS '사원 ID';
+COMMENT ON COLUMN public.salary.effective_date IS '급여 적용 일자';
+COMMENT ON COLUMN public.salary.base_salary IS '기본 급여';
+COMMENT ON COLUMN public.salary.currency IS '통화 코드 (기본: KRW)';
+COMMENT ON COLUMN public.salary.created_at IS '생성 일시';
+
+
 -- =========================================
 -- Test Data Insertion Order:
 -- 1. department (기준 테이블)

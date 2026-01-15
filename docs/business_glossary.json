@@ -1,0 +1,175 @@
+{
+  "version": "1.0",
+  "created_at": "2025-01-15",
+  "description": "HR 시스템 비즈니스 용어사전",
+  "tables": [
+    {
+      "table_name": "employee",
+      "table_name_ko": "사원",
+      "description": "사원 기본 정보 테이블",
+      "columns": [
+        {"column_name": "emp_id", "column_name_ko": "사원ID", "data_type": "bigserial", "description": "사원 ID (PK)", "is_pk": true, "is_fk": false},
+        {"column_name": "emp_no", "column_name_ko": "사원번호", "data_type": "text", "description": "사원 번호 (유니크)", "is_pk": false, "is_fk": false},
+        {"column_name": "name", "column_name_ko": "사원명", "data_type": "text", "description": "사원명", "is_pk": false, "is_fk": false},
+        {"column_name": "name_en", "column_name_ko": "사원영문명", "data_type": "text", "description": "사원 영문명", "is_pk": false, "is_fk": false},
+        {"column_name": "gender", "column_name_ko": "성별", "data_type": "text", "description": "성별", "is_pk": false, "is_fk": false},
+        {"column_name": "birth_date", "column_name_ko": "생년월일", "data_type": "date", "description": "생년월일", "is_pk": false, "is_fk": false},
+        {"column_name": "hire_date", "column_name_ko": "입사일", "data_type": "date", "description": "입사일", "is_pk": false, "is_fk": false},
+        {"column_name": "position", "column_name_ko": "직급", "data_type": "text", "description": "직급 / 직위", "is_pk": false, "is_fk": false},
+        {"column_name": "job_family", "column_name_ko": "직무그룹", "data_type": "text", "description": "직무 그룹", "is_pk": false, "is_fk": false},
+        {"column_name": "department_id", "column_name_ko": "소속부서ID", "data_type": "int8", "description": "소속 부서 ID", "is_pk": false, "is_fk": true, "fk_reference": "department.dept_id"},
+        {"column_name": "work_location", "column_name_ko": "근무지", "data_type": "text", "description": "근무지", "is_pk": false, "is_fk": false},
+        {"column_name": "employment_type", "column_name_ko": "고용형태", "data_type": "text", "description": "고용 형태 (정규직/계약직 등)", "is_pk": false, "is_fk": false},
+        {"column_name": "status", "column_name_ko": "재직상태", "data_type": "text", "description": "재직 상태 (active/resigned 등)", "is_pk": false, "is_fk": false},
+        {"column_name": "resignation_date", "column_name_ko": "퇴사일", "data_type": "date", "description": "퇴사일", "is_pk": false, "is_fk": false},
+        {"column_name": "email", "column_name_ko": "이메일", "data_type": "text", "description": "이메일 주소", "is_pk": false, "is_fk": false},
+        {"column_name": "phone", "column_name_ko": "연락처", "data_type": "text", "description": "연락처", "is_pk": false, "is_fk": false},
+        {"column_name": "created_at", "column_name_ko": "생성일시", "data_type": "timestamptz", "description": "생성 일시", "is_pk": false, "is_fk": false},
+        {"column_name": "updated_at", "column_name_ko": "수정일시", "data_type": "timestamptz", "description": "수정 일시", "is_pk": false, "is_fk": false}
+      ]
+    },
+    {
+      "table_name": "department",
+      "table_name_ko": "부서",
+      "description": "부서 정보 테이블",
+      "columns": [
+        {"column_name": "dept_id", "column_name_ko": "부서ID", "data_type": "bigserial", "description": "부서 ID (PK)", "is_pk": true, "is_fk": false},
+        {"column_name": "dept_name", "column_name_ko": "부서명", "data_type": "text", "description": "부서명", "is_pk": false, "is_fk": false},
+        {"column_name": "dept_code", "column_name_ko": "부서코드", "data_type": "text", "description": "부서 코드 (유니크)", "is_pk": false, "is_fk": false},
+        {"column_name": "parent_dept_id", "column_name_ko": "상위부서ID", "data_type": "int8", "description": "상위 부서 ID", "is_pk": false, "is_fk": true, "fk_reference": "department.dept_id"},
+        {"column_name": "region", "column_name_ko": "지역", "data_type": "text", "description": "부서 지역", "is_pk": false, "is_fk": false},
+        {"column_name": "created_at", "column_name_ko": "생성일시", "data_type": "timestamptz", "description": "생성 일시", "is_pk": false, "is_fk": false},
+        {"column_name": "updated_at", "column_name_ko": "수정일시", "data_type": "timestamptz", "description": "수정 일시", "is_pk": false, "is_fk": false}
+      ]
+    },
+    {
+      "table_name": "job_history",
+      "table_name_ko": "직무이력",
+      "description": "사원 인사 이동 및 직무 이력 테이블",
+      "columns": [
+        {"column_name": "id", "column_name_ko": "이력ID", "data_type": "bigserial", "description": "이력 ID (PK)", "is_pk": true, "is_fk": false},
+        {"column_name": "emp_id", "column_name_ko": "사원ID", "data_type": "int8", "description": "사원 ID", "is_pk": false, "is_fk": true, "fk_reference": "employee.emp_id"},
+        {"column_name": "from_date", "column_name_ko": "시작일자", "data_type": "date", "description": "시작 일자", "is_pk": false, "is_fk": false},
+        {"column_name": "to_date", "column_name_ko": "종료일자", "data_type": "date", "description": "종료 일자", "is_pk": false, "is_fk": false},
+        {"column_name": "department_id", "column_name_ko": "부서ID", "data_type": "int8", "description": "부서 ID", "is_pk": false, "is_fk": true, "fk_reference": "department.dept_id"},
+        {"column_name": "position", "column_name_ko": "직급", "data_type": "text", "description": "직급 / 직위", "is_pk": false, "is_fk": false},
+        {"column_name": "job_family", "column_name_ko": "직무그룹", "data_type": "text", "description": "직무 그룹", "is_pk": false, "is_fk": false},
+        {"column_name": "work_location", "column_name_ko": "근무지", "data_type": "text", "description": "근무지", "is_pk": false, "is_fk": false},
+        {"column_name": "change_reason", "column_name_ko": "변경사유", "data_type": "text", "description": "변경 사유", "is_pk": false, "is_fk": false},
+        {"column_name": "created_at", "column_name_ko": "생성일시", "data_type": "timestamptz", "description": "생성 일시", "is_pk": false, "is_fk": false}
+      ]
+    },
+    {
+      "table_name": "performance_review",
+      "table_name_ko": "성과평가",
+      "description": "사원 성과 평가 테이블",
+      "columns": [
+        {"column_name": "id", "column_name_ko": "성과평가ID", "data_type": "bigserial", "description": "성과 평가 ID (PK)", "is_pk": true, "is_fk": false},
+        {"column_name": "emp_id", "column_name_ko": "사원ID", "data_type": "int8", "description": "평가 대상 사원 ID", "is_pk": false, "is_fk": true, "fk_reference": "employee.emp_id"},
+        {"column_name": "review_period", "column_name_ko": "평가기간", "data_type": "text", "description": "평가 기간 (예: 2024-H1)", "is_pk": false, "is_fk": false},
+        {"column_name": "reviewer_id", "column_name_ko": "평가자ID", "data_type": "int8", "description": "평가자 사원 ID", "is_pk": false, "is_fk": true, "fk_reference": "employee.emp_id"},
+        {"column_name": "rating", "column_name_ko": "평가등급", "data_type": "text", "description": "평가 등급", "is_pk": false, "is_fk": false},
+        {"column_name": "comments", "column_name_ko": "평가의견", "data_type": "text", "description": "평가 의견", "is_pk": false, "is_fk": false},
+        {"column_name": "created_at", "column_name_ko": "생성일시", "data_type": "timestamptz", "description": "생성 일시", "is_pk": false, "is_fk": false}
+      ]
+    },
+    {
+      "table_name": "salary",
+      "table_name_ko": "급여",
+      "description": "사원 급여 정보 테이블",
+      "columns": [
+        {"column_name": "id", "column_name_ko": "급여ID", "data_type": "bigserial", "description": "급여 ID (PK)", "is_pk": true, "is_fk": false},
+        {"column_name": "emp_id", "column_name_ko": "사원ID", "data_type": "int8", "description": "사원 ID", "is_pk": false, "is_fk": true, "fk_reference": "employee.emp_id"},
+        {"column_name": "effective_date", "column_name_ko": "적용일자", "data_type": "date", "description": "급여 적용 일자", "is_pk": false, "is_fk": false},
+        {"column_name": "base_salary", "column_name_ko": "기본급여", "data_type": "numeric(12,2)", "description": "기본 급여", "is_pk": false, "is_fk": false},
+        {"column_name": "currency", "column_name_ko": "통화코드", "data_type": "text", "description": "통화 코드 (기본: KRW)", "is_pk": false, "is_fk": false},
+        {"column_name": "created_at", "column_name_ko": "생성일시", "data_type": "timestamptz", "description": "생성 일시", "is_pk": false, "is_fk": false}
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "domain_name": "position",
+      "domain_name_ko": "직급",
+      "description": "사원 직급/직위 구분",
+      "values": [
+        {"code": "사원", "code_ko": "사원", "description": "신입/초급 직급"},
+        {"code": "대리", "code_ko": "대리", "description": "주니어 직급"},
+        {"code": "과장", "code_ko": "과장", "description": "중간 관리직"},
+        {"code": "차장", "code_ko": "차장", "description": "상위 관리직"},
+        {"code": "부장", "code_ko": "부장", "description": "부서 관리직"}
+      ]
+    },
+    {
+      "domain_name": "job_family",
+      "domain_name_ko": "직무그룹",
+      "description": "직무 분류 그룹",
+      "values": [
+        {"code": "개발", "code_ko": "개발", "description": "소프트웨어 개발 직군"},
+        {"code": "영업", "code_ko": "영업", "description": "영업/세일즈 직군"},
+        {"code": "HR", "code_ko": "HR", "description": "인사/HR 직군"},
+        {"code": "마케팅", "code_ko": "마케팅", "description": "마케팅 직군"},
+        {"code": "기획", "code_ko": "기획", "description": "기획/전략 직군"},
+        {"code": "디자인", "code_ko": "디자인", "description": "디자인 직군"}
+      ]
+    },
+    {
+      "domain_name": "work_location",
+      "domain_name_ko": "근무지",
+      "description": "근무 장소",
+      "values": [
+        {"code": "서울", "code_ko": "서울", "description": "서울 본사"},
+        {"code": "판교", "code_ko": "판교", "description": "판교 오피스"},
+        {"code": "부산", "code_ko": "부산", "description": "부산 지사"}
+      ]
+    },
+    {
+      "domain_name": "employment_type",
+      "domain_name_ko": "고용형태",
+      "description": "고용 계약 유형",
+      "values": [
+        {"code": "정규직", "code_ko": "정규직", "description": "정규 고용"},
+        {"code": "계약직", "code_ko": "계약직", "description": "기간제 고용"}
+      ]
+    },
+    {
+      "domain_name": "status",
+      "domain_name_ko": "재직상태",
+      "description": "직원 재직 상태",
+      "values": [
+        {"code": "active", "code_ko": "재직", "description": "현재 근무 중"},
+        {"code": "resigned", "code_ko": "퇴직", "description": "퇴사 완료"}
+      ]
+    },
+    {
+      "domain_name": "rating",
+      "domain_name_ko": "평가등급",
+      "description": "성과 평가 등급",
+      "values": [
+        {"code": "S", "code_ko": "S등급", "description": "최우수 (탁월)"},
+        {"code": "A", "code_ko": "A등급", "description": "우수"},
+        {"code": "B", "code_ko": "B등급", "description": "보통"},
+        {"code": "C", "code_ko": "C등급", "description": "미흡"},
+        {"code": "D", "code_ko": "D등급", "description": "부진"}
+      ]
+    },
+    {
+      "domain_name": "currency",
+      "domain_name_ko": "통화",
+      "description": "급여 통화 단위",
+      "values": [
+        {"code": "KRW", "code_ko": "원화", "description": "대한민국 원"}
+      ]
+    },
+    {
+      "domain_name": "region",
+      "domain_name_ko": "지역",
+      "description": "부서 소속 지역",
+      "values": [
+        {"code": "서울", "code_ko": "서울", "description": "서울 지역"},
+        {"code": "판교", "code_ko": "판교", "description": "판교 지역"},
+        {"code": "부산", "code_ko": "부산", "description": "부산 지역"}
+      ]
+    }
+  ]
+}

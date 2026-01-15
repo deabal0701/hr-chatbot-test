@@ -57,8 +57,9 @@ export default {
     userRole: 'admin',    // 'admin' | 'user'
     sidebarCollapsed: false,
 
-    // 사용자 채팅 사이드바 상태
-    userSidebarVisible: true,
+    // 사용자 채팅 사이드바 상태 (현재 비활성화 - 열지 못하도록 설정)
+    userSidebarVisible: false,
+    userSidebarEnabled: false,  // 사이드바 활성화 여부 (false면 열 수 없음)
 
     // 앱 설정
     apiHealthy: true,
@@ -123,10 +124,23 @@ export default {
       }
     },
     TOGGLE_USER_SIDEBAR(state) {
-      state.userSidebarVisible = !state.userSidebarVisible
+      // 사이드바가 활성화된 경우에만 토글 허용
+      if (state.userSidebarEnabled) {
+        state.userSidebarVisible = !state.userSidebarVisible
+      }
     },
     SET_USER_SIDEBAR_VISIBLE(state, visible) {
-      state.userSidebarVisible = visible
+      // 사이드바가 활성화된 경우에만 visible 변경 허용
+      if (state.userSidebarEnabled) {
+        state.userSidebarVisible = visible
+      }
+    },
+    SET_USER_SIDEBAR_ENABLED(state, enabled) {
+      state.userSidebarEnabled = enabled
+      // 비활성화 시 사이드바도 닫음
+      if (!enabled) {
+        state.userSidebarVisible = false
+      }
     }
   },
 
@@ -139,7 +153,8 @@ export default {
     isUserDarkMode: (state) => state.userDarkMode,
     isAdminDarkMode: (state) => state.adminDarkMode,
     currentView: (state) => state.currentView,
-    isUserSidebarVisible: (state) => state.userSidebarVisible
+    isUserSidebarVisible: (state) => state.userSidebarVisible,
+    isUserSidebarEnabled: (state) => state.userSidebarEnabled
   },
 
   actions: {
@@ -181,6 +196,9 @@ export default {
     },
     setUserSidebarVisible({ commit }, visible) {
       commit('SET_USER_SIDEBAR_VISIBLE', visible)
+    },
+    setUserSidebarEnabled({ commit }, enabled) {
+      commit('SET_USER_SIDEBAR_ENABLED', enabled)
     }
   }
 }

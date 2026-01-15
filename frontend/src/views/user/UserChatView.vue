@@ -92,7 +92,12 @@
     <footer class="chat-footer">
       <div class="input-container">
         <div class="input-wrapper">
-          <!-- 모드 선택 드롭다운 -->
+          <!-- 모드 표시 (NL2SQL 고정 - 추후 원복 예정) -->
+          <div class="mode-btn mode-fixed">
+            <el-icon><DataLine /></el-icon>
+            <span>NL2SQL</span>
+          </div>
+          <!-- 모드 선택 드롭다운 (비활성화됨 - 추후 원복 예정)
           <el-dropdown trigger="click" popper-class="dark-dropdown-popper" @command="handleModeChange">
             <button class="mode-btn">
               <el-icon><Operation /></el-icon>
@@ -140,6 +145,7 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          -->
 
           <!-- 텍스트 입력 -->
           <textarea
@@ -621,6 +627,17 @@ watch(messages, async () => {
   .arrow {
     font-size: 12px;
     color: var(--text-color-secondary);
+  }
+
+  // NL2SQL 고정 모드 스타일 (추후 원복 예정)
+  &.mode-fixed {
+    cursor: default;
+    background-color: #6b7280;
+    color: #ffffff;
+
+    &:hover {
+      background-color: #6b7280;
+    }
   }
 }
 

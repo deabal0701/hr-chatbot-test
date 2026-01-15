@@ -1,0 +1,28 @@
+domain,code,code_ko,description
+position,사원,사원,신입/초급 직급
+position,대리,대리,주니어 직급
+position,과장,과장,중간 관리직
+position,차장,차장,상위 관리직
+position,부장,부장,부서 관리직
+job_family,개발,개발,소프트웨어 개발 직군
+job_family,영업,영업,영업/세일즈 직군
+job_family,HR,HR,인사/HR 직군
+job_family,마케팅,마케팅,마케팅 직군
+job_family,기획,기획,기획/전략 직군
+job_family,디자인,디자인,디자인 직군
+work_location,서울,서울,서울 본사
+work_location,판교,판교,판교 오피스
+work_location,부산,부산,부산 지사
+employment_type,정규직,정규직,정규 고용
+employment_type,계약직,계약직,기간제 고용
+status,active,재직,현재 근무 중
+status,resigned,퇴직,퇴사 완료
+rating,S,S등급,최우수 (탁월)
+rating,A,A등급,우수
+rating,B,B등급,보통
+rating,C,C등급,미흡
+rating,D,D등급,부진
+currency,KRW,원화,대한민국 원
+region,서울,서울,서울 지역
+region,판교,판교,판교 지역
+region,부산,부산,부산 지역

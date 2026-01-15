@@ -7,20 +7,20 @@
       @click="closeSidebar"
     />
 
-    <!-- Desktop sidebar toggle button (when collapsed) -->
-    <button
-      v-if="!sidebarVisible && !isMobile"
+    <!-- Desktop sidebar toggle button (when collapsed) - 현재 비활성화 -->
+    <!-- <button
+      v-if="!sidebarVisible && !isMobile && sidebarEnabled"
       class="sidebar-expand-btn"
       @click="toggleSidebar"
       title="사이드바 열기"
     >
       <el-icon :size="20"><Expand /></el-icon>
-    </button>
+    </button> -->
 
-    <!-- Sidebar -->
-    <transition name="sidebar-slide">
+    <!-- Sidebar - 현재 비활성화 -->
+    <!-- <transition name="sidebar-slide">
       <UserChatSidebar
-        v-show="sidebarVisible"
+        v-show="sidebarVisible && sidebarEnabled"
         :class="{ 'mobile-visible': sidebarVisible && isMobile }"
         :is-mobile="isMobile"
         @new-chat="handleNewChat"
@@ -28,7 +28,7 @@
         @close="closeSidebar"
         @toggle="toggleSidebar"
       />
-    </transition>
+    </transition> -->
 
     <!-- Main Chat Area -->
     <div class="chat-area">
@@ -36,15 +36,15 @@
       <header v-if="!isMobile" class="desktop-header">
         <div class="header-left"></div>
         <div class="header-actions">
-          <!-- 테마 토글 버튼 (아이콘만) -->
-          <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
+          <!-- 테마 토글 버튼 (아이콘만) - 현재 비활성화 -->
+          <!-- <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
             <el-button
               circle
               :icon="isDarkMode ? Sunny : Moon"
               @click="toggleDarkMode"
               class="theme-toggle-btn"
             />
-          </el-tooltip>
+          </el-tooltip> -->
           <button class="action-btn" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
             <span>공유하기</span>
@@ -58,15 +58,16 @@
 
       <!-- Mobile header with toggle -->
       <header v-if="isMobile" class="mobile-header">
-        <button class="sidebar-toggle-btn" @click="toggleSidebar">
+        <!-- 사이드바 토글 버튼 - 현재 비활성화 -->
+        <!-- <button v-if="sidebarEnabled" class="sidebar-toggle-btn" @click="toggleSidebar">
           <el-icon :size="20"><Menu /></el-icon>
-        </button>
+        </button> -->
         <h1 class="logo-text">MUREUM</h1>
         <div class="header-actions-mobile">
-          <!-- 테마 토글 버튼 -->
-          <button class="action-btn-icon" @click="toggleDarkMode" :title="isDarkMode ? '라이트 모드' : '다크 모드'">
+          <!-- 테마 토글 버튼 - 현재 비활성화 -->
+          <!-- <button class="action-btn-icon" @click="toggleDarkMode" :title="isDarkMode ? '라이트 모드' : '다크 모드'">
             <el-icon :size="18"><Sunny v-if="isDarkMode" /><Moon v-else /></el-icon>
-          </button>
+          </button> -->
           <button class="action-btn-icon" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
           </button>
@@ -85,9 +86,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
-import { Menu, Expand, Share, Download, Sunny, Moon } from '@element-plus/icons-vue'
+import { Share, Download, Sunny, Moon } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
+// import UserChatSidebar from '@/components/user/UserChatSidebar.vue'  // 사이드바 비활성화
 import UserChatView from '@/views/user/UserChatView.vue'
 
 const store = useStore()
@@ -97,6 +98,7 @@ const MOBILE_BREAKPOINT = 768
 
 const isMobile = computed(() => windowWidth.value <= MOBILE_BREAKPOINT)
 const sidebarVisible = computed(() => store.state.app.userSidebarVisible)
+const sidebarEnabled = computed(() => store.state.app.userSidebarEnabled)
 
 // 테마 관련
 const isDarkMode = computed(() => store.getters['app/isDarkMode'])
