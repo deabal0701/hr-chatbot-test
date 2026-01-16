@@ -180,12 +180,11 @@ class RAGGraph:
         for i, doc in enumerate(documents, 1):
             # 문서 정보
             similarity = doc.similarity_score if doc.similarity_score is not None else 0.0
-            doc_info = f"""
-[문서 {i}]
+            doc_info = f"""[문서 {i}]
 제목: {doc.title}
 유형: {doc.doc_type}
 유사도: {similarity:.2f}
-내용: {doc.content_snippet}
+내용: {doc.content}
 """
             context_parts.append(doc_info)
 

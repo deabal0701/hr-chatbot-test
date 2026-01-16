@@ -248,7 +248,7 @@ class VectorStoreService:
                     logger.info(f"  -> 임계값 미달로 제외됨 (similarity={similarity:.4f} < {similarity_threshold})")
                     continue
 
-                # 컨텐츠 스니펫 생성
+                # 컨텐츠 스니펫 생성(미리보기 필요시)
                 content = row.get('content', '')
                 snippet = self._create_snippet(content)
 
@@ -256,6 +256,7 @@ class VectorStoreService:
                     id=row['id'],
                     title=row['title'],
                     doc_type=row['doc_type'],
+                    content=content,   # 문서 전체 내용
                     content_snippet=snippet,
                     metadata=row.get('metadata', {}),
                     similarity_score=round(similarity, 4)

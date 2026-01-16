@@ -63,7 +63,8 @@ class DocumentSource(BaseModel):
     id: int
     title: str
     doc_type: str
-    content_snippet: str
+    content: str  # RAG 전체 내용을 담은 Content
+    content_snippet: str  # 추후 필요하면 미리보기 정도 에 사용함.
     metadata: Dict[str, Any]
     similarity_score: Optional[float] = None
 
