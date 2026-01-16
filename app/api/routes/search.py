@@ -30,19 +30,15 @@ async def search(request: SearchRequest):
 
     try:
         # STEP 1: 사용자 요청 수신
-        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신",
-                query=request.query, mode=request.mode, top_k=request.top_k)
+        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신", query=request.query, mode=request.mode, top_k=request.top_k)
 
         # STEP 2: 모드 결정
         if request.mode == "auto":
             query_type = _classify_query_intent(request.query)
-            log_step(request_id, "API", "2", "CLASSIFY",
-                    f"자동 분류 완료 → {query_type.upper()}",
-                    original_mode="auto", detected_type=query_type)
+            log_step(request_id, "API", "2", "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
         else:
             query_type = request.mode
-            log_step(request_id, "API", "2", "CLASSIFY",
-                    f"사용자 지정 모드 사용 → {query_type.upper()}")
+            log_step(request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
         # 입력 데이터 구성
         inputs = {
@@ -51,13 +47,12 @@ async def search(request: SearchRequest):
             "top_k": request.top_k,
             "request_id": request_id
         }
-
+        
         # STEP 3: 검색 실행 (Graph가 직접 SearchResponse 반환)
         if query_type == "nl2sql":
             log_step(request_id, "API", "3", "NL2SQL", "NL2SQL 그래프 실행 시작")
             response = await nl2sql_graph.ainvoke(inputs)
-            log_step(request_id, "API", "4", "NL2SQL", "NL2SQL 그래프 실행 완료",
-                    sql_generated=bool(response.sql))
+            log_step(request_id, "API", "4", "NL2SQL", "NL2SQL 그래프 실행 완료", sql_generated=bool(response.sql))
         else:  # rag
             log_step(request_id, "API", "3", "RAG", "RAG 그래프 실행 시작")
             response = await rag_graph.ainvoke(inputs)

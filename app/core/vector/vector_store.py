@@ -636,23 +636,12 @@ class VectorStoreService:
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
-                INSERT INTO hr_docs (
-                    title, doc_type, language, content, metadata,
-                    indexed, source_type, source_file, content_hash,
-                    chunk_index, total_chunks
-                )
+                INSERT INTO hr_docs ( title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash,chunk_index, total_chunks)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                title,
-                doc_type,
-                language,
-                content,
-                psycopg.types.json.Json(metadata or {}),
+            """, ( title, doc_type, language, content,  psycopg.types.json.Json(metadata or {}),
                 False,  # indexed = False (임베딩 없음)
-                source_type,
-                source_file,
-                content_hash,
+                source_type, source_file, content_hash,
                 0,  # chunk_index
                 1   # total_chunks (아직 청킹 안됨)
             ))
