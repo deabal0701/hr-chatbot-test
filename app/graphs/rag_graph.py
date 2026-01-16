@@ -4,7 +4,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.config import settings
-from app.models.schemas import DocumentSource, SearchFilters, SearchResponse
+from app.models.rag import DocumentSource
+from app.models.search import SearchFilters, SearchResponse
 from app.core.config.settings_service import settings_service
 from app.core.vector.vector_store import vector_store
 from app.core.llm.prompt_service import prompt_service

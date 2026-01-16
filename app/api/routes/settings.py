@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 import httpx
 
-from app.models.schemas import (
+from app.models.settings import (
     SettingItemResponse,
     SettingsCategoryResponse,
     AllSettingsResponse,

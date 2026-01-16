@@ -13,7 +13,8 @@ import psycopg
 from langchain_openai import OpenAIEmbeddings
 
 from app.config import settings
-from app.models.schemas import DocumentSource, SearchFilters
+from app.models.rag import DocumentSource
+from app.models.search import SearchFilters
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)

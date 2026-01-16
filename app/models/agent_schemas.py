@@ -1,16 +1,11 @@
 """
 Agent 전용 스키마
 
-확장성:
-- AgentMemory: 대화 메모리 (멀티턴 지원)
-- AgentConfig: Agent 설정 (동적 조정)
-- AgentMetrics: Agent 성능 메트릭
+Agent 요청/응답 및 실행 단계 관련 모델
 """
-
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
-from langchain_core.messages import BaseMessage
 
 
 class AgentSQLResult(BaseModel):
@@ -43,52 +38,6 @@ class AgentStep(BaseModel):
                 "timestamp": "2024-01-04T10:30:00"
             }
         }
-
-
-class AgentMemory(BaseModel):
-    """
-    [DEPRECATED] Agent 대화 메모리 (멀티턴 지원)
-
-    이 클래스는 더 이상 사용되지 않습니다.
-    InMemorySaver가 자동으로 대화 히스토리를 관리합니다.
-
-    보존 이유: 기존 코드와의 호환성 유지
-    """
-    session_id: str = Field(..., description="세션 ID")
-    messages: List[Dict[str, Any]] = Field(default_factory=list, description="메시지 히스토리")
-    summary: Optional[str] = Field(None, description="대화 요약 (장기 메모리)")
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
-
-    def add_message(self, role: str, content: str):
-        """메시지 추가"""
-        self.messages.append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat()
-        })
-        self.updated_at = datetime.now()
-
-    def get_recent_messages(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """최근 N개 메시지 가져오기"""
-        return self.messages[-limit:]
-
-    def get_context_string(self, max_length: int = 2000) -> str:
-        """
-        컨텍스트 문자열 생성 (프롬프트에 포함용)
-
-        확장: 토큰 수 기반 제한
-        """
-        recent = self.get_recent_messages(limit=5)
-        context = "\n".join([
-            f"{msg['role']}: {msg['content']}"
-            for msg in recent
-        ])
-
-        if len(context) > max_length:
-            context = context[-max_length:]
-
-        return context
 
 
 class AgentConfig(BaseModel):
@@ -190,114 +139,3 @@ class AgentResponse(BaseModel):
                 "session_id": "user123-session456"
             }
         }
-
-
-class AgentMetrics(BaseModel):
-    """
-    [DEPRECATED] Agent 성능 메트릭
-
-    이 클래스는 더 이상 사용되지 않습니다.
-    InMemorySaver는 자동 메트릭 추적을 제공하지 않습니다.
-
-    상세 메트릭이 필요한 경우 Prometheus, OpenTelemetry 등 별도 시스템 사용 권장
-
-    보존 이유: 기존 코드와의 호환성 유지
-    """
-    session_id: str
-    total_requests: int = 0
-    total_iterations: int = 0
-    total_tools_called: int = 0
-    avg_response_time_ms: float = 0.0
-    success_rate: float = 0.0
-    tool_usage: Dict[str, int] = Field(default_factory=dict)  # {tool_name: count}
-    error_types: Dict[str, int] = Field(default_factory=dict)  # {error_type: count}
-
-    def record_request(
-        self,
-        iterations: int,
-        tools_used: List[str],
-        response_time_ms: int,
-        success: bool,
-        error_type: Optional[str] = None
-    ):
-        """요청 메트릭 기록"""
-        self.total_requests += 1
-        self.total_iterations += iterations
-        self.total_tools_called += len(tools_used)
-
-        # 평균 응답 시간 업데이트
-        total_time = self.avg_response_time_ms * (self.total_requests - 1) + response_time_ms
-        self.avg_response_time_ms = total_time / self.total_requests
-
-        # 성공률 업데이트
-        if success:
-            success_count = int(self.success_rate * (self.total_requests - 1)) + 1
-            self.success_rate = success_count / self.total_requests
-        else:
-            success_count = int(self.success_rate * (self.total_requests - 1))
-            self.success_rate = success_count / self.total_requests
-
-        # 도구 사용 통계
-        for tool in tools_used:
-            self.tool_usage[tool] = self.tool_usage.get(tool, 0) + 1
-
-        # 에러 타입 통계
-        if error_type:
-            self.error_types[error_type] = self.error_types.get(error_type, 0) + 1
-
-
-class SessionMemoryStore:
-    """
-    [DEPRECATED] 세션별 메모리 저장소 (싱글톤)
-
-    이 클래스는 더 이상 사용되지 않습니다.
-    InMemorySaver가 LangGraph의 checkpointer로 대화 히스토리를 관리합니다.
-
-    보존 이유: 기존 코드와의 호환성 유지 (향후 제거 예정)
-
-    마이그레이션:
-    - LangGraph의 InMemorySaver 사용
-    - thread_id를 통한 세션 관리
-    - checkpointer.get(config) / checkpointer.storage로 접근
-    """
-    _instance = None
-    _memories: Dict[str, AgentMemory] = {}
-    _metrics: Dict[str, AgentMetrics] = {}
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def get_memory(self, session_id: str) -> AgentMemory:
-        """[DEPRECATED] 메모리 가져오기 (없으면 생성)"""
-        if session_id not in self._memories:
-            self._memories[session_id] = AgentMemory(session_id=session_id)
-        return self._memories[session_id]
-
-    def clear_memory(self, session_id: str):
-        """[DEPRECATED] 메모리 삭제"""
-        if session_id in self._memories:
-            del self._memories[session_id]
-
-    def get_metrics(self, session_id: str) -> AgentMetrics:
-        """[DEPRECATED] 메트릭 가져오기 (없으면 생성)"""
-        if session_id not in self._metrics:
-            self._metrics[session_id] = AgentMetrics(session_id=session_id)
-        return self._metrics[session_id]
-
-    def list_sessions(self) -> List[str]:
-        """[DEPRECATED] 활성 세션 목록"""
-        return list(self._memories.keys())
-
-    def cleanup_old_sessions(self, max_age_hours: int = 24):
-        """
-        [DEPRECATED] 오래된 세션 정리
-        """
-        pass
-
-
-# [DEPRECATED] 글로벌 메모리 저장소 인스턴스
-# InMemorySaver로 마이그레이션됨
-# 이 인스턴스는 하위 호환성을 위해서만 유지됨
-session_memory_store = SessionMemoryStore()

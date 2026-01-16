@@ -11,8 +11,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.models.schemas import (
-    # 문서 CRUD
+from app.models.common import MessageResponse
+from app.models.documents import (
     DocumentSaveRequest,
     DocumentSaveResponse,
     DocumentUpdateRequest,
@@ -20,17 +20,8 @@ from app.models.schemas import (
     DocumentListItem,
     DocumentListResponse,
     DocumentDeleteResponse,
-    BulkDeleteRequest,
-    BulkDeleteResponse,
-    # 청킹/임베딩
-    ChunkPreviewRequest,
-    ChunkPreviewItem,
-    ChunkPreviewResponse,
-    ChunkExecuteRequest,
-    ChunkExecuteResultItem,
-    ChunkExecuteResponse,
-    # 공통
-    MessageResponse,
+    BulkDelete,
+    Chunking,
 )
 from app.core.vector.vector_store import vector_store
 from app.utils.logger import setup_logger
@@ -237,8 +228,8 @@ async def delete_document(doc_id: int):
         )
 
 
-@router.post("/bulk-delete", response_model=BulkDeleteResponse)
-async def bulk_delete_documents(request: BulkDeleteRequest):
+@router.post("/bulk-delete", response_model=BulkDelete.Response)
+async def bulk_delete_documents(request: BulkDelete.Request):
     """
     문서 일괄 삭제
 
@@ -248,7 +239,7 @@ async def bulk_delete_documents(request: BulkDeleteRequest):
     try:
         result = vector_store.bulk_delete_documents(request.doc_ids)
 
-        return BulkDeleteResponse(
+        return BulkDelete.Response(
             success=len(result['failed_ids']) == 0,
             message=f"{result['total_deleted']}개 문서 삭제 완료" +
                     (f", {len(result['failed_ids'])}개 실패" if result['failed_ids'] else ""),
@@ -269,8 +260,8 @@ async def bulk_delete_documents(request: BulkDeleteRequest):
 # 임베딩/청킹 관리
 # ============================================
 
-@router.post("/embedding/execute", response_model=ChunkExecuteResponse)
-async def execute_embedding(request: ChunkExecuteRequest):
+@router.post("/embedding/execute", response_model=Chunking.ExecuteResponse)
+async def execute_embedding(request: Chunking.ExecuteRequest):
     """
     임베딩 실행 (청킹 포함)
 
@@ -294,13 +285,13 @@ async def execute_embedding(request: ChunkExecuteRequest):
         success_count = sum(1 for r in results if r['success'])
         failed_count = len(results) - success_count
 
-        return ChunkExecuteResponse(
+        return Chunking.ExecuteResponse(
             success=failed_count == 0,
             message=f"{success_count}개 문서 임베딩 완료" + (f", {failed_count}개 실패" if failed_count > 0 else ""),
             total_requested=len(request.doc_ids),
             total_success=success_count,
             total_failed=failed_count,
-            results=[ChunkExecuteResultItem(**r) for r in results]
+            results=[Chunking.ExecuteResultItem(**r) for r in results]
         )
 
     except Exception as e:
@@ -311,8 +302,8 @@ async def execute_embedding(request: ChunkExecuteRequest):
         )
 
 
-@router.post("/embedding/preview", response_model=ChunkPreviewResponse)
-async def preview_chunks(request: ChunkPreviewRequest):
+@router.post("/embedding/preview", response_model=Chunking.PreviewResponse)
+async def preview_chunks(request: Chunking.PreviewRequest):
     """
     청킹 미리보기
 
@@ -326,10 +317,10 @@ async def preview_chunks(request: ChunkPreviewRequest):
             chunk_overlap=request.chunk_overlap
         )
 
-        return ChunkPreviewResponse(
+        return Chunking.PreviewResponse(
             original_length=len(request.content),
             total_chunks=len(chunks),
-            chunks=[ChunkPreviewItem(**chunk) for chunk in chunks]
+            chunks=[Chunking.PreviewItem(**chunk) for chunk in chunks]
         )
 
     except Exception as e:

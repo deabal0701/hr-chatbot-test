@@ -15,7 +15,7 @@ from sqlparse.sql import Statement
 from sqlparse.tokens import DML, DDL, Keyword
 
 from app.config import settings
-from app.models.schemas import SQLResult
+from app.models.rag import SQLResult
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)

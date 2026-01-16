@@ -4,10 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.graphs.nl2sql_graph import nl2sql_graph
 from app.graphs.rag_graph import rag_graph
-from app.models.schemas import (
-    SearchRequest,
-    SearchResponse,
-)
+from app.models.search import SearchRequest, SearchResponse
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)

@@ -4,7 +4,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.config import settings
-from app.models.schemas import SearchResponse, SQLResult
+from app.models.search import SearchResponse
+from app.models.rag import SQLResult
 import time
 from app.core.database.schema_loader import schema_loader
 from app.core.config.settings_service import settings_service

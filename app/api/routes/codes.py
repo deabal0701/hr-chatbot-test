@@ -6,7 +6,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.models.schemas import (
+from app.models.codes import (
     CodeItem,
     CodeGroupResponse,
     CodeCreateRequest,
