@@ -147,7 +147,7 @@ class LLMConfigManager:
 
         # 3. 최대 토큰 수
         if max_tokens is None:
-            max_tokens = settings_service.get_value("llm", "max_tokens", 2000)
+            max_tokens = settings_service.get_value("llm", "max_tokens", 5000)
 
         # 4. API 키 가져오기 (제공자별)
         api_key = LLMConfigManager._get_api_key(provider)

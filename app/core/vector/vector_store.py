@@ -60,7 +60,7 @@ class VectorStoreService:
     """벡터 검색 서비스 (pgvector 기반)"""
 
     # 스니펫 관련 상수
-    DEFAULT_SNIPPET_LENGTH = 200  # 문서 스니펫 기본 길이 (문자)
+    DEFAULT_SNIPPET_LENGTH = 3000  # 문서 스니펫 기본 길이 (문자) - RAG 컨텍스트용
 
     # 청킹 기본값 (fallback, DB 설정 우선)
     DEFAULT_CHUNK_SIZE = 1000

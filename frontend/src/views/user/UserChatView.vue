@@ -92,12 +92,7 @@
     <footer class="chat-footer">
       <div class="input-container">
         <div class="input-wrapper">
-          <!-- 모드 표시 (NL2SQL 고정 - 추후 원복 예정) -->
-          <div class="mode-btn mode-fixed">
-            <el-icon><DataLine /></el-icon>
-            <span>NL2SQL</span>
-          </div>
-          <!-- 모드 선택 드롭다운 (비활성화됨 - 추후 원복 예정)
+  <!-- 모드 선택 드롭다운 (Agent 제외) -->
           <el-dropdown trigger="click" popper-class="dark-dropdown-popper" @command="handleModeChange">
             <button class="mode-btn">
               <el-icon><Operation /></el-icon>
@@ -133,19 +128,9 @@
                     <span class="mode-desc">통계, 수치 등 데이터베이스 조회</span>
                   </div>
                 </el-dropdown-item>
-                <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
-                  <div class="mode-option">
-                    <span class="mode-name">
-                      <el-icon class="mode-icon"><CoffeeCup /></el-icon>
-                      Agent
-                    </span>
-                    <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
-                  </div>
-                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          -->
 
           <!-- 텍스트 입력 -->
           <textarea
@@ -183,7 +168,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
-import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, Sunny, Moon } from '@element-plus/icons-vue'
+import { Operation, ArrowDown, MagicStick, Document, DataLine, ChatLineRound, Sunny, Moon } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 
 // Props
@@ -627,17 +612,6 @@ watch(messages, async () => {
   .arrow {
     font-size: 12px;
     color: var(--text-color-secondary);
-  }
-
-  // NL2SQL 고정 모드 스타일 (추후 원복 예정)
-  &.mode-fixed {
-    cursor: default;
-    background-color: #6b7280;
-    color: #ffffff;
-
-    &:hover {
-      background-color: #6b7280;
-    }
   }
 }
 
