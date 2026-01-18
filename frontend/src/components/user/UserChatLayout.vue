@@ -124,6 +124,12 @@ const handleSelectChat = (chatId) => {
 
 // 공유하기 기능
 const handleShare = async () => {
+  // HTTPS 또는 localhost가 아닌 경우 클립보드 API 사용 불가
+  if (!window.isSecureContext) {
+    ElMessage.warning('공유 기능은 https:// 주소에서만 지원됩니다. 관리자에게 문의해 주세요.')
+    return
+  }
+
   const messages = store.state.chat.messages
   if (messages.length === 0) {
     ElMessage.warning('공유할 대화 내용이 없습니다.')

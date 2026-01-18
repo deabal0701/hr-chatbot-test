@@ -268,6 +268,12 @@ const formatTime = (timestamp) => {
 
 // 현재 메시지 내용만 복사
 const copyContent = async () => {
+  // HTTPS 또는 localhost가 아닌 경우 클립보드 API 사용 불가
+  if (!window.isSecureContext) {
+    ElMessage.warning('복사 기능은 https:// 주소에서만 지원됩니다. 관리자에게 문의해 주세요.')
+    return
+  }
+
   try {
     const content = props.message.content || ''
     await navigator.clipboard.writeText(content)
