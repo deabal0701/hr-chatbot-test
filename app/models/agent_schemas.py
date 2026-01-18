@@ -49,7 +49,7 @@ class AgentConfig(BaseModel):
     - LLM 모델 선택
     - 타임아웃 설정
 
-    주의: llm_model은 None일 경우 DB 설정(app_settings)에서 자동 로드됩니다.
+    주의: llm_model은 None일 경우 DB 설정(tb_app_settings)에서 자동 로드됩니다.
     """
     max_iterations: int = Field(default=10, ge=1, le=20, description="최대 반복 횟수")
     llm_model: Optional[str] = Field(default=None, description="사용할 LLM 모델 (None=DB 설정 사용)")

@@ -129,7 +129,7 @@ class SettingsService:
                 cur.execute("""
                     SELECT EXISTS (
                         SELECT FROM information_schema.tables
-                        WHERE table_name = 'app_settings'
+                        WHERE table_name = 'tb_app_settings'
                     )
                 """)
                 return cur.fetchone()['exists']
@@ -143,7 +143,7 @@ class SettingsService:
             return
 
         if not self._ensure_table_exists():
-            logger.warning("app_settings 테이블이 없습니다. 기본값 사용.")
+            logger.warning("tb_app_settings 테이블이 없습니다. 기본값 사용.")
             self._cache_loaded = True
             return
 
@@ -152,7 +152,7 @@ class SettingsService:
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT category, key, value, value_type, description, is_secret, updated_at
-                    FROM app_settings
+                    FROM tb_app_settings
                     ORDER BY category, key
                 """)
                 rows = cur.fetchall()
@@ -203,7 +203,7 @@ class SettingsService:
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT value, value_type, description, is_secret, updated_at
-                    FROM app_settings
+                    FROM tb_app_settings
                     WHERE category = %s AND key = %s
                 """, (category, key))
                 row = cur.fetchone()
@@ -345,7 +345,7 @@ class SettingsService:
             change_reason: 변경 사유 (선택)
         """
         if not self._ensure_table_exists():
-            logger.error("app_settings 테이블이 없습니다.")
+            logger.error("tb_app_settings 테이블이 없습니다.")
             return False
 
         default = self._get_default_value(category, key)
@@ -360,7 +360,7 @@ class SettingsService:
                 old_value = None
                 if category == 'prompt':
                     cur.execute("""
-                        SELECT value FROM app_settings
+                        SELECT value FROM tb_app_settings
                         WHERE category = %s AND key = %s
                     """, (category, key))
                     row = cur.fetchone()
@@ -369,7 +369,7 @@ class SettingsService:
 
                 # 설정 저장 (UPSERT)
                 cur.execute("""
-                    INSERT INTO app_settings (category, key, value, value_type, description, is_secret, updated_at)
+                    INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, NOW())
                     ON CONFLICT (category, key)
                     DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
@@ -383,7 +383,7 @@ class SettingsService:
                 if category == 'prompt' and old_value != value:
                     try:
                         cur.execute("""
-                            INSERT INTO prompt_history (category, key, old_value, new_value, changed_by, change_reason)
+                            INSERT INTO tb_prompt_history (category, key, old_value, new_value, changed_by, change_reason)
                             VALUES (%s, %s, %s, %s, %s, %s)
                         """, (category, key, old_value, value, changed_by, change_reason or 'Manual update'))
                         logger.info(f"프롬프트 이력 저장: {category}.{key}")
@@ -441,7 +441,7 @@ class SettingsService:
                 # 해당 카테고리의 모든 설정을 기본값으로 업데이트
                 for key, (value, value_type, desc, is_secret) in self.DEFAULTS[category].items():
                     cur.execute("""
-                        UPDATE app_settings
+                        UPDATE tb_app_settings
                         SET value = %s, updated_at = NOW()
                         WHERE category = %s AND key = %s
                     """, (value, category, key))
@@ -516,7 +516,7 @@ class SettingsService:
                         changed_by,
                         changed_at,
                         change_reason
-                    FROM prompt_history
+                    FROM tb_prompt_history
                     ORDER BY changed_at DESC
                     LIMIT %s
                 """, (limit,))
@@ -556,7 +556,7 @@ class SettingsService:
                         changed_by,
                         changed_at,
                         change_reason
-                    FROM prompt_history
+                    FROM tb_prompt_history
                     WHERE category = %s AND key = %s
                     ORDER BY changed_at DESC
                     LIMIT %s
@@ -586,7 +586,7 @@ class SettingsService:
                 # 이력에서 이전 값 조회
                 cur.execute("""
                     SELECT category, key, old_value, new_value, changed_at
-                    FROM prompt_history
+                    FROM tb_prompt_history
                     WHERE id = %s
                 """, (history_id,))
 
@@ -609,7 +609,7 @@ class SettingsService:
 
                 # 현재 값 조회 (새로운 이력 저장용)
                 cur.execute("""
-                    SELECT value FROM app_settings
+                    SELECT value FROM tb_app_settings
                     WHERE category = %s AND key = %s
                 """, (category, key))
 
@@ -618,9 +618,9 @@ class SettingsService:
                 logger.info(f"[RESTORE DEBUG] current_value length={len(current_value) if current_value else 0}")
 
                 # 프롬프트 값 업데이트
-                logger.info(f"[RESTORE DEBUG] Updating app_settings with restore_value")
+                logger.info(f"[RESTORE DEBUG] Updating tb_app_settings with restore_value")
                 cur.execute("""
-                    UPDATE app_settings
+                    UPDATE tb_app_settings
                     SET value = %s, updated_at = NOW()
                     WHERE category = %s AND key = %s
                 """, (restore_value, category, key))
@@ -630,7 +630,7 @@ class SettingsService:
 
                 # 복원 작업도 이력에 기록
                 cur.execute("""
-                    INSERT INTO prompt_history (category, key, old_value, new_value, changed_by, change_reason)
+                    INSERT INTO tb_prompt_history (category, key, old_value, new_value, changed_by, change_reason)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
                     category,

@@ -39,7 +39,7 @@ class CodeService:
             with db_manager.get_cursor() as cur:
                 cur.execute("""
                     SELECT DISTINCT code_group
-                    FROM code_master
+                    FROM tb_code
                     ORDER BY code_group
                 """)
                 rows = cur.fetchall()
@@ -82,7 +82,7 @@ class CodeService:
                         is_system,
                         created_at,
                         updated_at
-                    FROM code_master
+                    FROM tb_code
                     WHERE code_group = %s {active_filter}
                     ORDER BY sort_order, code_value
                 """, (code_group,))
@@ -135,7 +135,7 @@ class CodeService:
                         is_system,
                         created_at,
                         updated_at
-                    FROM code_master
+                    FROM tb_code
                     WHERE code_id = %s
                 """, (code_id,))
 
@@ -200,7 +200,7 @@ class CodeService:
             with db_manager.get_cursor(commit=True) as cur:
                 # 중복 체크
                 cur.execute("""
-                    SELECT code_id FROM code_master
+                    SELECT code_id FROM tb_code
                     WHERE code_group = %s AND code_value = %s
                 """, (code_group, code_value))
 
@@ -209,7 +209,7 @@ class CodeService:
 
                 # 코드 생성
                 cur.execute("""
-                    INSERT INTO code_master (
+                    INSERT INTO tb_code (
                         code_group, code_value, code_name,
                         description, metadata, sort_order,
                         is_active, is_system
@@ -291,7 +291,7 @@ class CodeService:
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 sql = f"""
-                    UPDATE code_master
+                    UPDATE tb_code
                     SET {', '.join(set_clauses)}
                     WHERE code_id = %s
                 """
@@ -341,7 +341,7 @@ class CodeService:
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
-                    DELETE FROM code_master
+                    DELETE FROM tb_code
                     WHERE code_id = %s AND is_system = false
                 """, (code_id,))
 
@@ -380,7 +380,7 @@ class CodeService:
             with db_manager.get_cursor(commit=True) as cur:
                 # 해당 그룹의 모든 코드 조회
                 cur.execute("""
-                    SELECT code_id FROM code_master
+                    SELECT code_id FROM tb_code
                     WHERE code_group = %s
                     ORDER BY sort_order
                 """, (code_group,))
@@ -403,7 +403,7 @@ class CodeService:
                 now = datetime.now()
                 for idx, code_id in enumerate(code_id_order, start=1):
                     cur.execute("""
-                        UPDATE code_master
+                        UPDATE tb_code
                         SET sort_order = %s, updated_at = %s
                         WHERE code_id = %s
                     """, (idx, now, code_id))

@@ -122,7 +122,7 @@
 │   PostgreSQL    │     │   External DB   │     │    LLM APIs     │
 │  + pgvector     │     │  (Business DB)  │     │  OpenAI/Claude  │
 │ ┌─────────────┐ │     │ ┌─────────────┐ │     └─────────────────┘
-│ │  hr_docs    │ │     │ │  employee   │ │
+│ │  tb_docs    │ │     │ │  employee   │ │
 │ │  settings   │ │     │ │  department │ │
 │ │  query_log  │ │     │ │  salary     │ │
 │ └─────────────┘ │     │ └─────────────┘ │
@@ -299,9 +299,9 @@
 
 ### 4.1 시스템 DB (hermes_db)
 
-#### 4.1.1 app_settings (동적 설정)
+#### 4.1.1 tb_app_settings (동적 설정)
 ```sql
-CREATE TABLE app_settings (
+CREATE TABLE tb_app_settings (
     id BIGSERIAL PRIMARY KEY,
     category VARCHAR(50) NOT NULL,      -- openai, llm, rag, nl2sql, agent 등
     key VARCHAR(100) NOT NULL,          -- api_key, model, temperature 등
@@ -315,9 +315,9 @@ CREATE TABLE app_settings (
 );
 ```
 
-#### 4.1.2 hr_docs (문서 + 벡터)
+#### 4.1.2 tb_docs (문서 + 벡터)
 ```sql
-CREATE TABLE hr_docs (
+CREATE TABLE tb_docs (
     id BIGSERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     doc_type TEXT NOT NULL,             -- policy, faq, regulation, guideline
@@ -330,7 +330,7 @@ CREATE TABLE hr_docs (
     embedded_at TIMESTAMPTZ,
     chunk_index INT DEFAULT 0,          -- 청킹 시 인덱스
     total_chunks INT DEFAULT 1,
-    parent_doc_id BIGINT REFERENCES hr_docs(id),
+    parent_doc_id BIGINT REFERENCES tb_docs(id),
     source_type TEXT DEFAULT 'ui_input',
     source_file TEXT,
     content_hash TEXT,
@@ -339,7 +339,7 @@ CREATE TABLE hr_docs (
 );
 
 -- 벡터 인덱스 (IVFFlat)
-CREATE INDEX idx_hr_docs_embedding ON hr_docs
+CREATE INDEX idx_tb_docs_embedding ON tb_docs
     USING ivfflat (embedding) WITH (lists = 100);
 ```
 
@@ -359,9 +359,9 @@ CREATE TABLE query_log (
 );
 ```
 
-#### 4.1.4 code_master (공통코드)
+#### 4.1.4 tb_code (공통코드)
 ```sql
-CREATE TABLE code_master (
+CREATE TABLE tb_code (
     code_id BIGSERIAL PRIMARY KEY,
     code_group VARCHAR(50) NOT NULL,
     code_value VARCHAR(100) NOT NULL,
@@ -465,7 +465,7 @@ CREATE TABLE performance_review (
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐    │
-│  │  app_settings   │      │    hr_docs      │      │   query_log     │    │
+│  │  tb_app_settings   │      │    tb_docs      │      │   query_log     │    │
 │  ├─────────────────┤      ├─────────────────┤      ├─────────────────┤    │
 │  │ PK id           │      │ PK id           │      │ PK id           │    │
 │  │    category     │      │    title        │      │    user_id      │    │

@@ -106,7 +106,7 @@ similar_docs = vector_search(query_vector, top_k=5)
 
 # 위험한 쿼리 차단
 "DROP TABLE employee;"  # ❌ 차단됨
-"SELECT * FROM hr_docs; DELETE FROM employee;"  # ❌ 차단됨
+"SELECT * FROM tb_docs; DELETE FROM employee;"  # ❌ 차단됨
 
 # 허용되는 쿼리
 "SELECT name FROM employee WHERE dept='HR'"  # ✅ 안전함
@@ -173,7 +173,7 @@ logger.info(f"[{request_id}] [내가 추가한 로그] SQL 길이: {len(sql)}")
 max_retry: int = 3
 
 # 2. DB에 추가
-INSERT INTO app_settings (category, key, value, value_type)
+INSERT INTO tb_app_settings (category, key, value, value_type)
 VALUES ('llm', 'max_retry', '3', 'integer');
 
 # 3. 코드에서 사용

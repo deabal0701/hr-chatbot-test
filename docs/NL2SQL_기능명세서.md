@@ -83,9 +83,9 @@
 | | | Few-shot 예시 | - SQL 생성 예시를 프롬프트에 포함 |
 | | 답변 생성 프롬프트 | 결과 요약 프롬프트 | - 데이터 분석 전문가 페르소나로 결과 요약 |
 | | | 형식 지정 | - 불릿포인트, 핵심 수치 강조 등 형식 가이드 |
-| | 프롬프트 설정 | DB 저장 | - app_settings 테이블에 프롬프트 저장 |
+| | 프롬프트 설정 | DB 저장 | - tb_app_settings 테이블에 프롬프트 저장 |
 | | | 실시간 변경 | - Admin UI에서 프롬프트 수정 시 즉시 반영 |
-| | | 이력 관리 | - prompt_history 테이블에 변경 이력 저장 |
+| | | 이력 관리 | - tb_prompt_history 테이블에 변경 이력 저장 |
 | | | 원복 기능 | - 이전 버전 프롬프트로 복원 가능 |
 
 ---
@@ -114,7 +114,7 @@
 | | | 자동 재연결 | - 연결 끊김 시 자동 재연결 |
 | | DB 유형 지원 | PostgreSQL | - PostgreSQL 데이터베이스 지원 (현재 구현) |
 | | | 확장성 | - Oracle, MySQL 등 추후 확장 가능 구조 |
-| | 설정 관리 | 동적 설정 | - DB 연결 정보를 app_settings에서 관리 |
+| | 설정 관리 | 동적 설정 | - DB 연결 정보를 tb_app_settings에서 관리 |
 | | | 환경 분리 | - 개발/운영 환경별 별도 설정 지원 |
 | | | 연결 테스트 | - 설정 변경 시 연결 유효성 테스트 |
 
@@ -229,7 +229,7 @@
 
 | Screen ID | 1 depth | 2 depth | 기능명세 |
 |-----------|---------|---------|----------|
-| ADMIN-DASH | 통계 카드 | 전체 문서 수 | - hr_docs 테이블 총 문서 수 표시 |
+| ADMIN-DASH | 통계 카드 | 전체 문서 수 | - tb_docs 테이블 총 문서 수 표시 |
 | | | 임베딩 완료 | - indexed=true 문서 수 표시 |
 | | | 임베딩 대기 | - indexed=false 문서 수 표시 |
 | | | 오늘 대화 | - 당일 query_log 수 표시 |
@@ -289,11 +289,11 @@
 
 | 구분 | 항목 | 요구사항 | 구현 방법 |
 |------|------|----------|-----------|
-| 설정 관리 | 동적 설정 | 재시작 없이 변경 | app_settings DB 저장 |
+| 설정 관리 | 동적 설정 | 재시작 없이 변경 | tb_app_settings DB 저장 |
 | | 환경 분리 | 개발/운영 설정 분리 | .env + DB 설정 |
 | 모니터링 | 로그 추적 | Request ID 기반 추적 | 8자리 UUID |
 | | 단계별 로그 | 처리 단계별 로깅 | INIT~COMPLETE |
-| 프롬프트 관리 | 버전 관리 | 변경 이력 추적 | prompt_history 테이블 |
+| 프롬프트 관리 | 버전 관리 | 변경 이력 추적 | tb_prompt_history 테이블 |
 | | 원복 기능 | 이전 버전 복원 | old_value 저장 |
 | 문서화 | API 문서 | OpenAPI 스펙 | FastAPI 자동 생성 |
 
@@ -369,9 +369,9 @@ NL2SQL-PROMPT	SQL 생성 프롬프트	규칙 주입	SELECT 전용, 보안 규칙
 NL2SQL-PROMPT	SQL 생성 프롬프트	Few-shot 예시	SQL 생성 예시를 프롬프트에 포함
 NL2SQL-PROMPT	답변 생성 프롬프트	결과 요약 프롬프트	데이터 분석 전문가 페르소나로 결과 요약
 NL2SQL-PROMPT	답변 생성 프롬프트	형식 지정	불릿포인트, 핵심 수치 강조 등 형식 가이드
-NL2SQL-PROMPT	프롬프트 설정	DB 저장	app_settings 테이블에 프롬프트 저장
+NL2SQL-PROMPT	프롬프트 설정	DB 저장	tb_app_settings 테이블에 프롬프트 저장
 NL2SQL-PROMPT	프롬프트 설정	실시간 변경	Admin UI에서 프롬프트 수정 시 즉시 반영
-NL2SQL-PROMPT	프롬프트 설정	이력 관리	prompt_history 테이블에 변경 이력 저장
+NL2SQL-PROMPT	프롬프트 설정	이력 관리	tb_prompt_history 테이블에 변경 이력 저장
 NL2SQL-PROMPT	프롬프트 설정	원복 기능	이전 버전 프롬프트로 복원 가능
 NL2SQL-LOG	쿼리 로깅	기본 로그	query_log 테이블에 사용자 질의, 유형, 응답시간 저장
 NL2SQL-LOG	쿼리 로깅	SQL 실행 로그	sql_execution_log에 생성 SQL, 실행 SQL, 행 수, 실행시간 저장
@@ -386,7 +386,7 @@ NL2SQL-EXT	DB 연결 관리	연결 타임아웃	연결 타임아웃 10초 설정
 NL2SQL-EXT	DB 연결 관리	자동 재연결	연결 끊김 시 자동 재연결
 NL2SQL-EXT	DB 유형 지원	PostgreSQL	PostgreSQL 데이터베이스 지원 (현재 구현)
 NL2SQL-EXT	DB 유형 지원	확장성	Oracle, MySQL 등 추후 확장 가능 구조
-NL2SQL-EXT	설정 관리	동적 설정	DB 연결 정보를 app_settings에서 관리
+NL2SQL-EXT	설정 관리	동적 설정	DB 연결 정보를 tb_app_settings에서 관리
 NL2SQL-EXT	설정 관리	환경 분리	개발/운영 환경별 별도 설정 지원
 NL2SQL-EXT	설정 관리	연결 테스트	설정 변경 시 연결 유효성 테스트
 RAG-CORE	벡터 검색	임베딩 생성	OpenAI text-embedding-3-small (1536차원)
@@ -459,7 +459,7 @@ ADMIN-CODE	코드 속성	정렬 순서	sort_order로 표시 순서 지정
 ADMIN-CODE	코드 속성	활성화 상태	is_active 토글 (비활성 코드는 선택 불가)
 ADMIN-CODE	코드 속성	시스템 코드	is_system=true 코드는 삭제/수정 제한
 ADMIN-CODE	코드 속성	메타데이터	JSON 형식 추가 정보 저장
-ADMIN-DASH	통계 카드	전체 문서 수	hr_docs 테이블 총 문서 수 표시
+ADMIN-DASH	통계 카드	전체 문서 수	tb_docs 테이블 총 문서 수 표시
 ADMIN-DASH	통계 카드	임베딩 완료	indexed=true 문서 수 표시
 ADMIN-DASH	통계 카드	임베딩 대기	indexed=false 문서 수 표시
 ADMIN-DASH	통계 카드	오늘 대화	당일 query_log 수 표시
@@ -493,9 +493,9 @@ ADMIN-DASH	시스템 정보	검색 모드	지원 검색 모드 표시 (Auto/RAG/
 확장성	DB 연결 풀	동적 풀 크기 조정	connection_pool_size 설정
 확장성	LLM Provider	OpenAI + Anthropic	init_chat_model 통합
 확장성	모델 전환	설정 기반 모델 변경	DB 설정 실시간 반영
-유지보수성	동적 설정	재시작 없이 변경	app_settings DB 저장
+유지보수성	동적 설정	재시작 없이 변경	tb_app_settings DB 저장
 유지보수성	로그 추적	Request ID 기반 추적	8자리 UUID
-유지보수성	프롬프트 버전관리	변경 이력 추적	prompt_history 테이블
+유지보수성	프롬프트 버전관리	변경 이력 추적	tb_prompt_history 테이블
 유지보수성	API 문서	OpenAPI 스펙	FastAPI 자동 생성
 신뢰성	SQL 에러 처리	친절한 에러 메시지	한글 에러 변환
 신뢰성	타임아웃	30초 타임아웃	statement_timeout

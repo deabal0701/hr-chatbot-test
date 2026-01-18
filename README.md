@@ -273,7 +273,7 @@ POST /api/v1/search
 - **실행 과정 추적**: 각 단계별 추론 과정 및 도구 호출 결과 확인
 
 ### 2. 동적 설정 시스템
-- **DB 기반 설정**: `app_settings` 테이블에서 설정 로드
+- **DB 기반 설정**: `tb_app_settings` 테이블에서 설정 로드
 - **실시간 변경**: Admin UI에서 설정 변경 즉시 반영
 - **Fallback 체계**: DB → .env → 코드 기본값 순서로 로드
 - **설정 항목**: LLM 모델, 제공자, 온도, RAG 파라미터, NL2SQL 설정 등
@@ -375,7 +375,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 **해결**:
 ```bash
 # 문서 임베딩 상태 확인
-psql $DATABASE_URL -c "SELECT id, title, indexed FROM hr_docs;"
+psql $DATABASE_URL -c "SELECT id, title, indexed FROM tb_docs;"
 
 # 임베딩 실행
 python scripts/embed_documents.py --sample

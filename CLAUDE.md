@@ -113,7 +113,7 @@ See `app/graphs/agent_graph.py:124-156` for Agent graph and `app/graphs/nl2sql_g
 ### Dynamic Settings System
 
 Settings are **dynamically loaded from DB** with fallback chain:
-1. PostgreSQL `app_settings` table (highest priority)
+1. PostgreSQL `tb_app_settings` table (highest priority)
 2. Environment variables (`.env`)
 3. Hardcoded defaults in `app/config.py`
 
@@ -157,8 +157,8 @@ Admin UI can change settings in real-time without code deployment. See `app/serv
 3. **NL2SQL target**: Can query itself or external Oracle DBs
 
 **Key Tables**:
-- `hr_docs`: Documents + embeddings (RAG source)
-- `app_settings`: Dynamic configuration
+- `tb_docs`: Documents + embeddings (RAG source)
+- `tb_app_settings`: Dynamic configuration
 - `employee`, `department`: NL2SQL query targets
 
 **Connection Pattern**:
@@ -346,7 +346,7 @@ Stages: INIT → THINK → ACTION → OBSERVE → FINISH → COMPLETE
 
 **SQL Injection Prevention** (`app/services/sql_executor.py:validate_sql()`):
 1. **Keyword blacklist**: DROP, DELETE, UPDATE, INSERT, ALTER, CREATE, TRUNCATE, GRANT, REVOKE
-2. **Table whitelist**: Only `employee`, `department`, `hr_docs`, etc. allowed
+2. **Table whitelist**: Only `employee`, `department`, `tb_docs`, etc. allowed
 3. **SELECT-only enforcement**: sqlparse verification
 4. **Parameterized queries**: psycopg3 automatic escaping
 5. **Timeout**: 30-second statement_timeout
@@ -451,7 +451,7 @@ class Settings(BaseSettings):
     new_setting: str = "default_value"
 
 # 2. Insert into DB (one-time)
-INSERT INTO app_settings (category, key, value, value_type, description)
+INSERT INTO tb_app_settings (category, key, value, value_type, description)
 VALUES ('category', 'new_setting', 'default', 'string', 'Description');
 
 # 3. Use in code
@@ -569,7 +569,7 @@ def _get_tools(self) -> List:
 **Fix**:
 ```sql
 -- Check indexed status
-SELECT id, title, indexed FROM hr_docs;
+SELECT id, title, indexed FROM tb_docs;
 
 -- Run embedding
 POST /api/admin/v1/documents/embedding/execute
@@ -744,7 +744,7 @@ llm = LLMConfigManager.create_llm(
 **2. Configuration Priority**:
 ```
 1. Function parameters (highest)
-2. DB settings (app_settings table)
+2. DB settings (tb_app_settings table)
 3. Environment variables (.env)
 4. Code defaults (lowest)
 ```
@@ -752,8 +752,8 @@ llm = LLMConfigManager.create_llm(
 **3. Settings Management**:
 ```sql
 -- Set LLM provider and model via DB
-UPDATE app_settings SET value = 'anthropic' WHERE category = 'llm' AND key = 'provider';
-UPDATE app_settings SET value = 'claude-3-5-sonnet-20241022' WHERE category = 'llm' AND key = 'model';
+UPDATE tb_app_settings SET value = 'anthropic' WHERE category = 'llm' AND key = 'provider';
+UPDATE tb_app_settings SET value = 'claude-3-5-sonnet-20241022' WHERE category = 'llm' AND key = 'model';
 
 -- Or via Admin UI: Settings → LLM section
 ```
@@ -803,7 +803,7 @@ def _get_api_key(provider: str) -> str:
 
 3. **Add DB settings**:
 ```sql
-INSERT INTO app_settings (category, key, value, value_type, description)
+INSERT INTO tb_app_settings (category, key, value, value_type, description)
 VALUES
     ('cohere', 'api_key', '', 'string', 'Cohere API Key'),
     ('llm', 'provider', 'cohere', 'string', 'LLM Provider');

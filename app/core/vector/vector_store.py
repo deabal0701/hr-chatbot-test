@@ -141,7 +141,7 @@ class VectorStoreService:
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
-                INSERT INTO hr_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
+                INSERT INTO tb_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
@@ -210,7 +210,7 @@ class VectorStoreService:
                 metadata,
                 language,
                 embedding <=> %s AS distance
-            FROM hr_docs
+            FROM tb_docs
             {where_clause}
             ORDER BY embedding <=> %s
             LIMIT %s
@@ -275,7 +275,7 @@ class VectorStoreService:
         with db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT id, title, doc_type, language, content, metadata, created_at, updated_at
-                FROM hr_docs
+                FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
 
@@ -286,7 +286,7 @@ class VectorStoreService:
         """문서 삭제"""
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("DELETE FROM hr_docs WHERE id = %s", (doc_id,))
+            cur.execute("DELETE FROM tb_docs WHERE id = %s", (doc_id,))
             affected = cur.rowcount
             return affected > 0
 
@@ -298,7 +298,7 @@ class VectorStoreService:
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
-                UPDATE hr_docs
+                UPDATE tb_docs
                 SET content = %s, embedding = %s, updated_at = now(), indexed = true
                 WHERE id = %s
             """, (content, embedding_array, doc_id))
@@ -443,7 +443,7 @@ class VectorStoreService:
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
-                INSERT INTO hr_docs (
+                INSERT INTO tb_docs (
                     title, doc_type, language, content, metadata,
                     embedding, embedding_model, indexed,
                     source_type, source_file, content_hash,
@@ -499,7 +499,7 @@ class VectorStoreService:
                        parent_doc_id, indexed, embedded_at,
                        LENGTH(content) as content_length,
                        created_at, updated_at
-                FROM hr_docs
+                FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
 
@@ -513,7 +513,7 @@ class VectorStoreService:
             parent_id = doc['parent_doc_id'] or doc['id']
             cur.execute("""
                 SELECT id, title, chunk_index, LENGTH(content) as content_length
-                FROM hr_docs
+                FROM tb_docs
                 WHERE id = %s OR parent_doc_id = %s
                 ORDER BY chunk_index
             """, (parent_id, parent_id))
@@ -528,7 +528,7 @@ class VectorStoreService:
         with db_manager.get_cursor(commit=True) as cur:
             # parent_doc_id가 doc_id인 청크들도 삭제 (CASCADE로 자동 삭제되지만 명시적으로)
             cur.execute("""
-                DELETE FROM hr_docs
+                DELETE FROM tb_docs
                 WHERE id = %s OR parent_doc_id = %s
             """, (doc_id, doc_id))
 
@@ -592,7 +592,7 @@ class VectorStoreService:
             # 전체 카운트 조회
             cur.execute(f"""
                 SELECT COUNT(*) as total
-                FROM hr_docs
+                FROM tb_docs
                 {where_clause}
             """, params)
             total_count = cur.fetchone()['total']
@@ -604,7 +604,7 @@ class VectorStoreService:
                        LENGTH(content) as content_length,
                        source_type, source_file, total_chunks, indexed,
                        embedded_at, created_at, updated_at
-                FROM hr_docs
+                FROM tb_docs
                 {where_clause}
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
@@ -638,7 +638,7 @@ class VectorStoreService:
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
-                INSERT INTO hr_docs ( title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash,chunk_index, total_chunks)
+                INSERT INTO tb_docs ( title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash,chunk_index, total_chunks)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, ( title, doc_type, language, content,  psycopg.types.json.Json(metadata or {}),
@@ -732,7 +732,7 @@ class VectorStoreService:
             cur.execute("""
                 SELECT id, title, doc_type, language, content, metadata,
                        source_type, source_file, content_hash
-                FROM hr_docs
+                FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
 
@@ -752,7 +752,7 @@ class VectorStoreService:
 
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
-                    UPDATE hr_docs
+                    UPDATE tb_docs
                     SET embedding = %s, embedding_model = %s, indexed = true, embedded_at = %s
                     WHERE id = %s
                 """, (embedding_array, self.embedding_model, datetime.now(), doc_id))
@@ -787,7 +787,7 @@ class VectorStoreService:
             # 첫 번째 청크: 원본 문서 업데이트
             first_embedding = np.array(embeddings[0])
             cur.execute("""
-                UPDATE hr_docs
+                UPDATE tb_docs
                 SET title = %s, content = %s, embedding = %s, embedding_model = %s,
                     indexed = true, chunk_index = 0, total_chunks = %s, embedded_at = %s
                 WHERE id = %s
@@ -807,7 +807,7 @@ class VectorStoreService:
             for i, chunk in enumerate(chunks[1:], start=1):
                 embedding_array = np.array(embeddings[i])
                 cur.execute("""
-                    INSERT INTO hr_docs (
+                    INSERT INTO tb_docs (
                         title, doc_type, language, content, metadata,
                         embedding, embedding_model, indexed,
                         source_type, source_file, content_hash,
@@ -880,7 +880,7 @@ class VectorStoreService:
         with db_manager.get_cursor() as cur:
             cur.execute("""
                 SELECT id, title, doc_type, language, content, metadata, indexed, parent_doc_id
-                FROM hr_docs
+                FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
 
@@ -938,13 +938,13 @@ class VectorStoreService:
 
         # 업데이트 실행
         with db_manager.get_cursor(commit=True) as cur:
-            sql = f"UPDATE hr_docs SET {', '.join(updates)} WHERE id = %s"
+            sql = f"UPDATE tb_docs SET {', '.join(updates)} WHERE id = %s"
             cur.execute(sql, params)
 
             # 내용 변경 시 기존 청크 삭제
             if content_changed:
                 cur.execute("""
-                    DELETE FROM hr_docs WHERE parent_doc_id = %s
+                    DELETE FROM tb_docs WHERE parent_doc_id = %s
                 """, (doc_id,))
                 deleted_chunks = cur.rowcount
                 if deleted_chunks > 0:

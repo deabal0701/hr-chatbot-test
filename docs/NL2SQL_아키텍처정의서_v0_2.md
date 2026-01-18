@@ -289,8 +289,8 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 
 | 항목 | 위치 |
 |------|------|
-| PII 패턴 (Mask) | `app_settings` 테이블 (category='input_guard') |
-| 금지 키워드 (Redact) | `app_settings` 테이블 (category='input_guard') |
+| PII 패턴 (Mask) | `tb_app_settings` 테이블 (category='input_guard') |
+| 금지 키워드 (Redact) | `tb_app_settings` 테이블 (category='input_guard') |
 | 구현 파일 | `app/services/input_guard.py` |
 
 ---
@@ -317,7 +317,7 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 ```
 허용 테이블: employee, department, job_history, performance_review, salary
 ```
-- 설정 위치: `app_settings` 테이블 (external_database.allowed_tables)
+- 설정 위치: `tb_app_settings` 테이블 (external_database.allowed_tables)
 - 미등록 테이블 접근 시 검증 실패
 
 ### 6.4 보안 계층화 (Defense in Depth)
@@ -494,7 +494,7 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 
 ### 8.3 프롬프트 관리
 
-- **저장 위치**: `app_settings` 테이블 (category='prompt')
+- **저장 위치**: `tb_app_settings` 테이블 (category='prompt')
 - **캐시**: 5분 TTL
 - **우선순위**: DB → 코드 기본값
 
@@ -560,7 +560,7 @@ SQL 생성 또는 실행 중 오류가 발생했습니다.
 ### 10.2 설정 우선순위
 
 ```
-① DB (app_settings 테이블)  ← 최우선 (Admin UI에서 변경 가능)
+① DB (tb_app_settings 테이블)  ← 최우선 (Admin UI에서 변경 가능)
         ↓
 ② 환경변수 (.env 파일)
         ↓

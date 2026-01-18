@@ -5,7 +5,7 @@
 NL2SQL 쿼리 대상이 되는 비즈니스 데이터베이스 연결을 관리합니다.
 - 로컬 business 스키마 또는 원격 DB 지원
 - PostgreSQL, Oracle, MySQL, MS SQL Server 등 확장 가능
-- 동적 설정 (app_settings의 external_database 카테고리)
+- 동적 설정 (tb_app_settings의 external_database 카테고리)
 """
 
 from contextlib import contextmanager

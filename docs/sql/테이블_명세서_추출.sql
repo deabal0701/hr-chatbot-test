@@ -169,13 +169,13 @@ LEFT JOIN (
           AND c.column_name = col_desc.column_name
 WHERE c.table_schema = 'public'
   AND c.table_name IN (
-      'app_settings',
-      'code_master',
+      'tb_app_settings',
+      'tb_code',
       'query_log',
-      'hr_docs',
+      'tb_docs',
       'rag_search_log',
       'sql_execution_log',
-      'prompt_history'
+      'tb_prompt_history'
   )
 ORDER BY c.table_name, c.ordinal_position;
 
