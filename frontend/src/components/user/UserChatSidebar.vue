@@ -32,7 +32,7 @@
 
     <!-- Chat History -->
     <div class="chat-history-section">
-      <div class="section-title">내 채팅</div>
+      <div class="section-title"><!-- 내 채팅 (일단 주석처리함. ) --> </div>
       <div class="chat-list">
         <div
           v-for="chat in chatHistory"

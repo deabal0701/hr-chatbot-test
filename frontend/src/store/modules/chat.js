@@ -18,10 +18,11 @@ export default {
     },
     // 채팅 히스토리 (하드코딩 샘플 - 향후 API 연동)
     chatHistory: [
-      { id: 'sample-1', title: '재택근무 정책 문의', createdAt: new Date('2024-01-15') },
-      { id: 'sample-2', title: '2024년 입사자 현황', createdAt: new Date('2024-01-14') },
-      { id: 'sample-3', title: '연차 신청 방법', createdAt: new Date('2024-01-13') },
-      { id: 'sample-4', title: '부서별 직원 통계', createdAt: new Date('2024-01-12') }
+      // 일단 주석처리함. 추후 API로 불러올 예정
+      // { id: 'sample-1', title: '재택근무 정책 문의', createdAt: new Date('2024-01-15') },
+      // { id: 'sample-2', title: '2024년 입사자 현황', createdAt: new Date('2024-01-14') },
+      // { id: 'sample-3', title: '연차 신청 방법', createdAt: new Date('2024-01-13') },
+      // { id: 'sample-4', title: '부서별 직원 통계', createdAt: new Date('2024-01-12') }
     ],
     activeChatId: null // 현재 선택된 채팅 ID
   }),

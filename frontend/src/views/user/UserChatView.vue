@@ -128,7 +128,8 @@
                     <span class="mode-desc">통계, 수치 등 데이터베이스 조회</span>
                   </div>
                 </el-dropdown-item>
-                <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
+                <!-- 일단 주석 처리 (추후 기능 완료되면 Open)
+                 <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
                   <div class="mode-option">
                     <span class="mode-name">
                       <el-icon class="mode-icon"><CoffeeCup /></el-icon>
@@ -136,7 +137,7 @@
                     </span>
                     <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
                   </div>
-                </el-dropdown-item>
+                </el-dropdown-item> -->
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -167,7 +168,7 @@
         </div>
 
         <p class="footer-note">
-          AI 비서가 생성한 답변은 참고용입니다. 정확한 정보는 관련 부서에 확인 바랍니다.
+          본 AI 어시스턴트가 생성한 답변은 참고용입니다. 정확한 정보는 관련 부서에 확인 바랍니다.
         </p>
       </div>
     </footer>

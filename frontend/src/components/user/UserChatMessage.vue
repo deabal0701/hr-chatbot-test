@@ -19,8 +19,8 @@
       <div class="message-content assistant-message">
         <div class="answer-text" v-html="formattedContent" />
 
-        <!-- 소스 정보 -->
-        <div v-if="message.sources && message.sources.length > 0" class="sources-section">
+        <!-- 소스 정보 :  임시로 주석처리함.-->
+        <!-- <div v-if="message.sources && message.sources.length > 0" class="sources-section">
           <button class="sources-toggle" @click="showSources = !showSources">
             <div class="toggle-left">
               <el-icon><Document /></el-icon>
@@ -49,10 +49,10 @@
               </div>
             </div>
           </div>
-        </div>
+        </div> -->
 
-        <!-- SQL 정보 (NL2SQL 모드) -->
-        <div v-if="message.sql" class="sql-section">
+        <!-- SQL 정보 (NL2SQL 모드)  :  임시로 주석처리함-->
+        <!-- <div v-if="message.sql" class="sql-section">
           <button class="sql-toggle" @click="showSql = !showSql">
             <div class="toggle-left">
               <el-icon><DataLine /></el-icon>
@@ -67,7 +67,7 @@
             <div class="sql-header">PostgreSQL Query</div>
             <pre><code>{{ message.sql }}</code></pre>
           </div>
-        </div>
+        </div> -->
 
         <!-- Agent 실행 단계 (Agent 모드) -->
         <div v-if="message.agentResult && message.agentResult.steps" class="agent-section">

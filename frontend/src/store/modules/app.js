@@ -58,7 +58,7 @@ export default {
     sidebarCollapsed: false,
 
     // 사용자 채팅 사이드바 상태
-    userSidebarVisible: true,
+    userSidebarVisible: false,
 
     // 앱 설정
     apiHealthy: true,
