@@ -345,6 +345,52 @@ class InsightAgentGraph:
         """
         return prompt_service.get_agent_system_prompt()
 
+    def _log_existing_checkpoint(self, request_id: str, session_id: str, graph_config: RunnableConfig) -> None:
+        """
+        멀티턴 디버깅: 기존 체크포인트의 메시지 히스토리 로깅
+
+        Args:
+            request_id: 요청 추적 ID
+            session_id: 세션 ID
+            graph_config: 그래프 설정 (thread_id 포함)
+        """
+        try:
+            existing_checkpoint = self.checkpointer.get(graph_config)
+            if existing_checkpoint:
+                existing_msgs = existing_checkpoint.get("channel_values", {}).get("messages", [])
+                logger.info(f"[{request_id}] [MULTI-TURN] 기존 세션 발견: session_id={session_id}, messages={len(existing_msgs)}")
+                logger.info(f"[{request_id}] [MULTI-TURN] ===== 기존 메시지 히스토리 =====")
+                for i, msg in enumerate(existing_msgs):
+                    msg_type = type(msg).__name__
+                    content = str(msg.content)[:150] if hasattr(msg, 'content') and msg.content else "(empty)"
+                    has_tool_calls = isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
+                    tool_info = f", tool_calls={len(msg.tool_calls)}" if has_tool_calls else ""
+                    logger.info(f"[{request_id}] [MULTI-TURN]   [{i}] {msg_type}: {content}{tool_info}")
+                logger.info(f"[{request_id}] [MULTI-TURN] ===== 히스토리 끝 =====")
+            else:
+                logger.info(f"[{request_id}] [MULTI-TURN] 새 세션 시작: session_id={session_id} (기존 체크포인트 없음)")
+        except Exception as e:
+            logger.warning(f"[{request_id}] [MULTI-TURN] 체크포인트 조회 실패: {e}")
+
+    def _log_final_messages(self, request_id: str, session_id: str, messages: List[BaseMessage]) -> None:
+        """
+        멀티턴 디버깅: 실행 완료 후 전체 메시지 히스토리 로깅
+
+        Args:
+            request_id: 요청 추적 ID
+            session_id: 세션 ID
+            messages: 최종 메시지 리스트
+        """
+        logger.info(f"[{request_id}] [MULTI-TURN] ===== 실행 완료 후 전체 메시지 ({len(messages)}개) =====")
+        for i, msg in enumerate(messages):
+            msg_type = type(msg).__name__
+            content = str(msg.content)[:150] if hasattr(msg, 'content') and msg.content else "(empty)"
+            tool_info = ""
+            if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                tool_info = f", tool_calls={len(msg.tool_calls)}"
+            logger.info(f"[{request_id}] [MULTI-TURN]   [{i}] {msg_type}: {content}{tool_info}")
+        logger.info(f"[{request_id}] [MULTI-TURN] ===== 메시지 끝 (session_id={session_id}) =====")
+
     async def ainvoke(self, inputs: Dict[str, Any]) -> AgentResponse:
         """
         Agent 비동기 실행 (InMemorySaver 사용)
@@ -378,6 +424,10 @@ class InsightAgentGraph:
         try:
             # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
             graph_config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+
+            # 멀티턴 디버깅: 기존 체크포인트 확인
+            self._log_existing_checkpoint(request_id, session_id, graph_config)
+
             result = await self.graph.ainvoke(initial_state, config=graph_config) 
 
             # 실행 시간 계산
@@ -402,14 +452,10 @@ class InsightAgentGraph:
             # 디버깅: 최종 답변 확인
             logger.info(f"[{request_id}] [EXTRACT] Final answer extracted: length={len(final_answer)}, preview={final_answer[:100] if final_answer else '(empty)'}")
 
-            log_step(request_id, "AGENT", "END", "COMPLETE", "Agent 실행 완료",
-                    iterations=result["iteration_count"],
-                    tools_count=len(tools_used),
-                    execution_time_ms=execution_time_ms,
-                    answer_length=len(final_answer))
+            log_step(request_id, "AGENT", "END", "COMPLETE", "Agent 실행 완료", iterations=result["iteration_count"], tools_count=len(tools_used), execution_time_ms=execution_time_ms, answer_length=len(final_answer))
 
-            # InMemorySaver가 자동으로 대화 히스토리를 관리하므로 별도 저장 불필요
-            logger.debug(f"[{request_id}] InMemorySaver에 대화 히스토리 자동 저장됨 (thread_id={session_id})")
+            # 멀티턴 디버깅: 실행 완료 후 전체 메시지 히스토리 로깅
+            self._log_final_messages(request_id, session_id, result["messages"])
 
             return AgentResponse(
                 answer=final_answer,
