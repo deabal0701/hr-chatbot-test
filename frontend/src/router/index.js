@@ -20,23 +20,29 @@ const routes = [
     component: () => import('@/views/admin/AdminLayout.vue'),
     meta: { requiresAdmin: true },
     children: [
+      // 기존: 대시보드를 기본 페이지로 사용
+      // {
+      //   path: '',
+      //   name: 'AdminDashboard',
+      //   component: () => import('@/views/admin/DashboardView.vue'),
+      //   meta: { title: '대시보드' }
+      // },
+      // 변경: /admin 접속 시 /admin/documents로 리다이렉트
       {
         path: '',
-        name: 'AdminDashboard',
-        component: () => import('@/views/admin/DashboardView.vue'),
-        meta: { title: '대시보드' }
+        redirect: '/admin/documents'
       },
-      {
-        path: 'chat',
-        name: 'AdminChat',
-        component: () => import('@/views/admin/ChatView.vue'),
-        meta: { title: '자연어 검색' }
-      },
+      // {
+      //   path: 'chat',
+      //   name: 'AdminChat',
+      //   component: () => import('@/views/admin/ChatView.vue'),
+      //   meta: { title: '자연어 검색' }
+      // },
       {
         path: 'documents',
         name: 'AdminDocuments',
         component: () => import('@/views/admin/DocumentsView.vue'),
-        meta: { title: 'RAG 문서관리' }
+        meta: { title: '지식문서 관리' }
       },
       {
         path: 'documents/new',

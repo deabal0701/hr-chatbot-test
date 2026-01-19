@@ -18,30 +18,30 @@
       :active-text-color="menuActiveColor"
       router
     >
-      <el-menu-item index="/admin">
+      <!-- <el-menu-item index="/admin">
         <el-icon><DataAnalysis /></el-icon>
         <template #title>대시보드</template>
-      </el-menu-item>
+      </el-menu-item> -->
 
       <el-menu-item index="/admin/documents">
         <el-icon><Document /></el-icon>
-        <template #title>RAG 문서관리</template>
+        <template #title>지식문서 관리</template>
       </el-menu-item>
 
-      <el-menu-item index="/admin/chat">
+      <!-- <el-menu-item index="/admin/chat">
         <el-icon><ChatDotSquare /></el-icon>
         <template #title>자연어 검색</template>
-      </el-menu-item>
+      </el-menu-item> -->
 
-      <el-menu-item index="/admin/settings">
+      <!-- <el-menu-item index="/admin/settings">
         <el-icon><Setting /></el-icon>
         <template #title>시스템 설정</template>
-      </el-menu-item>
+      </el-menu-item> -->
 
-      <el-menu-item index="/admin/codes">
+      <!-- <el-menu-item index="/admin/codes">
         <el-icon><Grid /></el-icon>
         <template #title>코드 관리</template>
-      </el-menu-item>
+      </el-menu-item> -->
     </el-menu>
 
     <!-- 하단 정보 -->
