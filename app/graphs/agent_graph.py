@@ -40,7 +40,7 @@ from app.models.agent import (
 )
 from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
-from app.tools.calculator_tool import calculate_tool
+from app.tools.calc_tool import calculate_tool
 from app.core.config.settings_service import settings_service
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티

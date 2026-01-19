@@ -231,7 +231,7 @@ POST /api/v1/search
 │   │   ├── base.py             # 도구 베이스 클래스
 │   │   ├── sql_tool.py         # SQL 쿼리 도구
 │   │   ├── rag_tool.py         # 문서 검색 도구
-│   │   └── calculator_tool.py  # 계산기 도구
+│   │   └── calc_tool.py        # 계산기 도구
 │   ├── services/               # 비즈니스 로직
 │   │   ├── vector_store.py     # 벡터 검색
 │   │   ├── sql_executor.py     # SQL 실행 및 검증

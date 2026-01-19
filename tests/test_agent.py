@@ -10,7 +10,7 @@ AI Agent 테스트
 import pytest
 from unittest.mock import Mock, patch
 
-from app.tools.calculator_tool import CalculatorTool
+from app.tools.calc_tool import CalculatorTool
 from app.tools.base import ToolResult
 from app.models.agent import AgentRequest, AgentConfig
 

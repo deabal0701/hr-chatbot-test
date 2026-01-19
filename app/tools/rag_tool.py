@@ -158,7 +158,7 @@ Examples:
                     "top_k": top_k,
                     "cached": True
                 }
-            )
+            ) # type: ignore
 
         try:
             # RAG 설정 가져오기
@@ -190,7 +190,7 @@ Examples:
                         "top_k": top_k,
                         "found_count": 0
                     }
-                )
+                ) # type: ignore
 
             # 결과 포맷팅
             formatted_result = self._format_documents(documents)
@@ -205,7 +205,7 @@ Examples:
                     "doc_types": list(set(doc.doc_type for doc in documents)),
                     "cached": False
                 }
-            )
+            ) # type: ignore
 
         except Exception as e:
             logger.error(f"[{self.name}] Document search failed: {e}", exc_info=True)
@@ -213,7 +213,7 @@ Examples:
                 success=False,
                 error=f"Document search failed: {str(e)}",
                 metadata={"original_question": question}
-            )
+            ) # type: ignore
 
     def _format_documents(self, documents: List) -> str:
         """

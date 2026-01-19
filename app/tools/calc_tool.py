@@ -131,7 +131,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
                     "original_expression": expression,
                     "result_type": type(result).__name__
                 }
-            )
+            ) # type: ignore
 
         except SyntaxError as e:
             logger.error(f"[{self.name}] Syntax error: {e}")
@@ -139,7 +139,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
                 success=False,
                 error=f"Invalid mathematical expression: {str(e)}",
                 metadata={"original_expression": expression}
-            )
+            ) # type: ignore
 
         except ValueError as e:
             logger.error(f"[{self.name}] Value error: {e}")
@@ -147,7 +147,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
                 success=False,
                 error=f"Calculation error: {str(e)}",
                 metadata={"original_expression": expression}
-            )
+            ) # type: ignore
 
         except ZeroDivisionError:
             logger.error(f"[{self.name}] Division by zero")
@@ -155,7 +155,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
                 success=False,
                 error="Division by zero",
                 metadata={"original_expression": expression}
-            )
+            ) # type: ignore
 
         except Exception as e:
             logger.error(f"[{self.name}] Unexpected error: {e}", exc_info=True)
@@ -163,7 +163,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
                 success=False,
                 error=f"Calculation failed: {str(e)}",
                 metadata={"original_expression": expression}
-            )
+            ) # type: ignore
 
     def _safe_eval(self, node):
         """

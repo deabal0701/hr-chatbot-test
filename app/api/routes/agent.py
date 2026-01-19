@@ -243,7 +243,7 @@ async def list_tools():
     try:
         from app.tools.sql_tool import SQLQueryTool
         from app.tools.rag_tool import DocumentSearchTool
-        from app.tools.calculator_tool import CalculatorTool
+        from app.tools.calc_tool import CalculatorTool
 
         tools_info = []
 
@@ -295,7 +295,7 @@ async def test_tool(
     try:
         from app.tools.sql_tool import SQLQueryTool
         from app.tools.rag_tool import DocumentSearchTool
-        from app.tools.calculator_tool import CalculatorTool
+        from app.tools.calc_tool import CalculatorTool
 
         tool_map = {
             "query_database_tool": SQLQueryTool,

@@ -199,7 +199,7 @@ app/
 │   ├── base.py          # BaseTool class with hooks
 │   ├── sql_tool.py      # SQL query tool (NL2SQL wrapper)
 │   ├── rag_tool.py      # Document search tool (RAG wrapper)
-│   └── calculator_tool.py # Calculator tool (safe AST evaluation)
+│   └── calc_tool.py      # Calculator tool (safe AST evaluation)
 ├── services/            # Reusable business logic
 │   ├── vector_store.py  # Embedding + pgvector search
 │   ├── sql_executor.py  # SQL validation + execution + security

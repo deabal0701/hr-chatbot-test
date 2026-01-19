@@ -216,7 +216,7 @@ class BaseTool(ABC):
                     success=False,
                     error=f"Tool '{self.name}' is disabled",
                     metadata={"disabled": True}
-                )
+                ) # type: ignore
 
             # 2. 입력 검증 (스키마 기반)
             # 스키마에서 required 파라미터 목록 추출
@@ -234,7 +234,7 @@ class BaseTool(ABC):
                     success=False,
                     error=f"Input validation failed: {error_msg}",
                     metadata={"validation_error": True}
-                )
+                ) # type: ignore
 
             # 3. 전처리
             kwargs = self.before_execute(**kwargs)
@@ -275,7 +275,7 @@ class BaseTool(ABC):
                 error=f"Tool execution error: {str(e)}",
                 metadata={"exception": type(e).__name__},
                 execution_time_ms=execution_time_ms
-            )
+            ) # type: ignore
 
 
 class ToolRegistry:
