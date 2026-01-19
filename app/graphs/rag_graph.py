@@ -63,7 +63,7 @@ class RAGGraph:
         return workflow.compile()
 
     def _retrieve_documents(self, state: RAGState) -> RAGState:
-        """문서 검색 노드"""
+        """요청한 질의를 바탕으로 질의를 백터로 변경 후 Index 문서 검색을 하는  노드"""
         question = state["question"]
         filters_dict = state.get("filters", {})
         request_id = state.get("request_id", "unknown")
@@ -76,12 +76,10 @@ class RAGGraph:
         # SearchFilters 객체 생성
         filters = SearchFilters(**filters_dict) if filters_dict else None
 
-        log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 시작",
-                question=question, top_k=top_k,
-                similarity_threshold=similarity_threshold,
-                has_filters=bool(filters_dict))
+        log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 시작", question=question, top_k=top_k, similarity_threshold=similarity_threshold, has_filters=bool(filters_dict))
 
         # 벡터 검색 (similarity_threshold도 DB 설정 적용)
+        # documents 는 DocumentSource 의 타입
         documents = vector_store.search_similar_documents(
             query=question,
             top_k=top_k,
@@ -117,11 +115,9 @@ class RAGGraph:
             return state
 
         # 컨텍스트 구성
-        log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 시작",
-                doc_count=len(documents))
+        log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 시작", doc_count=len(documents))
         context = self._build_context(documents)
-        log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 완료",
-                context_length=len(context))
+        log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 완료", context_length=len(context))
 
         # 시스템 프롬프트 (DB에서 동적 로드)
         system_prompt = prompt_service.get_rag_system_prompt()
@@ -143,11 +139,7 @@ class RAGGraph:
         llm_model = settings_service.get_value("llm", "model", settings.llm_model)
 
         # LLM 입력 로그
-        log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작",
-                model=llm_model,
-                system_prompt_length=len(system_prompt),
-                user_prompt_length=len(user_prompt),
-                context_length=len(context))
+        log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
         log_step(request_id, "RAG", "2b", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
         log_step(request_id, "RAG", "2b", "LLM-INPUT", f"CONTEXT: {context}")
 
@@ -160,8 +152,7 @@ class RAGGraph:
             state["metadata"]["context_length"] = len(context)
 
             # LLM 출력 로그
-            log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료",
-                    answer_length=len(answer))
+            log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료", answer_length=len(answer))
             log_step(request_id, "RAG", "2b", "LLM-OUTPUT", f"ANSWER: {answer}")
 
         except Exception as e:
@@ -195,7 +186,7 @@ class RAGGraph:
                 logger.warning(f"컨텍스트 길이 초과: {current_length} > {max_context_length}")
                 break
 
-        return "\n".join(context_parts)
+        return "\n".join(context_parts)   # 각 문서를 "\n"로 구분하여 연결
 
     def _prepare_initial_state(self, inputs: Dict[str, Any]) -> RAGState:
         """초기 상태 준비 (ainvoke와 invoke 공통 로직)"""
@@ -236,17 +227,12 @@ class RAGGraph:
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
-        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작",
-                question=inputs["question"], top_k=initial_state["top_k"])
+        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작", question=inputs["question"], top_k=initial_state["top_k"])
 
         # 그래프 실행
         result = await self.graph.ainvoke(initial_state)
-
         response_time_ms = int((time.time() - start_time) * 1000)
-
-        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료",
-                docs_found=len(result["retrieved_docs"]),
-                answer_length=len(result["answer"]))
+        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료", docs_found=len(result["retrieved_docs"]), answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
         return self._build_response(result, response_time_ms)
@@ -260,21 +246,15 @@ class RAGGraph:
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
-        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작 (동기)",
-                question=inputs["question"], top_k=initial_state["top_k"])
+        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작 (동기)", question=inputs["question"], top_k=initial_state["top_k"])
 
         # 그래프 실행
         result = self.graph.invoke(initial_state)
-
         response_time_ms = int((time.time() - start_time) * 1000)
-
-        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료 (동기)",
-                docs_found=len(result["retrieved_docs"]),
-                answer_length=len(result["answer"]))
+        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료 (동기)", docs_found=len(result["retrieved_docs"]), answer_length=len(result["answer"]))
 
         # 응답 구성 (공통 로직)
         return self._build_response(result, response_time_ms)
-
 
 # 싱글톤 인스턴스
 rag_graph = RAGGraph()

@@ -46,15 +46,15 @@ class SettingsService:
             "dimension": ("1536", "int", "벡터 차원 수", False),
         },
         "llm": {
-            "model": ("gpt-4-turbo-preview", "string", "LLM 모델명", False),
+            "model": ("gpt-4.1-mini", "string", "LLM 모델명", False),
             "provider": ("openai", "string", "LLM 제공자 (openai, anthropic)", False),
             "temperature": ("0.1", "float", "생성 온도 (0.0-2.0)", False),
-            "max_tokens": ("2000", "int", "최대 토큰 수", False),
+            "max_tokens": ("2000", "int", "최대 토큰 수", False),   # LLM응답 생성시 최대 출력 토큰 수 
         },
         "rag": {
-            "top_k": ("10", "int", "검색 문서 수", False),
+            "top_k": ("5", "int", "검색 문서 수", False),
             "similarity_threshold": ("0.7", "float", "유사도 임계값 (0.0-1.0)", False),
-            "max_context_length": ("4000", "int", "최대 컨텍스트 길이", False),
+            "max_context_length": ("4000", "int", "최대 컨텍스트 길이", False),  # RAG 컨텍스트로 전달할 최대 문자의 수
         },
         "nl2sql": {
             "timeout_seconds": ("30", "int", "SQL 실행 타임아웃 (초)", False),
@@ -447,6 +447,7 @@ class SettingsService:
                     """, (value, category, key))
 
                 # 캐시 초기화
+                self._cache_loaded = False
                 if category in self._cache:
                     del self._cache[category]
 

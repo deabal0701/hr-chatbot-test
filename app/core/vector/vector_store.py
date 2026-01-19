@@ -111,8 +111,8 @@ class VectorStoreService:
     def embed_text(self, text: str) -> List[float]:
         """텍스트를 벡터로 임베딩 (LangChain OpenAIEmbeddings 사용)"""
         try:
-            embeddings = self._get_embeddings()
-            return embeddings.embed_query(text)
+            embeddings = self._get_embeddings() # embeddings 는 OpenAIEmbeddings의 인스턴스
+            return embeddings.embed_query(text) # text는 사용자 질의 내용 ex: 사용자 질의 "한국의 수도는 어디인가?"
         except Exception as e:
             logger.error(f"임베딩 생성 실패: {e}")
             raise
@@ -161,16 +161,10 @@ class VectorStoreService:
             logger.info(f"문서 삽입 완료: ID={doc_id}, title='{title}'")
             return doc_id
 
-    def search_similar_documents(
-        self,
-        query: str,
-        top_k: int = 10,
-        filters: Optional[SearchFilters] = None,
-        similarity_threshold: Optional[float] = None
-    ) -> List[DocumentSource]:
+    def search_similar_documents( self, query: str, top_k: int = 10, filters: Optional[SearchFilters] = None, similarity_threshold: Optional[float] = None ) -> List[DocumentSource]:
         """유사 문서 검색 (벡터 유사도 기반)"""
         # 쿼리를 벡터로 변환
-        query_embedding = self.embed_text(query)
+        query_embedding = self.embed_text(query)  # query_embedding 는 질의를 임베딩한 vector임 ex: [0.01234331, 0.222422324, ...]
         query_embedding_array = np.array(query_embedding)
 
         # 필터 조건 구성
@@ -198,7 +192,7 @@ class VectorStoreService:
         if similarity_threshold is None:
             similarity_threshold = _get_settings_service().get_value("rag", "similarity_threshold", settings.rag_similarity_threshold)
 
-        # 벡터 검색 쿼리 (코사인 거리 사용)
+        # 벡터 검색 쿼리 (코사인 거리 사용) ex: 연산자 (<-> L2거리 , <=> 코사인 거리)
         # <=> 연산자: 코사인 거리 (0 = 동일, 2 = 정반대)
         # 코사인 유사도 = 1 - 코사인 거리 (범위: -1 ~ 1, 보통 0 ~ 1)
         query_sql = f"""
