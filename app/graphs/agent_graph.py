@@ -162,53 +162,51 @@ class InsightAgentGraph:
 
         log_step(request_id, "AGENT", str(iteration), "THINK", "LLM 의사결정 시작", messages_count=len(state["messages"]))
 
-        # 1. 시스템 프롬프트 추가 (메시지에 SystemMessage가 없을 때만)
-        # InMemorySaver가 자동으로 messages를 유지하므로 멀티턴 대화 시 이미 SystemMessage가 존재할 수 있음
-        has_system_message = any(isinstance(m, SystemMessage) for m in state["messages"])
-        if not has_system_message:
-            system_prompt = self._get_system_prompt()
-            state["messages"] = [SystemMessage(content=system_prompt)] + list(state["messages"])
-            log_step(request_id, "AGENT", str(iteration), "SYSTEM", "시스템 프롬프트 추가됨")
-        else:
-            log_step(request_id, "AGENT", str(iteration), "SYSTEM", "시스템 프롬프트 이미 존재 (멀티턴)")
-
-        # 1.5. 메시지 검증: ToolMessage는 반드시 AIMessage with tool_calls 다음에 와야 함
-        messages = self._validate_messages(list(state["messages"]))
+        # 1. 메시지 준비: state["messages"]는 checkpointer + add_messages reducer가 자동 관리
+        # SystemMessage를 제외하고 LLM에 전달할 메시지 준비
+        current_messages = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
+        validated_messages = self._validate_messages(current_messages)
 
         # 검증 후 메시지가 비어있으면 에러
-        if not messages:
+        if not validated_messages:
             logger.error(f"[{request_id}] 검증 후 메시지가 비어있음. 원본 메시지 수: {len(state['messages'])}")
             error_msg = "메시지 검증 실패: 유효한 메시지가 없습니다."
-            state["messages"] = list(state["messages"]) + [AIMessage(content=error_msg)]
+            # add_messages reducer가 자동으로 추가하므로 새 메시지만 반환
+            state["messages"] = [AIMessage(content=error_msg)]
             state["final_answer"] = error_msg
             return state
 
-        state["messages"] = messages
+        # 2. 시스템 프롬프트를 LLM 호출용 메시지에만 추가 (state에는 저장하지 않음)
+        # 이렇게 하면 InMemorySaver에 SystemMessage가 중복 저장되지 않음
+        system_prompt = self._get_system_prompt()
+        messages_for_llm = [SystemMessage(content=system_prompt)] + validated_messages
+        log_step(request_id, "AGENT", str(iteration), "SYSTEM", "LLM 호출용 시스템 프롬프트 추가", total_messages=len(messages_for_llm))
 
-        # 2. LLM 호출
+        # 3. LLM 호출
         llm = self._get_llm(config)
 
         # 디버깅: LLM 입력 메시지 로그
-        logger.debug(f"[{request_id}] [AGENT-{iteration}] [LLM-INPUT] Messages to LLM:")
-        for i,  msg in enumerate(messages):
+        logger.debug(f"[{request_id}] [AGENT-{iteration}] [LLM-INPUT] Messages to LLM ({len(messages_for_llm)} total):")
+        for i, msg in enumerate(messages_for_llm):
             msg_type = type(msg).__name__
             content_preview = str(msg.content)[:100] if hasattr(msg, 'content') and msg.content else "(empty)"
-            has_tool_calls = hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
+            has_tool_calls = isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
             logger.debug(f"  [{i}] {msg_type}: {content_preview}... | has_tool_calls={has_tool_calls}")
 
         try:
-            response = llm.invoke(messages)
+            response = llm.invoke(messages_for_llm)
             
             # 디버깅: LLM 출력 로그
             response_content = response.content if hasattr(response, 'content') else "(no content)"
             response_tool_calls = len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0
             logger.info(f"[{request_id}] [AGENT-{iteration}] [LLM-OUTPUT] content_length={len(response_content)}, tool_calls={response_tool_calls}")
 
-            # 3. 메시지 추가
-            state["messages"] = list(state["messages"]) + [response]
+            # 4. 메시지 추가: add_messages reducer가 자동으로 기존 메시지에 추가
+            # 새로 추가된 response만 반환하면 reducer가 기존 메시지와 merge
+            state["messages"] = [response]
             state["iteration_count"] = iteration + 1
 
-            # 4. 도구 호출 로그
+            # 5. 도구 호출 로그
             if hasattr(response, "tool_calls") and response.tool_calls:
                 tool_names = [tc["name"] for tc in response.tool_calls]
                 log_step(request_id, "AGENT", str(iteration), "ACTION",
@@ -242,9 +240,9 @@ class InsightAgentGraph:
         except Exception as e:
             logger.error(f"[{request_id}] [AGENT-{iteration}] LLM 호출 실패: {e}", exc_info=True)
 
-            # 에러 메시지 추가
+            # 에러 메시지 추가: add_messages reducer가 자동으로 기존 메시지에 추가
             error_msg = f"LLM 호출 중 오류가 발생했습니다: {str(e)}"
-            state["messages"] = list(state["messages"]) + [AIMessage(content=error_msg)]
+            state["messages"] = [AIMessage(content=error_msg)]
             state["final_answer"] = error_msg
 
             return state
