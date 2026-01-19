@@ -162,11 +162,15 @@ class InsightAgentGraph:
 
         log_step(request_id, "AGENT", str(iteration), "THINK", "LLM 의사결정 시작", messages_count=len(state["messages"]))
 
-        # 1. 시스템 프롬프트 추가 (첫 호출 시만)
-        # InMemorySaver가 자동으로 messages를 유지하므로 별도 메모리 로딩 불필요
-        if iteration == 0:
+        # 1. 시스템 프롬프트 추가 (메시지에 SystemMessage가 없을 때만)
+        # InMemorySaver가 자동으로 messages를 유지하므로 멀티턴 대화 시 이미 SystemMessage가 존재할 수 있음
+        has_system_message = any(isinstance(m, SystemMessage) for m in state["messages"])
+        if not has_system_message:
             system_prompt = self._get_system_prompt()
             state["messages"] = [SystemMessage(content=system_prompt)] + list(state["messages"])
+            log_step(request_id, "AGENT", str(iteration), "SYSTEM", "시스템 프롬프트 추가됨")
+        else:
+            log_step(request_id, "AGENT", str(iteration), "SYSTEM", "시스템 프롬프트 이미 존재 (멀티턴)")
 
         # 1.5. 메시지 검증: ToolMessage는 반드시 AIMessage with tool_calls 다음에 와야 함
         messages = self._validate_messages(list(state["messages"]))
