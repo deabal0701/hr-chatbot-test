@@ -1,6 +1,6 @@
-"""
-Agent API 엔드포인트
+"""Agent API 엔드포인트
 
+위치: app/api/routes/agent.py
 기능:
 - Agent 기반 검색 (ReAct 패턴)
 - 멀티턴 대화 지원
@@ -11,20 +11,19 @@ Agent API 엔드포인트
 - 스트리밍 응답 (Server-Sent Events)
 - WebSocket 지원
 - 세션 영속화 (Redis)
-"""
 
+비즈니스 로직은 agent_service에 위임
+"""
 import uuid
 from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query, Body
 
-from app.graphs.agent_graph import agent_graph
+from app.api.services.agent_service import agent_service
 from app.models.agent_schemas import (
     AgentRequest,
-    AgentResponse,
-    AgentConfig
+    AgentResponse
 )
 from app.utils.logger import setup_logger
-from app.core.config.settings_service import settings_service
 
 logger = setup_logger(__name__)
 
@@ -89,48 +88,13 @@ async def agent_search(request: AgentRequest):
     try:
         logger.info(f"[{request_id}] Agent 검색 요청: {request.question[:100]}")
 
-        # 세션 ID 자동 생성
-        if not request.session_id:
-            request.session_id = f"session-{request_id}"
-
-        # Agent 설정: 시스템 설정 → 요청 설정 → 기본값 순서로 적용
-        config = request.config or AgentConfig()
-
-        # 시스템 설정에서 값 로드 (요청에 명시되지 않은 경우만)
-        if request.config is None:
-            config.max_iterations = settings_service.get_value("agent", "max_iterations", config.max_iterations)
-            config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", config.timeout_seconds)
-            # llm_model은 "llm" 카테고리에서 읽음 (전역 LLM 설정 사용)
-            original_model = config.llm_model
-            config.llm_model = settings_service.get_value("llm", "model", config.llm_model)
-            logger.info(f"[{request_id}] LLM 모델 로딩: {original_model} → {config.llm_model} (from DB/env)")
-            config.llm_temperature = settings_service.get_value("agent", "llm_temperature", config.llm_temperature)
-            config.enable_memory = settings_service.get_value("agent", "enable_memory", config.enable_memory)
-            config.enable_streaming = settings_service.get_value("agent", "enable_streaming", config.enable_streaming)
-
-            # enabled_tools는 쉼표 구분 문자열로 저장되므로 리스트로 변환
-            tools_str = settings_service.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool")
-            if tools_str:
-                enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
-                # tools_whitelist로 설정 (None이 아닌 경우만 사용)
-                if enabled_tools:
-                    config.tools_whitelist = enabled_tools
-
-        logger.info(f"[{request_id}] Agent 설정: max_iterations={config.max_iterations}, "
-                    f"timeout={config.timeout_seconds}s, memory={config.enable_memory}, "
-                    f"llm_model={config.llm_model}, "
-                    f"tools_whitelist={config.tools_whitelist}")
-
-        # 입력 구성
-        inputs = {
-            "question": request.question,
-            "session_id": request.session_id,
-            "config": config,
-            "request_id": request_id
-        }
-
-        # Agent 실행
-        result = await agent_graph.ainvoke(inputs)
+        # 서비스 호출 (설정 로딩 로직은 서비스에서 처리)
+        result = await agent_service.search(
+            question=request.question,
+            session_id=request.session_id,
+            config=request.config,
+            request_id=request_id
+        )
 
         logger.info(
             f"[{request_id}] Agent 검색 완료: "
@@ -162,21 +126,7 @@ async def list_sessions():
     - 페이지네이션
     """
     try:
-        # InMemorySaver에서 thread 목록 가져오기
-        checkpointer = agent_graph.checkpointer
-        sessions = []
-
-        # InMemorySaver의 내부 storage에서 thread_id 추출
-        if hasattr(checkpointer, 'storage'):
-            # storage는 dict[tuple[str, ...], Any] 형태
-            # tuple의 첫 번째 요소가 thread_id
-            thread_ids = set()
-            for key in checkpointer.storage.keys():
-                if key and len(key) > 0:
-                    thread_ids.add(key[0])
-            sessions = sorted(list(thread_ids))
-
-        logger.info(f"Active sessions (InMemorySaver): {len(sessions)}")
+        sessions = agent_service.get_sessions()
         return sessions
 
     except Exception as e:
@@ -203,40 +153,15 @@ async def get_session_memory(session_id: str):
     - 요약 제공
     """
     try:
-        checkpointer = agent_graph.checkpointer
+        result = agent_service.get_session_memory(session_id)
 
-        # InMemorySaver에서 체크포인트 가져오기
-        config = {"configurable": {"thread_id": session_id}}
-
-        # 가장 최근 체크포인트 가져오기
-        checkpoint = checkpointer.get(config)
-
-        if not checkpoint:
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Session {session_id} not found"
             )
 
-        # 체크포인트에서 메시지 추출
-        messages = checkpoint.get("channel_values", {}).get("messages", [])
-
-        # 메시지를 직렬화 가능한 형태로 변환
-        serialized_messages = []
-        for msg in messages:
-            if hasattr(msg, "content"):
-                serialized_messages.append({
-                    "type": type(msg).__name__,
-                    "content": str(msg.content),
-                    "role": getattr(msg, "type", "unknown")
-                })
-
-        return {
-            "session_id": session_id,
-            "messages": serialized_messages,
-            "message_count": len(serialized_messages),
-            "checkpoint_id": checkpoint.get("id"),
-            "metadata": checkpoint.get("metadata", {})
-        }
+        return result
 
     except HTTPException:
         raise
@@ -264,29 +189,14 @@ async def delete_session(session_id: str):
     - 삭제 전 백업
     """
     try:
-        checkpointer = agent_graph.checkpointer
+        result = agent_service.delete_session(session_id)
+        return result
 
-        # InMemorySaver의 storage에서 해당 thread_id의 모든 체크포인트 삭제
-        if hasattr(checkpointer, 'storage'):
-            keys_to_delete = [key for key in checkpointer.storage.keys() if key and len(key) > 0 and key[0] == session_id]
-            for key in keys_to_delete:
-                del checkpointer.storage[key]
-
-            logger.info(f"Session deleted (InMemorySaver): {session_id}, checkpoints removed: {len(keys_to_delete)}")
-
-            return {
-                "success": True,
-                "message": f"Session {session_id} deleted successfully",
-                "checkpoints_removed": len(keys_to_delete)
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Checkpointer storage not accessible"
-            )
-
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"세션 삭제 실패: {e}", exc_info=True)
         raise HTTPException(
@@ -316,28 +226,8 @@ async def get_session_metrics(session_id: str):
     - 비용 추정
     """
     try:
-        checkpointer = agent_graph.checkpointer
-
-        # 해당 세션의 체크포인트 수 계산
-        checkpoint_count = 0
-        if hasattr(checkpointer, 'storage'):
-            checkpoint_count = sum(1 for key in checkpointer.storage.keys() if key and len(key) > 0 and key[0] == session_id)
-
-        # 최근 체크포인트에서 메시지 수 가져오기
-        config = {"configurable": {"thread_id": session_id}}
-        checkpoint = checkpointer.get(config)
-
-        message_count = 0
-        if checkpoint:
-            messages = checkpoint.get("channel_values", {}).get("messages", [])
-            message_count = len(messages)
-
-        return {
-            "session_id": session_id,
-            "checkpoint_count": checkpoint_count,
-            "message_count": message_count,
-            "note": "InMemorySaver는 상세 메트릭을 추적하지 않습니다. 상세 메트릭이 필요하면 별도 시스템을 구축하세요."
-        }
+        result = agent_service.get_session_metrics(session_id)
+        return result
 
     except Exception as e:
         logger.error(f"세션 메트릭 조회 실패: {e}", exc_info=True)
