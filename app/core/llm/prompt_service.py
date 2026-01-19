@@ -177,12 +177,8 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
         Returns:
             Agent 기본 시스템 프롬프트 (ReAct 패턴)
         """
-        default = """You are an AI assistant for corporate knowledge base and database systems with access to multiple tools.
-
-**Available Tools:**
-1. query_database: Query corporate database
-2. search_documents: Search corporate documents
-3. calculate: Perform mathematical calculations"""
+        default = """당신은 기업용 지식베이스와 데이터베이스 시스템을 위한 AI 어시스턴트입니다.
+사용 가능한 도구를 활용하여 사용자의 질문에 정확하게 답변해주세요."""
 
         return self.get_prompt('agent_system_prompt', default)
 

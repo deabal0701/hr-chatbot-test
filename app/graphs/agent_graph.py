@@ -19,8 +19,10 @@ import time
 import uuid
 from datetime import datetime
 from langchain_core.messages import (HumanMessage, SystemMessage, AIMessage, BaseMessage, ToolMessage)
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph, add_messages
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import InMemorySaver
 from app.models.agent import (AgentRequest, AgentResponse, AgentStep, AgentConfig, AgentSQLResult)
@@ -31,6 +33,7 @@ from app.core.config.settings_service import settings_service
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.core.llm.llm_config import LLMConfigManager  # 통합 LLM 설정
+from app.core.llm.prompt_service import prompt_service  # 프롬프트 서비스
 
 logger = setup_logger(__name__)
 
@@ -109,7 +112,7 @@ class InsightAgentGraph:
         # 도구 바인딩 (제공자 무관하게 동작)
         return llm.bind_tools(self.tools)
 
-    def _build_graph(self) -> StateGraph:
+    def _build_graph(self) -> CompiledStateGraph:
         """
         Agent 그래프 구성 (ReAct 패턴)
 
@@ -131,7 +134,7 @@ class InsightAgentGraph:
         # 조건부 엣지: LLM이 도구 호출 여부 결정
         workflow.add_conditional_edges(
             "agent",
-            self._should_continue,
+            self._should_continue,      # _should_continue에 평가에 따라 분기
             {
                 "continue": "tools",
                 "end": END
@@ -155,11 +158,9 @@ class InsightAgentGraph:
         request_id = state.get("request_id", "unknown")
         iteration = state.get("iteration_count", 0)
         session_id = state.get("session_id", "")
-        config = state.get("config", AgentConfig())
+        config = state.get("config", AgentConfig()) # type: ignore
 
-        log_step(request_id, "AGENT", str(iteration), "THINK",
-                "LLM 의사결정 시작",
-                messages_count=len(state["messages"]))
+        log_step(request_id, "AGENT", str(iteration), "THINK", "LLM 의사결정 시작", messages_count=len(state["messages"]))
 
         # 1. 시스템 프롬프트 추가 (첫 호출 시만)
         # InMemorySaver가 자동으로 messages를 유지하므로 별도 메모리 로딩 불필요
@@ -185,7 +186,7 @@ class InsightAgentGraph:
 
         # 디버깅: LLM 입력 메시지 로그
         logger.debug(f"[{request_id}] [AGENT-{iteration}] [LLM-INPUT] Messages to LLM:")
-        for i, msg in enumerate(messages):
+        for i,  msg in enumerate(messages):
             msg_type = type(msg).__name__
             content_preview = str(msg.content)[:100] if hasattr(msg, 'content') and msg.content else "(empty)"
             has_tool_calls = hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
@@ -299,35 +300,30 @@ class InsightAgentGraph:
         - 시간 제한
         """
         request_id = state.get("request_id", "unknown")
-        config = state.get("config", AgentConfig())
+        config = state.get("config", AgentConfig()) # type: ignore
         start_time = state.get("start_time", time.time())
 
         # 1. 최대 반복 체크
         if state["iteration_count"] >= config.max_iterations:
-            log_step(request_id, "AGENT", "LIMIT", "STOP",
-                    "최대 반복 횟수 도달",
-                    max_iterations=config.max_iterations)
+            log_step(request_id, "AGENT", "LIMIT", "STOP", "최대 반복 횟수 도달", max_iterations=config.max_iterations)
             state["final_answer"] = "최대 반복 횟수에 도달했습니다. 질문을 더 구체적으로 작성해주세요."
             return "end"
 
         # 2. 타임아웃 체크
         elapsed = time.time() - start_time
         if elapsed > config.timeout_seconds:
-            log_step(request_id, "AGENT", "TIMEOUT", "STOP",
-                    "타임아웃 도달",
-                    elapsed_seconds=int(elapsed))
+            log_step(request_id, "AGENT", "TIMEOUT", "STOP", "타임아웃 도달", elapsed_seconds=int(elapsed))
             state["final_answer"] = "요청 처리 시간이 초과되었습니다."
             return "end"
 
         # 3. Function call 확인
         last_message = state["messages"][-1]
-
-        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        if hasattr(last_message, "tool_calls") and last_message.tool_calls: # type: ignore  # tool_calls가 존재한다면 계속 진행
             return "continue"
         else:
             # 최종 답변 저장
             final_content = last_message.content if hasattr(last_message, "content") else ""
-            state["final_answer"] = final_content
+            state["final_answer"] = final_content # type: ignore
             
             # 디버깅: 최종 답변 내용 확인
             if final_content:
@@ -339,47 +335,13 @@ class InsightAgentGraph:
 
     def _get_system_prompt(self) -> str:
         """
-        시스템 프롬프트 생성
+        시스템 프롬프트 생성 (DB에서 조회)
 
-        Note: InMemorySaver가 자동으로 대화 히스토리를 유지하므로
-        별도의 메모리 컨텍스트를 프롬프트에 추가할 필요 없음
+        조회 우선순위:
+        1. DB (tb_app_settings: category='prompt', key='agent_system_prompt')
+        2. prompt_service 내장 기본값
         """
-        base_prompt = """You are an AI assistant for corporate knowledge base and database systems with access to multiple tools.
-
-**Available Tools:**
-1. query_database_tool: Query corporate database (for structured data like counts, statistics, records)
-2. search_documents_tool: Search corporate documents (for policies, regulations, guidelines, FAQs)
-3. calculate_tool: Perform mathematical calculations (for percentages, averages, etc.)
-
-**Instructions:**
-1. Think step by step before taking action
-2. Use the most appropriate tool for each task
-3. You can use multiple tools in sequence if needed
-4. Always provide a final answer in Korean (한국어)
-5. Be concise but comprehensive
-
-**Thought Process (ReAct Pattern):**
-- Thought: Analyze what information you need
-- Action: Choose and use appropriate tool(s)
-- Observation: Review tool results
-- Repeat until you have enough information
-- Final Answer: Provide comprehensive answer in Korean
-
-**Tool Selection Guidelines:**
-- Structured data/statistics → query_database_tool
-- Documents/policies/regulations → search_documents_tool
-- Calculations → calculate_tool
-- Complex queries → combine multiple tools
-
-**Important:**
-- Do NOT make assumptions without tool use
-- Do NOT invent data
-- If tools fail, explain what went wrong
-- **CRITICAL: After using tools and getting results, you MUST provide a final answer in Korean**
-- **Do NOT return empty responses - always synthesize tool results into a clear answer**
-"""
-
-        return base_prompt
+        return prompt_service.get_agent_system_prompt()
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> AgentResponse:
         """
@@ -393,7 +355,7 @@ class InsightAgentGraph:
         request_id = inputs.get("request_id", str(uuid.uuid4())[:8])
         question = inputs["question"]
         session_id = inputs.get("session_id", f"session-{request_id}")
-        config = inputs.get("config", AgentConfig())
+        config = inputs.get("config", AgentConfig()) # type: ignore
 
         start_time = time.time()
 
@@ -413,7 +375,7 @@ class InsightAgentGraph:
 
         try:
             # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
-            graph_config = {"configurable": {"thread_id": session_id}}
+            graph_config: RunnableConfig = {"configurable": {"thread_id": session_id}}
             result = await self.graph.ainvoke(initial_state, config=graph_config) 
 
             # 실행 시간 계산
@@ -424,12 +386,16 @@ class InsightAgentGraph:
             tools_used = self._extract_tools_used(result["messages"])
             
             # 최종 답변 추출 (마지막 AIMessage의 content)
-            final_answer = ""
+            final_answer: str = ""
             if result.get("messages"):
                 for message in reversed(result["messages"]):
                     if isinstance(message, AIMessage) and message.content:
-                        final_answer = message.content
+                        # AIMessage.content는 str | list 타입이므로 str로 변환
+                        content = message.content
+                        final_answer = content if isinstance(content, str) else str(content)
                         break
+                        
+            
             
             # 디버깅: 최종 답변 확인
             logger.info(f"[{request_id}] [EXTRACT] Final answer extracted: length={len(final_answer)}, preview={final_answer[:100] if final_answer else '(empty)'}")
@@ -444,11 +410,12 @@ class InsightAgentGraph:
             logger.debug(f"[{request_id}] InMemorySaver에 대화 히스토리 자동 저장됨 (thread_id={session_id})")
 
             return AgentResponse(
-                answer=final_answer,  # ← 수정: 직접 추출한 답변 사용
+                answer=final_answer,
                 steps=steps,
                 total_iterations=result["iteration_count"],
                 tools_used=tools_used,
                 success=True,
+                error=None,  # 성공 시 에러 없음
                 metadata={
                     "request_id": request_id,
                     "session_id": session_id,
@@ -473,7 +440,8 @@ class InsightAgentGraph:
                     "request_id": request_id,
                     "execution_time_ms": execution_time_ms,
                     "error_type": type(e).__name__
-                }
+                },
+                session_id=session_id
             )
 
     def _extract_steps(self, messages: List[BaseMessage]) -> List[AgentStep]:
