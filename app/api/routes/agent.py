@@ -19,7 +19,7 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query, Body
 
 from app.api.services.agent_service import agent_service
-from app.models.agent_schemas import (
+from app.models.agent import (
     AgentRequest,
     AgentResponse
 )
@@ -89,20 +89,10 @@ async def agent_search(request: AgentRequest):
         logger.info(f"[{request_id}] Agent 검색 요청: {request.question[:100]}")
 
         # 서비스 호출 (설정 로딩 로직은 서비스에서 처리)
-        result = await agent_service.search(
-            question=request.question,
-            session_id=request.session_id,
-            config=request.config,
-            request_id=request_id
+        result = await agent_service.search(question=request.question, session_id=request.session_id, config=request.config, request_id=request_id)
+        logger.info(f"[{request_id}] Agent 검색 완료: " f"iterations={result.total_iterations}, " f"tools={result.tools_used}, "
+                    f"success={result.success}"
         )
-
-        logger.info(
-            f"[{request_id}] Agent 검색 완료: "
-            f"iterations={result.total_iterations}, "
-            f"tools={result.tools_used}, "
-            f"success={result.success}"
-        )
-
         return result
 
     except Exception as e:

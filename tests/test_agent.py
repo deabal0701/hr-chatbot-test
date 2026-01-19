@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 from app.tools.calculator_tool import CalculatorTool
 from app.tools.base import ToolResult
-from app.models.agent_schemas import AgentRequest, AgentConfig
+from app.models.agent import AgentRequest, AgentConfig
 
 
 class TestCalculatorTool:
@@ -206,7 +206,7 @@ class TestMemoryStore:
 
     def test_session_creation(self):
         """세션 생성"""
-        from app.models.agent_schemas import session_memory_store
+        from app.models.agent import session_memory_store
 
         memory = session_memory_store.get_memory("test-session")
         assert memory.session_id == "test-session"
@@ -214,7 +214,7 @@ class TestMemoryStore:
 
     def test_add_message(self):
         """메시지 추가"""
-        from app.models.agent_schemas import session_memory_store
+        from app.models.agent import session_memory_store
 
         memory = session_memory_store.get_memory("test-session-2")
         memory.add_message("user", "안녕하세요")
@@ -226,7 +226,7 @@ class TestMemoryStore:
 
     def test_clear_session(self):
         """세션 삭제"""
-        from app.models.agent_schemas import session_memory_store
+        from app.models.agent import session_memory_store
 
         session_id = "test-session-3"
         memory = session_memory_store.get_memory(session_id)

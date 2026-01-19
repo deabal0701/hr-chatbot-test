@@ -337,28 +337,6 @@ SQL만 출력하세요 (설명 없이)."""
         # 응답 구성 (공통 로직)
         return self._build_response(result, response_time_ms)
 
-    def invoke(self, inputs: Dict[str, Any]) -> SearchResponse:
-        """그래프 동기 실행"""
-        start_time = time.time()
-
-        # 초기 상태 준비 (공통 로직)
-        initial_state = self._prepare_initial_state(inputs)
-        request_id = initial_state["request_id"]
-
-        log_step(request_id, "NL2SQL", "0", "INIT", "NL2SQL 그래프 실행 시작 (동기)",
-                question=inputs["question"])
-
-        result = self.graph.invoke(initial_state)
-
-        response_time_ms = int((time.time() - start_time) * 1000)
-
-        log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료 (동기)",
-                has_sql=bool(result["generated_sql"]),
-                answer_length=len(result["answer"]))
-
-        # 응답 구성 (공통 로직)
-        return self._build_response(result, response_time_ms)
-
 
 # 싱글톤 인스턴스
 nl2sql_graph = NL2SQLGraph()

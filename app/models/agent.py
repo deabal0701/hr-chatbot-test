@@ -60,23 +60,24 @@ class AgentConfig(BaseModel):
     tools_blacklist: Optional[List[str]] = Field(None, description="사용 금지 도구 목록")
     timeout_seconds: int = Field(default=60, ge=10, le=300, description="전체 타임아웃(초)")
 
-    @model_validator(mode='after')
-    def set_default_llm_model(self) -> 'AgentConfig':
-        """llm_model이 None이면 DB 설정에서 로드"""
-        if self.llm_model is None:
-            # 순환 import 방지를 위해 함수 내부에서 import
-            from app.core.config.settings_service import settings_service
-            from app.config import settings
-            from app.utils.logger import logger
+    # DB 값이 중복으로 로드되는 문제 해결
+    # @model_validator(mode='after')
+    # def set_default_llm_model(self) -> 'AgentConfig':
+    #     """llm_model이 None이면 DB 설정에서 로드"""
+    #     if self.llm_model is None:
+    #         # 순환 import 방지를 위해 함수 내부에서 import
+    #         from app.core.config.settings_service import settings_service
+    #         from app.config import settings
+    #         from app.utils.logger import logger
 
-            # DB 설정 → .env → 하드코딩 순서로 fallback
-            self.llm_model = settings_service.get_value("llm", "model", settings.llm_model)
-            logger.info(f"[AgentConfig] @model_validator: llm_model loaded from DB/env: {self.llm_model}")
-        else:
-            from app.utils.logger import logger
-            logger.info(f"[AgentConfig] @model_validator: llm_model already set: {self.llm_model}")
+    #         # DB 설정 → .env → 하드코딩 순서로 fallback
+    #         self.llm_model = settings_service.get_value("llm", "model", settings.llm_model)
+    #         logger.info(f"[AgentConfig] @model_validator: llm_model loaded from DB/env: {self.llm_model}")
+    #     else:
+    #         from app.utils.logger import logger
+    #         logger.info(f"[AgentConfig] @model_validator: llm_model already set: {self.llm_model}")
 
-        return self
+    #     return self
 
     def is_tool_allowed(self, tool_name: str) -> bool:
         """도구 사용 가능 여부 확인"""

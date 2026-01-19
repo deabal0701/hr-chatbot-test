@@ -8,7 +8,7 @@
 from typing import Any, Dict, List, Optional
 
 from app.graphs.agent_graph import agent_graph
-from app.models.agent_schemas import (
+from app.models.agent import (
     AgentConfig,
     AgentResponse
 )
@@ -21,13 +21,7 @@ logger = setup_logger(__name__)
 class AgentService:
     """AI Agent 검색 서비스"""
 
-    async def search(
-        self,
-        question: str,
-        session_id: Optional[str] = None,
-        config: Optional[AgentConfig] = None,
-        request_id: str = "unknown"
-    ) -> AgentResponse:
+    async def search(self, question: str, session_id: Optional[str] = None, config: Optional[AgentConfig] = None, request_id: str = "unknown") -> AgentResponse:
         """
         AI Agent 검색 실행
 
@@ -64,11 +58,7 @@ class AgentService:
 
         return result
 
-    def _resolve_config(
-        self,
-        request_config: Optional[AgentConfig],
-        request_id: str
-    ) -> AgentConfig:
+    def _resolve_config(self, request_config: Optional[AgentConfig], request_id: str) -> AgentConfig:
         """
         Agent 설정 결정 (시스템 설정 → 요청 설정 → 기본값)
 
@@ -80,22 +70,16 @@ class AgentService:
             AgentConfig: 최종 설정
         """
         # 기본 설정으로 시작
-        config = request_config or AgentConfig()
+        config = request_config or AgentConfig() # type: ignore
 
         # 요청에 config가 없으면 시스템 설정에서 로드
         if request_config is None:
-            config.max_iterations = settings_service.get_value(
-                "agent", "max_iterations", config.max_iterations
-            )
-            config.timeout_seconds = settings_service.get_value(
-                "agent", "timeout_seconds", config.timeout_seconds
-            )
+            config.max_iterations = settings_service.get_value("agent", "max_iterations", config.max_iterations)
+            config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", config.timeout_seconds)
 
             # llm_model은 "llm" 카테고리에서 읽음 (전역 LLM 설정 사용)
             original_model = config.llm_model
-            config.llm_model = settings_service.get_value(
-                "llm", "model", config.llm_model
-            )
+            config.llm_model = settings_service.get_value("llm", "model", config.llm_model)
             logger.info(
                 f"[{request_id}] LLM 모델 로딩: {original_model} → {config.llm_model} (from DB/env)"
             )

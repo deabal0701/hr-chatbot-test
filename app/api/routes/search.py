@@ -39,34 +39,19 @@ async def search(request: SearchRequest):
         # STEP 2: 모드 결정
         if request.mode == "auto":
             query_type = _classify_query_intent(request.query)
-            log_step(request_id, "API", "2", "CLASSIFY",
-                    f"자동 분류 완료 → {query_type.upper()}",
-                    original_mode="auto", detected_type=query_type)
+            log_step(request_id, "API", "2", "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
         else:
             query_type = request.mode
-            log_step(request_id, "API", "2", "CLASSIFY",
-                    f"사용자 지정 모드 사용 → {query_type.upper()}")
+            log_step(request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
         # STEP 3: 서비스 호출
         if query_type == "nl2sql":
-            response = await nl2sql_service.search(
-                query=request.query,
-                request_id=request_id
-            )
+            response = await nl2sql_service.search(query=request.query, request_id=request_id)
         else:  # rag
-            response = await rag_service.search(
-                query=request.query,
-                filters=request.filters,
-                top_k=request.top_k,
-                request_id=request_id
-            )
+            response = await rag_service.search(query=request.query, filters=request.filters, top_k=request.top_k, request_id=request_id)
 
         # STEP 4: 응답 완료
-        log_step(request_id, "API", "4", "RESPONSE", "응답 생성 완료",
-                query_type=response.query_type,
-                response_time_ms=response.response_time_ms,
-                answer_length=len(response.answer))
-
+        log_step(request_id, "API", "4", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
         logger.info(f"[{request_id}] ========== 검색 요청 처리 완료 ==========")
 
         return response

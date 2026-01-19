@@ -14,7 +14,6 @@ from app.core.llm.llm_config import LLMConfigManager
 
 logger = setup_logger(__name__)
 
-
 class RAGState(TypedDict):
     """RAG Graph 상태"""
     question: str
@@ -24,7 +23,6 @@ class RAGState(TypedDict):
     answer: str
     metadata: Dict[str, Any]
     request_id: str  # 요청 추적용 ID
-
 
 class RAGGraph:
     """RAG 검색 그래프 (LangGraph)"""
@@ -96,8 +94,7 @@ class RAGGraph:
         # 검색 결과 상세 로그
         if documents:
             doc_summaries = [f"{d.title}(유사도:{d.similarity_score:.2f})" for d in documents[:3]]
-            log_step(request_id, "RAG", "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견",
-                    top_docs=", ".join(doc_summaries))
+            log_step(request_id, "RAG", "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견", top_docs=", ".join(doc_summaries))
         else:
             log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 완료 - 관련 문서 없음")
 
@@ -147,7 +144,7 @@ class RAGGraph:
             response = llm.invoke(messages)
             answer = response.content
 
-            state["answer"] = answer
+            state["answer"] = answer # type: ignore
             state["metadata"]["llm_model"] = llm_model
             state["metadata"]["context_length"] = len(context)
 
@@ -237,24 +234,6 @@ class RAGGraph:
         # 응답 구성 (공통 로직)
         return self._build_response(result, response_time_ms)
 
-    def invoke(self, inputs: Dict[str, Any]) -> SearchResponse:
-        """그래프 동기 실행"""
-        import time
-        start_time = time.time()
-
-        # 초기 상태 준비 (공통 로직)
-        initial_state = self._prepare_initial_state(inputs)
-        request_id = initial_state["request_id"]
-
-        log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작 (동기)", question=inputs["question"], top_k=initial_state["top_k"])
-
-        # 그래프 실행
-        result = self.graph.invoke(initial_state)
-        response_time_ms = int((time.time() - start_time) * 1000)
-        log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료 (동기)", docs_found=len(result["retrieved_docs"]), answer_length=len(result["answer"]))
-
-        # 응답 구성 (공통 로직)
-        return self._build_response(result, response_time_ms)
 
 # 싱글톤 인스턴스
 rag_graph = RAGGraph()

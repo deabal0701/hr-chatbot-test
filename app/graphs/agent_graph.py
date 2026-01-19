@@ -31,7 +31,7 @@ from langgraph.graph import END, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import InMemorySaver
 
-from app.models.agent_schemas import (
+from app.models.agent import (
     AgentRequest,
     AgentResponse,
     AgentStep,

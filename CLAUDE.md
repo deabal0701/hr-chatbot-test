@@ -849,4 +849,6 @@ postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb
 
 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
 
+log_step은 가능한 한줄에 작성하라.
+
 
