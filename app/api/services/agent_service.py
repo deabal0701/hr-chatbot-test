@@ -8,15 +8,11 @@
 from typing import Any, Dict, List, Optional
 
 from app.graphs.agent_graph import agent_graph
-from app.models.agent import (
-    AgentConfig,
-    AgentResponse
-)
+from app.models.agent import (AgentConfig, AgentResponse)
 from app.core.config.settings_service import settings_service
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
-
 
 class AgentService:
     """AI Agent 검색 서비스"""
@@ -37,7 +33,7 @@ class AgentService:
         log_step(request_id, "SERVICE", "AGENT", "START", "Agent 서비스 시작", question=question[:50])
 
         # 세션 ID 자동 생성
-        if not session_id:
+        if not session_id: 
             session_id = f"session-{request_id}"
 
         # 설정 로딩 (시스템 설정 → 요청 설정 → 기본값)
@@ -48,78 +44,53 @@ class AgentService:
 
         # Agent 그래프 실행
         result = await agent_graph.ainvoke(inputs)
-
-        log_step(
-            request_id, "SERVICE", "AGENT", "END", "Agent 서비스 완료",
-            iterations=result.total_iterations,
-            tools_count=len(result.tools_used),
-            success=result.success
-        )
+        log_step(request_id, "SERVICE", "AGENT", "END", "Agent 서비스 완료", iterations=result.total_iterations, tools_count=len(result.tools_used), success=result.success)
 
         return result
 
     def _resolve_config(self, request_config: Optional[AgentConfig], request_id: str) -> AgentConfig:
         """
-        Agent 설정 결정 (시스템 설정 → 요청 설정 → 기본값)
+        Agent 설정 결정 (보안: 사용자 입력 무시, DB/캐시에서만 로드)
+
+        보안 정책:
+        - 사용자가 API 요청으로 전달한 config 값은 무시됨
+        - 모든 설정은 DB(tb_app_settings) 또는 캐시에서만 로드
+        - 관리자만 Admin UI를 통해 설정 변경 가능
 
         Args:
-            request_config: 요청에서 전달된 설정 (None이면 시스템 설정 사용)
+            request_config: 요청에서 전달된 설정 (보안상 무시됨)
             request_id: 요청 추적 ID
 
         Returns:
-            AgentConfig: 최종 설정
+            AgentConfig: DB/캐시에서 로드된 설정
         """
-        # 기본 설정으로 시작
-        config = request_config or AgentConfig() # type: ignore
+        # 보안: 사용자 입력(request_config) 무시, 새 AgentConfig 생성 후 DB에서 로드
+        _ = request_config  # 명시적으로 무시 (보안 정책)
+        config = AgentConfig()  # type: ignore
 
-        # 요청에 config가 없으면 시스템 설정에서 로드
-        if request_config is None:
-            config.max_iterations = settings_service.get_value("agent", "max_iterations", config.max_iterations)
-            config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", config.timeout_seconds)
+        # 모든 설정을 DB/캐시에서 로드 (사용자 입력 무시)
+        config.max_iterations = settings_service.get_value("agent", "max_iterations", 10)
+        config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", 60)
+        config.llm_model = settings_service.get_value("llm", "model", "gpt-4o-mini")
+        config.llm_temperature = settings_service.get_value("agent", "llm_temperature", 0.0)
+        config.enable_memory = settings_service.get_value("agent", "enable_memory", True)
+        config.enable_streaming = settings_service.get_value("agent", "enable_streaming", False)
 
-            # llm_model은 "llm" 카테고리에서 읽음 (전역 LLM 설정 사용)
-            original_model = config.llm_model
-            config.llm_model = settings_service.get_value("llm", "model", config.llm_model)
-            logger.info(
-                f"[{request_id}] LLM 모델 로딩: {original_model} → {config.llm_model} (from DB/env)"
-            )
+        # enabled_tools: 쉼표 구분 문자열 → 리스트 변환
+        tools_str = settings_service.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool")
+        if tools_str:
+            enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
+            if enabled_tools:
+                config.tools_whitelist = enabled_tools
 
-            config.llm_temperature = settings_service.get_value(
-                "agent", "llm_temperature", config.llm_temperature
-            )
-            config.enable_memory = settings_service.get_value(
-                "agent", "enable_memory", config.enable_memory
-            )
-            config.enable_streaming = settings_service.get_value(
-                "agent", "enable_streaming", config.enable_streaming
-            )
+        # tools_blacklist는 DB에서 관리하지 않으므로 None 유지
+        config.tools_blacklist = None
 
-            # enabled_tools는 쉼표 구분 문자열로 저장되므로 리스트로 변환
-            tools_str = settings_service.get_value(
-                "agent", "enabled_tools",
-                "query_database_tool,search_documents_tool,calculate_tool"
-            )
-            if tools_str:
-                enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
-                # tools_whitelist로 설정 (None이 아닌 경우만 사용)
-                if enabled_tools:
-                    config.tools_whitelist = enabled_tools
-
-        logger.info(
-            f"[{request_id}] Agent 설정: max_iterations={config.max_iterations}, "
-            f"timeout={config.timeout_seconds}s, memory={config.enable_memory}, "
-            f"llm_model={config.llm_model}, tools_whitelist={config.tools_whitelist}"
-        )
+        logger.info(f"[{request_id}] Agent 설정 (DB/캐시): max_iterations={config.max_iterations}, timeout={config.timeout_seconds}s, memory={config.enable_memory}, llm_model={config.llm_model}, tools_whitelist={config.tools_whitelist}")
 
         return config
 
-    def _prepare_inputs(
-        self,
-        question: str,
-        session_id: str,
-        config: AgentConfig,
-        request_id: str
-    ) -> Dict[str, Any]:
+    def _prepare_inputs(self, question: str, session_id: str, config: AgentConfig, request_id: str) -> Dict[str, Any]:
         """
         그래프 입력 데이터 구성
 
@@ -174,7 +145,7 @@ class AgentService:
         config = {"configurable": {"thread_id": session_id}}
 
         # 가장 최근 체크포인트 가져오기
-        checkpoint = checkpointer.get(config)
+        checkpoint = checkpointer.get(config) # type: ignore
 
         if not checkpoint:
             return None
@@ -259,7 +230,7 @@ class AgentService:
 
         # 최근 체크포인트에서 메시지 수 가져오기
         config = {"configurable": {"thread_id": session_id}}
-        checkpoint = checkpointer.get(config)
+        checkpoint = checkpointer.get(config) # type: ignore
 
         message_count = 0
         if checkpoint:

@@ -71,18 +71,8 @@ class CodeService:
 
                 cur.execute(f"""
                     SELECT
-                        code_id,
-                        code_group,
-                        code_value,
-                        code_name,
-                        description,
-                        metadata,
-                        sort_order,
-                        is_active,
-                        is_system,
-                        created_at,
-                        updated_at
-                    FROM tb_code
+                        code_id, code_group, code_value, code_name, description, metadata, sort_order,
+                        is_active, is_system, created_at, updated_at FROM tb_code
                     WHERE code_group = %s {active_filter}
                     ORDER BY sort_order, code_value
                 """, (code_group,))
@@ -123,18 +113,7 @@ class CodeService:
             db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
-                    SELECT
-                        code_id,
-                        code_group,
-                        code_value,
-                        code_name,
-                        description,
-                        metadata,
-                        sort_order,
-                        is_active,
-                        is_system,
-                        created_at,
-                        updated_at
+                    SELECT code_id, code_group, code_value, code_name, description, metadata, sort_order, is_active, is_system, created_at, updated_at
                     FROM tb_code
                     WHERE code_id = %s
                 """, (code_id,))
@@ -221,11 +200,11 @@ class CodeService:
                     is_active, is_system
                 ))
 
-                code_id = cur.fetchone()['code_id']
+                code_id = cur.fetchone()['code_id'] # type: ignore
 
             # 커밋 완료 후 생성된 코드 조회
             logger.info(f"코드 생성 성공: {code_group}.{code_value} (ID: {code_id})")
-            return CodeService.get_code_by_id(code_id)
+            return CodeService.get_code_by_id(code_id) # type: ignore
 
         except ValueError:
             raise
@@ -303,7 +282,7 @@ class CodeService:
                 logger.info(f"코드 수정 성공: {code_id} - {list(update_fields.keys())}")
 
                 # 수정된 코드 조회 후 반환
-                return CodeService.get_code_by_id(code_id)
+                return CodeService.get_code_by_id(code_id) # type: ignore
 
         except ValueError:
             raise
