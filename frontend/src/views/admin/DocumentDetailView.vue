@@ -88,23 +88,91 @@
                 </el-button>
               </div>
 
-              <!-- 청크 탭 (청크가 2개 이상인 경우에만 표시) -->
-              <div class="chunk-tabs" v-if="hasMultipleChunks">
-                <el-radio-group v-model="activeChunkTab" size="small">
-                  <el-radio-button label="full">전체</el-radio-button>
-                  <el-radio-button
-                    v-for="chunk in document.chunks"
-                    :key="chunk.id"
-                    :label="chunk.chunk_index"
+              <!-- 청크 네비게이션 (청크가 2개 이상인 경우에만 표시) -->
+              <div class="chunk-navigation" v-if="hasMultipleChunks">
+                <div class="nav-left">
+                  <el-button
+                    :type="viewMode === 'full' ? 'primary' : 'default'"
+                    size="small"
+                    @click="viewMode = 'full'"
                   >
-                    {{ chunk.chunk_index + 1 }}/{{ document.total_chunks }}
-                    <span class="chunk-length">({{ formatNumber(chunk.content_length) }}자)</span>
-                  </el-radio-button>
-                </el-radio-group>
+                    전체 보기
+                  </el-button>
+                  <el-divider direction="vertical" />
+                  <span class="chunk-label">청크 보기:</span>
+                </div>
+                <div class="nav-center" v-if="viewMode === 'chunk'">
+                  <el-button
+                    :icon="ArrowLeft"
+                    size="small"
+                    :disabled="currentChunkIndex <= 0"
+                    @click="currentChunkIndex--"
+                  />
+                  <span class="chunk-indicator">
+                    {{ currentChunkIndex + 1 }} / {{ document.total_chunks }}
+                  </span>
+                  <el-button
+                    :icon="ArrowRight"
+                    size="small"
+                    :disabled="currentChunkIndex >= document.total_chunks - 1"
+                    @click="currentChunkIndex++"
+                  />
+                </div>
+                <div class="nav-center" v-else>
+                  <el-button
+                    size="small"
+                    @click="viewMode = 'chunk'; currentChunkIndex = 0"
+                  >
+                    청크별 보기
+                  </el-button>
+                </div>
+                <div class="nav-right" v-if="viewMode === 'chunk'">
+                  <el-select
+                    v-model="currentChunkIndex"
+                    size="small"
+                    style="width: 120px"
+                    placeholder="청크 선택"
+                  >
+                    <el-option
+                      v-for="(chunk, index) in document.chunks"
+                      :key="chunk.id"
+                      :label="`청크 ${index + 1} (${formatNumber(chunk.content_length)}자)`"
+                      :value="index"
+                    />
+                  </el-select>
+                </div>
+              </div>
+
+              <!-- 현재 보기 정보 -->
+              <div class="view-info" v-if="hasMultipleChunks">
+                <template v-if="viewMode === 'full'">
+                  <el-tag type="info" size="small">
+                    전체 내용 ({{ formatNumber(document.original_length) }}자)
+                  </el-tag>
+                </template>
+                <template v-else>
+                  <el-tag type="success" size="small">
+                    청크 {{ currentChunkIndex + 1 }}/{{ document.total_chunks }}
+                    ({{ formatNumber(currentChunk?.content_length) }}자)
+                  </el-tag>
+                </template>
               </div>
 
               <div class="content-body">
                 {{ currentContent || '(내용 없음)' }}
+              </div>
+
+              <!-- 청크 페이지네이션 (하단) -->
+              <div class="chunk-pagination" v-if="hasMultipleChunks && viewMode === 'chunk'">
+                <el-pagination
+                  :current-page="chunkPage"
+                  :page-size="1"
+                  :total="document.total_chunks"
+                  layout="prev, pager, next"
+                  :pager-count="7"
+                  small
+                  @current-change="handleChunkPageChange"
+                />
               </div>
             </div>
           </el-col>
@@ -119,7 +187,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Edit, Delete, Upload, CopyDocument } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Edit, Delete, Upload, CopyDocument } from '@element-plus/icons-vue'
 
 const store = useStore()
 const router = useRouter()
@@ -128,9 +196,16 @@ const route = useRoute()
 const document = ref(null)
 const isLoading = ref(false)
 const isEmbedding = ref(false)
-const activeChunkTab = ref('full')
+const viewMode = ref('full') // 'full' | 'chunk'
+const currentChunkIndex = ref(0)
 
 const docId = computed(() => route.params.id)
+
+// 청크 페이지 (1부터 시작, el-pagination용)
+const chunkPage = computed({
+  get: () => currentChunkIndex.value + 1,
+  set: (val) => { currentChunkIndex.value = val - 1 }
+})
 
 // 청크가 여러 개인지 확인
 const hasMultipleChunks = computed(() => {
@@ -143,17 +218,27 @@ const getOriginalTitle = computed(() => {
   return document.value.title.replace(/\s*\(\d+\/\d+\)$/, '')
 })
 
+// 현재 선택된 청크
+const currentChunk = computed(() => {
+  if (!document.value?.chunks) return null
+  return document.value.chunks[currentChunkIndex.value]
+})
+
 // 현재 표시할 내용
 const currentContent = computed(() => {
   if (!document.value) return ''
 
-  if (activeChunkTab.value === 'full') {
+  if (viewMode.value === 'full') {
     return document.value.full_content || document.value.content
   }
 
-  const chunk = document.value.chunks?.find(c => c.chunk_index === activeChunkTab.value)
-  return chunk?.content || document.value.content
+  return currentChunk.value?.content || document.value.content
 })
+
+// 청크 페이지 변경 핸들러
+const handleChunkPageChange = (page) => {
+  currentChunkIndex.value = page - 1
+}
 
 // 문서 로드
 onMounted(async () => {
@@ -330,14 +415,48 @@ const formatDateTime = (dateStr) => {
       }
     }
 
-    .chunk-tabs {
+    .chunk-navigation {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background-color: var(--bg-color-hover);
+      border-radius: 8px;
       margin-bottom: 12px;
 
-      .chunk-length {
-        font-size: 11px;
-        color: var(--text-color-secondary);
-        margin-left: 4px;
+      .nav-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .chunk-label {
+          font-size: 14px;
+          color: var(--text-color-regular);
+        }
       }
+
+      .nav-center {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .chunk-indicator {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-color-primary);
+          min-width: 80px;
+          text-align: center;
+        }
+      }
+
+      .nav-right {
+        display: flex;
+        align-items: center;
+      }
+    }
+
+    .view-info {
+      margin-bottom: 8px;
     }
 
     .content-body {
@@ -351,8 +470,16 @@ const formatDateTime = (dateStr) => {
       line-height: 1.8;
       color: var(--text-color-primary);
       overflow-y: auto;
-      max-height: calc(100vh - 320px);
+      max-height: calc(100vh - 400px);
       transition: var(--theme-transition);
+    }
+
+    .chunk-pagination {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color-light);
     }
   }
 }
