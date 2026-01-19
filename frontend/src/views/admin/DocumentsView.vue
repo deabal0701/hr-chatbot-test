@@ -95,9 +95,9 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="content_length" label="길이" width="100">
+        <el-table-column prop="original_length" label="길이" width="100">
           <template #default="{ row }">
-            {{ formatNumber(row.content_length) }}자
+            {{ formatNumber(row.original_length || row.content_length) }}자
           </template>
         </el-table-column>
 

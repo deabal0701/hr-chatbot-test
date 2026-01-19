@@ -101,9 +101,24 @@
                       {{ documentInfo.indexed ? '완료' : '대기' }}
                     </el-tag>
                   </el-descriptions-item>
-                  <el-descriptions-item label="청크 수">{{ documentInfo.total_chunks || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="청크 수">{{ documentInfo.total_chunks || 1 }}</el-descriptions-item>
+                  <el-descriptions-item label="전체 길이">{{ formatNumber(documentInfo.original_length || documentInfo.content_length) }}자</el-descriptions-item>
                   <el-descriptions-item label="생성일">{{ formatDate(documentInfo.created_at) }}</el-descriptions-item>
                 </el-descriptions>
+
+                <!-- 청크 문서 수정 안내 -->
+                <el-alert
+                  v-if="documentInfo.total_chunks > 1"
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  style="margin-top: 16px"
+                >
+                  <template #title>
+                    청크 문서 수정 안내
+                  </template>
+                  내용 수정 시 기존 청크가 삭제되고, 저장 후 재임베딩이 필요합니다.
+                </el-alert>
               </template>
             </div>
           </el-col>
@@ -160,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -211,12 +226,26 @@ onMounted(async () => {
     isLoading.value = true
     try {
       const doc = await store.dispatch('document/fetchDocument', docId.value)
+
+      // 자식 청크 문서인 경우 부모 문서로 리다이렉트
+      if (doc.redirect_to_parent) {
+        router.replace({ name: 'AdminDocumentEdit', params: { id: doc.redirect_to_parent } })
+        return
+      }
+
       documentInfo.value = doc
+
+      // 제목에서 청크 번호 제거
+      const originalTitle = doc.title?.replace(/\s*\(\d+\/\d+\)$/, '') || ''
+
+      // full_content가 있으면 사용 (청크된 문서의 경우), 없으면 content 사용
+      const fullContent = doc.full_content || doc.content || ''
+
       form.value = {
-        title: doc.title || '',
+        title: originalTitle,
         docType: doc.doc_type || 'policy',
         language: doc.language || 'ko',
-        content: doc.content || '',
+        content: fullContent,
         chunkSize: 1000,
         chunkOverlap: 100
       }
@@ -268,7 +297,13 @@ const handleSubmit = async () => {
         docId: docId.value,
         documentData
       })
-      ElMessage.success('문서가 수정되었습니다.')
+
+      // 청크가 있었던 문서의 내용이 변경된 경우 안내
+      if (documentInfo.value?.total_chunks > 1) {
+        ElMessage.success('문서가 수정되었습니다. 재임베딩이 필요합니다.')
+      } else {
+        ElMessage.success('문서가 수정되었습니다.')
+      }
     } else {
       await store.dispatch('document/saveDocument', documentData)
       ElMessage.success('문서가 생성되었습니다.')
@@ -286,6 +321,10 @@ const handleSubmit = async () => {
 const formatDate = (dateStr) => {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleString('ko-KR')
+}
+
+const formatNumber = (num) => {
+  return num?.toLocaleString() || '0'
 }
 </script>
 

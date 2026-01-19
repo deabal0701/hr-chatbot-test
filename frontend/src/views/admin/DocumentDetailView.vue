@@ -29,7 +29,7 @@
 
               <el-descriptions :column="1" border>
                 <el-descriptions-item label="ID">{{ document.id }}</el-descriptions-item>
-                <el-descriptions-item label="제목">{{ document.title }}</el-descriptions-item>
+                <el-descriptions-item label="제목">{{ getOriginalTitle }}</el-descriptions-item>
                 <el-descriptions-item label="유형">
                   <el-tag :type="getDocTypeTag(document.doc_type)">
                     {{ getDocTypeLabel(document.doc_type) }}
@@ -43,11 +43,11 @@
                     {{ document.indexed ? '완료' : '대기' }}
                   </el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item label="내용 길이">
-                  {{ formatNumber(document.content_length) }}자
+                <el-descriptions-item label="전체 길이">
+                  {{ formatNumber(document.original_length || document.content_length) }}자
                 </el-descriptions-item>
                 <el-descriptions-item label="청크 수">
-                  {{ document.total_chunks || '-' }}
+                  {{ document.total_chunks || 1 }}
                 </el-descriptions-item>
                 <el-descriptions-item label="소스 타입">
                   {{ document.source_type || '-' }}
@@ -87,8 +87,24 @@
                   복사
                 </el-button>
               </div>
+
+              <!-- 청크 탭 (청크가 2개 이상인 경우에만 표시) -->
+              <div class="chunk-tabs" v-if="hasMultipleChunks">
+                <el-radio-group v-model="activeChunkTab" size="small">
+                  <el-radio-button label="full">전체</el-radio-button>
+                  <el-radio-button
+                    v-for="chunk in document.chunks"
+                    :key="chunk.id"
+                    :label="chunk.chunk_index"
+                  >
+                    {{ chunk.chunk_index + 1 }}/{{ document.total_chunks }}
+                    <span class="chunk-length">({{ formatNumber(chunk.content_length) }}자)</span>
+                  </el-radio-button>
+                </el-radio-group>
+              </div>
+
               <div class="content-body">
-                {{ document.content || '(내용 없음)' }}
+                {{ currentContent || '(내용 없음)' }}
               </div>
             </div>
           </el-col>
@@ -112,15 +128,47 @@ const route = useRoute()
 const document = ref(null)
 const isLoading = ref(false)
 const isEmbedding = ref(false)
+const activeChunkTab = ref('full')
 
 const docId = computed(() => route.params.id)
+
+// 청크가 여러 개인지 확인
+const hasMultipleChunks = computed(() => {
+  return document.value?.chunks?.length > 1
+})
+
+// 원본 제목 (청크 번호 제거)
+const getOriginalTitle = computed(() => {
+  if (!document.value?.title) return ''
+  return document.value.title.replace(/\s*\(\d+\/\d+\)$/, '')
+})
+
+// 현재 표시할 내용
+const currentContent = computed(() => {
+  if (!document.value) return ''
+
+  if (activeChunkTab.value === 'full') {
+    return document.value.full_content || document.value.content
+  }
+
+  const chunk = document.value.chunks?.find(c => c.chunk_index === activeChunkTab.value)
+  return chunk?.content || document.value.content
+})
 
 // 문서 로드
 onMounted(async () => {
   if (docId.value) {
     isLoading.value = true
     try {
-      document.value = await store.dispatch('document/fetchDocument', docId.value)
+      const doc = await store.dispatch('document/fetchDocument', docId.value)
+
+      // 자식 청크 문서인 경우 부모 문서로 리다이렉트
+      if (doc.redirect_to_parent) {
+        router.replace({ name: 'AdminDocumentDetail', params: { id: doc.redirect_to_parent } })
+        return
+      }
+
+      document.value = doc
     } catch (error) {
       ElMessage.error('문서를 불러올 수 없습니다.')
       router.push({ name: 'AdminDocuments' })
@@ -143,7 +191,7 @@ const goEdit = () => {
 // 삭제 확인
 const confirmDelete = () => {
   ElMessageBox.confirm(
-    `"${document.value.title}" 문서를 삭제하시겠습니까?`,
+    `"${getOriginalTitle.value}" 문서를 삭제하시겠습니까?`,
     '문서 삭제',
     {
       confirmButtonText: '삭제',
@@ -179,7 +227,7 @@ const executeEmbedding = async () => {
 // 내용 복사
 const copyContent = async () => {
   try {
-    await navigator.clipboard.writeText(document.value.content)
+    await navigator.clipboard.writeText(currentContent.value)
     ElMessage.success('내용이 클립보드에 복사되었습니다.')
   } catch (error) {
     ElMessage.error('복사에 실패했습니다.')
@@ -282,6 +330,16 @@ const formatDateTime = (dateStr) => {
       }
     }
 
+    .chunk-tabs {
+      margin-bottom: 12px;
+
+      .chunk-length {
+        font-size: 11px;
+        color: var(--text-color-secondary);
+        margin-left: 4px;
+      }
+    }
+
     .content-body {
       flex: 1;
       padding: 20px;
@@ -293,7 +351,7 @@ const formatDateTime = (dateStr) => {
       line-height: 1.8;
       color: var(--text-color-primary);
       overflow-y: auto;
-      max-height: calc(100vh - 280px);
+      max-height: calc(100vh - 320px);
       transition: var(--theme-transition);
     }
   }

@@ -483,12 +483,12 @@ class VectorStoreService:
         return chunker.preview_chunks(content)
 
     def get_document_with_chunks(self, doc_id: int) -> Optional[Dict[str, Any]]:
-        """문서와 모든 청크 조회"""
+        """문서와 모든 청크 조회 (전체 원본 내용 포함)"""
         db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
             # 문서 조회
             cur.execute("""
-                SELECT id, title, doc_type, language, content, metadata,
+                SELECT id, title, doc_type, language, content, original_content, metadata,
                        source_type, source_file, chunk_index, total_chunks,
                        parent_doc_id, indexed, embedded_at,
                        LENGTH(content) as content_length,
@@ -503,16 +503,35 @@ class VectorStoreService:
 
             result = dict(doc)
 
-            # 청킹된 문서면 모든 청크 조회
+            # 자식 청크 문서면 부모로 리다이렉트 정보 제공
+            if doc['parent_doc_id'] is not None:
+                result['redirect_to_parent'] = doc['parent_doc_id']
+
+            # 부모 문서 ID 결정
             parent_id = doc['parent_doc_id'] or doc['id']
+
+            # 모든 청크 조회 (content 포함)
             cur.execute("""
-                SELECT id, title, chunk_index, LENGTH(content) as content_length
+                SELECT id, title, chunk_index, content, LENGTH(content) as content_length
                 FROM tb_docs
                 WHERE id = %s OR parent_doc_id = %s
                 ORDER BY chunk_index
             """, (parent_id, parent_id))
 
             result['chunks'] = [dict(row) for row in cur.fetchall()]
+
+            # 전체 원본 내용 가져오기
+            if doc['parent_doc_id'] is None:
+                # 부모 문서인 경우: original_content 또는 content 사용
+                full_content = doc.get('original_content') or doc['content']
+            else:
+                # 자식 청크인 경우: 부모 문서에서 original_content 가져오기
+                cur.execute("SELECT original_content, content FROM tb_docs WHERE id = %s", (parent_id,))
+                parent = cur.fetchone()
+                full_content = parent.get('original_content') or parent['content'] if parent else doc['content']
+
+            result['full_content'] = full_content
+            result['original_length'] = len(full_content) if full_content else 0
 
             return result
 
@@ -591,11 +610,12 @@ class VectorStoreService:
             """, params)
             total_count = cur.fetchone()['total']
 
-            # 문서 목록 조회
+            # 문서 목록 조회 (original_content 길이 또는 content 길이 반환)
             list_params = params + [limit, offset]
             cur.execute(f"""
                 SELECT id, title, doc_type, language,
                        LENGTH(content) as content_length,
+                       COALESCE(LENGTH(original_content), LENGTH(content)) as original_length,
                        source_type, source_file, total_chunks, indexed,
                        embedded_at, created_at, updated_at
                 FROM tb_docs
@@ -778,16 +798,17 @@ class VectorStoreService:
         chunk_ids = []
 
         with db_manager.get_cursor(commit=True) as cur:
-            # 첫 번째 청크: 원본 문서 업데이트
+            # 첫 번째 청크: 원본 문서 업데이트 (original_content에 전체 원본 저장)
             first_embedding = np.array(embeddings[0])
             cur.execute("""
                 UPDATE tb_docs
-                SET title = %s, content = %s, embedding = %s, embedding_model = %s,
+                SET title = %s, content = %s, original_content = %s, embedding = %s, embedding_model = %s,
                     indexed = true, chunk_index = 0, total_chunks = %s, embedded_at = %s
                 WHERE id = %s
             """, (
                 f"{original_title} (1/{total_chunks})",
                 chunks[0].content,
+                content,  # 원본 전체 내용 저장
                 first_embedding,
                 self.embedding_model,
                 total_chunks,
