@@ -18,26 +18,12 @@ from typing import Literal, Dict, Any, List, Sequence, Annotated
 import time
 import uuid
 from datetime import datetime
-
-from langchain_core.messages import (
-    HumanMessage,
-    SystemMessage,
-    AIMessage,
-    BaseMessage,
-    ToolMessage
-)
+from langchain_core.messages import (HumanMessage, SystemMessage, AIMessage, BaseMessage, ToolMessage)
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import InMemorySaver
-
-from app.models.agent import (
-    AgentRequest,
-    AgentResponse,
-    AgentStep,
-    AgentConfig,
-    AgentSQLResult
-)
+from app.models.agent import (AgentRequest, AgentResponse, AgentStep, AgentConfig, AgentSQLResult)
 from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
 from app.tools.calc_tool import calculate_tool
@@ -423,14 +409,12 @@ class InsightAgentGraph:
             "start_time": start_time
         }
 
-        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작",
-                question=question[:50],
-                session_id=session_id)
+        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작", question=question[:50], session_id=session_id)
 
         try:
             # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
             graph_config = {"configurable": {"thread_id": session_id}}
-            result = await self.graph.ainvoke(initial_state, config=graph_config)
+            result = await self.graph.ainvoke(initial_state, config=graph_config) 
 
             # 실행 시간 계산
             execution_time_ms = int((time.time() - start_time) * 1000)
