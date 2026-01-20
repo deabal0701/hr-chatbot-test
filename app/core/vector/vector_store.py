@@ -445,22 +445,9 @@ class VectorStoreService:
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                title,
-                doc_type,
-                language,
-                content,
-                psycopg.types.json.Json(metadata or {}),
-                embedding_array,
-                self.embedding_model,
-                True,
-                source_type,
-                source_file,
-                content_hash,
-                chunk_index,
-                total_chunks,
-                parent_doc_id,
-                datetime.now()
+            """, ( title, doc_type, language, content, psycopg.types.json.Json(metadata or {}),
+                embedding_array, self.embedding_model, True, source_type, source_file, content_hash,
+                chunk_index, total_chunks, parent_doc_id, datetime.now()
             ))
 
             result = cur.fetchone()
@@ -663,7 +650,7 @@ class VectorStoreService:
             ))
 
             result = cur.fetchone()
-            doc_id = result['id']
+            doc_id = result['id'] # type: ignore (result 가 None인 경우는 없다. )
 
         # 청킹 필요 여부 및 예상 청크 수 계산
         content_length = len(content)
