@@ -108,7 +108,7 @@ class DocumentService:
                     RETURNING id
                 """, (
                     title, doc_type, language, content,
-                    psycopg.types.json.Json(metadata or {}),
+                    psycopg.types.json.Json(metadata or {}), # type: ignore
                     False,  # indexed = False (임베딩 없음)
                     source_type, source_file, content_hash,
                     0,  # chunk_index
@@ -116,7 +116,7 @@ class DocumentService:
                 ))
 
                 result = cur.fetchone()
-                doc_id = result['id']
+                doc_id = result['id'] # type: ignore
 
         except psycopg.errors.UniqueViolation as e:
             logger.error(f"문서 저장 실패 - 중복: {e}")
