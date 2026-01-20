@@ -1,12 +1,18 @@
 """벡터 검색 서비스 (pgvector 기반)
 
 위치: app/core/vector/vector_store.py
-- 임베딩 생성 (OpenAI)
+
+책임 분리:
+- VectorStoreService: 임베딩 생성, 청킹 실행, 벡터 검색 (이 파일)
+- DocumentService: 문서 CRUD (app/api/services/document_service.py)
+
+주요 기능:
+- 임베딩 생성 (OpenAI text-embedding-3-small)
 - 벡터 검색 (코사인 유사도)
-- 문서 저장/청킹 처리
+- 청킹 실행 (문서 분할 + 임베딩)
 """
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import psycopg
@@ -58,7 +64,15 @@ def get_chunking_settings():
 
 
 class VectorStoreService:
-    """벡터 검색 서비스 (pgvector 기반)"""
+    """벡터 검색 서비스 (pgvector 기반)
+
+    책임:
+    - 임베딩 생성 (embed_text, embed_texts)
+    - 벡터 검색 (search_similar_documents)
+    - 청킹 실행 (execute_chunking, preview_chunks)
+
+    CRUD 작업은 DocumentService (app/api/services/document_service.py)에서 처리
+    """
 
     # 스니펫 관련 상수
     DEFAULT_SNIPPET_LENGTH = 200  # 문서 스니펫 기본 길이 (문자)
@@ -93,26 +107,21 @@ class VectorStoreService:
         return _get_settings_service().get_value("embedding", "dimension", self._default_embedding_dimension)
 
     def _create_snippet(self, content: str, max_length: Optional[int] = None) -> str:
-        """
-        컨텐츠 스니펫 생성
-
-        Args:
-            content: 원본 컨텐츠
-            max_length: 최대 길이 (None이면 기본값 사용)
-
-        Returns:
-            스니펫 문자열
-        """
+        """컨텐츠 스니펫 생성"""
         length = max_length or self.DEFAULT_SNIPPET_LENGTH
         if len(content) <= length:
             return content
         return content[:length] + "..."
 
+    # ============================================
+    # 임베딩 생성
+    # ============================================
+
     def embed_text(self, text: str) -> List[float]:
         """텍스트를 벡터로 임베딩 (LangChain OpenAIEmbeddings 사용)"""
         try:
-            embeddings = self._get_embeddings() # embeddings 는 OpenAIEmbeddings의 인스턴스
-            return embeddings.embed_query(text) # text는 사용자 질의 내용 ex: 사용자 질의 "한국의 수도는 어디인가?"
+            embeddings = self._get_embeddings()
+            return embeddings.embed_query(text)
         except Exception as e:
             logger.error(f"임베딩 생성 실패: {e}")
             raise
@@ -126,45 +135,14 @@ class VectorStoreService:
             logger.error(f"배치 임베딩 생성 실패: {e}")
             raise
 
-    def insert_document(
-        self,
-        title: str,
-        doc_type: str,
-        content: str,
-        language: str = "ko",
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> int:
-        """문서 삽입 (임베딩 포함)"""
-        embedding = self.embed_text(content)
-        embedding_array = np.array(embedding)
+    # ============================================
+    # 벡터 검색
+    # ============================================
 
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("""
-                INSERT INTO tb_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (
-                title,
-                doc_type,
-                language,
-                content,
-                psycopg.types.json.Json(metadata or {}),
-                embedding_array,
-                self.embedding_model,
-                True
-            ))
-
-            result = cur.fetchone()
-            doc_id = result['id']
-
-            logger.info(f"문서 삽입 완료: ID={doc_id}, title='{title}'")
-            return doc_id
-
-    def search_similar_documents( self, query: str, top_k: int = 10, filters: Optional[SearchFilters] = None, similarity_threshold: Optional[float] = None ) -> List[DocumentSource]:
+    def search_similar_documents(self, query: str, top_k: int = 10, filters: Optional[SearchFilters] = None, similarity_threshold: Optional[float] = None) -> List[DocumentSource]:
         """유사 문서 검색 (벡터 유사도 기반)"""
         # 쿼리를 벡터로 변환
-        query_embedding = self.embed_text(query)  # query_embedding 는 질의를 임베딩한 vector임 ex: [0.01234331, 0.222422324, ...]
+        query_embedding = self.embed_text(query)
         query_embedding_array = np.array(query_embedding)
 
         # 필터 조건 구성
@@ -192,25 +170,15 @@ class VectorStoreService:
         if similarity_threshold is None:
             similarity_threshold = _get_settings_service().get_value("rag", "similarity_threshold", settings.rag_similarity_threshold)
 
-        # 벡터 검색 쿼리 (코사인 거리 사용) ex: 연산자 (<-> L2거리 , <=> 코사인 거리)
-        # <=> 연산자: 코사인 거리 (0 = 동일, 2 = 정반대)
-        # 코사인 유사도 = 1 - 코사인 거리 (범위: -1 ~ 1, 보통 0 ~ 1)
+        # 벡터 검색 쿼리 (코사인 거리 사용)
         query_sql = f"""
-            SELECT
-                id,
-                title,
-                doc_type,
-                content,
-                metadata,
-                language,
-                embedding <=> %s AS distance
+            SELECT id, title, doc_type, content, metadata, language, embedding <=> %s AS distance
             FROM tb_docs
             {where_clause}
             ORDER BY embedding <=> %s
             LIMIT %s
         """
 
-        # 파라미터 순서: SELECT의 embedding 1번 + WHERE 필터들 + ORDER BY embedding + LIMIT
         query_params = [query_embedding_array] + filter_params + [query_embedding_array, top_k]
 
         db_manager = _get_db_manager()
@@ -223,27 +191,16 @@ class VectorStoreService:
             documents = []
             filtered_count = 0
             for row in rows:
-                # 코사인 거리를 유사도로 변환
-                # 코사인 거리 0 = 완전 일치 = 유사도 1.0
-                # 코사인 거리 2 = 정반대 = 유사도 -1.0
                 distance = row.get('distance')
-
-                if distance is None:
-                    similarity = 0.0
-                else:
-                    # 코사인 유사도 = 1 - 코사인 거리
-                    # 범위: -1 ~ 1 (보통 텍스트는 0 ~ 1)
-                    similarity = 1.0 - float(distance)
+                similarity = 1.0 - float(distance) if distance is not None else 0.0
 
                 logger.info(f"문서 ID={row['id']}, title='{row['title'][:30]}...', distance={distance}, similarity={similarity:.4f}")
 
-                # 임계값 체크
                 if similarity < similarity_threshold:
                     filtered_count += 1
                     logger.info(f"  -> 임계값 미달로 제외됨 (similarity={similarity:.4f} < {similarity_threshold})")
                     continue
 
-                # 컨텐츠 스니펫 생성(미리보기 필요시)
                 content = row.get('content', '')
                 snippet = self._create_snippet(content)
 
@@ -251,7 +208,7 @@ class VectorStoreService:
                     id=row['id'],
                     title=row['title'],
                     doc_type=row['doc_type'],
-                    content=content,   # 문서 전체 내용
+                    content=content,
                     content_snippet=snippet,
                     metadata=row.get('metadata', {}),
                     similarity_score=round(similarity, 4)
@@ -263,26 +220,28 @@ class VectorStoreService:
             logger.info(f"벡터 검색 완료: query='{query[:50]}...', found={len(documents)}")
             return documents
 
-    def get_document_by_id(self, doc_id: int) -> Optional[Dict[str, Any]]:
-        """ID로 문서 조회"""
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT id, title, doc_type, language, content, metadata, created_at, updated_at
-                FROM tb_docs
-                WHERE id = %s
-            """, (doc_id,))
+    # ============================================
+    # 문서 삽입 (임베딩 포함)
+    # ============================================
 
-            row = cur.fetchone()
-            return dict(row) if row else None
+    def insert_document(self, title: str, doc_type: str, content: str, language: str = "ko", metadata: Optional[Dict[str, Any]] = None) -> int:
+        """문서 삽입 (임베딩 포함)"""
+        embedding = self.embed_text(content)
+        embedding_array = np.array(embedding)
 
-    def delete_document(self, doc_id: int) -> bool:
-        """문서 삭제"""
         db_manager = _get_db_manager()
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("DELETE FROM tb_docs WHERE id = %s", (doc_id,))
-            affected = cur.rowcount
-            return affected > 0
+            cur.execute("""
+                INSERT INTO tb_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (title, doc_type, language, content, psycopg.types.json.Json(metadata or {}), embedding_array, self.embedding_model, True))
+
+            result = cur.fetchone()
+            doc_id = result['id']
+
+            logger.info(f"문서 삽입 완료: ID={doc_id}, title='{title}'")
+            return doc_id
 
     def update_document_embedding(self, doc_id: int, content: str) -> bool:
         """문서 임베딩 업데이트"""
@@ -312,32 +271,9 @@ class VectorStoreService:
         source_type: str = "ui_input",
         source_file: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        문서 삽입 (자동 청킹 지원)
-
-        Args:
-            title: 문서 제목
-            doc_type: 문서 유형
-            content: 문서 내용
-            language: 언어
-            metadata: 메타데이터
-            auto_chunk: 자동 청킹 여부
-            chunk_size: 청크 크기 (None이면 DB 설정 사용)
-            chunk_overlap: 청크 간 중복 (None이면 DB 설정 사용)
-            source_type: 소스 타입 (ui_input, pdf, web, api)
-            source_file: 원본 파일명
-
-        Returns:
-            {
-                "parent_id": 원본 문서 ID,
-                "chunk_ids": [청크 ID 리스트],
-                "total_chunks": 청크 수,
-                "total_chars": 전체 문자 수
-            }
-        """
+        """문서 삽입 (자동 청킹 지원)"""
         tc = _get_text_chunker_module()
 
-        # DB 설정에서 청킹 파라미터 가져오기
         chunking_settings = get_chunking_settings()
         chunk_size = chunk_size or chunking_settings["chunk_size"]
         chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
@@ -347,24 +283,11 @@ class VectorStoreService:
         # 자동 청킹 비활성화 또는 짧은 텍스트면 단일 문서로 저장
         if not auto_chunk or len(content) <= chunk_size:
             doc_id = self._insert_single_document(
-                title=title,
-                doc_type=doc_type,
-                content=content,
-                language=language,
-                metadata=metadata,
-                source_type=source_type,
-                source_file=source_file,
-                content_hash=content_hash,
-                chunk_index=0,
-                total_chunks=1,
-                parent_doc_id=None
+                title=title, doc_type=doc_type, content=content, language=language,
+                metadata=metadata, source_type=source_type, source_file=source_file,
+                content_hash=content_hash, chunk_index=0, total_chunks=1, parent_doc_id=None
             )
-            return {
-                "parent_id": doc_id,
-                "chunk_ids": [doc_id],
-                "total_chunks": 1,
-                "total_chars": len(content)
-            }
+            return {"parent_id": doc_id, "chunk_ids": [doc_id], "total_chunks": 1, "total_chars": len(content)}
 
         # 텍스트 청킹
         chunks = tc.chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -375,46 +298,26 @@ class VectorStoreService:
 
         # 첫 번째 청크를 부모 문서로 저장
         parent_id = self._insert_single_document(
-            title=f"{title} (1/{total_chunks})",
-            doc_type=doc_type,
-            content=chunks[0].content,
-            language=language,
-            metadata=metadata,
-            source_type=source_type,
-            source_file=source_file,
-            content_hash=content_hash,
-            chunk_index=0,
-            total_chunks=total_chunks,
-            parent_doc_id=None
+            title=f"{title} (1/{total_chunks})", doc_type=doc_type, content=chunks[0].content,
+            language=language, metadata=metadata, source_type=source_type, source_file=source_file,
+            content_hash=content_hash, chunk_index=0, total_chunks=total_chunks, parent_doc_id=None
         )
 
         chunk_ids = [parent_id]
 
-        # 나머지 청크 저장 (parent_doc_id 설정)
+        # 나머지 청크 저장
         for chunk in chunks[1:]:
             chunk_id = self._insert_single_document(
-                title=f"{title} ({chunk.chunk_index + 1}/{total_chunks})",
-                doc_type=doc_type,
-                content=chunk.content,
-                language=language,
-                metadata=metadata,
-                source_type=source_type,
-                source_file=source_file,
-                content_hash=None,  # 청크는 해시 없음
-                chunk_index=chunk.chunk_index,
-                total_chunks=total_chunks,
-                parent_doc_id=parent_id
+                title=f"{title} ({chunk.chunk_index + 1}/{total_chunks})", doc_type=doc_type,
+                content=chunk.content, language=language, metadata=metadata, source_type=source_type,
+                source_file=source_file, content_hash=None, chunk_index=chunk.chunk_index,
+                total_chunks=total_chunks, parent_doc_id=parent_id
             )
             chunk_ids.append(chunk_id)
 
         logger.info(f"청킹 문서 삽입 완료: parent_id={parent_id}, chunks={total_chunks}")
 
-        return {
-            "parent_id": parent_id,
-            "chunk_ids": chunk_ids,
-            "total_chunks": total_chunks,
-            "total_chars": len(content)
-        }
+        return {"parent_id": parent_id, "chunk_ids": chunk_ids, "total_chunks": total_chunks, "total_chars": len(content)}
 
     def _insert_single_document(
         self,
@@ -445,7 +348,8 @@ class VectorStoreService:
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, ( title, doc_type, language, content, psycopg.types.json.Json(metadata or {}),
+            """, (
+                title, doc_type, language, content, psycopg.types.json.Json(metadata or {}),
                 embedding_array, self.embedding_model, True, source_type, source_file, content_hash,
                 chunk_index, total_chunks, parent_doc_id, datetime.now()
             ))
@@ -453,12 +357,11 @@ class VectorStoreService:
             result = cur.fetchone()
             return result['id']
 
-    def preview_chunks(
-        self,
-        content: str,
-        chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    # ============================================
+    # 청킹 미리보기 / 실행
+    # ============================================
+
+    def preview_chunks(self, content: str, chunk_size: Optional[int] = None, chunk_overlap: Optional[int] = None) -> List[Dict[str, Any]]:
         """청킹 미리보기 (DB 설정 사용)"""
         tc = _get_text_chunker_module()
 
@@ -469,261 +372,28 @@ class VectorStoreService:
         chunker = tc.TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         return chunker.preview_chunks(content)
 
-    def get_document_with_chunks(self, doc_id: int) -> Optional[Dict[str, Any]]:
-        """문서와 모든 청크 조회 (전체 원본 내용 포함)"""
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor() as cur:
-            # 문서 조회
-            cur.execute("""
-                SELECT id, title, doc_type, language, content, original_content, metadata,
-                       source_type, source_file, chunk_index, total_chunks,
-                       parent_doc_id, indexed, embedded_at,
-                       LENGTH(content) as content_length,
-                       created_at, updated_at
-                FROM tb_docs
-                WHERE id = %s
-            """, (doc_id,))
-
-            doc = cur.fetchone()
-            if not doc:
-                return None
-
-            result = dict(doc)
-
-            # 자식 청크 문서면 부모로 리다이렉트 정보 제공
-            if doc['parent_doc_id'] is not None:
-                result['redirect_to_parent'] = doc['parent_doc_id']
-
-            # 부모 문서 ID 결정
-            parent_id = doc['parent_doc_id'] or doc['id']
-
-            # 모든 청크 조회 (content 포함)
-            cur.execute("""
-                SELECT id, title, chunk_index, content, LENGTH(content) as content_length
-                FROM tb_docs
-                WHERE id = %s OR parent_doc_id = %s
-                ORDER BY chunk_index
-            """, (parent_id, parent_id))
-
-            result['chunks'] = [dict(row) for row in cur.fetchall()]
-
-            # 전체 원본 내용 가져오기
-            if doc['parent_doc_id'] is None:
-                # 부모 문서인 경우: original_content 또는 content 사용
-                full_content = doc.get('original_content') or doc['content']
-            else:
-                # 자식 청크인 경우: 부모 문서에서 original_content 가져오기
-                cur.execute("SELECT original_content, content FROM tb_docs WHERE id = %s", (parent_id,))
-                parent = cur.fetchone()
-                full_content = parent.get('original_content') or parent['content'] if parent else doc['content']
-
-            result['full_content'] = full_content
-            result['original_length'] = len(full_content) if full_content else 0
-
-            return result
-
-    def delete_document_with_chunks(self, doc_id: int) -> int:
-        """문서와 모든 청크 삭제"""
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor(commit=True) as cur:
-            # parent_doc_id가 doc_id인 청크들도 삭제 (CASCADE로 자동 삭제되지만 명시적으로)
-            cur.execute("""
-                DELETE FROM tb_docs
-                WHERE id = %s OR parent_doc_id = %s
-            """, (doc_id, doc_id))
-
-            deleted = cur.rowcount
-            logger.info(f"문서 삭제 완료: doc_id={doc_id}, 삭제된 문서={deleted}개")
-            return deleted
-
-    def list_documents(
-        self,
-        doc_type: Optional[str] = None,
-        source_type: Optional[str] = None,
-        indexed: Optional[bool] = None,
-        include_chunks: bool = False,
-        limit: int = 100,
-        offset: int = 0
-    ) -> Tuple[List[Dict[str, Any]], int]:
-        """
-        문서 목록 조회
-
-        Args:
-            doc_type: 문서 유형 필터
-            source_type: 소스 타입 필터
-            indexed: 임베딩 여부 필터 (True: 임베딩됨, False: 미임베딩, None: 전체)
-            include_chunks: 청크 포함 여부
-            limit: 최대 결과 수
-            offset: 시작 위치
-
-        Returns:
-            (문서 목록, 전체 카운트) 튜플
-        """
-        conditions = []
-        params = []
-
-        # 청크 제외 (원본 문서만)
-        if not include_chunks:
-            conditions.append("(parent_doc_id IS NULL OR chunk_index = 0)")
-
-        if doc_type:
-            conditions.append("doc_type = %s")
-            params.append(doc_type)
-
-        if source_type:
-            conditions.append("source_type = %s")
-            params.append(source_type)
-
-        # 임베딩 여부 필터
-        if indexed is not None:
-            if indexed:
-                # 임베딩된 문서
-                conditions.append("indexed = true")
-            else:
-                # 미임베딩 문서
-                conditions.append("(indexed = false OR embedding IS NULL)")
-
-        where_clause = ""
-        if conditions:
-            where_clause = "WHERE " + " AND ".join(conditions)
-
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor() as cur:
-            # 전체 카운트 조회
-            cur.execute(f"""
-                SELECT COUNT(*) as total
-                FROM tb_docs
-                {where_clause}
-            """, params)
-            total_count = cur.fetchone()['total']
-
-            # 문서 목록 조회 (original_content 길이 또는 content 길이 반환)
-            list_params = params + [limit, offset]
-            cur.execute(f"""
-                SELECT id, title, doc_type, language,
-                       LENGTH(content) as content_length,
-                       COALESCE(LENGTH(original_content), LENGTH(content)) as original_length,
-                       source_type, source_file, total_chunks, indexed,
-                       embedded_at, created_at, updated_at
-                FROM tb_docs
-                {where_clause}
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """, list_params)
-
-            documents = [dict(row) for row in cur.fetchall()]
-            return documents, total_count
-
-    # ============================================
-    # 문서 저장 (임베딩 없이) / 청킹 실행 분리
-    # ============================================
-
-    def save_document_without_embedding(
-        self,
-        title: str,
-        doc_type: str,
-        content: str,
-        language: str = "ko",
-        metadata: Optional[Dict[str, Any]] = None,
-        source_type: str = "ui_input",
-        source_file: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        문서 저장 (임베딩 없이)
-
-        1차적으로 문서를 저장하고, 청킹은 별도 API로 실행
-        """
-        tc = _get_text_chunker_module()
-        content_hash = tc.TextChunker.calculate_hash(content)
-
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("""
-                INSERT INTO tb_docs ( title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash,chunk_index, total_chunks)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, ( title, doc_type, language, content,  psycopg.types.json.Json(metadata or {}),
-                False,  # indexed = False (임베딩 없음)
-                source_type, source_file, content_hash,
-                0,  # chunk_index
-                1   # total_chunks (아직 청킹 안됨)
-            ))
-
-            result = cur.fetchone()
-            doc_id = result['id'] # type: ignore (result 가 None인 경우는 없다. )
-
-        # 청킹 필요 여부 및 예상 청크 수 계산
-        content_length = len(content)
-        needs_chunking = content_length > self.DEFAULT_CHUNK_SIZE
-        recommended_chunks = max(1, (content_length // self.DEFAULT_CHUNK_SIZE) + (1 if content_length % self.DEFAULT_CHUNK_SIZE else 0))
-
-        logger.info(f"문서 저장 완료 (임베딩 없음): ID={doc_id}, title='{title}', length={content_length}")
-
-        return {
-            "doc_id": doc_id,
-            "title": title,
-            "content_length": content_length,
-            "needs_chunking": needs_chunking,
-            "recommended_chunks": recommended_chunks
-        }
-
-    def execute_chunking(
-        self,
-        doc_ids: List[int],
-        chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None,
-        delete_original: bool = False
-    ) -> List[Dict[str, Any]]:
-        """
-        저장된 문서들에 대해 청킹 실행
-
-        Args:
-            doc_ids: 청킹할 문서 ID 목록
-            chunk_size: 청크 크기 (None이면 DB 설정 사용)
-            chunk_overlap: 청크 간 중복 (None이면 DB 설정 사용)
-            delete_original: 원본 문서 삭제 여부
-
-        Returns:
-            각 문서별 청킹 결과 목록
-        """
-        # DB 설정에서 청킹 파라미터 가져오기
+    def execute_chunking(self, doc_ids: List[int], chunk_size: Optional[int] = None, chunk_overlap: Optional[int] = None, delete_original: bool = False) -> List[Dict[str, Any]]:
+        """저장된 문서들에 대해 청킹 실행"""
         chunking_settings = get_chunking_settings()
-        chunk_size = chunk_size or chunking_settings["chunk_size"]
-        chunk_overlap = chunk_overlap or chunking_settings["chunk_overlap"]
+        effective_chunk_size: int = chunk_size or chunking_settings["chunk_size"]
+        effective_chunk_overlap: int = chunk_overlap or chunking_settings["chunk_overlap"]
 
         results = []
 
         for doc_id in doc_ids:
             try:
-                result = self._execute_single_chunking(
-                    doc_id=doc_id,
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
-                    delete_original=delete_original
-                )
+                result = self._execute_single_chunking(doc_id=doc_id, chunk_size=effective_chunk_size, chunk_overlap=effective_chunk_overlap, delete_original=delete_original)
                 results.append(result)
             except Exception as e:
                 logger.error(f"청킹 실행 실패: doc_id={doc_id}, error={e}")
                 results.append({
-                    "original_doc_id": doc_id,
-                    "original_title": "",
-                    "success": False,
-                    "error": str(e),
-                    "parent_id": None,
-                    "chunk_ids": [],
-                    "total_chunks": 0,
-                    "original_chars": 0
+                    "original_doc_id": doc_id, "original_title": "", "success": False, "error": str(e),
+                    "parent_id": None, "chunk_ids": [], "total_chunks": 0, "original_chars": 0
                 })
 
         return results
 
-    def _execute_single_chunking(
-        self,
-        doc_id: int,
-        chunk_size: int,
-        chunk_overlap: int,
-        delete_original: bool
-    ) -> Dict[str, Any]:
+    def _execute_single_chunking(self, doc_id: int, chunk_size: int, chunk_overlap: int, delete_original: bool) -> Dict[str, Any]:
         """단일 문서 청킹 실행"""
         tc = _get_text_chunker_module()
         db_manager = _get_db_manager()
@@ -731,8 +401,7 @@ class VectorStoreService:
         # 원본 문서 조회
         with db_manager.get_cursor() as cur:
             cur.execute("""
-                SELECT id, title, doc_type, language, content, metadata,
-                       source_type, source_file, content_hash
+                SELECT id, title, doc_type, language, content, metadata, source_type, source_file, content_hash
                 FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
@@ -747,7 +416,6 @@ class VectorStoreService:
 
         # 청킹이 필요없는 짧은 문서
         if content_length <= chunk_size:
-            # 임베딩만 생성하고 업데이트
             embedding = self.embed_text(content)
             embedding_array = np.array(embedding)
 
@@ -761,14 +429,8 @@ class VectorStoreService:
             logger.info(f"짧은 문서 임베딩 완료: doc_id={doc_id}")
 
             return {
-                "original_doc_id": doc_id,
-                "original_title": original_title,
-                "success": True,
-                "error": None,
-                "parent_id": doc_id,
-                "chunk_ids": [doc_id],
-                "total_chunks": 1,
-                "original_chars": content_length
+                "original_doc_id": doc_id, "original_title": original_title, "success": True, "error": None,
+                "parent_id": doc_id, "chunk_ids": [doc_id], "total_chunks": 1, "original_chars": content_length
             }
 
         # 텍스트 청킹
@@ -785,7 +447,7 @@ class VectorStoreService:
         chunk_ids = []
 
         with db_manager.get_cursor(commit=True) as cur:
-            # 첫 번째 청크: 원본 문서 업데이트 (original_content에 전체 원본 저장)
+            # 첫 번째 청크: 원본 문서 업데이트
             first_embedding = np.array(embeddings[0])
             cur.execute("""
                 UPDATE tb_docs
@@ -793,14 +455,8 @@ class VectorStoreService:
                     indexed = true, chunk_index = 0, total_chunks = %s, embedded_at = %s
                 WHERE id = %s
             """, (
-                f"{original_title} (1/{total_chunks})",
-                chunks[0].content,
-                content,  # 원본 전체 내용 저장
-                first_embedding,
-                self.embedding_model,
-                total_chunks,
-                datetime.now(),
-                doc_id
+                f"{original_title} (1/{total_chunks})", chunks[0].content, content,
+                first_embedding, self.embedding_model, total_chunks, datetime.now(), doc_id
             ))
             parent_id = doc_id
             chunk_ids.append(doc_id)
@@ -818,21 +474,10 @@ class VectorStoreService:
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
-                    f"{original_title} ({i + 1}/{total_chunks})",
-                    doc['doc_type'],
-                    doc['language'],
-                    chunk.content,
-                    psycopg.types.json.Json(doc['metadata'] or {}),
-                    embedding_array,
-                    self.embedding_model,
-                    True,
-                    doc['source_type'],
-                    doc['source_file'],
-                    None,  # 청크는 해시 없음
-                    chunk.chunk_index,
-                    total_chunks,
-                    parent_id,
-                    datetime.now()
+                    f"{original_title} ({i + 1}/{total_chunks})", doc['doc_type'], doc['language'],
+                    chunk.content, psycopg.types.json.Json(doc['metadata'] or {}),
+                    embedding_array, self.embedding_model, True, doc['source_type'], doc['source_file'],
+                    None, chunk.chunk_index, total_chunks, parent_id, datetime.now()
                 ))
                 chunk_id = cur.fetchone()['id']
                 chunk_ids.append(chunk_id)
@@ -840,160 +485,8 @@ class VectorStoreService:
         logger.info(f"청킹 실행 완료: doc_id={doc_id}, parent_id={parent_id}, chunks={total_chunks}")
 
         return {
-            "original_doc_id": doc_id,
-            "original_title": original_title,
-            "success": True,
-            "error": None,
-            "parent_id": parent_id,
-            "chunk_ids": chunk_ids,
-            "total_chunks": total_chunks,
-            "original_chars": content_length
-        }
-
-    # ============================================
-    # 문서 수정
-    # ============================================
-
-    def update_document(
-        self,
-        doc_id: int,
-        title: Optional[str] = None,
-        doc_type: Optional[str] = None,
-        content: Optional[str] = None,
-        language: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        문서 수정 (내용 변경 시 임베딩 무효화)
-
-        Returns:
-            {
-                "doc_id": 문서 ID,
-                "title": 제목,
-                "content_length": 내용 길이,
-                "embedding_invalidated": 임베딩 무효화 여부,
-                "needs_reindex": 재인덱싱 필요 여부
-            }
-        """
-        tc = _get_text_chunker_module()
-        db_manager = _get_db_manager()
-
-        # 기존 문서 조회
-        with db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT id, title, doc_type, language, content, metadata, indexed, parent_doc_id
-                FROM tb_docs
-                WHERE id = %s
-            """, (doc_id,))
-
-            doc = cur.fetchone()
-            if not doc:
-                raise ValueError(f"문서를 찾을 수 없습니다: ID={doc_id}")
-
-            # 청크 문서는 수정 불가
-            if doc['parent_doc_id'] is not None:
-                raise ValueError(f"청크 문서는 직접 수정할 수 없습니다. 원본 문서(ID={doc['parent_doc_id']})를 수정하세요.")
-
-        # 변경할 필드 준비
-        updates = []
-        params = []
-        content_changed = False
-
-        if title is not None:
-            updates.append("title = %s")
-            params.append(title)
-
-        if doc_type is not None:
-            updates.append("doc_type = %s")
-            params.append(doc_type)
-
-        if content is not None:
-            updates.append("content = %s")
-            params.append(content)
-            content_changed = True
-            # 내용 변경 시 임베딩 무효화
-            updates.append("embedding = NULL")
-            updates.append("indexed = false")
-            updates.append("content_hash = %s")
-            params.append(tc.TextChunker.calculate_hash(content))
-
-        if language is not None:
-            updates.append("language = %s")
-            params.append(language)
-
-        if metadata is not None:
-            updates.append("metadata = %s")
-            params.append(psycopg.types.json.Json(metadata))
-
-        if not updates:
-            # 변경 사항 없음
-            return {
-                "doc_id": doc_id,
-                "title": doc['title'],
-                "content_length": len(doc['content']),
-                "embedding_invalidated": False,
-                "needs_reindex": False
-            }
-
-        updates.append("updated_at = now()")
-        params.append(doc_id)
-
-        # 업데이트 실행
-        with db_manager.get_cursor(commit=True) as cur:
-            sql = f"UPDATE tb_docs SET {', '.join(updates)} WHERE id = %s"
-            cur.execute(sql, params)
-
-            # 내용 변경 시 기존 청크 삭제
-            if content_changed:
-                cur.execute("""
-                    DELETE FROM tb_docs WHERE parent_doc_id = %s
-                """, (doc_id,))
-                deleted_chunks = cur.rowcount
-                if deleted_chunks > 0:
-                    logger.info(f"기존 청크 삭제: doc_id={doc_id}, chunks={deleted_chunks}")
-
-        final_title = title if title is not None else doc['title']
-        final_content_length = len(content) if content is not None else len(doc['content'])
-
-        logger.info(f"문서 수정 완료: doc_id={doc_id}, content_changed={content_changed}")
-
-        return {
-            "doc_id": doc_id,
-            "title": final_title,
-            "content_length": final_content_length,
-            "embedding_invalidated": content_changed,
-            "needs_reindex": content_changed
-        }
-
-    def bulk_delete_documents(self, doc_ids: List[int]) -> Dict[str, Any]:
-        """
-        문서 일괄 삭제
-
-        Returns:
-            {
-                "total_requested": 요청 개수,
-                "total_deleted": 삭제 개수,
-                "failed_ids": 실패한 ID 목록
-            }
-        """
-        total_deleted = 0
-        failed_ids = []
-
-        for doc_id in doc_ids:
-            try:
-                deleted = self.delete_document_with_chunks(doc_id)
-                if deleted > 0:
-                    total_deleted += deleted
-                else:
-                    failed_ids.append(doc_id)
-            except Exception as e:
-                logger.error(f"문서 삭제 실패: doc_id={doc_id}, error={e}")
-                failed_ids.append(doc_id)
-
-        return {
-            "total_requested": len(doc_ids),
-            "total_deleted": total_deleted,
-            "failed_ids": failed_ids
+            "original_doc_id": doc_id, "original_title": original_title, "success": True, "error": None,
+            "parent_id": parent_id, "chunk_ids": chunk_ids, "total_chunks": total_chunks, "original_chars": content_length
         }
 
 

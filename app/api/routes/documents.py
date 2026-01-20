@@ -6,12 +6,15 @@
 3. POST /embedding/execute - 임베딩 실행
 4. PUT /{id} - 문서 수정 (내용 변경 시 재임베딩 필요)
 5. DELETE /{id} or POST /bulk-delete - 문서 삭제
+
+아키텍처:
+- Route (이 파일) → DocumentService (CRUD) → DB
+- Route (이 파일) → DocumentService → VectorStoreService (임베딩)
 """
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.models.common import MessageResponse
 from app.models.documents import (
     DocumentSaveRequest,
     DocumentSaveResponse,
@@ -23,7 +26,7 @@ from app.models.documents import (
     BulkDelete,
     Chunking,
 )
-from app.core.vector.vector_store import vector_store
+from app.api.services.document_service import document_service
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -50,7 +53,7 @@ async def save_document(doc: DocumentSaveRequest):
     try:
         logger.info(f"문서 저장 요청: title='{doc.title}', content_length={len(doc.content)}자")
 
-        result = vector_store.save_document_without_embedding(
+        result = document_service.save_document(
             title=doc.title,
             doc_type=doc.doc_type,
             content=doc.content,
@@ -71,12 +74,17 @@ async def save_document(doc: DocumentSaveRequest):
             recommended_chunks=result['recommended_chunks']
         )
 
+    except ValueError as e:
+        # 비즈니스 로직 오류 (중복 문서 등) → 400 Bad Request
+        logger.warning(f"문서 저장 실패 - 유효성 오류: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        # DB 오류 등 시스템 오류 → 500 Internal Server Error
+        logger.error(f"문서 저장 실패 - 시스템 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"문서 저장 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"문서 저장 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"문서 저장 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("", response_model=DocumentListResponse)
@@ -99,7 +107,7 @@ async def list_documents(
     - include_chunks=True: 청크 포함
     """
     try:
-        documents, total_count = vector_store.list_documents(
+        documents, total_count = document_service.list_documents(
             doc_type=doc_type,
             source_type=source_type,
             indexed=indexed,
@@ -113,12 +121,12 @@ async def list_documents(
             documents=[DocumentListItem(**doc) for doc in documents]
         )
 
+    except RuntimeError as e:
+        logger.error(f"문서 목록 조회 실패 - 시스템 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"문서 목록 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"문서 목록 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"문서 목록 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("/{doc_id}")
@@ -129,7 +137,7 @@ async def get_document(doc_id: int):
     청킹된 문서의 경우 모든 청크 정보도 함께 반환합니다.
     """
     try:
-        doc = vector_store.get_document_with_chunks(doc_id)
+        doc = document_service.get_document(doc_id)
 
         if not doc:
             raise HTTPException(
@@ -141,12 +149,12 @@ async def get_document(doc_id: int):
 
     except HTTPException:
         raise
+    except RuntimeError as e:
+        logger.error(f"문서 조회 실패 - 시스템 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"문서 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"문서 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"문서 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.put("/{doc_id}", response_model=DocumentUpdateResponse)
@@ -160,7 +168,7 @@ async def update_document(doc_id: int, doc: DocumentUpdateRequest):
     내용 수정 시 기존 청크는 자동 삭제됩니다.
     """
     try:
-        result = vector_store.update_document(
+        result = document_service.update_document(
             doc_id=doc_id,
             title=doc.title,
             doc_type=doc.doc_type,
@@ -184,16 +192,14 @@ async def update_document(doc_id: int, doc: DocumentUpdateRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        logger.warning(f"문서 수정 실패 - 유효성 오류: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"문서 수정 실패 - 시스템 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"문서 수정 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"문서 수정 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"문서 수정 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.delete("/{doc_id}", response_model=DocumentDeleteResponse)
@@ -204,7 +210,7 @@ async def delete_document(doc_id: int):
     청킹된 문서의 경우 모든 청크도 함께 삭제됩니다.
     """
     try:
-        deleted_count = vector_store.delete_document_with_chunks(doc_id)
+        deleted_count = document_service.delete_document(doc_id)
 
         if deleted_count == 0:
             raise HTTPException(
@@ -220,6 +226,9 @@ async def delete_document(doc_id: int):
 
     except HTTPException:
         raise
+    except RuntimeError as e:
+        logger.error(f"문서 삭제 실패 - 시스템 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"문서 삭제 실패: {e}", exc_info=True)
         raise HTTPException(
@@ -237,7 +246,7 @@ async def bulk_delete_documents(request: BulkDelete.Request):
     각 문서의 청크도 함께 삭제됩니다.
     """
     try:
-        result = vector_store.bulk_delete_documents(request.doc_ids)
+        result = document_service.bulk_delete_documents(request.doc_ids)
 
         return BulkDelete.Response(
             success=len(result['failed_ids']) == 0,
@@ -248,6 +257,9 @@ async def bulk_delete_documents(request: BulkDelete.Request):
             failed_ids=result['failed_ids']
         )
 
+    except RuntimeError as e:
+        logger.error(f"일괄 삭제 실패 - 시스템 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"일괄 삭제 실패: {e}", exc_info=True)
         raise HTTPException(
@@ -275,7 +287,7 @@ async def execute_embedding(request: Chunking.ExecuteRequest):
     try:
         logger.info(f"임베딩 실행 요청: doc_ids={request.doc_ids}, chunk_size={request.chunk_size}")
 
-        results = vector_store.execute_chunking(
+        results = document_service.execute_embedding(
             doc_ids=request.doc_ids,
             chunk_size=request.chunk_size,
             chunk_overlap=request.chunk_overlap,
@@ -311,7 +323,7 @@ async def preview_chunks(request: Chunking.PreviewRequest):
     실제 임베딩이나 저장은 수행하지 않습니다.
     """
     try:
-        chunks = vector_store.preview_chunks(
+        chunks = document_service.preview_chunks(
             content=request.content,
             chunk_size=request.chunk_size,
             chunk_overlap=request.chunk_overlap
