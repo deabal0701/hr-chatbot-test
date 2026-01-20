@@ -4,7 +4,7 @@
     <div class="page-header">
       <div>
         <h2>문서 관리</h2>
-        <p class="subtitle">HR 챗봇에서 사용할 문서를 관리합니다.</p>
+        <p class="subtitle">AI 어시스턴트에서 사용할 문서를 관리합니다.</p>
       </div>
       <el-button type="primary" :icon="Plus" @click="showCreateForm">
         새 문서
