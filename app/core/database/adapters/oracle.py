@@ -119,16 +119,25 @@ class OracleAdapter(DatabaseAdapter):
     # ==========================================================================
 
     def get_tables_query(self, schema: str) -> Tuple[str, tuple]:
-        """테이블 목록 조회 쿼리 (Oracle: ALL_TABLES)"""
+        """테이블 및 뷰 목록 조회 쿼리 (Oracle: ALL_TABLES + ALL_VIEWS + USER_SYNONYMS)
+
+        NL2SQL에서는 테이블뿐 아니라 뷰도 쿼리 대상이 되므로 둘 다 조회합니다.
+        또한 Synonym을 통해 다른 스키마의 객체에 접근하는 경우도 지원합니다.
+        """
         return ("""
-            SELECT table_name
-            FROM all_tables
-            WHERE owner = UPPER(:1)
+            SELECT table_name FROM all_tables WHERE owner = UPPER(:1)
+            UNION
+            SELECT view_name AS table_name FROM all_views WHERE owner = UPPER(:1)
+            UNION
+            SELECT synonym_name AS table_name FROM user_synonyms
             ORDER BY table_name
-        """, (schema,))
+        """, (schema, schema))
 
     def get_columns_query(self, schema: str, table: str) -> Tuple[str, tuple]:
-        """컬럼 정보 조회 쿼리 (Oracle: ALL_TAB_COLUMNS)"""
+        """컬럼 정보 조회 쿼리 (Oracle: ALL_TAB_COLUMNS, Synonym 지원)
+
+        Synonym을 통해 접근하는 경우 실제 테이블/뷰의 컬럼 정보를 조회합니다.
+        """
         return ("""
             SELECT
                 column_name,
@@ -137,25 +146,32 @@ class OracleAdapter(DatabaseAdapter):
                 data_default AS column_default,
                 char_length AS character_maximum_length
             FROM all_tab_columns
-            WHERE owner = UPPER(:1) AND table_name = UPPER(:2)
+            WHERE (owner = UPPER(:1) AND table_name = UPPER(:2))
+               OR (owner, table_name) IN (
+                   SELECT table_owner, table_name FROM user_synonyms
+                   WHERE synonym_name = UPPER(:2)
+               )
             ORDER BY column_id
-        """, (schema, table))
+        """, (schema, table, table))
 
     def get_primary_key_query(self, schema: str, table: str) -> Tuple[str, tuple]:
-        """기본 키 조회 쿼리 (Oracle: ALL_CONSTRAINTS + ALL_CONS_COLUMNS)"""
+        """기본 키 조회 쿼리 (Oracle: ALL_CONSTRAINTS + ALL_CONS_COLUMNS, Synonym 지원)"""
         return ("""
             SELECT cols.column_name
             FROM all_constraints cons
             JOIN all_cons_columns cols
                 ON cons.constraint_name = cols.constraint_name AND cons.owner = cols.owner
-            WHERE cons.owner = UPPER(:1)
-                AND cons.table_name = UPPER(:2)
+            WHERE ((cons.owner = UPPER(:1) AND cons.table_name = UPPER(:2))
+                   OR (cons.owner, cons.table_name) IN (
+                       SELECT table_owner, table_name FROM user_synonyms
+                       WHERE synonym_name = UPPER(:2)
+                   ))
                 AND cons.constraint_type = 'P'
             ORDER BY cols.position
-        """, (schema, table))
+        """, (schema, table, table))
 
     def get_foreign_keys_query(self, schema: str, table: str) -> Tuple[str, tuple]:
-        """외래 키 조회 쿼리 (Oracle)"""
+        """외래 키 조회 쿼리 (Oracle, Synonym 지원)"""
         return ("""
             SELECT
                 a.column_name,
@@ -165,18 +181,25 @@ class OracleAdapter(DatabaseAdapter):
             JOIN all_constraints c ON a.constraint_name = c.constraint_name AND a.owner = c.owner
             JOIN all_constraints c_pk ON c.r_constraint_name = c_pk.constraint_name AND c.r_owner = c_pk.owner
             JOIN all_cons_columns b ON c_pk.constraint_name = b.constraint_name AND c_pk.owner = b.owner
-            WHERE c.owner = UPPER(:1)
-                AND c.table_name = UPPER(:2)
+            WHERE ((c.owner = UPPER(:1) AND c.table_name = UPPER(:2))
+                   OR (c.owner, c.table_name) IN (
+                       SELECT table_owner, table_name FROM user_synonyms
+                       WHERE synonym_name = UPPER(:2)
+                   ))
                 AND c.constraint_type = 'R'
-        """, (schema, table))
+        """, (schema, table, table))
 
     def get_indexes_query(self, schema: str, table: str) -> Tuple[str, tuple]:
-        """인덱스 조회 쿼리 (Oracle: ALL_INDEXES)"""
+        """인덱스 조회 쿼리 (Oracle: ALL_INDEXES, Synonym 지원)"""
         return ("""
             SELECT index_name
             FROM all_indexes
-            WHERE owner = UPPER(:1) AND table_name = UPPER(:2)
-        """, (schema, table))
+            WHERE (owner = UPPER(:1) AND table_name = UPPER(:2))
+               OR (owner, table_name) IN (
+                   SELECT table_owner, table_name FROM user_synonyms
+                   WHERE synonym_name = UPPER(:2)
+               )
+        """, (schema, table, table))
 
     # ==========================================================================
     # SQL 실행 관련
