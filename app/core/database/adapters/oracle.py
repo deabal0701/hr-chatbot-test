@@ -220,9 +220,9 @@ class OracleAdapter(DatabaseAdapter):
         """
         sql_upper = sql.upper()
 
-        # 이미 FETCH 또는 ROWNUM이 있으면 스킵
+        # 이미 FETCH 또는 ROWNUM이 있으면 세미콜론만 제거하고 반환
         if 'FETCH' in sql_upper or 'ROWNUM' in sql_upper:
-            return sql
+            return sql.rstrip(';').strip()
 
         # PostgreSQL 스타일 LIMIT이 있으면 FETCH FIRST로 변환
         limit_pattern = re.compile(r'\s+LIMIT\s+(\d+)\s*;?\s*$', re.IGNORECASE)
