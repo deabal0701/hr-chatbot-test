@@ -4,6 +4,7 @@
 - Oracle 전용 연결 및 쿼리 처리
 - oracledb 드라이버 사용 (thin 모드)
 """
+import re
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
@@ -189,11 +190,28 @@ class OracleAdapter(DatabaseAdapter):
         logger.debug(f"Oracle 타임아웃 설정 요청: {timeout_seconds}초 (직접 지원 안 함)")
 
     def add_limit_clause(self, sql: str, limit: int) -> str:
-        """LIMIT 절 추가 (Oracle 12c+: FETCH FIRST ... ROWS ONLY)"""
+        """LIMIT 절 추가 (Oracle 12c+: FETCH FIRST ... ROWS ONLY)
+
+        LLM이 PostgreSQL 스타일의 LIMIT을 생성할 수 있으므로,
+        LIMIT 절이 있으면 FETCH FIRST로 변환합니다.
+        """
         sql_upper = sql.upper()
+
         # 이미 FETCH 또는 ROWNUM이 있으면 스킵
         if 'FETCH' in sql_upper or 'ROWNUM' in sql_upper:
             return sql
+
+        # PostgreSQL 스타일 LIMIT이 있으면 FETCH FIRST로 변환
+        limit_pattern = re.compile(r'\s+LIMIT\s+(\d+)\s*;?\s*$', re.IGNORECASE)
+        match = limit_pattern.search(sql)
+        if match:
+            # LIMIT 절 제거하고 FETCH FIRST로 대체
+            existing_limit = int(match.group(1))
+            effective_limit = min(existing_limit, limit)  # 더 작은 값 사용
+            sql = limit_pattern.sub('', sql).rstrip(';').strip()
+            return sql + f' FETCH FIRST {effective_limit} ROWS ONLY'
+
+        # LIMIT이 없으면 FETCH FIRST 추가
         return sql.rstrip(';').strip() + f' FETCH FIRST {limit} ROWS ONLY'
 
     def get_sample_query(self, table: str, limit: int, columns: Optional[List[str]] = None) -> str:
