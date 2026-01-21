@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MUREUM is an enterprise AI knowledge base assistant combining multiple AI techniques for natural language search over documents and databases. The system features an AI Agent (ReAct pattern), RAG, and NL2SQL capabilities with multi-turn conversation support.
 
-**Stack**: FastAPI + LangGraph + PostgreSQL (pgvector) + Vue 3 + Multi-LLM Provider (OpenAI, Anthropic)
+**Stack**: FastAPI + LangGraph + PostgreSQL (pgvector) + Vue 3 + Multi-LLM Provider (OpenAI, Anthropic) + Multi-DB Support (PostgreSQL, Oracle)
 
 **LangChain Version**: v1.0+ (langchain>=1.2.0, langchain-core>=1.2.5, langchain-openai>=1.1.6, langchain-anthropic>=0.2.4, langgraph>=1.0.5)
 
@@ -15,6 +15,7 @@ MUREUM is an enterprise AI knowledge base assistant combining multiple AI techni
 - Multi-turn conversations with session-based memory (InMemorySaver)
 - Dynamic settings management (DB-based real-time configuration)
 - Multi-LLM provider support (OpenAI, Anthropic via init_chat_model)
+- Multi-DB support for NL2SQL (PostgreSQL, Oracle via adapter pattern)
 
 ## Common Commands
 
@@ -151,7 +152,7 @@ Admin UI can change settings in real-time without code deployment. See `app/serv
 
 ### Database Architecture
 
-**PostgreSQL roles**:
+**PostgreSQL roles** (Primary DB):
 1. **Primary storage**: Documents, settings, metadata
 2. **Vector search**: pgvector extension for semantic search (1536-dim embeddings)
 3. **NL2SQL target**: Can query itself or external Oracle DBs
@@ -177,6 +178,61 @@ with db_manager.get_cursor(commit=True) as cur:
 
 Connection pool initialized in `app/main.py` lifespan, configured in `app/utils/database.py`.
 
+### Multi-DB Support (NL2SQL)
+
+NL2SQL supports multiple external database types via the **Adapter Pattern**:
+
+**Supported Databases**:
+- ✅ **PostgreSQL** (psycopg3)
+- ✅ **Oracle** (oracledb, thin mode)
+
+**Architecture** (`app/core/database/adapters/`):
+```
+adapters/
+├── base.py          # Abstract DatabaseAdapter class
+├── postgresql.py    # PostgreSQL implementation
+├── oracle.py        # Oracle implementation
+└── __init__.py      # Factory: get_adapter(db_type)
+```
+
+**Adapter Pattern Usage**:
+```python
+from app.core.database.adapters import get_adapter
+
+# Get adapter based on DB type from settings
+adapter = get_adapter("oracle")  # or "postgresql"
+
+# Build connection URL
+url = adapter.build_connection_url(config)
+
+# Create connection pool
+pool = adapter.create_pool(url, config)
+
+# Execute queries with DB-specific syntax
+adapter.add_limit_clause(sql, 1000)  # LIMIT vs FETCH FIRST
+adapter.set_timeout(cursor, 30)       # statement_timeout vs Resource Manager
+```
+
+**Key Differences by DB Type**:
+
+| Feature | PostgreSQL | Oracle |
+|---------|------------|--------|
+| Row limit | `LIMIT N` | `FETCH FIRST N ROWS ONLY` |
+| Timeout | `SET statement_timeout` | Resource Manager (logging only) |
+| Schema query | `information_schema` | `ALL_TABLES`, `ALL_TAB_COLUMNS` |
+| Default port | 5432 | 1521 |
+| Driver | psycopg3 | oracledb (thin mode) |
+
+**Configuration** (Admin UI → Settings → NL2SQL):
+- DB Type: `postgresql` or `oracle`
+- Host, Port, Database/Service Name
+- Schema (PostgreSQL) / Owner (Oracle)
+- Allowed Tables (security whitelist)
+
+**Dynamic Prompt Adaptation**:
+- PostgreSQL: "당신은 PostgreSQL 전문가입니다..."
+- Oracle: "당신은 Oracle 전문가입니다... FETCH FIRST N ROWS ONLY 사용..."
+
 ## Code Organization
 
 ### Layer Responsibilities
@@ -200,10 +256,17 @@ app/
 │   ├── sql_tool.py      # SQL query tool (NL2SQL wrapper)
 │   ├── rag_tool.py      # Document search tool (RAG wrapper)
 │   └── calc_tool.py      # Calculator tool (safe AST evaluation)
+├── core/database/       # Database layer (multi-DB support)
+│   ├── adapters/        # DB adapter pattern
+│   │   ├── base.py      # Abstract DatabaseAdapter
+│   │   ├── postgresql.py # PostgreSQL adapter
+│   │   ├── oracle.py    # Oracle adapter
+│   │   └── __init__.py  # Factory: get_adapter()
+│   ├── external.py      # External DB manager
+│   ├── schema_loader.py # DB schema introspection
+│   └── sql_executor.py  # SQL validation + execution
 ├── services/            # Reusable business logic
 │   ├── vector_store.py  # Embedding + pgvector search
-│   ├── sql_executor.py  # SQL validation + execution + security
-│   ├── schema_loader.py # DB schema introspection
 │   └── settings_service.py  # Dynamic config management
 ├── models/              # Pydantic models (API contracts)
 │   ├── schemas.py       # Common schemas (RAG, NL2SQL)
@@ -344,13 +407,13 @@ Stages: INIT → THINK → ACTION → OBSERVE → FINISH → COMPLETE
 
 ### Security - NL2SQL
 
-**SQL Injection Prevention** (`app/services/sql_executor.py:validate_sql()`):
+**SQL Injection Prevention** (`app/core/database/sql_executor.py:validate_sql()`):
 1. **Keyword blacklist**: DROP, DELETE, UPDATE, INSERT, ALTER, CREATE, TRUNCATE, GRANT, REVOKE
 2. **Table whitelist**: Only `employee`, `department`, `tb_docs`, etc. allowed
 3. **SELECT-only enforcement**: sqlparse verification
-4. **Parameterized queries**: psycopg3 automatic escaping
-5. **Timeout**: 30-second statement_timeout
-6. **Row limit**: Auto-add `LIMIT 1000` if missing
+4. **Parameterized queries**: psycopg3/oracledb automatic escaping
+5. **Timeout**: 30-second (PostgreSQL: statement_timeout, Oracle: logging only)
+6. **Row limit**: Auto-add via adapter (`LIMIT` for PostgreSQL, `FETCH FIRST` for Oracle)
 
 **Never disable validation** except for already-validated queries in execute node.
 
@@ -639,6 +702,11 @@ Check version: `python check_python_version.py`
 fastapi>=0.115.0,<1.0.0
 pydantic>=2.7.4,<3.0.0  # CRITICAL: langchain-core requires >=2.7.4
 
+# Database
+psycopg[binary,pool]==3.1.18  # PostgreSQL
+pgvector==0.2.5               # Vector search
+oracledb>=2.0.0,<3.0.0        # Optional: Oracle support
+
 # LangChain v1.0+ stable versions (actual 1.x series)
 openai>=1.30.0,<2.0.0
 anthropic>=0.39.0,<1.0.0
@@ -776,6 +844,66 @@ UPDATE tb_app_settings SET value = 'claude-3-5-sonnet-20241022' WHERE category =
 - High-quality reasoning (Claude 3.5 Sonnet)
 - Better instruction following
 - Function calling (tool use)
+
+### Adding New Database Adapter (NL2SQL)
+
+To add support for a new database (e.g., MySQL, MS SQL Server):
+
+1. **Add dependency** to `requirements.txt`:
+```python
+pymysql>=1.0.0,<2.0.0  # MySQL example
+```
+
+2. **Create adapter** (`app/core/database/adapters/mysql.py`):
+```python
+from app.core.database.adapters.base import DatabaseAdapter
+
+class MySQLAdapter(DatabaseAdapter):
+    @property
+    def db_type(self) -> str:
+        return "mysql"
+
+    @property
+    def default_port(self) -> int:
+        return 3306
+
+    def add_limit_clause(self, sql: str, limit: int) -> str:
+        if 'LIMIT' not in sql.upper():
+            return sql.rstrip(';').strip() + f' LIMIT {limit}'
+        return sql
+
+    def get_tables_query(self, schema: str) -> Tuple[str, tuple]:
+        return ("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = %s AND table_type = 'BASE TABLE'
+        """, (schema,))
+
+    # ... implement other abstract methods
+```
+
+3. **Register adapter** (`app/core/database/adapters/__init__.py`):
+```python
+from app.core.database.adapters.mysql import MySQLAdapter
+
+_ADAPTERS = {
+    "postgresql": PostgreSQLAdapter,
+    "oracle": OracleAdapter,
+    "mysql": MySQLAdapter,  # Add here
+}
+```
+
+4. **Update prompt** (`app/core/llm/prompt_service.py`):
+```python
+def get_nl2sql_generation_prompt(self, schema_description: str = "", db_type: str = "postgresql") -> str:
+    if db_type == "mysql":
+        default = """당신은 MySQL 전문가입니다..."""
+    # ...
+```
+
+5. **Enable in UI** (`frontend/src/views/admin/SettingsView.vue`):
+```html
+<el-option label="MySQL" value="mysql" />  <!-- Remove disabled -->
+```
 
 ### Migration Guide (Adding New Provider)
 

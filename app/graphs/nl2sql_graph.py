@@ -8,6 +8,7 @@ from app.models.search import SearchResponse
 from app.models.rag import SQLResult
 import time
 from app.core.database.schema_loader import schema_loader
+from app.core.database.external import external_db_manager
 from app.core.config.settings_config import settings_config
 from app.core.llm.prompt_service import prompt_service
 from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
@@ -88,15 +89,21 @@ class NL2SQLGraph:
         question = state["question"]
         request_id = state.get("request_id", "unknown")
 
-        log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작",
-                question=question[:40])
+        log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작", question=question[:40])
 
-        # 시스템 프롬프트 (DB에서 동적 로드, 스키마 주입)
-        system_prompt = prompt_service.get_nl2sql_generation_prompt(self.schema_description)
+        # DB 타입 가져오기 (postgresql 또는 oracle)
+        db_type = external_db_manager.get_db_type()
+        adapter = external_db_manager.get_adapter()
+        sql_dialect = adapter.get_sql_dialect_name()
+
+        log_step(request_id, "NL2SQL", "1", "GENERATE", f"DB 타입: {db_type}, SQL 방언: {sql_dialect}")
+
+        # 시스템 프롬프트 (DB에서 동적 로드, 스키마 주입, DB 타입 전달)
+        system_prompt = prompt_service.get_nl2sql_generation_prompt(self.schema_description, db_type)
 
         user_prompt = f"""질문: {question}
 
-위 질문에 대한 PostgreSQL SELECT 쿼리를 생성해주세요.
+위 질문에 대한 {sql_dialect} SELECT 쿼리를 생성해주세요.
 SQL만 출력하세요 (설명 없이)."""
 
         messages = [

@@ -120,16 +120,31 @@ class PromptService:
     # NL2SQL 프롬프트
     # =============================================================================
 
-    def get_nl2sql_generation_prompt(self, schema_description: str = "") -> str:
+    def get_nl2sql_generation_prompt(self, schema_description: str = "", db_type: str = "postgresql") -> str:
         """NL2SQL SQL 생성 프롬프트 조회
 
         Args:
             schema_description: DB 스키마 설명 (프롬프트에 주입됨)
+            db_type: 데이터베이스 타입 (postgresql, oracle)
 
         Returns:
             SQL 생성용 프롬프트 (스키마 정보 포함)
         """
-        default = """당신은 PostgreSQL 전문가입니다.
+        # DB 타입에 따른 기본 프롬프트
+        if db_type == "oracle":
+            default = """당신은 Oracle 전문가입니다.
+사용자의 자연어 질문을 Oracle SQL 쿼리로 변환해주세요.
+
+주의사항:
+- LIMIT 대신 FETCH FIRST N ROWS ONLY 사용 (Oracle 12c+)
+- 문자열 비교 시 대소문자 주의 (Oracle은 대소문자 구분)
+- 날짜 형식: TO_DATE('YYYY-MM-DD', 'YYYY-MM-DD')
+- NVL 함수 사용 (COALESCE 대신)
+
+# 데이터베이스 스키마
+{schema_description}"""
+        else:
+            default = """당신은 PostgreSQL 전문가입니다.
 사용자의 자연어 질문을 PostgreSQL SQL 쿼리로 변환해주세요.
 
 # 데이터베이스 스키마
@@ -151,13 +166,17 @@ SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주�
 
         return self.get_prompt('nl2sql_answer_prompt', default)
 
-    def get_nl2sql_sql_persona(self) -> str:
+    def get_nl2sql_sql_persona(self, db_type: str = "postgresql") -> str:
         """NL2SQL SQL 생성 페르소나 조회
+
+        Args:
+            db_type: 데이터베이스 타입 (postgresql, oracle)
 
         Returns:
             SQL 생성 시 페르소나
         """
-        return self.get_prompt('nl2sql_sql_persona', 'PostgreSQL 전문가')
+        default_persona = "Oracle 전문가" if db_type == "oracle" else "PostgreSQL 전문가"
+        return self.get_prompt('nl2sql_sql_persona', default_persona)
 
     def get_nl2sql_answer_persona(self) -> str:
         """NL2SQL 답변 생성 페르소나 조회

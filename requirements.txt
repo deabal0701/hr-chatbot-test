@@ -20,6 +20,7 @@ python-multipart==0.0.6
 # Database
 psycopg[binary,pool]==3.1.18
 pgvector==0.2.5
+oracledb>=2.0.0,<3.0.0  # Optional: Oracle DB support for NL2SQL
 
 # AI/LLM Stack (순서 중요: 하위 의존성부터)
 # LangChain v1.0+ stable versions (actual 1.x series)

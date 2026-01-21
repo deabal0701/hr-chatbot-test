@@ -4,6 +4,7 @@
 - 비즈니스 DB 스키마 조회
 - 테이블/컬럼/키/인덱스 정보
 - LLM용 스키마 설명 생성
+- 다중 DB 지원 (어댑터 패턴)
 """
 from typing import Any, Dict, List
 
@@ -42,9 +43,12 @@ class SchemaLoaderService:
 
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
+        db_type = external_db_manager.get_db_type()
+
         schema = {
             "database": "business_data",
             "schema": schema_name,
+            "db_type": db_type,
             "tables": []
         }
 
@@ -63,7 +67,7 @@ class SchemaLoaderService:
             schema["tables"].append(table_info)
 
         self._schema_cache = schema
-        logger.info(f"스키마 메타데이터 로드 완료: {schema_name}.* {len(tables)}개 테이블")
+        logger.info(f"스키마 메타데이터 로드 완료: {schema_name}.* {len(tables)}개 테이블 (DB: {db_type})")
         return schema
 
     def _get_tables(self) -> List[str]:
@@ -71,24 +75,25 @@ class SchemaLoaderService:
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
         allowed_tables = external_db_manager.get_allowed_tables()
+        adapter = external_db_manager.get_adapter()
 
         with external_db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = %s
-                  AND table_type = 'BASE TABLE'
-                ORDER BY table_name
-            """, (schema_name,))
-            all_tables = [row['table_name'] for row in cur.fetchall()]
+            query, params = adapter.get_tables_query(schema_name)
+            cur.execute(query, params)
+
+            # 결과 처리 (어댑터별 row 형식 차이 처리)
+            columns = adapter.get_column_names(cur)
+            all_tables = []
+            for row in cur.fetchall():
+                row_dict = adapter.row_to_dict(row, columns)
+                table_name = row_dict.get('table_name', '').lower()
+                if table_name:
+                    all_tables.append(table_name)
 
             # allowed_tables 설정으로 필터링 (보안)
             if allowed_tables:
                 filtered_tables = [t for t in all_tables if t in allowed_tables]
-                logger.info(
-                    f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 "
-                    f"(허용: {allowed_tables})"
-                )
+                logger.info(f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 (허용: {allowed_tables})")
                 return filtered_tables
 
             return all_tables
@@ -97,30 +102,25 @@ class SchemaLoaderService:
         """테이블의 컬럼 정보 조회"""
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
-        with external_db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT
-                    column_name,
-                    data_type,
-                    is_nullable,
-                    column_default,
-                    character_maximum_length
-                FROM information_schema.columns
-                WHERE table_schema = %s
-                  AND table_name = %s
-                ORDER BY ordinal_position
-            """, (schema_name, table_name))
+        adapter = external_db_manager.get_adapter()
 
+        with external_db_manager.get_cursor() as cur:
+            query, params = adapter.get_columns_query(schema_name, table_name)
+            cur.execute(query, params)
+
+            columns_meta = adapter.get_column_names(cur)
             columns = []
             for row in cur.fetchall():
+                row_dict = adapter.row_to_dict(row, columns_meta)
                 col = {
-                    "name": row['column_name'],
-                    "type": row['data_type'],
-                    "nullable": row['is_nullable'] == 'YES',
-                    "default": row['column_default']
+                    "name": row_dict.get('column_name', ''),
+                    "type": row_dict.get('data_type', ''),
+                    "nullable": str(row_dict.get('is_nullable', 'YES')).upper() in ('YES', 'Y'),
+                    "default": row_dict.get('column_default')
                 }
-                if row['character_maximum_length']:
-                    col['max_length'] = row['character_maximum_length']
+                max_length = row_dict.get('character_maximum_length')
+                if max_length:
+                    col['max_length'] = max_length
                 columns.append(col)
 
             return columns
@@ -129,78 +129,98 @@ class SchemaLoaderService:
         """테이블의 기본 키 조회"""
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
-        with external_db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT a.attname
-                FROM pg_index i
-                JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-                WHERE i.indrelid = (%s || '.' || %s)::regclass
-                  AND i.indisprimary
-            """, (schema_name, table_name))
+        adapter = external_db_manager.get_adapter()
 
-            return [row['attname'] for row in cur.fetchall()]
+        try:
+            with external_db_manager.get_cursor() as cur:
+                query, params = adapter.get_primary_key_query(schema_name, table_name)
+                cur.execute(query, params)
+
+                columns_meta = adapter.get_column_names(cur)
+                pk_columns = []
+                for row in cur.fetchall():
+                    row_dict = adapter.row_to_dict(row, columns_meta)
+                    # PostgreSQL: attname, Oracle: column_name
+                    col_name = row_dict.get('attname') or row_dict.get('column_name', '')
+                    if col_name:
+                        pk_columns.append(col_name)
+                return pk_columns
+        except Exception as e:
+            logger.warning(f"기본 키 조회 실패 ({table_name}): {e}")
+            return []
 
     def _get_foreign_keys(self, table_name: str) -> List[Dict[str, str]]:
         """테이블의 외래 키 조회"""
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
-        with external_db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT
-                    kcu.column_name,
-                    ccu.table_name AS foreign_table_name,
-                    ccu.column_name AS foreign_column_name
-                FROM information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                  AND tc.table_schema = kcu.table_schema
-                JOIN information_schema.constraint_column_usage AS ccu
-                  ON ccu.constraint_name = tc.constraint_name
-                  AND ccu.table_schema = tc.table_schema
-                WHERE tc.constraint_type = 'FOREIGN KEY'
-                  AND tc.table_schema = %s
-                  AND tc.table_name = %s
-            """, (schema_name, table_name))
+        adapter = external_db_manager.get_adapter()
 
-            fks = []
-            for row in cur.fetchall():
-                fks.append({
-                    "column": row['column_name'],
-                    "references_table": row['foreign_table_name'],
-                    "references_column": row['foreign_column_name']
-                })
-            return fks
+        try:
+            with external_db_manager.get_cursor() as cur:
+                query, params = adapter.get_foreign_keys_query(schema_name, table_name)
+                cur.execute(query, params)
+
+                columns_meta = adapter.get_column_names(cur)
+                fks = []
+                for row in cur.fetchall():
+                    row_dict = adapter.row_to_dict(row, columns_meta)
+                    fks.append({
+                        "column": row_dict.get('column_name', ''),
+                        "references_table": row_dict.get('foreign_table_name', ''),
+                        "references_column": row_dict.get('foreign_column_name', '')
+                    })
+                return fks
+        except Exception as e:
+            logger.warning(f"외래 키 조회 실패 ({table_name}): {e}")
+            return []
 
     def _get_indexes(self, table_name: str) -> List[str]:
         """테이블의 인덱스 조회"""
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
-        with external_db_manager.get_cursor() as cur:
-            cur.execute("""
-                SELECT indexname
-                FROM pg_indexes
-                WHERE schemaname = %s
-                  AND tablename = %s
-            """, (schema_name, table_name))
+        adapter = external_db_manager.get_adapter()
 
-            return [row['indexname'] for row in cur.fetchall()]
+        try:
+            with external_db_manager.get_cursor() as cur:
+                query, params = adapter.get_indexes_query(schema_name, table_name)
+                cur.execute(query, params)
+
+                columns_meta = adapter.get_column_names(cur)
+                indexes = []
+                for row in cur.fetchall():
+                    row_dict = adapter.row_to_dict(row, columns_meta)
+                    # PostgreSQL: indexname, Oracle: index_name
+                    idx_name = row_dict.get('indexname') or row_dict.get('index_name', '')
+                    if idx_name:
+                        indexes.append(idx_name)
+                return indexes
+        except Exception as e:
+            logger.warning(f"인덱스 조회 실패 ({table_name}): {e}")
+            return []
 
     def _get_sample_data(self, table_name: str, limit: int = 3) -> List[Dict[str, Any]]:
         """테이블의 샘플 데이터 조회"""
         external_db_manager = _get_external_db_manager()
+        adapter = external_db_manager.get_adapter()
+
         try:
             with external_db_manager.get_cursor() as cur:
                 # 민감한 정보는 마스킹
-                if table_name == 'salary':
-                    cur.execute(f"""
-                        SELECT id, emp_id, effective_date, '***' as base_salary, currency
-                        FROM {table_name}
-                        LIMIT %s
-                    """, (limit,))
+                if table_name.lower() == 'salary':
+                    # 민감 컬럼 마스킹 쿼리 직접 생성
+                    query = adapter.get_sample_query(table_name, limit)
+                    # salary 테이블은 base_salary를 마스킹하여 별도 쿼리
+                    query = query.replace('*', "id, emp_id, effective_date, '***' as base_salary, currency")
                 else:
-                    cur.execute(f"SELECT * FROM {table_name} LIMIT %s", (limit,))
+                    query = adapter.get_sample_query(table_name, limit)
 
-                return [dict(row) for row in cur.fetchall()]
+                cur.execute(query)
+
+                columns_meta = adapter.get_column_names(cur)
+                result = []
+                for row in cur.fetchall():
+                    result.append(adapter.row_to_dict(row, columns_meta))
+                return result
         except Exception as e:
             logger.warning(f"샘플 데이터 조회 실패 ({table_name}): {e}")
             return []
@@ -209,7 +229,7 @@ class SchemaLoaderService:
         """특정 테이블의 스키마 정보만 조회"""
         full_schema = self.load_schema_metadata()
         for table in full_schema['tables']:
-            if table['name'] == table_name:
+            if table['name'].lower() == table_name.lower():
                 return table
         return {}
 
@@ -219,8 +239,9 @@ class SchemaLoaderService:
         NL2SQL에서 프롬프트에 포함할 텍스트
         """
         schema = self.load_schema_metadata()
+        db_type = schema.get('db_type', 'postgresql')
 
-        description = "# 데이터베이스 스키마\n\n"
+        description = f"# 데이터베이스 스키마 ({db_type.upper()})\n\n"
 
         for table in schema['tables']:
             description += f"## 테이블: {table['name']}\n"

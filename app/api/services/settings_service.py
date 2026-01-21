@@ -11,12 +11,14 @@ from datetime import datetime
 import httpx
 
 from app.core.config.settings_config import settings_config
+# psycopg import 제거 - 어댑터 패턴으로 대체
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 # 순환 import 방지를 위해 지연 import
 _db_manager = None
+_external_db_manager = None
 
 
 def _get_db_manager():
@@ -26,6 +28,15 @@ def _get_db_manager():
         from app.core.database.connection import db_manager
         _db_manager = db_manager
     return _db_manager
+
+
+def _get_external_db_manager():
+    """외부 DB 매니저 지연 로딩"""
+    global _external_db_manager
+    if _external_db_manager is None:
+        from app.core.database.external import external_db_manager
+        _external_db_manager = external_db_manager
+    return _external_db_manager
 
 
 class SettingsService:
@@ -147,6 +158,15 @@ class SettingsService:
                 # 캐시 갱신
                 settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at)
 
+                # external_database 카테고리인 경우 external_db_manager 캐시도 갱신
+                if category == 'external_database':
+                    try:
+                        ext_db_manager = _get_external_db_manager()
+                        ext_db_manager.reload_config()
+                        logger.info(f"외부 DB 설정 캐시 갱신 완료: {key}")
+                    except Exception as reload_err:
+                        logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
+
                 logger.info(f"설정 저장: {category}.{key}")
                 return True
 
@@ -165,12 +185,71 @@ class SettingsService:
         failed_keys = []
 
         for key, value in settings_dict.items():
-            if self.update_setting(category, key, value):
+            # update_setting 내부에서 개별 키마다 reload_config 호출되므로 일단 저장
+            if self._update_setting_without_reload(category, key, value):
                 success_count += 1
             else:
                 failed_keys.append(key)
 
+        # external_database 카테고리인 경우 마지막에 한 번만 reload
+        if category == 'external_database' and success_count > 0:
+            try:
+                ext_db_manager = _get_external_db_manager()
+                ext_db_manager.reload_config()
+                logger.info(f"외부 DB 설정 일괄 갱신 후 캐시 갱신 완료")
+            except Exception as reload_err:
+                logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
+
         return success_count, failed_keys
+
+    def _update_setting_without_reload(self, category: str, key: str, value: str, changed_by: str = 'admin', change_reason: Optional[str] = None) -> bool:
+        """단일 설정 수정 (external_db_manager reload 없이 - 일괄 수정용)"""
+        default = settings_config._get_default_value(category, key)
+        if not default:
+            logger.warning(f"알 수 없는 설정: {category}.{key}")
+            return False
+
+        is_secret = default[3]
+        if is_secret and value and '*' in value:
+            logger.info(f"마스킹된 secret 값 저장 스킵: {category}.{key}")
+            return True
+
+        try:
+            db_manager = _get_db_manager()
+            with db_manager.get_cursor(commit=True) as cur:
+                old_value = None
+                if category == 'prompt':
+                    cur.execute("SELECT value FROM tb_app_settings WHERE category = %s AND key = %s", (category, key))
+                    row = cur.fetchone()
+                    if row:
+                        old_value = row['value']
+
+                cur.execute("""
+                    INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (category, key)
+                    DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                    RETURNING updated_at
+                """, (category, key, value, default[1], default[2], default[3]))
+
+                row = cur.fetchone()
+                updated_at = row['updated_at'] if row else datetime.now()
+
+                if category == 'prompt' and old_value != value:
+                    try:
+                        cur.execute("""
+                            INSERT INTO tb_prompt_history (category, key, old_value, new_value, changed_by, change_reason)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (category, key, old_value, value, changed_by, change_reason or 'Manual update'))
+                    except Exception:
+                        pass
+
+                settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at)
+                return True
+
+        except Exception as e:
+            logger.error(f"설정 저장 실패: {category}.{key} - {e}")
+            return False
 
     def reset_category(self, category: str) -> bool:
         """카테고리 설정을 기본값으로 초기화"""
@@ -188,6 +267,16 @@ class SettingsService:
 
                 # 캐시 무효화
                 settings_config.refresh_cache()
+
+                # external_database 카테고리인 경우 external_db_manager 캐시도 갱신
+                if category == 'external_database':
+                    try:
+                        ext_db_manager = _get_external_db_manager()
+                        ext_db_manager.reload_config()
+                        logger.info("외부 DB 설정 초기화 후 캐시 갱신 완료")
+                    except Exception as reload_err:
+                        logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
+
                 logger.info(f"카테고리 초기화: {category}")
                 return True
 
@@ -239,8 +328,6 @@ class SettingsService:
 
         비밀번호가 마스킹되어 있으면 DB에서 실제 비밀번호를 조회하여 사용
         """
-        import psycopg
-
         # 비밀번호가 마스킹되어 있으면 DB에서 실제 비밀번호 조회
         if password and '*' in password:
             setting = settings_config.get_setting('external_database', 'password')
@@ -254,41 +341,44 @@ class SettingsService:
         if not all([host, database, username]):
             return {"success": False, "message": "호스트, 데이터베이스, 사용자명은 필수입니다."}
 
-        # PostgreSQL만 지원
-        if db_type != "postgresql":
-            return {"success": False, "message": f"지원하지 않는 DB 타입: {db_type} (현재 PostgreSQL만 지원)"}
-
+        # 어댑터 기반 연결 테스트
         try:
-            connection_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+            from app.core.database.adapters import get_adapter
+            adapter = get_adapter(db_type)
 
-            with psycopg.connect(connection_url, connect_timeout=5) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
+            config = {
+                'host': host,
+                'port': port,
+                'database': database,
+                'username': username,
+                'password': password,
+                'schema': schema,
+                'connection_timeout': 5
+            }
 
-                    # 스키마 존재 확인
-                    cur.execute("SELECT schema_name FROM information_schema.schemata WHERE schema_name = %s", (schema,))
-                    if not cur.fetchone():
-                        return {"success": False, "message": f"스키마 '{schema}'가 존재하지 않습니다."}
+            # 연결 테스트
+            success, error_msg = adapter.test_connection(config)
+            if not success:
+                return {"success": False, "message": error_msg}
 
-                    # 테이블 개수 확인
-                    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_type = 'BASE TABLE'", (schema,))
-                    table_count = cur.fetchone()[0]
+            # 스키마 및 테이블 확인
+            url = adapter.build_connection_url(config)
+            pool = adapter.create_pool(url, config)
+            try:
+                with adapter.get_connection(pool, schema) as conn:
+                    with adapter.get_cursor(conn) as cur:
+                        # 테이블 목록 조회
+                        query, params = adapter.get_tables_query(schema)
+                        cur.execute(query, params)
+                        tables = cur.fetchall()
+                        table_count = len(tables)
 
-            return {"success": True, "message": f"연결 성공! (스키마: {schema}, 테이블 수: {table_count})"}
+                return {"success": True, "message": f"연결 성공! (스키마: {schema}, 테이블 수: {table_count})"}
+            finally:
+                adapter.close_pool(pool)
 
-        except psycopg.OperationalError as e:
-            error_msg = str(e).lower()
-            if "password authentication failed" in error_msg:
-                message = "인증 실패: 사용자명 또는 비밀번호가 올바르지 않습니다."
-            elif "does not exist" in error_msg:
-                message = "데이터베이스가 존재하지 않습니다."
-            elif "connection refused" in error_msg or "could not connect" in error_msg:
-                message = f"서버에 연결할 수 없습니다: {host}:{port}"
-            else:
-                message = f"연결 오류: {str(e)}"
-            logger.error(f"외부 DB 연결 테스트 실패: {message}")
-            return {"success": False, "message": message}
-
+        except ValueError as e:
+            return {"success": False, "message": str(e)}
         except Exception as e:
             logger.error(f"외부 DB 연결 테스트 중 예외 발생: {e}", exc_info=True)
             return {"success": False, "message": f"연결 테스트 실패: {str(e)}"}

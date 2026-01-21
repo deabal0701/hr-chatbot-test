@@ -5,6 +5,7 @@
 - DDL/DML 차단
 - 테이블 화이트리스트 검증
 - 타임아웃 및 LIMIT 적용
+- 다중 DB 지원 (PostgreSQL, Oracle)
 """
 import re
 import time
@@ -124,10 +125,17 @@ class SQLExecutorService:
             if table.lower() not in allowed_tables:
                 return False, f"허용되지 않은 테이블: {table} (허용: {allowed_tables})"
 
-        # 5. LIMIT 절 체크 (권장)
-        if 'LIMIT' not in sql_upper:
-            logger.warning(f"LIMIT 절이 없는 쿼리: {sql[:100]}")
-            # 경고만 하고 통과 (자동으로 LIMIT 추가 가능)
+        # 5. LIMIT 절 체크 (권장) - DB 타입에 따라 다른 키워드 확인
+        external_db_manager = _get_external_db_manager()
+        db_type = external_db_manager.get_db_type()
+        if db_type == "oracle":
+            # Oracle: FETCH FIRST 또는 ROWNUM
+            if 'FETCH' not in sql_upper and 'ROWNUM' not in sql_upper:
+                logger.warning(f"Oracle 쿼리에 FETCH/ROWNUM 절이 없음: {sql[:100]}")
+        else:
+            # PostgreSQL: LIMIT
+            if 'LIMIT' not in sql_upper:
+                logger.warning(f"LIMIT 절이 없는 쿼리: {sql[:100]}")
 
         return True, None
 
@@ -201,11 +209,10 @@ class SQLExecutorService:
         return bool(re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', value))
 
     def _add_limit_if_missing(self, sql: str) -> str:
-        """LIMIT 절이 없으면 추가"""
-        sql_upper = sql.upper()
-        if 'LIMIT' not in sql_upper:
-            sql = sql.rstrip(';').strip() + f' LIMIT {self.max_rows}'
-        return sql
+        """LIMIT 절이 없으면 추가 (DB 타입에 따라 다른 문법 사용)"""
+        external_db_manager = _get_external_db_manager()
+        adapter = external_db_manager.get_adapter()
+        return adapter.add_limit_clause(sql, self.max_rows)
 
     def execute_sql(self, sql: str, validate: bool = True) -> SQLResult:
         """
@@ -229,28 +236,26 @@ class SQLExecutorService:
         # 3. 외부 DB에서 SQL 실행
         start_time = time.time()
         external_db_manager = _get_external_db_manager()
+        adapter = external_db_manager.get_adapter()
 
         try:
             with external_db_manager.get_cursor() as cur:
-                # 타임아웃 설정
-                cur.execute(f"SET statement_timeout = {self.timeout * 1000}")
+                # 타임아웃 설정 (DB별 어댑터 사용)
+                adapter.set_timeout(cur, self.timeout)
 
                 # SQL 실행
                 cur.execute(sql)
 
-                # 결과 가져오기
+                # 결과 가져오기 (어댑터 사용)
+                columns = adapter.get_column_names(cur)
                 rows = cur.fetchall()
-                columns = [desc[0] for desc in cur.description] if cur.description else []
 
                 execution_time_ms = int((time.time() - start_time) * 1000)
 
-                # 결과 변환
-                result_rows = [dict(row) for row in rows]
+                # 결과 변환 (어댑터 사용)
+                result_rows = [adapter.row_to_dict(row, columns) for row in rows]
 
-                logger.info(
-                    f"SQL 실행 완료: rows={len(result_rows)}, "
-                    f"time={execution_time_ms}ms, sql={sql[:100]}"
-                )
+                logger.info(f"SQL 실행 완료: rows={len(result_rows)}, time={execution_time_ms}ms, sql={sql[:100]}")
 
                 return SQLResult(
                     columns=columns,
@@ -265,16 +270,27 @@ class SQLExecutorService:
             raise SQLExecutionError(f"SQL 실행 오류: {str(e)}")
 
     def explain_sql(self, sql: str) -> Dict[str, Any]:
-        """SQL EXPLAIN 분석"""
+        """SQL EXPLAIN 분석 (DB 타입에 따라 다른 EXPLAIN 사용)"""
         external_db_manager = _get_external_db_manager()
+        adapter = external_db_manager.get_adapter()
         try:
             with external_db_manager.get_cursor() as cur:
-                cur.execute(f"EXPLAIN (FORMAT JSON) {sql}")
+                explain_query = adapter.get_explain_query(sql)
+                cur.execute(explain_query)
                 result = cur.fetchone()
-                if result and isinstance(result, dict):
-                    # dict_row를 사용하므로 result는 dict
-                    return result.get('QUERY PLAN', {})
-                return {}
+
+                # DB 타입별 결과 처리
+                db_type = external_db_manager.get_db_type()
+                if db_type == "oracle":
+                    # Oracle은 PLAN_TABLE에 결과 저장, 별도 쿼리 필요
+                    cur.execute("SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY())")
+                    rows = cur.fetchall()
+                    return {"plan": [str(row) for row in rows]}
+                else:
+                    # PostgreSQL: JSON 형식 반환
+                    if result and isinstance(result, dict):
+                        return result.get('QUERY PLAN', {})
+                    return {}
         except Exception as e:
             logger.error(f"EXPLAIN 실패: {e}")
             return {"error": str(e)}

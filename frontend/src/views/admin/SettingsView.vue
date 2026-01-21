@@ -344,14 +344,14 @@
 
               <template v-if="formData.external_database.enabled">
                 <el-form-item label="DB 타입">
-                  <el-select v-model="formData.external_database.db_type" style="width: 100%">
+                  <el-select v-model="formData.external_database.db_type" style="width: 100%" @change="onDbTypeChange">
                     <el-option label="PostgreSQL" value="postgresql" />
-                    <el-option label="Oracle" value="oracle" disabled />
+                    <el-option label="Oracle" value="oracle" />
                     <el-option label="MySQL" value="mysql" disabled />
                     <el-option label="MS SQL Server" value="mssql" disabled />
                   </el-select>
                   <div class="form-help">
-                    현재 PostgreSQL만 지원됩니다
+                    PostgreSQL 및 Oracle을 지원합니다
                   </div>
                 </el-form-item>
 
@@ -376,20 +376,25 @@
                   </el-col>
                 </el-row>
 
-                <el-form-item label="데이터베이스 이름">
+                <el-form-item :label="formData.external_database.db_type === 'oracle' ? 'Service Name (SID)' : '데이터베이스 이름'">
                   <el-input
                     v-model="formData.external_database.database"
-                    placeholder="chatbot_system"
+                    :placeholder="formData.external_database.db_type === 'oracle' ? 'ORCL' : 'chatbot_system'"
                   />
+                  <div v-if="formData.external_database.db_type === 'oracle'" class="form-help">
+                    Oracle Service Name 또는 SID를 입력하세요
+                  </div>
                 </el-form-item>
 
-                <el-form-item label="스키마">
+                <el-form-item :label="formData.external_database.db_type === 'oracle' ? '스키마 (Owner)' : '스키마'">
                   <el-input
                     v-model="formData.external_database.schema"
-                    placeholder="business"
+                    :placeholder="formData.external_database.db_type === 'oracle' ? 'HR' : 'business'"
                   />
                   <div class="form-help">
-                    비즈니스 데이터가 저장된 스키마 이름
+                    {{ formData.external_database.db_type === 'oracle'
+                      ? 'Oracle에서는 CURRENT_SCHEMA로 설정됩니다 (대문자 권장)'
+                      : '비즈니스 데이터가 저장된 스키마 이름' }}
                   </div>
                 </el-form-item>
 
@@ -1106,6 +1111,16 @@ const onLLMProviderChange = (provider) => {
     formData.llm.model = ''
   } else if (provider === 'openai' && formData.llm.model.startsWith('claude-')) {
     formData.llm.model = ''
+  }
+}
+
+// DB 타입 변경 시 처리
+const onDbTypeChange = (dbType) => {
+  // DB 타입에 따른 기본 포트 설정
+  if (dbType === 'oracle') {
+    formData.external_database.port = 1521
+  } else if (dbType === 'postgresql') {
+    formData.external_database.port = 5432
   }
 }
 
