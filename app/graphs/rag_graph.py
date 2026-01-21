@@ -6,7 +6,7 @@ from langgraph.graph import END, StateGraph
 from app.config import settings
 from app.models.rag import DocumentSource
 from app.models.search import SearchFilters, SearchResponse
-from app.core.config.settings_service import settings_service
+from app.core.config.settings_config import settings_config
 from app.core.vector.vector_store import vector_store
 from app.core.llm.prompt_service import prompt_service
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
@@ -38,7 +38,7 @@ class RAGGraph:
         RAG는 DB 설정의 temperature를 사용 (일반적으로 0.1)
         """
         # DB에서 temperature 읽기
-        temperature = settings_service.get_value("llm", "temperature", 0.1)
+        temperature = settings_config.get_value("llm", "temperature", 0.1)
 
         return LLMConfigManager.create_llm(
             temperature=temperature,
@@ -133,7 +133,7 @@ class RAGGraph:
 
         # 매 요청마다 DB 설정 반영된 LLM 사용
         llm = self._get_llm()
-        llm_model = settings_service.get_value("llm", "model", settings.llm_model)
+        llm_model = settings_config.get_value("llm", "model", settings.llm_model)
 
         # LLM 입력 로그
         log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))

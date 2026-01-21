@@ -1,12 +1,11 @@
 """시스템 설정 관리 API 라우터 (Admin API)
 
-시스템 설정을 조회하고 수정할 수 있는 API.
-API Key, 모델 설정, RAG/NL2SQL 파라미터 등을 관리.
+위치: app/api/routes/settings.py
+- HTTP 요청/응답 처리
+- 예외 변환
+- 비즈니스 로직은 settings_service에 위임
 """
-from typing import Optional
-
 from fastapi import APIRouter, HTTPException, status
-import httpx
 
 from app.models.settings import (
     SettingItemResponse,
@@ -18,7 +17,7 @@ from app.models.settings import (
     ApiKeyValidationRequest,
     ApiKeyValidationResponse,
 )
-from app.core.config.settings_service import settings_service
+from app.api.services.settings_service import settings_service
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -32,70 +31,33 @@ router = APIRouter(prefix="/api/admin/v1/settings", tags=["admin-settings"])
 
 @router.get("", response_model=AllSettingsResponse)
 async def get_all_settings():
-    """
-    전체 설정 조회
-
-    모든 카테고리의 설정을 조회합니다.
-    비밀 값(API Key 등)은 마스킹 처리되어 반환됩니다.
-    """
+    """전체 설정 조회 (마스킹 적용)"""
     try:
-        all_settings = settings_service.get_all_masked_settings()
-
-        categories = []
-        for category, settings in all_settings.items():
-            categories.append(SettingsCategoryResponse(
-                category=category,
-                settings=[SettingItemResponse(**s) for s in settings]
-            ))
-
+        all_settings = settings_service.get_all_settings_masked()
+        categories = [
+            SettingsCategoryResponse(category=cat, settings=[SettingItemResponse(**s) for s in settings_list])
+            for cat, settings_list in all_settings.items()
+        ]
         return AllSettingsResponse(categories=categories)
-
     except Exception as e:
         logger.error(f"전체 설정 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("/{category}", response_model=SettingsCategoryResponse)
 async def get_category_settings(category: str):
-    """
-    카테고리별 설정 조회
-
-    특정 카테고리의 모든 설정을 조회합니다.
-
-    카테고리:
-    - openai: OpenAI API 설정
-    - embedding: 임베딩 모델 설정
-    - llm: LLM 모델 설정
-    - rag: RAG 검색 설정
-    - nl2sql: NL2SQL 설정
-    - chunking: 청킹 설정
-    """
+    """카테고리별 설정 조회 (마스킹 적용)"""
     try:
-        # 유효한 카테고리 확인
-        if category not in settings_service.DEFAULTS:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"알 수 없는 카테고리: {category}"
-            )
+        if not settings_service.is_valid_category(category):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"알 수 없는 카테고리: {category}")
 
-        settings = settings_service.get_masked_settings(category)
-
-        return SettingsCategoryResponse(
-            category=category,
-            settings=[SettingItemResponse(**s) for s in settings]
-        )
-
+        settings_list = settings_service.get_category_settings_masked(category)
+        return SettingsCategoryResponse(category=category, settings=[SettingItemResponse(**s) for s in settings_list])
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"카테고리 설정 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 # ============================================
@@ -104,161 +66,70 @@ async def get_category_settings(category: str):
 
 @router.get("/prompt/history")
 async def get_prompt_history(limit: int = 100):
-    """
-    전체 프롬프트 변경 이력 조회
-
-    모든 프롬프트의 변경 이력을 최근 순으로 조회합니다.
-
-    Args:
-        limit: 조회할 최대 개수 (기본: 100, 최대: 1000)
-    """
+    """전체 프롬프트 변경 이력 조회"""
     try:
         history = settings_service.get_prompt_history(limit)
         return {"history": history}
-
     except Exception as e:
         logger.error(f"프롬프트 이력 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"프롬프트 이력 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"프롬프트 이력 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("/prompt/history/{category}/{key}")
 async def get_prompt_history_by_key(category: str, key: str, limit: int = 50):
-    """
-    특정 프롬프트의 변경 이력 조회
-
-    특정 카테고리/키의 프롬프트 변경 이력만 조회합니다.
-
-    Args:
-        category: 카테고리명
-        key: 프롬프트 키
-        limit: 조회할 최대 개수 (기본: 50, 최대: 500)
-    """
+    """특정 프롬프트의 변경 이력 조회"""
     try:
         history = settings_service.get_prompt_history_by_key(category, key, limit)
         return {"history": history}
-
     except Exception as e:
         logger.error(f"프롬프트 이력 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"프롬프트 이력 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"프롬프트 이력 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.post("/prompt/restore/{history_id}")
 async def restore_prompt_from_history(history_id: int):
-    """
-    프롬프트 원복
-
-    특정 이력 ID로 프롬프트를 이전 상태로 되돌립니다.
-    """
+    """프롬프트 원복"""
     try:
-        success = settings_service.restore_prompt_from_history(
-            history_id,
-            changed_by='admin'  # TODO: 향후 인증 시스템 연동 시 실제 사용자명 사용
-        )
-
+        success = settings_service.restore_prompt_from_history(history_id, changed_by='admin')
         if success:
-            return {
-                "success": True,
-                "message": "프롬프트가 복원되었습니다."
-            }
+            return {"success": True, "message": "프롬프트가 복원되었습니다."}
         else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="복원할 이력을 찾을 수 없습니다."
-            )
-
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="복원할 이력을 찾을 수 없습니다.")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"프롬프트 복원 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"프롬프트 복원 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"프롬프트 복원 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("/{category}/{key}", response_model=SettingItemResponse)
 async def get_setting(category: str, key: str):
-    """
-    단일 설정 조회
-
-    특정 카테고리의 특정 키 설정을 조회합니다.
-    """
+    """단일 설정 조회 (마스킹 적용)"""
     try:
-        setting = settings_service.get_setting(category, key)
-
+        setting = settings_service.get_setting(category, key, masked=True)
         if not setting:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"설정을 찾을 수 없습니다: {category}.{key}"
-            )
-
-        # 마스킹 처리
-        value = setting['value']
-        if setting.get('is_secret') and value:
-            value = settings_service.mask_secret_value(value)
-
-        return SettingItemResponse(
-            category=category,
-            key=key,
-            value=value,
-            value_type=setting.get('value_type', 'string'),
-            description=setting.get('description'),
-            is_secret=setting.get('is_secret', False),
-            updated_at=setting.get('updated_at')
-        )
-
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"설정을 찾을 수 없습니다: {category}.{key}")
+        return SettingItemResponse(**setting)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"설정 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("/{category}/{key}/reveal", response_model=SettingItemResponse)
 async def reveal_setting(category: str, key: str):
-    """
-    단일 설정 조회 (마스킹 없이)
-
-    특정 카테고리의 특정 키 설정을 마스킹 없이 조회합니다.
-    주의: 민감한 정보(API 키 등)를 노출하므로 보안에 주의해야 합니다.
-    """
+    """단일 설정 조회 (마스킹 없이)"""
     try:
-        setting = settings_service.get_setting(category, key)
-
+        setting = settings_service.get_setting(category, key, masked=False)
         if not setting:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"설정을 찾을 수 없습니다: {category}.{key}"
-            )
-
-        # 마스킹 처리 없이 원본 값 반환
-        return SettingItemResponse(
-            category=category,
-            key=key,
-            value=setting['value'],
-            value_type=setting.get('value_type', 'string'),
-            description=setting.get('description'),
-            is_secret=setting.get('is_secret', False),
-            updated_at=setting.get('updated_at')
-        )
-
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"설정을 찾을 수 없습니다: {category}.{key}")
+        return SettingItemResponse(**setting)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"설정 조회 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 조회 중 오류가 발생했습니다: {str(e)}")
 
 
 # ============================================
@@ -267,90 +138,44 @@ async def reveal_setting(category: str, key: str):
 
 @router.put("/{category}/{key}", response_model=SettingsUpdateResponse)
 async def update_setting(category: str, key: str, request: SettingUpdateRequest):
-    """
-    단일 설정 수정
-
-    특정 카테고리의 특정 키 값을 수정합니다.
-    """
+    """단일 설정 수정"""
     try:
-        # 유효한 설정 키인지 확인
-        if category not in settings_service.DEFAULTS:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"알 수 없는 카테고리: {category}"
-            )
+        if not settings_service.is_valid_category(category):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"알 수 없는 카테고리: {category}")
+        if not settings_service.is_valid_key(category, key):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"알 수 없는 설정 키: {category}.{key}")
 
-        if key not in settings_service.DEFAULTS[category]:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"알 수 없는 설정 키: {category}.{key}"
-            )
-
-        success = settings_service.set_setting(category, key, request.value)
-
+        success = settings_service.update_setting(category, key, request.value)
         if success:
             logger.info(f"설정 수정 완료: {category}.{key}")
-            return SettingsUpdateResponse(
-                success=True,
-                message=f"설정이 수정되었습니다: {category}.{key}",
-                updated_count=1
-            )
+            return SettingsUpdateResponse(success=True, message=f"설정이 수정되었습니다: {category}.{key}", updated_count=1)
         else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="설정 수정에 실패했습니다."
-            )
-
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="설정 수정에 실패했습니다.")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"설정 수정 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 수정 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 수정 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.put("/{category}", response_model=SettingsUpdateResponse)
 async def update_category_settings(category: str, request: SettingsBulkUpdateRequest):
-    """
-    카테고리별 설정 일괄 수정
-
-    특정 카테고리의 여러 설정을 한 번에 수정합니다.
-    """
+    """카테고리별 설정 일괄 수정"""
     try:
-        # 유효한 카테고리 확인
-        if category not in settings_service.DEFAULTS:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"알 수 없는 카테고리: {category}"
-            )
+        if not settings_service.is_valid_category(category):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"알 수 없는 카테고리: {category}")
 
-        success_count, failed_keys = settings_service.set_category_settings(
-            category, request.settings
-        )
+        success_count, failed_keys = settings_service.update_category_settings(category, request.settings)
 
         if failed_keys:
-            return SettingsUpdateResponse(
-                success=False,
-                message=f"{success_count}개 수정, {len(failed_keys)}개 실패: {', '.join(failed_keys)}",
-                updated_count=success_count
-            )
+            return SettingsUpdateResponse(success=False, message=f"{success_count}개 수정, {len(failed_keys)}개 실패: {', '.join(failed_keys)}", updated_count=success_count)
         else:
-            return SettingsUpdateResponse(
-                success=True,
-                message=f"{success_count}개 설정이 수정되었습니다.",
-                updated_count=success_count
-            )
-
+            return SettingsUpdateResponse(success=True, message=f"{success_count}개 설정이 수정되었습니다.", updated_count=success_count)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"카테고리 설정 수정 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 수정 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 수정 중 오류가 발생했습니다: {str(e)}")
 
 
 # ============================================
@@ -359,40 +184,21 @@ async def update_category_settings(category: str, request: SettingsBulkUpdateReq
 
 @router.post("/{category}/reset", response_model=SettingsUpdateResponse)
 async def reset_category_settings(category: str):
-    """
-    카테고리 설정 초기화
-
-    특정 카테고리의 모든 설정을 기본값으로 초기화합니다.
-    """
+    """카테고리 설정 초기화"""
     try:
-        if category not in settings_service.DEFAULTS:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"알 수 없는 카테고리: {category}"
-            )
+        if not settings_service.is_valid_category(category):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"알 수 없는 카테고리: {category}")
 
         success = settings_service.reset_category(category)
-
         if success:
-            return SettingsUpdateResponse(
-                success=True,
-                message=f"{category} 카테고리가 기본값으로 초기화되었습니다.",
-                updated_count=len(settings_service.DEFAULTS[category])
-            )
+            return SettingsUpdateResponse(success=True, message=f"{category} 카테고리가 기본값으로 초기화되었습니다.", updated_count=settings_service.get_category_key_count(category))
         else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="설정 초기화에 실패했습니다."
-            )
-
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="설정 초기화에 실패했습니다.")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"설정 초기화 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"설정 초기화 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"설정 초기화 중 오류가 발생했습니다: {str(e)}")
 
 
 # ============================================
@@ -401,61 +207,9 @@ async def reset_category_settings(category: str):
 
 @router.post("/validate-api-key", response_model=ApiKeyValidationResponse)
 async def validate_api_key(request: ApiKeyValidationRequest):
-    """
-    OpenAI API 키 검증
-
-    제공된 API 키가 유효한지 확인합니다.
-    유효한 경우 사용 가능한 모델 목록도 반환합니다.
-    """
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                "https://api.openai.com/v1/models",
-                headers={
-                    "Authorization": f"Bearer {request.api_key}",
-                    "Content-Type": "application/json"
-                }
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                models = [m["id"] for m in data.get("data", [])]
-
-                # 주요 모델만 필터링
-                important_models = [
-                    m for m in models
-                    if any(key in m for key in ["gpt-4", "gpt-3.5", "text-embedding"])
-                ]
-
-                return ApiKeyValidationResponse(
-                    valid=True,
-                    message="API 키가 유효합니다.",
-                    models=sorted(important_models)
-                )
-
-            elif response.status_code == 401:
-                return ApiKeyValidationResponse(
-                    valid=False,
-                    message="API 키가 유효하지 않습니다."
-                )
-
-            else:
-                return ApiKeyValidationResponse(
-                    valid=False,
-                    message=f"API 검증 실패: {response.status_code}"
-                )
-
-    except httpx.TimeoutException:
-        return ApiKeyValidationResponse(
-            valid=False,
-            message="API 서버 응답 시간 초과"
-        )
-    except Exception as e:
-        logger.error(f"API 키 검증 실패: {e}", exc_info=True)
-        return ApiKeyValidationResponse(
-            valid=False,
-            message=f"검증 중 오류 발생: {str(e)}"
-        )
+    """OpenAI API 키 검증"""
+    result = await settings_service.validate_openai_api_key(request.api_key)
+    return ApiKeyValidationResponse(**result)
 
 
 # ============================================
@@ -464,25 +218,13 @@ async def validate_api_key(request: ApiKeyValidationRequest):
 
 @router.post("/refresh-cache", response_model=SettingsUpdateResponse)
 async def refresh_settings_cache():
-    """
-    설정 캐시 새로고침
-
-    메모리에 캐시된 설정을 DB에서 다시 로드합니다.
-    """
+    """설정 캐시 새로고침"""
     try:
         settings_service.refresh_cache()
-        return SettingsUpdateResponse(
-            success=True,
-            message="설정 캐시가 새로고침되었습니다.",
-            updated_count=0
-        )
-
+        return SettingsUpdateResponse(success=True, message="설정 캐시가 새로고침되었습니다.", updated_count=0)
     except Exception as e:
         logger.error(f"캐시 새로고침 실패: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"캐시 새로고침 중 오류가 발생했습니다: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"캐시 새로고침 중 오류가 발생했습니다: {str(e)}")
 
 
 # ============================================
@@ -491,92 +233,14 @@ async def refresh_settings_cache():
 
 @router.post("/external-database/test")
 async def test_external_database_connection(request: dict):
-    """
-    외부 비즈니스 데이터베이스 연결 테스트
-
-    NL2SQL에서 사용할 외부 DB 연결 정보가 유효한지 테스트합니다.
-    """
-    try:
-        import psycopg
-
-        db_type = request.get("db_type", "postgresql")
-        host = request.get("host")
-        port = request.get("port", 5432)
-        database = request.get("database")
-        username = request.get("username")
-        password = request.get("password")
-        schema = request.get("schema", "business")
-
-        # 필수 파라미터 검증
-        if not all([host, database, username]):
-            return {
-                "success": False,
-                "message": "호스트, 데이터베이스, 사용자명은 필수입니다."
-            }
-
-        # PostgreSQL만 지원
-        if db_type != "postgresql":
-            return {
-                "success": False,
-                "message": f"지원하지 않는 DB 타입: {db_type} (현재 PostgreSQL만 지원)"
-            }
-
-        # 연결 URL 생성
-        connection_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-
-        # 연결 테스트
-        with psycopg.connect(connection_url, connect_timeout=5) as conn:
-            with conn.cursor() as cur:
-                # 기본 연결 확인
-                cur.execute("SELECT 1")
-
-                # 스키마 존재 확인
-                cur.execute("""
-                    SELECT schema_name
-                    FROM information_schema.schemata
-                    WHERE schema_name = %s
-                """, (schema,))
-
-                if not cur.fetchone():
-                    return {
-                        "success": False,
-                        "message": f"스키마 '{schema}'가 존재하지 않습니다."
-                    }
-
-                # 스키마 내 테이블 개수 확인
-                cur.execute("""
-                    SELECT COUNT(*)
-                    FROM information_schema.tables
-                    WHERE table_schema = %s AND table_type = 'BASE TABLE'
-                """, (schema,))
-
-                table_count = cur.fetchone()[0]
-
-        return {
-            "success": True,
-            "message": f"연결 성공! (스키마: {schema}, 테이블 수: {table_count})"
-        }
-
-    except psycopg.OperationalError as e:
-        error_msg = str(e).lower()
-        if "password authentication failed" in error_msg:
-            message = "인증 실패: 사용자명 또는 비밀번호가 올바르지 않습니다."
-        elif "does not exist" in error_msg:
-            message = "데이터베이스가 존재하지 않습니다."
-        elif "connection refused" in error_msg or "could not connect" in error_msg:
-            message = f"서버에 연결할 수 없습니다: {host}:{port}"
-        else:
-            message = f"연결 오류: {str(e)}"
-
-        logger.error(f"외부 DB 연결 테스트 실패: {message}")
-        return {
-            "success": False,
-            "message": message
-        }
-
-    except Exception as e:
-        logger.error(f"외부 DB 연결 테스트 중 예외 발생: {e}", exc_info=True)
-        return {
-            "success": False,
-            "message": f"연결 테스트 실패: {str(e)}"
-        }
+    """외부 비즈니스 데이터베이스 연결 테스트"""
+    result = settings_service.test_external_db_connection(
+        db_type=request.get("db_type", "postgresql"),
+        host=request.get("host", ""),
+        port=request.get("port", 5432),
+        database=request.get("database", ""),
+        username=request.get("username", ""),
+        password=request.get("password", ""),
+        schema=request.get("schema", "business")
+    )
+    return result

@@ -29,7 +29,7 @@ from app.models.agent import (AgentRequest, AgentResponse, AgentStep, AgentConfi
 from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
 from app.tools.calc_tool import calculate_tool
-from app.core.config.settings_service import settings_service
+from app.core.config.settings_config import settings_config
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.core.llm.llm_config import LLMConfigManager  # 통합 LLM 설정
@@ -98,7 +98,7 @@ class InsightAgentGraph:
         """
         # Agent 설정에서 provider 가져오기 (Phase 1: openai만 지원)
         provider = getattr(config, 'llm_provider', None) or \
-                   settings_service.get_value("agent", "llm_provider", "openai")
+                   settings_config.get_value("agent", "llm_provider", "openai")
 
         logger.info(f"[_get_llm] Creating LLM: model={config.llm_model}, provider={provider}, temperature={config.llm_temperature}")
 

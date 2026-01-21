@@ -33,10 +33,10 @@
         <template #title>자연어 검색</template>
       </el-menu-item> -->
 
-      <!-- <el-menu-item index="/admin/settings">
+      <el-menu-item index="/admin/settings">
         <el-icon><Setting /></el-icon>
         <template #title>시스템 설정</template>
-      </el-menu-item> -->
+      </el-menu-item>
 
       <!-- <el-menu-item index="/admin/codes">
         <el-icon><Grid /></el-icon>

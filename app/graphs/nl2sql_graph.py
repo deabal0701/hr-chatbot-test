@@ -8,7 +8,7 @@ from app.models.search import SearchResponse
 from app.models.rag import SQLResult
 import time
 from app.core.database.schema_loader import schema_loader
-from app.core.config.settings_service import settings_service
+from app.core.config.settings_config import settings_config
 from app.core.llm.prompt_service import prompt_service
 from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
@@ -106,7 +106,7 @@ SQL만 출력하세요 (설명 없이)."""
 
         # 매 요청마다 DB 설정 반영된 LLM 사용
         llm = self._get_llm()
-        llm_model = settings_service.get_value("llm", "model", settings.llm_model)
+        llm_model = settings_config.get_value("llm", "model", settings.llm_model)
 
         # LLM 입력 로그
         log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt))

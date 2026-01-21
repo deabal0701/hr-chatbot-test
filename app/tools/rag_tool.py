@@ -17,7 +17,7 @@ from langchain_core.tools import tool
 
 from app.tools.base import BaseTool, ToolResult
 from app.core.vector.vector_store import vector_store
-from app.core.config.settings_service import settings_service
+from app.core.config.settings_config import settings_config
 from app.models.search import SearchFilters
 from app.config import settings
 from app.utils.logger import setup_logger
@@ -162,7 +162,7 @@ Examples:
 
         try:
             # RAG 설정 가져오기
-            similarity_threshold = settings_service.get_value(
+            similarity_threshold = settings_config.get_value(
                 "rag",
                 "similarity_threshold",
                 settings.rag_similarity_threshold

@@ -17,8 +17,8 @@ _settings_service = None
 def _get_settings_service():
     global _settings_service
     if _settings_service is None:
-        from app.core.config.settings_service import settings_service
-        _settings_service = settings_service
+        from app.core.config.settings_config import settings_config
+        _settings_service = settings_config
     return _settings_service
 
 

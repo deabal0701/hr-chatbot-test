@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from app.graphs.agent_graph import agent_graph
 from app.models.agent import (AgentConfig, AgentResponse)
-from app.core.config.settings_service import settings_service
+from app.core.config.settings_config import settings_config
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
@@ -69,15 +69,15 @@ class AgentService:
         config = AgentConfig()  # type: ignore
 
         # 모든 설정을 DB/캐시에서 로드 (사용자 입력 무시)
-        config.max_iterations = settings_service.get_value("agent", "max_iterations", 10)
-        config.timeout_seconds = settings_service.get_value("agent", "timeout_seconds", 60)
-        config.llm_model = settings_service.get_value("llm", "model", "gpt-4o-mini")
-        config.llm_temperature = settings_service.get_value("agent", "llm_temperature", 0.0)
-        config.enable_memory = settings_service.get_value("agent", "enable_memory", True)
-        config.enable_streaming = settings_service.get_value("agent", "enable_streaming", False)
+        config.max_iterations = settings_config.get_value("agent", "max_iterations", 10)
+        config.timeout_seconds = settings_config.get_value("agent", "timeout_seconds", 60)
+        config.llm_model = settings_config.get_value("llm", "model", "gpt-4o-mini")
+        config.llm_temperature = settings_config.get_value("agent", "llm_temperature", 0.0)
+        config.enable_memory = settings_config.get_value("agent", "enable_memory", True)
+        config.enable_streaming = settings_config.get_value("agent", "enable_streaming", False)
 
         # enabled_tools: 쉼표 구분 문자열 → 리스트 변환
-        tools_str = settings_service.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool")
+        tools_str = settings_config.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool")
         if tools_str:
             enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
             if enabled_tools:
