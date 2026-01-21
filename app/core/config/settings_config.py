@@ -13,6 +13,7 @@ Note: CRUD 작업은 app/api/services/settings_service.py에서 처리
 """
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
+from unittest import result
 
 from app.config import settings as env_settings
 from app.utils.logger import setup_logger
@@ -318,7 +319,11 @@ class SettingsConfig:
 
     def get_all_masked_settings(self) -> Dict[str, List[Dict[str, Any]]]:
         """마스킹된 전체 설정 조회"""
-        return {category: self.get_masked_settings(category) for category in self.DEFAULTS}
+        result = {}
+        for category in self.DEFAULTS:
+            result[category] = self.get_masked_settings(category)
+        return result
+    #   return {category: self.get_masked_settings(category) for category in self.DEFAULTS}
 
     # ============================================================================
     # 캐시 관리
