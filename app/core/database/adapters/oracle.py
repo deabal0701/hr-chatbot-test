@@ -217,12 +217,23 @@ class OracleAdapter(DatabaseAdapter):
 
         LLM이 PostgreSQL 스타일의 LIMIT을 생성할 수 있으므로,
         LIMIT 절이 있으면 FETCH FIRST로 변환합니다.
+
+        주의: GROUP BY가 있는 집계 쿼리에는 FETCH FIRST를 추가하지 않습니다.
+        Oracle에서 집계 쿼리에 FETCH FIRST를 사용하면 오류가 발생하거나
+        집계 전에 행 제한이 적용되어 잘못된 결과가 나올 수 있습니다.
         """
         sql_upper = sql.upper()
 
         # 이미 FETCH 또는 ROWNUM이 있으면 세미콜론만 제거하고 반환
         if 'FETCH' in sql_upper or 'ROWNUM' in sql_upper:
             return sql.rstrip(';').strip()
+
+        # GROUP BY가 있는 집계 쿼리에는 FETCH FIRST를 추가하지 않음
+        if 'GROUP BY' in sql_upper:
+            logger.debug("GROUP BY 쿼리에는 FETCH FIRST를 추가하지 않습니다.")
+            # PostgreSQL LIMIT이 있으면 제거만 함
+            limit_pattern = re.compile(r'\s+LIMIT\s+\d+\s*;?\s*$', re.IGNORECASE)
+            return limit_pattern.sub('', sql).rstrip(';').strip()
 
         # PostgreSQL 스타일 LIMIT이 있으면 FETCH FIRST로 변환
         limit_pattern = re.compile(r'\s+LIMIT\s+(\d+)\s*;?\s*$', re.IGNORECASE)
