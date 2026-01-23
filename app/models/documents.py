@@ -119,6 +119,7 @@ class DocumentListItem(BaseModel):
     doc_type: str
     language: str
     content_length: int
+    original_length: Optional[int] = None  # 원본 문서 전체 길이 (청킹된 경우 원본 길이)
     source_type: Optional[str] = None
     source_file: Optional[str] = None
     total_chunks: Optional[int] = None
