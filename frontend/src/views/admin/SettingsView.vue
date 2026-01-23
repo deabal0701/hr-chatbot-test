@@ -148,9 +148,10 @@
                     />
                   </el-select>
                 </el-form-item>
+                <!-- 임시주석 
                 <a :href="getPricingLink()" target="_blank" class="pricing-link">
                   가격 정보 보기 →
-                </a>
+                </a> -->
               </div>
 
               <el-form-item label="Temperature">
