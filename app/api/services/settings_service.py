@@ -155,7 +155,7 @@ class SettingsService:
                     except Exception as hist_err:
                         logger.error(f"프롬프트 이력 저장 실패 (무시): {hist_err}")
 
-                # 캐시 갱신
+                # 캐시 갱신 (settings_config에서 통합 관리)
                 settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at)
 
                 # external_database 카테고리인 경우 external_db_manager 캐시도 갱신
@@ -265,7 +265,7 @@ class SettingsService:
                         WHERE category = %s AND key = %s
                     """, (value, category, key))
 
-                # 캐시 무효화
+                # 캐시 무효화 (settings_config에서 통합 관리)
                 settings_config.refresh_cache()
 
                 # external_database 카테고리인 경우 external_db_manager 캐시도 갱신
@@ -453,8 +453,9 @@ class SettingsService:
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """, (category, key, current_value, restore_value, changed_by, f'Restored from history #{history_id} ({history["changed_at"]})'))
 
-                # 캐시 무효화
+                # 캐시 무효화 (settings_config에서 통합 관리)
                 settings_config.refresh_cache()
+
                 logger.info(f"프롬프트 복원 완료: {category}.{key} (history_id={history_id})")
                 return True
 

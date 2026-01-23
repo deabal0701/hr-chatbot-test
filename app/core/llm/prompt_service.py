@@ -1,42 +1,34 @@
 """프롬프트 관리 서비스
 
 위치: app/core/llm/prompt_service.py
-- DB에 저장된 프롬프트를 조회하고 캐싱하여 성능을 최적화합니다.
+- DB에 저장된 프롬프트를 조회합니다.
+- 캐싱은 settings_config에서 통합 관리합니다.
 """
-import time
-from typing import Dict
-
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 # 순환 import 방지를 위해 지연 import
-_settings_service = None
+_settings_config = None
 
 
-def _get_settings_service():
-    global _settings_service
-    if _settings_service is None:
+def _get_settings_config():
+    global _settings_config
+    if _settings_config is None:
         from app.core.config.settings_config import settings_config
-        _settings_service = settings_config
-    return _settings_service
+        _settings_config = settings_config
+    return _settings_config
 
 
 class PromptService:
     """프롬프트 관리 서비스
 
-    DB에서 프롬프트를 조회하고 캐싱하여 LLM 호출 시 사용합니다.
+    settings_config를 통해 프롬프트를 조회합니다.
+    캐싱은 settings_config에서 통합 관리되므로 별도 캐시를 두지 않습니다.
     """
-
-    def __init__(self):
-        """초기화"""
-        self.cache: Dict[str, tuple[float, str]] = {}
-        self.cache_ttl = 300  # 5분 (프롬프트는 자주 변경되지 않으므로 캐시 유지)
 
     def get_prompt(self, prompt_key: str, default: str = "") -> str:
         """프롬프트 조회
-
-        캐시에서 먼저 조회하고, 없으면 DB에서 조회합니다.
 
         Args:
             prompt_key: 프롬프트 키 (예: 'rag_system_prompt')
@@ -45,53 +37,14 @@ class PromptService:
         Returns:
             프롬프트 문자열
         """
-        # 캐시 확인
-        if prompt_key in self.cache:
-            cached_time, value = self.cache[prompt_key]
-            if time.time() - cached_time < self.cache_ttl:
-                logger.debug(f"프롬프트 캐시 히트: {prompt_key}")
-                return value
-
-        # DB에서 조회
         try:
-            settings_service = _get_settings_service()
-            value = settings_service.get_value('prompt', prompt_key, default)
-
-            # 캐시 저장
-            self.cache[prompt_key] = (time.time(), value)
-            logger.debug(f"프롬프트 DB 조회: {prompt_key}")
-
+            settings_config = _get_settings_config()
+            value = settings_config.get_value('prompt', prompt_key, default)
+            logger.debug(f"프롬프트 조회: {prompt_key}")
             return value
         except Exception as e:
             logger.error(f"프롬프트 조회 실패: {prompt_key}, {e}")
             return default
-
-    def update_prompt(self, prompt_key: str, value: str) -> bool:
-        """프롬프트 업데이트
-
-        Args:
-            prompt_key: 프롬프트 키
-            value: 새로운 프롬프트 값
-
-        Returns:
-            성공 여부
-        """
-        try:
-            settings_service = _get_settings_service()
-            success = settings_service.set_setting('prompt', prompt_key, value)
-            if success:
-                # 캐시 무효화
-                self.cache.pop(prompt_key, None)
-                logger.info(f"프롬프트 업데이트 성공: {prompt_key}")
-            return success
-        except Exception as e:
-            logger.error(f"프롬프트 업데이트 실패: {prompt_key}, {e}")
-            return False
-
-    def refresh_cache(self):
-        """캐시 전체 무효화"""
-        self.cache.clear()
-        logger.info("프롬프트 캐시 전체 무효화")
 
     # =============================================================================
     # RAG 프롬프트
