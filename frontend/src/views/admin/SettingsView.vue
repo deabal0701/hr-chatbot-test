@@ -375,7 +375,7 @@
                     <el-option label="PostgreSQL" value="postgresql" />
                     <el-option label="Oracle" value="oracle" />
                     <el-option label="MySQL" value="mysql" disabled />
-                    <el-option label="MS SQL Server" value="mssql" disabled />
+                    <!-- <el-option label="MS SQL Server" value="mssql" disabled /> -->
                   </el-select>
                   <div class="form-help">
                     PostgreSQL 및 Oracle을 지원합니다
@@ -566,7 +566,7 @@
                 <div class="form-help">
                   문서 검색 후 답변 생성 시 사용됩니다.
                   <el-button text type="primary" size="small" @click="showPromptPreview('rag_system_prompt')">
-                    프리뷰
+                  <!--  프리뷰 -->
                   </el-button>
                 </div>
               </el-form-item>
@@ -599,7 +599,7 @@
                   <el-icon><Warning /></el-icon>
                   {schema_description} 변수는 자동으로 DB 스키마로 치환됩니다.
                   <el-button text type="primary" size="small" @click="showPromptPreview('nl2sql_generation_prompt')">
-                    프리뷰
+                   <!--  프리뷰 -->
                   </el-button>
                 </div>
               </el-form-item>

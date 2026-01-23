@@ -8,7 +8,7 @@ export default {
   state: () => ({
     messages: [],
     isLoading: false,
-    searchMode: 'auto', // 'auto' | 'rag' | 'nl2sql' | 'agent'
+    searchMode: 'nl2sql', // 'auto' | 'rag' | 'nl2sql' | 'agent' (기본값: nl2sql)
     error: null,
     sessionId: null, // Agent 멀티턴 대화용 세션 ID
     agentConfig: {

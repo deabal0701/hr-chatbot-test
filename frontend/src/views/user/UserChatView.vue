@@ -101,6 +101,7 @@
             </button>
             <template #dropdown>
               <el-dropdown-menu>
+                <!-- AUTO 모드 주석처리 (추후 기능 완료되면 Open)
                 <el-dropdown-item command="auto" :class="{ active: searchMode === 'auto' }">
                   <div class="mode-option">
                     <span class="mode-name">
@@ -110,6 +111,7 @@
                     <span class="mode-desc">질문을 분석하여 자동으로 최적의 검색 방식을 선택합니다</span>
                   </div>
                 </el-dropdown-item>
+                -->
                 <el-dropdown-item command="rag" :class="{ active: searchMode === 'rag' }">
                   <div class="mode-option">
                     <span class="mode-name">
@@ -227,10 +229,10 @@ const modeLabel = computed(() => {
 })
 
 const exampleQueries = [
-  '재택근무 정책에 대해 알려줘',
-  '연차 신청 방법이 뭐야?',
-  '2024년 입사자 현황을 알려줘',
-  '부서별 직원 수는?'
+  '재택근무 정책의 적용 조건과 제한 사항은?',
+  '연차 휴가 신청 절차와 승인 기준은?',
+  '2017년 입사자 현황을 상세하게 알려줘!',
+  '우리회사의 부서별 직원 수는?'
 ]
 
 // 관리자 페이지로 이동 (주석처리 - 로그인 기능 없음)
