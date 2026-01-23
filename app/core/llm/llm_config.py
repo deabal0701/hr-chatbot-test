@@ -34,7 +34,7 @@ class LLMConfigManager:
     # 제공자별 기본 모델 매핑 (더 이상 사용되지 않음, DB 설정 우선)
     # 이 값들은 DB/env에 아무 설정도 없을 때만 최후의 fallback으로 사용됨
     DEFAULT_MODELS = {
-        "openai": "gpt-4o-mini",  # 비용 효율적인 기본값
+        "openai": "gpt-4o-nano",  # 비용 효율적인 기본값(가장 싼걸로..)
         "anthropic": "claude-3-5-sonnet-20241022",
     }
 
