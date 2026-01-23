@@ -48,7 +48,7 @@
                   </div>
                 </el-form-item>
 
-                <el-form-item label="Organization ID (선택)">
+                <el-form-item label="Organization ID (선택)" v-if="false">
                   <el-input
                     v-model="formData.openai.organization_id"
                     placeholder="org-xxxxxxxxxxxxxxxxxxxxxxxx"
@@ -61,7 +61,7 @@
               <!-- Anthropic API Key -->
               <div class="api-key-section">
                 <h4 class="provider-title">
-                  <span>Anthropic</span>
+                  <span>Anthropic(추후 필요시)</span>
                   <el-tag size="small" type="info">Optional</el-tag>
                 </h4>
 
@@ -85,6 +85,33 @@
                   </div>
                 </el-form-item>
               </div>
+
+               <div class="api-key-section">
+                <h4 class="provider-title">
+                  <span>Geminai(추후 필요시)</span>
+                  <el-tag size="small" type="info">Optional</el-tag>
+                </h4>
+
+                <el-form-item label="API Key">
+                  <el-input
+                    v-model="formData.anthropic.api_key"
+                    :type="showAnthropicApiKey ? 'text' : 'password'"
+                    placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    class="api-key-field"
+                  >
+                    <template #suffix>
+                      <el-icon class="cursor-pointer" @click="toggleApiKeyVisibility('anthropic')">
+                        <View v-if="!showAnthropicApiKey" />
+                        <Hide v-else />
+                      </el-icon>
+                    </template>
+                  </el-input>
+                  <div class="form-help">
+                    
+                  </div>
+                </el-form-item>
+              </div>
+
             </el-form>
 
           </div>
@@ -151,7 +178,7 @@
         </el-tab-pane>
 
         <!-- RAG 설정 (청킹 + 임베딩 + RAG 통합) -->
-        <el-tab-pane label="RAG 설정" name="rag">
+        <el-tab-pane label="RAG 설정" name="rag" v-if = false>
           <div class="settings-section">
             <h3>RAG 문서 검색 설정</h3>
             <p class="section-desc">
@@ -462,7 +489,7 @@
         </el-tab-pane>
 
         <!-- Agent 설정 -->
-        <el-tab-pane label="Agent" name="agent">
+        <el-tab-pane label="Agent" name="agent" v-if = "false">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
             <el-form label-position="top" class="settings-form">
@@ -609,10 +636,10 @@
             </el-form>
 
             <!-- Agent 프롬프트 -->
-            <el-divider content-position="left">
+            <el-divider content-position="left"  v-if="false">
               <span style="font-weight: 600;">Agent (도구 선택)</span>
             </el-divider>
-
+          <div v-if =false>
             <el-form label-position="top" class="settings-form">
               <el-form-item label="Agent 시스템 프롬프트">
                 <el-input
@@ -695,6 +722,7 @@
                 가져오기
               </el-button>
             </div>
+          </div>
           </div>
         </el-tab-pane>
       </el-tabs>
