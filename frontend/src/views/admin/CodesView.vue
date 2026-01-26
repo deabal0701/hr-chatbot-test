@@ -212,13 +212,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
 
 // 상태
 const isLoading = ref(false)
+const isLoadingGroups = ref(false)
 const isSaving = ref(false)
 const selectedGroup = ref('')
 const codes = ref([])
@@ -228,13 +229,8 @@ const metadataDialogVisible = ref(false)
 const selectedMetadata = ref(null)
 const formRef = ref(null)
 
-// 코드 그룹 정의 (레이블 매핑)
-const codeGroups = [
-  { value: 'LLM_PROVIDER', label: 'LLM 제공자' },
-  { value: 'LLM_MODEL_OPENAI', label: 'LLM 모델 (OpenAI)' },
-  { value: 'LLM_MODEL_ANTHROPIC', label: 'LLM 모델 (Anthropic)' },
-  { value: 'EMBEDDING_MODEL', label: '임베딩 모델' }
-]
+// 코드 그룹 목록 (DB에서 동적 로드)
+const codeGroups = ref([])
 
 // 폼 데이터
 const formData = reactive({
@@ -259,6 +255,24 @@ const formRules = {
   code_name: [
     { required: true, message: '표시명을 입력하세요', trigger: 'blur' }
   ]
+}
+
+// 코드 그룹 목록 로드 (DB에서)
+const loadCodeGroups = async () => {
+  isLoadingGroups.value = true
+  try {
+    const groups = await codesApi.getGroups()
+    // API 응답: [{code_value, code_name, ...}] → [{value, label}] 변환
+    codeGroups.value = groups.map(group => ({
+      value: group.code_value,
+      label: group.code_name
+    }))
+  } catch (error) {
+    ElMessage.error('코드 그룹 목록 로드 실패')
+    console.error(error)
+  } finally {
+    isLoadingGroups.value = false
+  }
 }
 
 // 코드 그룹 변경 시
@@ -406,11 +420,12 @@ const viewMetadata = (row) => {
   metadataDialogVisible.value = true
 }
 
-// 마운트 시 첫 번째 그룹 선택
-onMounted(() => {
-  if (codeGroups.length > 0) {
-    selectedGroup.value = codeGroups[0].value
-    loadCodes()
+// 마운트 시 그룹 목록 로드 후 첫 번째 그룹 선택
+onMounted(async () => {
+  await loadCodeGroups()
+  if (codeGroups.value.length > 0) {
+    selectedGroup.value = codeGroups.value[0].value
+    await loadCodes()
   }
 })
 </script>

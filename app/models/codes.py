@@ -9,6 +9,31 @@ from pydantic import BaseModel, Field
 
 
 # ===================================
+# 코드 그룹 조회
+# ===================================
+
+class CodeGroupItem(BaseModel):
+    """코드 그룹 아이템 (그룹 목록 조회용)"""
+    code_value: str  # 그룹 코드 (예: LLM_PROVIDER)
+    code_name: str   # 그룹 표시명 (예: LLM 제공자)
+    description: Optional[str] = None
+    sort_order: int = 0
+    is_active: bool = True
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "code_value": "LLM_PROVIDER",
+                "code_name": "LLM 제공자",
+                "description": "사용 가능한 LLM 제공자 목록",
+                "sort_order": 1,
+                "is_active": True
+            }
+        }
+    }
+
+
+# ===================================
 # 코드 조회
 # ===================================
 

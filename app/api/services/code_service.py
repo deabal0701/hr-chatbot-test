@@ -27,23 +27,24 @@ class CodeService:
     """코드 마스터 CRUD 서비스"""
 
     @staticmethod
-    def get_code_groups() -> List[str]:
+    def get_code_groups() -> List[Dict[str, Any]]:
         """
-        모든 코드 그룹 목록 조회
+        모든 코드 그룹 목록 조회 (CODE_GROUP에서 조회)
 
         Returns:
-            코드 그룹 목록 (중복 제거, 정렬됨)
+            코드 그룹 목록 [{code_value, code_name, description, sort_order, is_active}, ...]
         """
         try:
             db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
                 cur.execute("""
-                    SELECT DISTINCT code_group
+                    SELECT code_value, code_name, description, sort_order, is_active
                     FROM tb_code
-                    ORDER BY code_group
+                    WHERE code_group = 'CODE_GROUP' AND is_active = true
+                    ORDER BY sort_order, code_value
                 """)
                 rows = cur.fetchall()
-                return [row['code_group'] for row in rows]
+                return [dict(row) for row in rows]
         except Exception as e:
             logger.error(f"코드 그룹 조회 실패: {e}")
             raise

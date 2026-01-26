@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.models.codes import (
     CodeItem,
+    CodeGroupItem,
     CodeGroupResponse,
     CodeCreateRequest,
     CodeUpdateRequest,
@@ -20,17 +21,17 @@ logger = setup_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/codes/groups", response_model=List[str], tags=["codes"])
+@router.get("/codes/groups", response_model=List[CodeGroupItem], tags=["codes"])
 async def get_code_groups():
     """
-    모든 코드 그룹 목록 조회
+    모든 코드 그룹 목록 조회 (CODE_GROUP 테이블에서 조회)
 
     Returns:
-        코드 그룹 목록
+        코드 그룹 목록 [{code_value, code_name, description, sort_order, is_active}, ...]
     """
     try:
         groups = code_service.get_code_groups()
-        return groups
+        return [CodeGroupItem(**group) for group in groups]
     except Exception as e:
         logger.error(f"코드 그룹 조회 API 실패: {e}")
         raise HTTPException(

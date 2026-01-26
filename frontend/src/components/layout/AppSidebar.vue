@@ -38,10 +38,10 @@
         <template #title>시스템 설정</template>
       </el-menu-item>
 
-      <!-- <el-menu-item index="/admin/codes">
+      <el-menu-item index="/admin/codes">
         <el-icon><Grid /></el-icon>
         <template #title>코드 관리</template>
-      </el-menu-item> -->
+      </el-menu-item>
     </el-menu>
 
     <!-- 하단 정보 -->

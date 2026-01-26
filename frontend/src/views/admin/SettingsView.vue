@@ -13,7 +13,7 @@
 
     <!-- 설정 탭 -->
     <div class="content-card">
-      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tabs v-model="activeTab">
         <!-- API 키 관리 (OpenAI + Anthropic 통합) -->
         <el-tab-pane label="API 키 관리" name="api_keys">
           <div class="settings-section">
@@ -61,7 +61,7 @@
               <!-- Anthropic API Key -->
               <div class="api-key-section">
                 <h4 class="provider-title">
-                  <span>Anthropic(추후 필요시)</span>
+                  <span>Anthropic (Claude)</span>
                   <el-tag size="small" type="info">Optional</el-tag>
                 </h4>
 
@@ -86,28 +86,30 @@
                 </el-form-item>
               </div>
 
-               <div class="api-key-section">
+              <!-- Google API Key -->
+              <div class="api-key-section">
                 <h4 class="provider-title">
-                  <span>Geminai(추후 필요시)</span>
+                  <span>Google (Gemini)</span>
                   <el-tag size="small" type="info">Optional</el-tag>
                 </h4>
 
                 <el-form-item label="API Key">
                   <el-input
-                    v-model="formData.anthropic.api_key"
-                    :type="showAnthropicApiKey ? 'text' : 'password'"
-                    placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    v-model="formData.google.api_key"
+                    :type="showGoogleApiKey ? 'text' : 'password'"
+                    placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                     class="api-key-field"
                   >
                     <template #suffix>
-                      <el-icon class="cursor-pointer" @click="toggleApiKeyVisibility('anthropic')">
-                        <View v-if="!showAnthropicApiKey" />
+                      <el-icon class="cursor-pointer" @click="toggleApiKeyVisibility('google')">
+                        <View v-if="!showGoogleApiKey" />
                         <Hide v-else />
                       </el-icon>
                     </template>
                   </el-input>
                   <div class="form-help">
-                    
+                    Google Gemini 모델 사용을 위한 API 키
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank">API 키 발급받기 →</a>
                   </div>
                 </el-form-item>
               </div>
@@ -123,9 +125,18 @@
             <h3>LLM 모델 설정</h3>
             <el-form label-position="top" class="settings-form">
               <el-form-item label="LLM 제공자">
-                <el-select v-model="formData.llm.provider" style="width: 100%" @change="onLLMProviderChange">
-                  <el-option label="OpenAI" value="openai" />
-                  <el-option label="Anthropic (Claude)" value="anthropic" />
+                <el-select
+                  v-model="formData.llm.provider"
+                  style="width: 100%"
+                  @change="onLLMProviderChange"
+                  :loading="llmProvidersLoading"
+                >
+                  <el-option
+                    v-for="provider in llmProviders"
+                    :key="provider.code_value"
+                    :label="provider.code_name"
+                    :value="provider.code_value"
+                  />
                 </el-select>
                 <div class="form-help">LLM 서비스 제공자를 선택하세요</div>
               </el-form-item>
@@ -148,21 +159,20 @@
                     />
                   </el-select>
                 </el-form-item>
-                <!-- 임시주석 
-                <a :href="getPricingLink()" target="_blank" class="pricing-link">
+                <a v-if="false" :href="getPricingLink()" target="_blank" class="pricing-link">
                   가격 정보 보기 →
-                </a> -->
+                </a>
               </div>
 
               <el-form-item label="Temperature">
                 <el-slider
                   v-model="formData.llm.temperature"
                   :min="0"
-                  :max="2"
+                  :max="temperatureMax"
                   :step="0.1"
                   show-input
                 />
-                <div class="form-help">낮을수록 일관된 응답, 높을수록 창의적 응답 (0.0-2.0)</div>
+                <div class="form-help">{{ temperatureHelpText }}</div>
               </el-form-item>
 
               <el-form-item label="최대 토큰">
@@ -495,9 +505,17 @@
             <h3>AI Agent 설정</h3>
             <el-form label-position="top" class="settings-form">
               <el-form-item label="Agent LLM 제공자">
-                <el-select v-model="formData.agent.llm_provider" style="width: 100%">
-                  <el-option label="OpenAI" value="openai" />
-                  <el-option label="Anthropic (Claude)" value="anthropic" />
+                <el-select
+                  v-model="formData.agent.llm_provider"
+                  style="width: 100%"
+                  :loading="llmProvidersLoading"
+                >
+                  <el-option
+                    v-for="provider in llmProviders"
+                    :key="provider.code_value"
+                    :label="provider.code_name"
+                    :value="provider.code_value"
+                  />
                 </el-select>
                 <div class="form-help">Agent 실행에 사용할 LLM 제공자를 선택하세요</div>
               </el-form-item>
@@ -802,24 +820,27 @@ import codesApi from '@/api/codes'
 const activeTab = ref('api_keys')
 const isLoading = ref(false)
 const isSaving = ref(false)
-const validating = ref(false)
 const showApiKey = ref(false)
 const showAnthropicApiKey = ref(false)
-const apiKeyStatus = ref(null)
+const showGoogleApiKey = ref(false)
 const testingConnection = ref(false)
 const externalConnectionStatus = ref(null)
 
 // 원본 API 키 저장 (reveal용)
 const originalApiKeys = reactive({
   openai: '',
-  anthropic: ''
+  anthropic: '',
+  google: ''
 })
 
 // 코드 관리 (Phase C-2)
 const embeddingModels = ref([])
+const llmProviders = ref([])
 const llmModelsOpenAI = ref([])
 const llmModelsAnthropic = ref([])
+const llmModelsGoogle = ref([])
 const embeddingModelsLoading = ref(false)
+const llmProvidersLoading = ref(false)
 const llmModelsLoading = ref(false)
 
 // 설정 데이터 (타입별로 구조화)
@@ -829,6 +850,9 @@ const formData = reactive({
     organization_id: ''
   },
   anthropic: {
+    api_key: ''
+  },
+  google: {
     api_key: ''
   },
   embedding: {
@@ -969,7 +993,7 @@ const saveSettings = async () => {
     // NL2SQL 탭: nl2sql + external_database
     // RAG 탭: rag + embedding + chunking
     const categoriesToSave = category === 'api_keys'
-      ? ['openai', 'anthropic']
+      ? ['openai', 'anthropic', 'google']
       : category === 'nl2sql'
         ? ['nl2sql', 'external_database']
         : category === 'rag'
@@ -1028,46 +1052,15 @@ const resetCategory = async () => {
   }
 }
 
-// API 키 검증
-const validateApiKey = async () => {
-  const apiKey = formData.openai.api_key
-  if (!apiKey || apiKey.includes('*')) {
-    ElMessage.warning('API 키를 입력해주세요.')
-    return
-  }
-
-  validating.value = true
-  apiKeyStatus.value = null
-
-  try {
-    const response = await settingsApi.validateApiKey(apiKey)
-    apiKeyStatus.value = response
-
-    if (response.valid) {
-      ElMessage.success('API 키가 유효합니다.')
-    } else {
-      ElMessage.error(response.message)
-    }
-  } catch (error) {
-    console.error('API 키 검증 실패:', error)
-    apiKeyStatus.value = { valid: false, message: '검증 중 오류가 발생했습니다.' }
-  } finally {
-    validating.value = false
-  }
-}
-
-// 탭 변경 시 저장 여부 확인
-const handleTabChange = () => {
-  // 탭 변경 시 추가 로직이 필요하면 여기에
-}
-
 // LLM 제공자별 가격 정보 링크
 const getPricingLink = () => {
   const provider = formData.llm.provider
-  if (provider === 'anthropic') {
-    return 'https://www.anthropic.com/pricing#anthropic-api'
+  const pricingLinks = {
+    openai: 'https://platform.openai.com/docs/pricing',
+    anthropic: 'https://www.anthropic.com/pricing',
+    google: 'https://ai.google.dev/gemini-api/docs/pricing'
   }
-  return 'https://platform.openai.com/docs/pricing'
+  return pricingLinks[provider] || pricingLinks.openai
 }
 
 // 현재 provider에 따른 LLM 모델 목록 (Phase C-2)
@@ -1075,9 +1068,36 @@ const currentLLMModels = computed(() => {
   const provider = formData.llm.provider
   if (provider === 'anthropic') {
     return llmModelsAnthropic.value
+  } else if (provider === 'google') {
+    return llmModelsGoogle.value
   }
   return llmModelsOpenAI.value
 })
+
+// Provider에 따른 Temperature 최대값 (OpenAI: 0-2, Anthropic: 0-1)
+const temperatureMax = computed(() => {
+  return formData.llm.provider === 'anthropic' ? 1 : 2
+})
+
+// Provider에 따른 Temperature 도움말 텍스트
+const temperatureHelpText = computed(() => {
+  const max = temperatureMax.value
+  return `낮을수록 일관된 응답, 높을수록 창의적 응답 (0.0-${max.toFixed(1)})`
+})
+
+// 코드 마스터에서 LLM 제공자 목록 로드
+const loadLLMProviders = async () => {
+  llmProvidersLoading.value = true
+  try {
+    const response = await codesApi.getByGroup('LLM_PROVIDER', false)
+    llmProviders.value = response.codes
+  } catch (error) {
+    console.error('LLM 제공자 목록 로드 실패:', error)
+    // 실패 시 빈 배열 유지 (하위 호환성)
+  } finally {
+    llmProvidersLoading.value = false
+  }
+}
 
 // 코드 마스터에서 모델 목록 로드 (Phase C-2)
 const loadEmbeddingModels = async () => {
@@ -1096,12 +1116,14 @@ const loadEmbeddingModels = async () => {
 const loadLLMModels = async () => {
   llmModelsLoading.value = true
   try {
-    const [openaiRes, anthropicRes] = await Promise.all([
+    const [openaiRes, anthropicRes, googleRes] = await Promise.all([
       codesApi.getByGroup('LLM_MODEL_OPENAI', false),
-      codesApi.getByGroup('LLM_MODEL_ANTHROPIC', false)
+      codesApi.getByGroup('LLM_MODEL_ANTHROPIC', false),
+      codesApi.getByGroup('LLM_MODEL_GOOGLE', false)
     ])
     llmModelsOpenAI.value = openaiRes.codes
     llmModelsAnthropic.value = anthropicRes.codes
+    llmModelsGoogle.value = googleRes.codes
   } catch (error) {
     console.error('LLM 모델 목록 로드 실패:', error)
     // 실패 시 빈 배열 유지 (하위 호환성)
@@ -1136,10 +1158,19 @@ const onEmbeddingModelChange = (modelValue) => {
 // LLM 제공자 변경 시 처리
 const onLLMProviderChange = (provider) => {
   // 제공자 변경 시 모델 필드 초기화 (사용자가 직접 입력하도록)
-  if (provider === 'anthropic' && formData.llm.model.startsWith('gpt-')) {
+  const currentModel = formData.llm.model
+  if (provider === 'anthropic' && (currentModel.startsWith('gpt-') || currentModel.startsWith('gemini-'))) {
     formData.llm.model = ''
-  } else if (provider === 'openai' && formData.llm.model.startsWith('claude-')) {
+  } else if (provider === 'openai' && (currentModel.startsWith('claude-') || currentModel.startsWith('gemini-'))) {
     formData.llm.model = ''
+  } else if (provider === 'google' && (currentModel.startsWith('gpt-') || currentModel.startsWith('claude-'))) {
+    formData.llm.model = ''
+  }
+
+  // Temperature 최대값 조정 (Anthropic: 0-1, OpenAI/Google: 0-2)
+  const maxTemp = provider === 'anthropic' ? 1 : 2
+  if (formData.llm.temperature > maxTemp) {
+    formData.llm.temperature = maxTemp
   }
 }
 
@@ -1153,58 +1184,40 @@ const onDbTypeChange = (dbType) => {
   }
 }
 
+// API 키 표시 상태 매핑
+const apiKeyVisibilityMap = {
+  openai: showApiKey,
+  anthropic: showAnthropicApiKey,
+  google: showGoogleApiKey
+}
+
 // API 키 보기/숨기기 토글
 const toggleApiKeyVisibility = async (provider) => {
-  if (provider === 'openai') {
-    if (!showApiKey.value) {
-      // 숨김 -> 보임: reveal API 호출
-      if (formData.openai.api_key.includes('*')) {
-        try {
-          const response = await settingsApi.revealSetting('openai', 'api_key')
-          originalApiKeys.openai = formData.openai.api_key // 마스킹된 값 저장
-          formData.openai.api_key = response.value
-          showApiKey.value = true
-        } catch (error) {
-          console.error('API 키 조회 실패:', error)
-          ElMessage.error('API 키를 조회할 수 없습니다.')
-        }
-      } else {
-        // 이미 실제 값인 경우 그냥 토글
-        showApiKey.value = true
+  const visibilityRef = apiKeyVisibilityMap[provider]
+  if (!visibilityRef) return
+
+  if (!visibilityRef.value) {
+    // 숨김 -> 보임: reveal API 호출
+    if (formData[provider].api_key.includes('*')) {
+      try {
+        const response = await settingsApi.revealSetting(provider, 'api_key')
+        originalApiKeys[provider] = formData[provider].api_key
+        formData[provider].api_key = response.value
+        visibilityRef.value = true
+      } catch (error) {
+        console.error('API 키 조회 실패:', error)
+        ElMessage.error('API 키를 조회할 수 없습니다.')
       }
     } else {
-      // 보임 -> 숨김: 마스킹된 값으로 복원
-      if (originalApiKeys.openai) {
-        formData.openai.api_key = originalApiKeys.openai
-        originalApiKeys.openai = ''
-      }
-      showApiKey.value = false
+      visibilityRef.value = true
     }
-  } else if (provider === 'anthropic') {
-    if (!showAnthropicApiKey.value) {
-      // 숨김 -> 보임: reveal API 호출
-      if (formData.anthropic.api_key.includes('*')) {
-        try {
-          const response = await settingsApi.revealSetting('anthropic', 'api_key')
-          originalApiKeys.anthropic = formData.anthropic.api_key // 마스킹된 값 저장
-          formData.anthropic.api_key = response.value
-          showAnthropicApiKey.value = true
-        } catch (error) {
-          console.error('API 키 조회 실패:', error)
-          ElMessage.error('API 키를 조회할 수 없습니다.')
-        }
-      } else {
-        // 이미 실제 값인 경우 그냥 토글
-        showAnthropicApiKey.value = true
-      }
-    } else {
-      // 보임 -> 숨김: 마스킹된 값으로 복원
-      if (originalApiKeys.anthropic) {
-        formData.anthropic.api_key = originalApiKeys.anthropic
-        originalApiKeys.anthropic = ''
-      }
-      showAnthropicApiKey.value = false
+  } else {
+    // 보임 -> 숨김: 마스킹된 값으로 복원
+    if (originalApiKeys[provider]) {
+      formData[provider].api_key = originalApiKeys[provider]
+      originalApiKeys[provider] = ''
     }
+    visibilityRef.value = false
   }
 }
 
@@ -1400,6 +1413,7 @@ onMounted(async () => {
   // 설정 및 코드 목록 병렬 로드
   await Promise.all([
     loadSettings(),
+    loadLLMProviders(),
     loadEmbeddingModels(),
     loadLLMModels()
   ])
