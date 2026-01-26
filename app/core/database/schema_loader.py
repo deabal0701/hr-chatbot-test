@@ -121,6 +121,10 @@ class SchemaLoaderService:
                 max_length = row_dict.get('character_maximum_length')
                 if max_length:
                     col['max_length'] = max_length
+                # 컬럼 코멘트 (Oracle: ALL_COL_COMMENTS, PostgreSQL: pg_description)
+                comment = row_dict.get('column_comment')
+                if comment:
+                    col['comment'] = comment
                 columns.append(col)
 
             return columns
@@ -250,7 +254,11 @@ class SchemaLoaderService:
             description += "컬럼:\n"
             for col in table['columns']:
                 nullable = "NULL 가능" if col['nullable'] else "NOT NULL"
-                description += f"  - {col['name']}: {col['type']} ({nullable})\n"
+                comment = col.get('comment', '')
+                if comment:
+                    description += f"  - {col['name']}: {col['type']} ({nullable}) - {comment}\n"
+                else:
+                    description += f"  - {col['name']}: {col['type']} ({nullable})\n"
 
             # 기본 키
             if table['primary_key']:

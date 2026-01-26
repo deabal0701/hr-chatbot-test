@@ -107,12 +107,22 @@ class PostgreSQLAdapter(DatabaseAdapter):
         """, (schema,))
 
     def get_columns_query(self, schema: str, table: str) -> Tuple[str, tuple]:
-        """컬럼 정보 조회 쿼리"""
+        """컬럼 정보 조회 쿼리 (코멘트 포함)"""
         return ("""
-            SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s
-            ORDER BY ordinal_position
+            SELECT
+                c.column_name,
+                c.data_type,
+                c.is_nullable,
+                c.column_default,
+                c.character_maximum_length,
+                pd.description AS column_comment
+            FROM information_schema.columns c
+            LEFT JOIN pg_catalog.pg_statio_all_tables st
+                ON c.table_schema = st.schemaname AND c.table_name = st.relname
+            LEFT JOIN pg_catalog.pg_description pd
+                ON pd.objoid = st.relid AND pd.objsubid = c.ordinal_position
+            WHERE c.table_schema = %s AND c.table_name = %s
+            ORDER BY c.ordinal_position
         """, (schema, table))
 
     def get_primary_key_query(self, schema: str, table: str) -> Tuple[str, tuple]:

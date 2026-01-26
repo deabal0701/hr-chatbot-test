@@ -134,24 +134,30 @@ class OracleAdapter(DatabaseAdapter):
         """, (schema, schema))
 
     def get_columns_query(self, schema: str, table: str) -> Tuple[str, tuple]:
-        """컬럼 정보 조회 쿼리 (Oracle: ALL_TAB_COLUMNS, Synonym 지원)
+        """컬럼 정보 조회 쿼리 (Oracle: ALL_TAB_COLUMNS + ALL_COL_COMMENTS, Synonym 지원)
 
         Synonym을 통해 접근하는 경우 실제 테이블/뷰의 컬럼 정보를 조회합니다.
+        컬럼 코멘트도 함께 조회하여 LLM에 더 풍부한 스키마 정보를 제공합니다.
         """
         return ("""
             SELECT
-                column_name,
-                data_type,
-                nullable AS is_nullable,
-                data_default AS column_default,
-                char_length AS character_maximum_length
-            FROM all_tab_columns
-            WHERE (owner = UPPER(:1) AND table_name = UPPER(:2))
-               OR (owner, table_name) IN (
+                c.column_name,
+                c.data_type,
+                c.nullable AS is_nullable,
+                c.data_default AS column_default,
+                c.char_length AS character_maximum_length,
+                cc.comments AS column_comment
+            FROM all_tab_columns c
+            LEFT JOIN all_col_comments cc
+                ON c.owner = cc.owner
+                AND c.table_name = cc.table_name
+                AND c.column_name = cc.column_name
+            WHERE (c.owner = UPPER(:1) AND c.table_name = UPPER(:2))
+               OR (c.owner, c.table_name) IN (
                    SELECT table_owner, table_name FROM user_synonyms
                    WHERE synonym_name = UPPER(:2)
                )
-            ORDER BY column_id
+            ORDER BY c.column_id
         """, (schema, table, table))
 
     def get_primary_key_query(self, schema: str, table: str) -> Tuple[str, tuple]:

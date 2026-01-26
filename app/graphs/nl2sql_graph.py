@@ -222,24 +222,49 @@ SQL만 출력하세요 (설명 없이)."""
             state["answer"] = "조회된 결과가 없습니다."
             return state
 
-        log_step(request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작",
-                row_count=result.row_count)
+        log_step(request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작", row_count=result.row_count)
 
         # 시스템 프롬프트 (DB에서 동적 로드)
         system_prompt = prompt_service.get_nl2sql_answer_prompt()
 
-        # 결과 데이터 요약 (너무 길면 일부만)
-        rows_summary = result.rows[:10] if len(result.rows) > 10 else result.rows
+        # 결과 데이터 요약 (집계 쿼리는 전체, 그 외는 100개까지)
+        max_rows = 100
+        rows_summary = result.rows[:max_rows] if len(result.rows) > max_rows else result.rows
+        is_truncated = len(result.rows) > max_rows
+
+        # 숫자 컬럼의 총합 계산 (집계 쿼리의 경우 정확한 총계 제공)
+        numeric_totals: dict[str, float] = {}
+        for col in result.columns:
+            try:
+                total = 0.0
+                has_numeric = False
+                for row in result.rows:
+                    val = row.get(col)
+                    if val is not None and isinstance(val, (int, float)):
+                        total += float(val)
+                        has_numeric = True
+                if has_numeric:
+                    numeric_totals[col] = total
+            except (TypeError, ValueError):
+                pass
+
+        # 총합 정보 문자열 생성
+        totals_info = ""
+        if numeric_totals:
+            totals_str = ", ".join([f"{k}={v}" for k, v in numeric_totals.items()])
+            totals_info = f"\n\n숫자 컬럼 총합 (전체 {result.row_count}개 행 기준): {totals_str}"
+
+        truncation_note = f"\n(※ 전체 {result.row_count}개 행 중 {max_rows}개만 표시)" if is_truncated else ""
 
         user_prompt = f"""질문: {question}
 
                     실행된 SQL:
                     {sql}
 
-                    조회 결과 ({result.row_count}개 행):
+                    조회 결과 ({result.row_count}개 행):{truncation_note}
                     컬럼: {', '.join(result.columns)}
                     실제 데이터 :
-                    {rows_summary}
+                    {rows_summary}{totals_info}
 
                     위 결과를 바탕으로 질문에 대한 답변을 자연어/표/리스트등 사용자가 원하는 형태로 작성하라."""
 

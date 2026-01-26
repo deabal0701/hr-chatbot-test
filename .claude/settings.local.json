@@ -11,7 +11,8 @@
       "Bash(grep:*)",
       "Bash(if exist nul del nul)",
       "Bash(conda activate:*)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(conda run:*)"
     ],
     "deny": [],
     "ask": []
