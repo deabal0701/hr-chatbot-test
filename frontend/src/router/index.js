@@ -32,12 +32,12 @@ const routes = [
         path: '',
         redirect: '/admin/documents'
       },
-      // {
-      //   path: 'chat',
-      //   name: 'AdminChat',
-      //   component: () => import('@/views/admin/ChatView.vue'),
-      //   meta: { title: '자연어 검색' }
-      // },
+      {
+        path: 'chat',
+        name: 'AdminChat',
+        component: () => import('@/views/admin/ChatView.vue'),
+        meta: { title: '자연어 검색' }
+      },
       {
         path: 'documents',
         name: 'AdminDocuments',

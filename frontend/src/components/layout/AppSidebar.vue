@@ -28,10 +28,10 @@
         <template #title>지식문서 관리</template>
       </el-menu-item>
 
-      <!-- <el-menu-item index="/admin/chat">
+      <el-menu-item index="/admin/chat">
         <el-icon><ChatDotSquare /></el-icon>
         <template #title>자연어 검색</template>
-      </el-menu-item> -->
+      </el-menu-item> 
 
       <el-menu-item index="/admin/settings">
         <el-icon><Setting /></el-icon>
