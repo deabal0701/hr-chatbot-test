@@ -296,7 +296,7 @@ class CodeService:
     @staticmethod
     def delete_code(code_id: int) -> bool:
         """
-        코드 삭제 (시스템 코드는 삭제 불가)
+        코드 삭제 (시스템 코드는 삭제 불가, 카테고리는 하위 코드 없을 때만 삭제 가능)
 
         Args:
             code_id: 코드 ID
@@ -305,7 +305,7 @@ class CodeService:
             삭제 성공 여부
 
         Raises:
-            ValueError: 코드 없음 또는 시스템 코드 삭제 시도
+            ValueError: 코드 없음, 시스템 코드 삭제 시도, 하위 코드 존재
         """
         try:
             # 기존 코드 확인
@@ -315,25 +315,24 @@ class CodeService:
 
             # 시스템 코드 삭제 차단
             if existing_code['is_system']:
-                raise ValueError(
-                    f"시스템 코드는 삭제할 수 없습니다: "
-                    f"{existing_code['code_group']}.{existing_code['code_value']}"
-                )
+                raise ValueError(f"시스템 코드는 삭제할 수 없습니다: {existing_code['code_group']}.{existing_code['code_value']}")
 
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
-                cur.execute("""
-                    DELETE FROM tb_code
-                    WHERE code_id = %s AND is_system = false
-                """, (code_id,))
+                # 카테고리(CODE_GROUP) 삭제 시 하위 코드 존재 여부 체크
+                if existing_code['code_group'] == 'CODE_GROUP':
+                    category_code = existing_code['code_value']
+                    cur.execute("SELECT COUNT(*) as cnt FROM tb_code WHERE parent = %s", (category_code,))
+                    child_count = cur.fetchone()['cnt']
+                    if child_count > 0:
+                        raise ValueError(f"하위 코드가 {child_count}개 존재합니다. 먼저 삭제해주세요.")
+
+                cur.execute("DELETE FROM tb_code WHERE code_id = %s AND is_system = false", (code_id,))
 
                 if cur.rowcount == 0:
                     raise ValueError(f"코드 삭제 실패: {code_id}")
 
-                logger.info(
-                    f"코드 삭제 성공: {existing_code['code_group']}.{existing_code['code_value']} "
-                    f"(ID: {code_id})"
-                )
+                logger.info(f"코드 삭제 성공: {existing_code['code_group']}.{existing_code['code_value']} (ID: {code_id})")
                 return True
 
         except ValueError:

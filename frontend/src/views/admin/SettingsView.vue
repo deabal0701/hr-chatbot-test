@@ -6,9 +6,6 @@
         <h2>시스템 설정</h2>
         <p class="subtitle">API, 모델, 검색 파라미터 등을 설정합니다.</p>
       </div>
-      <el-button type="primary" :icon="Refresh" @click="loadSettings" :loading="isLoading">
-        새로고침
-      </el-button>
     </div>
 
     <!-- 설정 탭 -->
@@ -813,7 +810,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 

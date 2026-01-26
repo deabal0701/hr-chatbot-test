@@ -1,11 +1,14 @@
 <template>
   <div class="codes-view">
+    <!-- 헤더 영역 -->
     <div class="page-header">
-      <h1>코드 관리</h1>
-      <p>LLM 제공자, 모델, 임베딩 모델 등을 동적으로 관리합니다.</p>
+      <div>
+        <h2>코드 관리</h2>
+        <p class="subtitle">LLM 제공자, 모델, 임베딩 모델 등을 동적으로 관리합니다.</p>
+      </div>
     </div>
 
-    <el-card>
+    <div class="content-card">
       <!-- 코드 그룹 선택 -->
       <div class="group-selector">
         <el-select
@@ -24,6 +27,13 @@
         </el-select>
 
         <el-button
+          :icon="Setting"
+          @click="openCategoryDialog"
+        >
+          카테고리 관리
+        </el-button>
+
+        <el-button
           type="primary"
           :icon="Plus"
           @click="openCreateDialog"
@@ -36,6 +46,7 @@
           :icon="Refresh"
           @click="loadCodes"
           :loading="isLoading"
+          :disabled="!selectedGroup"
         >
           새로고침
         </el-button>
@@ -112,7 +123,7 @@
       <div v-if="codes.length === 0 && !isLoading" class="empty-state">
         <p>코드 그룹을 선택하여 관리할 코드를 확인하세요.</p>
       </div>
-    </el-card>
+    </div>
 
     <!-- 코드 생성/수정 다이얼로그 -->
     <el-dialog
@@ -208,13 +219,86 @@
         <el-button @click="metadataDialogVisible = false">닫기</el-button>
       </template>
     </el-dialog>
+
+    <!-- 카테고리 관리 다이얼로그 -->
+    <el-dialog
+      v-model="categoryDialogVisible"
+      title="카테고리 관리"
+      width="950px"
+    >
+      <!-- 카테고리 목록 테이블 -->
+      <el-table
+        v-loading="isLoadingCategories"
+        :data="categories"
+        style="width: 100%"
+        :default-sort="{ prop: 'sort_order', order: 'ascending' }"
+      >
+        <el-table-column prop="sort_order" label="순서" width="70" sortable />
+        <el-table-column prop="code_value" label="코드" min-width="280">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_system" type="info" size="small" style="margin-right: 6px">시스템</el-tag>
+            <span>{{ row.code_value }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="code_name" label="표시명" width="180" />
+        <el-table-column prop="description" label="설명" min-width="200" show-overflow-tooltip />
+        <el-table-column label="동작" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="openCategoryEditDialog(row)">수정</el-button>
+            <el-button link type="danger" size="small" @click="handleDeleteCategory(row)" :disabled="row.is_system">삭제</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <template #footer>
+        <el-button type="primary" :icon="Plus" @click="openCategoryCreateDialog">새 카테고리 추가</el-button>
+        <el-button @click="categoryDialogVisible = false">닫기</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 카테고리 생성/수정 다이얼로그 -->
+    <el-dialog
+      v-model="categoryFormDialogVisible"
+      :title="categoryFormMode === 'create' ? '새 카테고리 추가' : '카테고리 수정'"
+      width="500px"
+    >
+      <el-form
+        ref="categoryFormRef"
+        :model="categoryFormData"
+        :rules="categoryFormRules"
+        label-position="top"
+      >
+        <el-form-item label="코드 (영문 대문자, 숫자, _)" prop="code_value">
+          <el-input
+            v-model="categoryFormData.code_value"
+            placeholder="예: LLM_MODEL_AZURE"
+            :disabled="categoryFormMode === 'edit'"
+          />
+        </el-form-item>
+        <el-form-item label="표시명" prop="code_name">
+          <el-input v-model="categoryFormData.code_name" placeholder="예: LLM 모델 (Azure)" />
+        </el-form-item>
+        <el-form-item label="설명" prop="description">
+          <el-input v-model="categoryFormData.description" type="textarea" :rows="2" placeholder="카테고리 설명 (선택)" />
+        </el-form-item>
+        <el-form-item label="정렬 순서" prop="sort_order">
+          <el-input-number v-model="categoryFormData.sort_order" :min="0" :max="999" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="categoryFormDialogVisible = false">취소</el-button>
+        <el-button type="primary" @click="handleCategorySubmit" :loading="isSavingCategory">
+          {{ categoryFormMode === 'create' ? '생성' : '수정' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Refresh, Edit, Delete, Setting } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
 
 // 상태
@@ -231,6 +315,35 @@ const formRef = ref(null)
 
 // 코드 그룹 목록 (DB에서 동적 로드)
 const codeGroups = ref([])
+
+// 카테고리 관리 상태
+const categoryDialogVisible = ref(false)
+const categoryFormDialogVisible = ref(false)
+const categoryFormMode = ref('create') // 'create' | 'edit'
+const isLoadingCategories = ref(false)
+const isSavingCategory = ref(false)
+const categories = ref([])
+const categoryFormRef = ref(null)
+const currentCategoryId = ref(null)
+
+// 카테고리 폼 데이터
+const categoryFormData = reactive({
+  code_value: '',
+  code_name: '',
+  description: '',
+  sort_order: 0
+})
+
+// 카테고리 폼 검증 규칙
+const categoryFormRules = {
+  code_value: [
+    { required: true, message: '코드를 입력하세요', trigger: 'blur' },
+    { pattern: /^[A-Z0-9_]+$/, message: '영문 대문자, 숫자, _ 만 사용 가능합니다', trigger: 'blur' }
+  ],
+  code_name: [
+    { required: true, message: '표시명을 입력하세요', trigger: 'blur' }
+  ]
+}
 
 // 폼 데이터
 const formData = reactive({
@@ -420,6 +533,127 @@ const viewMetadata = (row) => {
   metadataDialogVisible.value = true
 }
 
+// ========================================
+// 카테고리 관리 함수들
+// ========================================
+
+// 카테고리 목록 로드
+const loadCategories = async () => {
+  isLoadingCategories.value = true
+  try {
+    const response = await codesApi.getByGroup('CODE_GROUP', true)
+    categories.value = response.codes
+  } catch (error) {
+    ElMessage.error('카테고리 목록 로드 실패')
+    console.error(error)
+  } finally {
+    isLoadingCategories.value = false
+  }
+}
+
+// 카테고리 관리 다이얼로그 열기
+const openCategoryDialog = async () => {
+  categoryDialogVisible.value = true
+  await loadCategories()
+}
+
+// 카테고리 생성 다이얼로그 열기
+const openCategoryCreateDialog = () => {
+  categoryFormMode.value = 'create'
+  currentCategoryId.value = null
+  resetCategoryForm()
+  categoryFormDialogVisible.value = true
+}
+
+// 카테고리 수정 다이얼로그 열기
+const openCategoryEditDialog = (row) => {
+  categoryFormMode.value = 'edit'
+  currentCategoryId.value = row.code_id
+  categoryFormData.code_value = row.code_value
+  categoryFormData.code_name = row.code_name
+  categoryFormData.description = row.description || ''
+  categoryFormData.sort_order = row.sort_order
+  categoryFormDialogVisible.value = true
+}
+
+// 카테고리 폼 초기화
+const resetCategoryForm = () => {
+  categoryFormData.code_value = ''
+  categoryFormData.code_name = ''
+  categoryFormData.description = ''
+  categoryFormData.sort_order = 0
+  if (categoryFormRef.value) {
+    categoryFormRef.value.clearValidate()
+  }
+}
+
+// 카테고리 폼 제출
+const handleCategorySubmit = async () => {
+  if (!categoryFormRef.value) return
+
+  await categoryFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    isSavingCategory.value = true
+    try {
+      if (categoryFormMode.value === 'create') {
+        await codesApi.create({
+          code_group: 'CODE_GROUP',
+          code_value: categoryFormData.code_value,
+          code_name: categoryFormData.code_name,
+          description: categoryFormData.description,
+          sort_order: categoryFormData.sort_order,
+          is_active: true
+        })
+        ElMessage.success('카테고리가 생성되었습니다')
+      } else {
+        await codesApi.update(currentCategoryId.value, {
+          code_name: categoryFormData.code_name,
+          description: categoryFormData.description,
+          sort_order: categoryFormData.sort_order
+        })
+        ElMessage.success('카테고리가 수정되었습니다')
+      }
+
+      categoryFormDialogVisible.value = false
+      await loadCategories()
+      await loadCodeGroups() // 콤보박스 갱신
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || '작업 실패'
+      ElMessage.error(errorMsg)
+      console.error(error)
+    } finally {
+      isSavingCategory.value = false
+    }
+  })
+}
+
+// 카테고리 삭제
+const handleDeleteCategory = async (row) => {
+  if (row.is_system) {
+    ElMessage.warning('시스템 카테고리는 삭제할 수 없습니다')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `"${row.code_name}" 카테고리를 삭제하시겠습니까?\n(하위 코드가 있으면 삭제할 수 없습니다)`,
+      '카테고리 삭제',
+      { confirmButtonText: '삭제', cancelButtonText: '취소', type: 'warning' }
+    )
+
+    await codesApi.delete(row.code_id)
+    ElMessage.success('카테고리가 삭제되었습니다')
+    await loadCategories()
+    await loadCodeGroups() // 콤보박스 갱신
+  } catch (error) {
+    if (error === 'cancel') return
+    const errorMsg = error.response?.data?.detail || '삭제 실패'
+    ElMessage.error(errorMsg)
+    console.error(error)
+  }
+}
+
 // 마운트 시 그룹 목록 로드 후 첫 번째 그룹 선택
 onMounted(async () => {
   await loadCodeGroups()
@@ -432,23 +666,11 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .codes-view {
-  padding: 20px;
-
   .page-header {
-    margin-bottom: 24px;
-
-    h1 {
-      font-size: 28px;
-      font-weight: 600;
-      margin: 0 0 8px 0;
-      color: #303133;
-    }
-
-    p {
-      font-size: 14px;
-      color: #606266;
-      margin: 0;
-    }
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
   }
 
   .group-selector {
@@ -460,18 +682,18 @@ onMounted(async () => {
   .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: #909399;
+    color: var(--text-color-secondary);
     font-size: 14px;
   }
 
   .form-help {
     font-size: 12px;
-    color: #909399;
+    color: var(--text-color-secondary);
     margin-top: 4px;
   }
 
   .metadata-viewer {
-    background-color: #f5f7fa;
+    background-color: var(--bg-color-hover);
     padding: 16px;
     border-radius: 4px;
     font-size: 12px;
