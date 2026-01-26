@@ -379,7 +379,12 @@ INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadat
 	 (14,'LLM_MODEL_GOOGLE','gemini-1.5-pro','Gemini 1.5 Pro','Google Gemini 1.5 Pro 모델 (최신, 권장)',NULL,1,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09'),
 	 (15,'LLM_MODEL_GOOGLE','gemini-1.5-flash','Gemini 1.5 Flash','Google Gemini 1.5 Flash 모델 (빠른 응답)',NULL,2,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09');
 INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,parent,created_at,updated_at) VALUES
-	 (16,'LLM_MODEL_GOOGLE','gemini-1.0-pro','Gemini 1.0 Pro','Google Gemini 1.0 Pro 모델',NULL,3,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09');
+	 (16,'LLM_MODEL_GOOGLE','gemini-1.0-pro','Gemini 1.0 Pro','Google Gemini 1.0 Pro 모델',NULL,3,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09'),
+	 (29,'CODE_GROUP','DOC_TYPE','문서 유형','지식문서의 유형 분류',NULL,10,true,true,NULL,'2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
+	 (30,'DOC_TYPE','policy','정책','회사 정책 문서','{"tag_type": "primary"}',1,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
+	 (31,'DOC_TYPE','guide','가이드','업무 가이드 문서','{"tag_type": "success"}',2,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
+	 (32,'DOC_TYPE','faq','FAQ','자주 묻는 질문','{"tag_type": "info"}',3,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
+	 (33,'DOC_TYPE','job_posting','채용공고','채용 관련 공고','{"tag_type": "warning"}',4,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09');
 
 
 INSERT INTO tb_docs (title,doc_type,"language","content",metadata,embedding,embedding_model,indexed,embedded_at,chunk_index,total_chunks,parent_doc_id,source_type,source_file,content_hash,created_at,updated_at) VALUES

@@ -37,11 +37,18 @@
               </el-form-item>
 
               <el-form-item label="문서 유형" prop="docType">
-                <el-select v-model="form.docType" placeholder="유형 선택" style="width: 100%">
-                  <el-option label="정책" value="policy" />
-                  <el-option label="가이드" value="guide" />
-                  <el-option label="FAQ" value="faq" />
-                  <el-option label="채용공고" value="job_posting" />
+                <el-select
+                  v-model="form.docType"
+                  placeholder="유형 선택"
+                  style="width: 100%"
+                  :loading="docTypesLoading"
+                >
+                  <el-option
+                    v-for="docType in docTypes"
+                    :key="docType.code_value"
+                    :label="docType.code_name"
+                    :value="docType.code_value"
+                  />
                 </el-select>
               </el-form-item>
 
@@ -180,6 +187,7 @@ import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
+import codesApi from '@/api/codes'
 
 const store = useStore()
 const router = useRouter()
@@ -190,6 +198,23 @@ const documentInfo = ref(null)
 const chunkPreviewVisible = ref(false)
 const chunkPreviewData = ref(null)
 const isLoading = ref(false)
+
+// 문서 유형 코드 (DB에서 동적 로드)
+const docTypes = ref([])
+const docTypesLoading = ref(false)
+
+// 문서 유형 코드 로드
+const loadDocTypes = async () => {
+  docTypesLoading.value = true
+  try {
+    const response = await codesApi.getByGroup('DOC_TYPE', false)
+    docTypes.value = response.codes
+  } catch (error) {
+    console.error('문서 유형 로드 실패:', error)
+  } finally {
+    docTypesLoading.value = false
+  }
+}
 
 // 모드 판단
 const isEditMode = computed(() => route.name === 'AdminDocumentEdit')
@@ -220,8 +245,12 @@ const rules = {
   ]
 }
 
-// 문서 데이터 로드 (수정 모드)
+// 문서 데이터 로드
 onMounted(async () => {
+  // 문서 유형 코드 로드
+  loadDocTypes()
+
+  // 수정 모드인 경우 문서 데이터 로드
   if (isEditMode.value && docId.value) {
     isLoading.value = true
     try {

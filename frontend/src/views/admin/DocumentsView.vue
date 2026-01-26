@@ -20,11 +20,14 @@
           clearable
           style="width: 150px"
           @change="handleFilterChange"
+          :loading="docTypesLoading"
         >
-          <el-option label="정책" value="policy" />
-          <el-option label="가이드" value="guide" />
-          <el-option label="FAQ" value="faq" />
-          <el-option label="채용공고" value="job_posting" />
+          <el-option
+            v-for="docType in docTypes"
+            :key="docType.code_value"
+            :label="docType.code_name"
+            :value="docType.code_value"
+          />
         </el-select>
 
         <el-select
@@ -152,14 +155,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
+import codesApi from '@/api/codes'
 
 const store = useStore()
 const router = useRouter()
+
+// 문서 유형 코드 (DB에서 동적 로드)
+const docTypes = ref([])
+const docTypesLoading = ref(false)
 
 // Computed
 const documents = computed(() => store.state.document.documents)
@@ -170,8 +178,22 @@ const total = computed(() => store.state.document.pagination.total)
 const pageSize = computed(() => store.state.document.pagination.limit)
 const currentPage = computed(() => store.state.document.pagination.page)
 
+// 문서 유형 코드 로드
+const loadDocTypes = async () => {
+  docTypesLoading.value = true
+  try {
+    const response = await codesApi.getByGroup('DOC_TYPE', false)
+    docTypes.value = response.codes
+  } catch (error) {
+    console.error('문서 유형 로드 실패:', error)
+  } finally {
+    docTypesLoading.value = false
+  }
+}
+
 // 초기 로드
 onMounted(() => {
+  loadDocTypes()
   store.dispatch('document/fetchDocuments')
 })
 
@@ -268,23 +290,13 @@ const executeEmbeddingSelected = async () => {
 
 // 유틸리티
 const getDocTypeLabel = (type) => {
-  const labels = {
-    policy: '정책',
-    guide: '가이드',
-    faq: 'FAQ',
-    job_posting: '채용공고'
-  }
-  return labels[type] || type
+  const found = docTypes.value.find(dt => dt.code_value === type)
+  return found ? found.code_name : type
 }
 
 const getDocTypeTag = (type) => {
-  const types = {
-    policy: 'primary',
-    guide: 'success',
-    faq: 'info',
-    job_posting: 'warning'
-  }
-  return types[type] || 'info'
+  const found = docTypes.value.find(dt => dt.code_value === type)
+  return found?.metadata?.tag_type || 'info'
 }
 
 const formatNumber = (num) => {
