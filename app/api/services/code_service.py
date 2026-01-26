@@ -175,6 +175,8 @@ class CodeService:
             sort_order = code_data.get('sort_order', 0)
             is_active = code_data.get('is_active', True)
             is_system = False  # 사용자 생성 코드는 항상 False
+            # parent 설정: CODE_GROUP이면 NULL, 그 외는 code_group 값
+            parent = None if code_group == 'CODE_GROUP' else code_group
 
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
@@ -192,13 +194,13 @@ class CodeService:
                     INSERT INTO tb_code (
                         code_group, code_value, code_name,
                         description, metadata, sort_order,
-                        is_active, is_system
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        is_active, is_system, parent
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING code_id
                 """, (
                     code_group, code_value, code_name,
                     description, metadata, sort_order,
-                    is_active, is_system
+                    is_active, is_system, parent
                 ))
 
                 code_id = cur.fetchone()['code_id'] # type: ignore

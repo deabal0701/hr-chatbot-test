@@ -26,8 +26,8 @@ CREATE INDEX idx_tb_app_settings_category ON public.tb_app_settings USING btree 
 
 -- DROP TABLE tb_code;
 
-CREATE TABLE tb_code (
-	code_id bigserial NOT NULL,
+CREATE TABLE public.tb_code (
+	code_id int8 DEFAULT nextval('code_master_code_id_seq'::regclass) NOT NULL,
 	code_group varchar(50) NOT NULL,
 	code_value varchar(100) NOT NULL,
 	code_name varchar(200) NOT NULL,
@@ -36,14 +36,15 @@ CREATE TABLE tb_code (
 	sort_order int4 DEFAULT 0 NULL,
 	is_active bool DEFAULT true NULL,
 	is_system bool DEFAULT false NULL,
+	parent varchar(50) NULL,
 	created_at timestamptz DEFAULT now() NULL,
 	updated_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT tb_code_code_group_code_value_key UNIQUE (code_group, code_value),
-	CONSTRAINT tb_code_pkey PRIMARY KEY (code_id)
+	CONSTRAINT code_master_code_group_code_value_key UNIQUE (code_group, code_value),
+	CONSTRAINT code_master_pkey PRIMARY KEY (code_id)
 );
-CREATE INDEX idx_tb_code_active ON public.tb_code USING btree (is_active);
-CREATE INDEX idx_tb_code_group ON public.tb_code USING btree (code_group);
-CREATE INDEX idx_tb_code_group_active ON public.tb_code USING btree (code_group, is_active);
+CREATE INDEX idx_code_master_active ON public.tb_code USING btree (is_active);
+CREATE INDEX idx_code_master_group ON public.tb_code USING btree (code_group);
+CREATE INDEX idx_code_master_group_active ON public.tb_code USING btree (code_group, is_active);
 
 
 -- public.query_log definition
@@ -355,24 +356,30 @@ Output: Numerical result with explanation','text','Calculator Tool 설명 (Agent
 
 
 
-INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,created_at,updated_at) VALUES
-	 (1,'LLM_PROVIDER','openai','OpenAI','OpenAI LLM 제공자','{"pricing_link": "https://platform.openai.com/docs/pricing", "default_model": "gpt-4o"}',1,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (2,'LLM_PROVIDER','anthropic','Anthropic (Claude)','Anthropic Claude LLM 제공자','{"pricing_link": "https://www.anthropic.com/pricing#anthropic-api", "default_model": "claude-3-5-sonnet-20241022"}',2,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (3,'LLM_MODEL_OPENAI','gpt-4o','GPT-4o','OpenAI GPT-4o 모델 (최신, 권장)',NULL,1,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (6,'LLM_MODEL_OPENAI','gpt-3.5-turbo','GPT-3.5 Turbo','OpenAI GPT-3.5 Turbo 모델',NULL,4,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (7,'LLM_MODEL_ANTHROPIC','claude-3-5-sonnet-20241022','Claude 3.5 Sonnet','Anthropic Claude 3.5 Sonnet 모델 (최신, 권장)',NULL,1,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (8,'LLM_MODEL_ANTHROPIC','claude-3-opus-20240229','Claude 3 Opus','Anthropic Claude 3 Opus 모델 (고성능)',NULL,2,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (9,'LLM_MODEL_ANTHROPIC','claude-3-sonnet-20240229','Claude 3 Sonnet','Anthropic Claude 3 Sonnet 모델',NULL,3,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (10,'EMBEDDING_MODEL','text-embedding-3-small','Text Embedding 3 Small (권장)','OpenAI Text Embedding 3 Small 모델','{"provider": "openai", "dimension": 1536}',1,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (11,'EMBEDDING_MODEL','text-embedding-3-large','Text Embedding 3 Large','OpenAI Text Embedding 3 Large 모델 (고성능, 고비용)','{"provider": "openai", "dimension": 3072}',2,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (12,'EMBEDDING_MODEL','text-embedding-ada-002','Text Embedding Ada-002 (레거시)','OpenAI Text Embedding Ada-002 모델 (이전 버전)','{"provider": "openai", "dimension": 1536}',3,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09');
-INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,created_at,updated_at) VALUES
-	 (4,'LLM_MODEL_OPENAI','gpt-4.1-nano','GPT-4.1 Nano','OpenAI GPT-4.1 Nano 모델',NULL,2,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (5,'LLM_MODEL_OPENAI','gpt-4.1-mini','GPT-4.1 Mini','OpenAI GPT-4 모델',NULL,3,true,true,'2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
-	 (13,'LLM_PROVIDER','google','Google (Gemini)','Google Gemini LLM 제공자','{"pricing_link": "https://ai.google.dev/pricing", "default_model": "gemini-1.5-pro"}',3,true,true,'2026-01-26 11:01:18.316653+09','2026-01-26 11:01:18.316653+09'),
-	 (14,'LLM_MODEL_GOOGLE','gemini-1.5-pro','Gemini 1.5 Pro','Google Gemini 1.5 Pro 모델 (최신, 권장)',NULL,1,true,true,'2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09'),
-	 (15,'LLM_MODEL_GOOGLE','gemini-1.5-flash','Gemini 1.5 Flash','Google Gemini 1.5 Flash 모델 (빠른 응답)',NULL,2,true,true,'2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09'),
-	 (16,'LLM_MODEL_GOOGLE','gemini-1.0-pro','Gemini 1.0 Pro','Google Gemini 1.0 Pro 모델',NULL,3,true,true,'2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09');
+INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,parent,created_at,updated_at) VALUES
+	 (22,'CODE_GROUP','LLM_PROVIDER','LLM 제공자','사용 가능한 LLM 제공자 목록',NULL,1,true,true,NULL,'2026-01-26 11:44:35.040066+09','2026-01-26 11:44:35.040066+09'),
+	 (23,'CODE_GROUP','LLM_MODEL_OPENAI','LLM 모델 (OpenAI)','OpenAI LLM 모델 목록',NULL,2,true,true,NULL,'2026-01-26 11:44:35.040066+09','2026-01-26 11:44:35.040066+09'),
+	 (24,'CODE_GROUP','LLM_MODEL_ANTHROPIC','LLM 모델 (Anthropic)','Anthropic Claude 모델 목록',NULL,3,true,true,NULL,'2026-01-26 11:44:35.040066+09','2026-01-26 11:44:35.040066+09'),
+	 (25,'CODE_GROUP','LLM_MODEL_GOOGLE','LLM 모델 (Google)','Google Gemini 모델 목록',NULL,4,true,true,NULL,'2026-01-26 11:44:35.040066+09','2026-01-26 11:44:35.040066+09'),
+	 (26,'CODE_GROUP','EMBEDDING_MODEL','임베딩 모델','사용 가능한 임베딩 모델 목록',NULL,5,true,true,NULL,'2026-01-26 11:44:35.040066+09','2026-01-26 11:44:35.040066+09'),
+	 (1,'LLM_PROVIDER','openai','OpenAI','OpenAI LLM 제공자','{"pricing_link": "https://platform.openai.com/docs/pricing", "default_model": "gpt-4o"}',1,true,true,'LLM_PROVIDER','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (2,'LLM_PROVIDER','anthropic','Anthropic (Claude)','Anthropic Claude LLM 제공자','{"pricing_link": "https://www.anthropic.com/pricing#anthropic-api", "default_model": "claude-3-5-sonnet-20241022"}',2,true,true,'LLM_PROVIDER','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (3,'LLM_MODEL_OPENAI','gpt-4o','GPT-4o','OpenAI GPT-4o 모델 (최신, 권장)',NULL,1,true,true,'LLM_MODEL_OPENAI','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (6,'LLM_MODEL_OPENAI','gpt-3.5-turbo','GPT-3.5 Turbo','OpenAI GPT-3.5 Turbo 모델',NULL,4,true,true,'LLM_MODEL_OPENAI','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (7,'LLM_MODEL_ANTHROPIC','claude-3-5-sonnet-20241022','Claude 3.5 Sonnet','Anthropic Claude 3.5 Sonnet 모델 (최신, 권장)',NULL,1,true,true,'LLM_MODEL_ANTHROPIC','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09');
+INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,parent,created_at,updated_at) VALUES
+	 (8,'LLM_MODEL_ANTHROPIC','claude-3-opus-20240229','Claude 3 Opus','Anthropic Claude 3 Opus 모델 (고성능)',NULL,2,true,true,'LLM_MODEL_ANTHROPIC','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (9,'LLM_MODEL_ANTHROPIC','claude-3-sonnet-20240229','Claude 3 Sonnet','Anthropic Claude 3 Sonnet 모델',NULL,3,true,true,'LLM_MODEL_ANTHROPIC','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (10,'EMBEDDING_MODEL','text-embedding-3-small','Text Embedding 3 Small (권장)','OpenAI Text Embedding 3 Small 모델','{"provider": "openai", "dimension": 1536}',1,true,true,'EMBEDDING_MODEL','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (11,'EMBEDDING_MODEL','text-embedding-3-large','Text Embedding 3 Large','OpenAI Text Embedding 3 Large 모델 (고성능, 고비용)','{"provider": "openai", "dimension": 3072}',2,true,true,'EMBEDDING_MODEL','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (12,'EMBEDDING_MODEL','text-embedding-ada-002','Text Embedding Ada-002 (레거시)','OpenAI Text Embedding Ada-002 모델 (이전 버전)','{"provider": "openai", "dimension": 1536}',3,true,true,'EMBEDDING_MODEL','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (4,'LLM_MODEL_OPENAI','gpt-4.1-nano','GPT-4.1 Nano','OpenAI GPT-4.1 Nano 모델',NULL,2,true,true,'LLM_MODEL_OPENAI','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (5,'LLM_MODEL_OPENAI','gpt-4.1-mini','GPT-4.1 Mini','OpenAI GPT-4 모델',NULL,3,true,true,'LLM_MODEL_OPENAI','2026-01-18 17:01:36.377117+09','2026-01-18 17:01:36.377117+09'),
+	 (13,'LLM_PROVIDER','google','Google (Gemini)','Google Gemini LLM 제공자','{"pricing_link": "https://ai.google.dev/pricing", "default_model": "gemini-1.5-pro"}',3,true,true,'LLM_PROVIDER','2026-01-26 11:01:18.316653+09','2026-01-26 11:01:18.316653+09'),
+	 (14,'LLM_MODEL_GOOGLE','gemini-1.5-pro','Gemini 1.5 Pro','Google Gemini 1.5 Pro 모델 (최신, 권장)',NULL,1,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09'),
+	 (15,'LLM_MODEL_GOOGLE','gemini-1.5-flash','Gemini 1.5 Flash','Google Gemini 1.5 Flash 모델 (빠른 응답)',NULL,2,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09');
+INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,parent,created_at,updated_at) VALUES
+	 (16,'LLM_MODEL_GOOGLE','gemini-1.0-pro','Gemini 1.0 Pro','Google Gemini 1.0 Pro 모델',NULL,3,true,true,'LLM_MODEL_GOOGLE','2026-01-26 11:01:22.635983+09','2026-01-26 11:01:22.635983+09');
 
 
 INSERT INTO tb_docs (title,doc_type,"language","content",metadata,embedding,embedding_model,indexed,embedded_at,chunk_index,total_chunks,parent_doc_id,source_type,source_file,content_hash,created_at,updated_at) VALUES
