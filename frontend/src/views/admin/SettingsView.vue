@@ -179,7 +179,7 @@
         </el-tab-pane>
 
         <!-- RAG 설정 (청킹 + 임베딩 + RAG 통합) -->
-        <el-tab-pane label="RAG 설정" name="rag" v-if = false>
+        <el-tab-pane label="RAG 설정" name="rag">
           <div class="settings-section">
             <h3>RAG 문서 검색 설정</h3>
             <p class="section-desc">
@@ -289,11 +289,11 @@
                   <el-select
                     v-model="formData.rag.distance_metric"
                     style="width: 100%"
-                    disabled
                   >
                     <el-option label="Cosine Distance (코사인 거리)" value="cosine" />
+                    <el-option label="L2 Distance (유클리드 거리)" value="l2" />
                   </el-select>
-                  <div class="form-help">벡터 간 유사도를 측정하는 알고리즘 (텍스트 임베딩에 권장)</div>
+                  <div class="form-help">벡터 간 유사도를 측정하는 알고리즘 (텍스트 임베딩에는 코사인 거리 권장)</div>
                 </el-form-item>
 
                 <el-form-item label="유사도 임계값">

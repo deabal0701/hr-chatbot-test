@@ -170,12 +170,21 @@ class VectorStoreService:
         if similarity_threshold is None:
             similarity_threshold = _get_settings_service().get_value("rag", "similarity_threshold", settings.rag_similarity_threshold)
 
-        # 벡터 검색 쿼리 (코사인 거리 사용)
+        # 거리 측정 방식 (DB 설정 우선, 기본값: cosine)
+        distance_metric = _get_settings_service().get_value("rag", "distance_metric", getattr(settings, "rag_distance_metric", "cosine"))
+
+        # 거리 연산자 선택: cosine(<=>), l2(<->)
+        if distance_metric == "l2":
+            distance_operator = "<->"  # L2 (유클리드) 거리
+        else:
+            distance_operator = "<=>"  # 코사인 거리 (기본값)
+
+        # 벡터 검색 쿼리
         query_sql = f"""
-            SELECT id, title, doc_type, content, metadata, language, embedding <=> %s AS distance
+            SELECT id, title, doc_type, content, metadata, language, embedding {distance_operator} %s AS distance
             FROM tb_docs
             {where_clause}
-            ORDER BY embedding <=> %s
+            ORDER BY embedding {distance_operator} %s
             LIMIT %s
         """
 
@@ -186,15 +195,24 @@ class VectorStoreService:
             cur.execute(query_sql, query_params)
             rows = cur.fetchall()
 
-            logger.info(f"벡터 검색 원시 결과: {len(rows)}개 행 반환, 임계값={similarity_threshold}")
+            logger.info(f"벡터 검색 원시 결과: {len(rows)}개 행 반환, 임계값={similarity_threshold}, 거리측정={distance_metric}")
 
             documents = []
             filtered_count = 0
             for row in rows:
                 distance = row.get('distance')
-                similarity = 1.0 - float(distance) if distance is not None else 0.0
+                # 거리 측정 방식에 따라 유사도 계산
+                if distance is not None:
+                    if distance_metric == "l2":
+                        # L2 거리: 0~∞ → 유사도 0~1로 변환
+                        similarity = 1.0 / (1.0 + float(distance))
+                    else:
+                        # 코사인 거리: 0~2 → 유사도 -1~1로 변환 (정규화된 벡터의 경우 0~1)
+                        similarity = 1.0 - float(distance)
+                else:
+                    similarity = 0.0
 
-                logger.info(f"문서 ID={row['id']}, title='{row['title'][:30]}...', distance={distance}, similarity={similarity:.4f}")
+                logger.info(f"문서 ID={row['id']}, title='{row['title'][:30]}...', distance={distance}, similarity={similarity:.4f}, metric={distance_metric}")
 
                 if similarity < similarity_threshold:
                     filtered_count += 1

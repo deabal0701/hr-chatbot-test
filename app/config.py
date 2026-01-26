@@ -52,6 +52,7 @@ class Settings(BaseSettings):
 
     # RAG Settings
     rag_top_k: int = Field(default=10, description="RAG 검색 시 상위 K개 문서")
+    rag_distance_metric: str = Field(default="cosine", description="거리 측정 방식 (cosine, l2)")
     rag_similarity_threshold: float = Field(default=0.7, description="RAG 유사도 임계값")
     max_context_length: int = Field(default=4000, description="최대 컨텍스트 길이")
 

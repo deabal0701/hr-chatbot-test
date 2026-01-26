@@ -58,6 +58,7 @@ class SettingsConfig:
         },
         "rag": {
             "top_k": ("5", "int", "검색 문서 수", False),
+            "distance_metric": ("cosine", "string", "거리 측정 방식 (cosine, l2)", False),
             "similarity_threshold": ("0.7", "float", "유사도 임계값 (0.0-1.0)", False),
             "max_context_length": ("4000", "int", "최대 컨텍스트 길이", False),
         },
@@ -114,6 +115,7 @@ class SettingsConfig:
         "embedding.dimension": "embedding_dimension",
         "llm.model": "llm_model",
         "rag.top_k": "rag_top_k",
+        "rag.distance_metric": "rag_distance_metric",
         "rag.similarity_threshold": "rag_similarity_threshold",
         "rag.max_context_length": "max_context_length",
         "nl2sql.timeout_seconds": "sql_timeout_seconds",
