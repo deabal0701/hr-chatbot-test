@@ -9,7 +9,7 @@ const STORAGE_KEYS = {
 // 기본 테마 설정
 const DEFAULT_THEMES = {
   user: true,    // 사용자 화면: 다크모드 기본
-  admin: false   // 관리자 화면: 라이트모드 기본
+  admin: true   // 관리자 화면: 다크모드 기본(라이트모드 기본시 -> false로 변경)
 }
 
 // localStorage에서 테마 설정 로드

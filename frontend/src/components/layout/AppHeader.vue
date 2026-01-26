@@ -57,7 +57,7 @@ const pageTitle = computed(() => {
   return route.meta.title || 'MUREUM'
 })
 
-// 다크모드 토글
+// 다크모드 토글 (store의 app모듈의 toggleDarkMode 액션 호출)
 const toggleDarkMode = () => {
   store.dispatch('app/toggleDarkMode')
 }
