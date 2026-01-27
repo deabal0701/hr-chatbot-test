@@ -63,8 +63,8 @@
 
         <el-table-column prop="code_value" label="코드 값" width="200">
           <template #default="{ row }">
-            <el-tag v-if="row.is_system" type="info" size="small">시스템</el-tag>
-            <span style="margin-left: 8px">{{ row.code_value }}</span>
+            <span>{{ row.code_value }}</span>
+            <el-tag v-if="row.is_system" type="info" size="small" style="margin-left: 8px">시스템</el-tag>
           </template>
         </el-table-column>
 
@@ -236,8 +236,8 @@
         <el-table-column prop="sort_order" label="순서" width="70" sortable />
         <el-table-column prop="code_value" label="코드" min-width="280">
           <template #default="{ row }">
-            <el-tag v-if="row.is_system" type="info" size="small" style="margin-right: 6px">시스템</el-tag>
             <span>{{ row.code_value }}</span>
+            <el-tag v-if="row.is_system" type="info" size="small" style="margin-left: 6px">시스템</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="code_name" label="표시명" width="180" />
