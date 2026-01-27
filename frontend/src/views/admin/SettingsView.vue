@@ -497,7 +497,7 @@
         </el-tab-pane>
 
         <!-- Agent 설정 -->
-        <el-tab-pane label="Agent" name="agent" v-if = "false">
+        <el-tab-pane label="Agent" name="agent">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
             <el-form label-position="top" class="settings-form">
