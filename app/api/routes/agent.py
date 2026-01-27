@@ -43,37 +43,26 @@ async def agent_search(request: AgentRequest):
 
     **사용 예시:**
 
-    간단한 질문:
+    첫 요청 (새 대화):
     ```json
     {
       "question": "2024년 입사자는 몇 명인가?"
     }
     ```
 
-    복잡한 질문 (멀티스텝):
-    ```json
-    {
-      "question": "2024년 입사자 중 재택근무 정책을 준수하는 사람은 몇 명이고 평균 급여는?",
-      "config": {
-        "max_iterations": 15,
-        "enable_memory": true
-      }
-    }
-    ```
-
-    멀티턴 대화:
+    멀티턴 대화 (응답받은 session_id 재사용):
     ```json
     {
       "question": "그 중에서 개발팀만 보여줘",
-      "session_id": "user123-session456"
+      "session_id": "session-abc12345"
     }
     ```
 
     **Parameters:**
     - question: 질문 (필수)
-    - session_id: 세션 ID (멀티턴 대화용, 선택)
-    - config: Agent 설정 (선택)
-    - verbose: 상세 로그 출력 (선택)
+    - session_id: 세션 ID (멀티턴 대화용, 첫 요청시 생략하면 서버가 생성)
+
+    **Note:** Agent 설정(max_iterations, timeout 등)은 서버 DB에서 관리됩니다.
 
     **Returns:**
     - answer: 최종 답변
@@ -88,8 +77,8 @@ async def agent_search(request: AgentRequest):
     try:
         logger.info(f"[{request_id}] Agent 검색 요청: {request.question[:100]}")
 
-        # 서비스 호출 (설정 로딩 로직은 서비스에서 처리)
-        result = await agent_service.search(question=request.question, session_id=request.session_id, config=request.config, request_id=request_id)
+        # 서비스 호출 (설정은 서비스에서 DB로부터 로드)
+        result = await agent_service.search(question=request.question, session_id=request.session_id, request_id=request_id)
         logger.info(f"[{request_id}] Agent 검색 완료: " f"iterations={result.total_iterations}, " f"tools={result.tools_used}, "
                     f"success={result.success}"
         )

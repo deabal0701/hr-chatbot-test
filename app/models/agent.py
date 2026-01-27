@@ -89,22 +89,22 @@ class AgentConfig(BaseModel):
 
 
 class AgentRequest(BaseModel):
-    """Agent 요청"""
+    """Agent 요청
+
+    사용법:
+    - 첫 요청: session_id를 생략하거나 None으로 전송 → 서버가 생성하여 응답에 포함
+    - 멀티턴: 응답받은 session_id를 재사용
+
+    Note: Agent 설정(max_iterations, timeout 등)은 서버 DB에서 관리됩니다.
+    """
     question: str = Field(..., min_length=1, max_length=1000, description="질문")
-    session_id: Optional[str] = Field(None, description="세션 ID (멀티턴 대화)")
-    config: Optional[AgentConfig] = Field(default_factory=AgentConfig, description="Agent 설정")
-    verbose: bool = Field(default=False, description="상세 로그 출력")
+    session_id: Optional[str] = Field(None, description="세션 ID (멀티턴 대화, 첫 요청시 생략)")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "question": "2024년 입사자 중 재택근무 정책을 준수하는 사람은 몇 명이고 평균 급여는?",
-                "session_id": "user123-session456",
-                "config": {
-                    "max_iterations": 10,
-                    "enable_memory": True
-                },
-                "verbose": True
+                "session_id": None
             }
         }
 

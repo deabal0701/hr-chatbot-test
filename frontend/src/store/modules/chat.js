@@ -10,20 +10,9 @@ export default {
     isLoading: false,
     searchMode: 'nl2sql', // 'auto' | 'rag' | 'nl2sql' | 'agent' (기본값: nl2sql)
     error: null,
-    sessionId: null, // Agent 멀티턴 대화용 세션 ID
-    agentConfig: {
-      maxIterations: 10,
-      enableMemory: true,
-      timeoutSeconds: 60
-    },
+    sessionId: null, // Agent 멀티턴 대화용 세션 ID (서버에서 생성)
     // 채팅 히스토리 (하드코딩 샘플 - 향후 API 연동)
-    chatHistory: [
-      // 일단 주석처리함. 추후 API로 불러올 예정
-      // { id: 'sample-1', title: '재택근무 정책 문의', createdAt: new Date('2024-01-15') },
-      // { id: 'sample-2', title: '2024년 입사자 현황', createdAt: new Date('2024-01-14') },
-      // { id: 'sample-3', title: '연차 신청 방법', createdAt: new Date('2024-01-13') },
-      // { id: 'sample-4', title: '부서별 직원 통계', createdAt: new Date('2024-01-12') }
-    ],
+    chatHistory: [],
     activeChatId: null // 현재 선택된 채팅 ID
   }),
 
@@ -68,9 +57,6 @@ export default {
     SET_SESSION_ID(state, sessionId) {
       state.sessionId = sessionId
     },
-    SET_AGENT_CONFIG(state, config) {
-      state.agentConfig = { ...state.agentConfig, ...config }
-    },
     SET_ACTIVE_CHAT(state, chatId) {
       state.activeChatId = chatId
     },
@@ -106,23 +92,20 @@ export default {
 
         // Agent 모드인 경우
         if (state.searchMode === 'agent') {
-          // 세션 ID 생성 (첫 메시지) 또는 재사용
-          if (!state.sessionId) {
-            const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-            commit('SET_SESSION_ID', sessionId)
-          }
-
+          // 첫 요청: sessionId null → 서버가 생성
+          // 멀티턴: 서버 응답에서 받은 sessionId 재사용
           response = await agentApi.agentSearch({
             question: query,
-            sessionId: state.sessionId,
-            config: state.agentConfig
+            sessionId: state.sessionId  // 첫 요청 시 null, 이후 서버 응답값 사용
           })
 
-          // 디버깅: Agent 응답 구조 확인 (개발 환경에서만)
+          // 서버가 생성한 session_id 저장 (멀티턴 대화용)
+          if (response.session_id && response.session_id !== state.sessionId) {
+            commit('SET_SESSION_ID', response.session_id)
+          }
+
           if (import.meta.env.DEV) {
             console.log('[Agent Response]', response)
-            console.log('[Agent Answer]', response.answer)
-            console.log('[Agent Steps]', response.steps)
           }
 
           // Agent 응답 메시지 추가
@@ -183,10 +166,6 @@ export default {
       if (mode !== 'agent' && state.sessionId) {
         commit('SET_SESSION_ID', null)
       }
-    },
-
-    setAgentConfig({ commit }, config) {
-      commit('SET_AGENT_CONFIG', config)
     },
 
     clearChat({ commit }) {

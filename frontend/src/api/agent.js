@@ -10,38 +10,23 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || ''
  * Agent 검색
  * @param {Object} params
  * @param {string} params.question - 질문
- * @param {string} params.sessionId - 세션 ID (멀티턴 대화용)
- * @param {Object} params.config - Agent 설정
+ * @param {string} params.sessionId - 세션 ID (멀티턴 대화용, 첫 요청시 null)
  * @returns {Promise}
+ *
+ * Note: Agent 설정(max_iterations, timeout 등)은 서버 DB에서 관리됩니다.
+ * 첫 요청 시 sessionId를 생략하면 서버가 생성하여 응답에 포함합니다.
  */
-export const agentSearch = async ({ question, sessionId = null, config = {} }) => {
+export const agentSearch = async ({ question, sessionId = null }) => {
   try {
-    // config 객체를 전달하지 않으면 서버가 DB 설정을 사용함
-    // config를 명시적으로 전달하면 해당 값이 우선됨
     const requestBody = {
       question,
-      session_id: sessionId,
-      verbose: config.verbose || false
-    }
-
-    // config가 명시적으로 제공된 경우만 전달 (빈 객체는 전달하지 않음)
-    if (config && Object.keys(config).length > 0 && config.maxIterations) {
-      requestBody.config = {
-        max_iterations: config.maxIterations,
-        enable_memory: config.enableMemory !== false,
-        llm_temperature: config.llmTemperature || 0.0,
-        timeout_seconds: config.timeoutSeconds || 60,
-        // llm_model은 서버 DB 설정 사용 (하드코딩 제거)
-        ...config
-      }
+      session_id: sessionId
     }
 
     const response = await axios.post(`${API_BASE_URL}/api/v1/agent/search`, requestBody)
-    // 디버깅 로그 (개발 환경에서만)
+
     if (import.meta.env.DEV) {
-      console.log('[Agent API Raw Response]', response)
-      console.log('[Agent API Data]', response.data)
-      console.log('[Agent API Answer Field]', response.data.answer)
+      console.log('[Agent API Response]', response.data)
     }
     return response.data
   } catch (error) {
