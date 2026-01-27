@@ -12,7 +12,8 @@
       "Bash(if exist nul del nul)",
       "Bash(conda activate:*)",
       "Bash(python -c:*)",
-      "Bash(conda run:*)"
+      "Bash(conda run:*)",
+      "Bash(\"C:\\\\Users\\\\USER\\\\miniconda3\\\\envs\\\\penv3.13-nlq\\\\python.exe\" -m pip show debugpy)"
     ],
     "deny": [],
     "ask": []

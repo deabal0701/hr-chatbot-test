@@ -71,8 +71,8 @@ psql --version
 ### 2. 가상환경 생성 (Conda 권장)
 ```bash
 # Conda 환경 생성
-conda create -n my-env3.11_chat2 python=3.11
-conda activate my-env3.11_chat2
+conda create -n penv3.13-nlq python=3.13
+conda activate penv3.13-nlq
 
 # 또는 venv 사용
 python -m venv venv
@@ -332,7 +332,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/search" \
 ### 단위 테스트 실행
 ```bash
 # 가상환경 활성화
-conda activate my-env3.11_chat2
+conda activate penv3.13-nlq
 
 # 테스트 실행
 pytest tests/

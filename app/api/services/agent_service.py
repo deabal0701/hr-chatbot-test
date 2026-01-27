@@ -86,7 +86,7 @@ class AgentService:
         # tools_blacklist는 DB에서 관리하지 않으므로 None 유지
         config.tools_blacklist = None
 
-        logger.info(f"[{request_id}] Agent 설정 (DB/캐시): max_iterations={config.max_iterations}, timeout={config.timeout_seconds}s, memory={config.enable_memory}, llm_model={config.llm_model}, tools_whitelist={config.tools_whitelist}")
+        logger.debug(f"[{request_id}] Agent 설정: max_iter={config.max_iterations}, timeout={config.timeout_seconds}s, model={config.llm_model}")
 
         return config
 

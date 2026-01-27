@@ -7,6 +7,7 @@
 - 다중 DB 지원 (PostgreSQL, Oracle)
 """
 from typing import Dict, Tuple, Any
+import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -179,27 +180,27 @@ SQL만 출력하세요 (설명 없이)."""
             llm_model = settings_config.get_value("llm", "model", settings.llm_model)
             metadata["llm_model"] = llm_model
 
-            # LLM 입력 로그 (디버깅용 상세 로깅)
+            # LLM 입력 로그
             log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_len=len(system_prompt), user_len=len(user_prompt))
-            logger.info(f"[{request_id}] [SQL-GEN-2a] [LLM-INFO] LLM Original Object: {llm}")
-            llm_model_name = getattr(llm, 'model_name', getattr(llm, 'model', 'unknown'))
-            llm_temp = getattr(llm, 'temperature', 'unknown')
-            logger.info(f"[{request_id}] [SQL-GEN-2a] [LLM-INFO] {type(llm).__name__}(model={llm_model_name}, temp={llm_temp})")
-            logger.info(f"[{request_id}] [SQL-GEN-2a] [LLM-RAW-INPUT] Messages 원문: {messages}")
-            log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
+            # DEBUG: 상세 로깅
+            if logger.isEnabledFor(logging.DEBUG):
+                llm_model_name = getattr(llm, 'model_name', getattr(llm, 'model', 'unknown'))
+                llm_temp = getattr(llm, 'temperature', 'unknown')
+                logger.debug(f"[{request_id}] [SQL-GEN-2a] [LLM-INFO] {type(llm).__name__}(model={llm_model_name}, temp={llm_temp})")
+                logger.debug(f"[{request_id}] [SQL-GEN-2a] USER_PROMPT: {user_prompt[:200]}...")
 
             # LLM 호출
             response = llm.invoke(messages)
 
-            # LLM 출력 로그 (디버깅용 상세 로깅)
-            logger.info(f"[{request_id}] [SQL-GEN-2b] [LLM-RAW-OUTPUT] Response 원문 AIMessage: {response}")
-            logger.info(f"[{request_id}] [SQL-GEN-2b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
+            # LLM 출력 로그 (DEBUG 레벨)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{request_id}] [SQL-GEN-2b] Response.content: {str(response.content)[:200]}...")
 
             # 5. 마크다운 제거
             sql = strip_markdown_code_block(response.content, language="sql")
 
             log_step(request_id, "SQL-GEN", "3", "COMPLETE", "SQL 생성 완료", sql_length=len(sql))
-            logger.info(f"[{request_id}] [SQL-GEN] Generated SQL: {sql[:100]}")
+            logger.debug(f"[{request_id}] [SQL-GEN] Generated SQL: {sql[:100]}")
 
             return sql, metadata
 

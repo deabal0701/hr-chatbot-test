@@ -1,4 +1,5 @@
 from typing import Any, Dict, TypedDict
+import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
@@ -105,7 +106,7 @@ class NL2SQLGraph:
                     "sql_dialect": gen_metadata.get("sql_dialect")
                 }
                 log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
-                log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", f"GENERATED_SQL: {sql}")
+                logger.debug(f"[{request_id}] [NL2SQL-1b] GENERATED_SQL: {sql}")
             else:
                 error_msg = gen_metadata.get("error", "SQL 생성 실패")
                 state["generated_sql"] = ""
@@ -254,15 +255,17 @@ class NL2SQLGraph:
                 system_prompt_length=len(system_prompt),
                 user_prompt_length=len(user_prompt),
                 data_rows=len(rows_summary))
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", f"DATA_SAMPLE: {rows_summary}")
+        # DEBUG: 상세 내용
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[{request_id}] [NL2SQL-4a] USER_PROMPT: {user_prompt[:200]}...")
+            logger.debug(f"[{request_id}] [NL2SQL-4a] DATA_SAMPLE: {str(rows_summary)[:200]}...")
 
         try:
             response = llm.invoke(messages)
 
-            # RAW 응답 로그 추가
-            logger.info(f"[{request_id}] [NL2SQL-4b] [LLM-RAW-OUTPUT] Response원문 AIMessage: {response}")
-            logger.info(f"[{request_id}] [NL2SQL-4b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
+            # RAW 응답 로그 (DEBUG 레벨)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{request_id}] [NL2SQL-4b] [LLM-RAW-OUTPUT] Response.content: {str(response.content)[:200]}...")
 
             answer = response.content
 
@@ -270,7 +273,8 @@ class NL2SQLGraph:
             # LLM 출력 로그 (답변 생성)
             log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료",
                     answer_length=len(answer))
-            log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", f"ANSWER: {answer}")
+            # DEBUG: 상세 답변
+            logger.debug(f"[{request_id}] [NL2SQL-4b] ANSWER: {answer[:100]}...")
 
         except Exception as e:
             logger.error(f"[{request_id}] [NL2SQL-4] [LLM] 답변 생성 실패: {e}")

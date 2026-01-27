@@ -112,7 +112,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             # 공백 제거 및 정리
             expression = expression.strip()
 
-            logger.info(f"[{self.name}] Evaluating: {expression}")
+            logger.debug(f"[{self.name}] Evaluating: {expression}")
 
             # AST 파싱
             tree = ast.parse(expression, mode='eval')

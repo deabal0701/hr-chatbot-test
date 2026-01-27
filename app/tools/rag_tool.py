@@ -111,7 +111,7 @@ Examples:
         # 캐시 체크
         cache_key = f"{question.lower().strip()}:{top_k}"
         if cache_key in self._search_cache:
-            logger.info(f"[{self.name}] Cache hit: {cache_key[:50]}")
+            logger.debug(f"[{self.name}] Cache hit: {cache_key[:50]}")
             kwargs["_cached_result"] = self._search_cache[cache_key]
 
         return kwargs

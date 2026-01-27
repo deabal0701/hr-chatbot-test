@@ -13,6 +13,7 @@
 """
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import logging
 
 import numpy as np
 import psycopg
@@ -212,11 +213,12 @@ class VectorStoreService:
                 else:
                     similarity = 0.0
 
-                logger.info(f"문서 ID={row['id']}, title='{row['title'][:30]}...', distance={distance}, similarity={similarity:.4f}, metric={distance_metric}")
+                # DEBUG: 문서별 상세 로그
+                logger.debug(f"문서 ID={row['id']}, title='{row['title'][:30]}...', similarity={similarity:.4f}")
 
                 if similarity < similarity_threshold:
                     filtered_count += 1
-                    logger.info(f"  -> 임계값 미달로 제외됨 (similarity={similarity:.4f} < {similarity_threshold})")
+                    logger.debug(f"  -> 임계값 미달로 제외됨 (similarity={similarity:.4f} < {similarity_threshold})")
                     continue
 
                 content = row.get('content', '')
@@ -234,8 +236,8 @@ class VectorStoreService:
                 documents.append(doc)
 
             if filtered_count > 0:
-                logger.info(f"임계값으로 필터링된 문서: {filtered_count}개")
-            logger.info(f"벡터 검색 완료: query='{query[:50]}...', found={len(documents)}")
+                logger.debug(f"임계값으로 필터링된 문서: {filtered_count}개")
+            logger.debug(f"벡터 검색 완료: query='{query[:30]}...', found={len(documents)}, filtered={filtered_count}")
             return documents
 
     # ============================================

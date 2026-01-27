@@ -240,7 +240,7 @@ class BaseTool(ABC):
             kwargs = self.before_execute(**kwargs)
 
             # 4. 실제 실행
-            logger.info(f"[{self.name}] Executing with params: {list(kwargs.keys())}")
+            logger.debug(f"[{self.name}] Executing with params: {list(kwargs.keys())}")
             result = self._execute(**kwargs)
 
             # 5. 출력 검증
@@ -260,7 +260,7 @@ class BaseTool(ABC):
             # 7. 메트릭 기록
             ToolMetrics.record(self.name, execution_time_ms, result.success, result.error)
 
-            logger.info(f"[{self.name}] Execution completed: success={result.success}, time={execution_time_ms}ms")
+            logger.debug(f"[{self.name}] Execution completed: success={result.success}, time={execution_time_ms}ms")
             return result
 
         except Exception as e:

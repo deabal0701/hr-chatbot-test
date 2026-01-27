@@ -94,7 +94,7 @@ Examples:
         # 캐시 체크 (간단한 구현)
         cache_key = question.lower().strip()
         if cache_key in self._query_cache:
-            logger.info(f"[{self.name}] Cache hit: {cache_key[:50]}")
+            logger.debug(f"[{self.name}] Cache hit: {cache_key[:50]}")
             kwargs["_cached_result"] = self._query_cache[cache_key]
 
         return kwargs

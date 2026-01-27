@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, TypedDict
+import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
@@ -137,8 +138,10 @@ class RAGGraph:
 
         # LLM 입력 로그
         log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
-        log_step(request_id, "RAG", "2b", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
-        log_step(request_id, "RAG", "2b", "LLM-INPUT", f"CONTEXT: {context}")
+        # DEBUG: 상세 내용
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[{request_id}] [RAG-2b] USER_PROMPT: {user_prompt[:200]}...")
+            logger.debug(f"[{request_id}] [RAG-2b] CONTEXT: {context[:200]}...")
 
         try:
             response = llm.invoke(messages)
@@ -150,7 +153,8 @@ class RAGGraph:
 
             # LLM 출력 로그
             log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료", answer_length=len(answer))
-            log_step(request_id, "RAG", "2b", "LLM-OUTPUT", f"ANSWER: {answer}")
+            # DEBUG: 상세 답변
+            logger.debug(f"[{request_id}] [RAG-2b] ANSWER: {answer[:100]}...")
 
         except Exception as e:
             logger.error(f"[{request_id}] [RAG-2b] [LLM] LLM 호출 실패: {e}")

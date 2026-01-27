@@ -255,7 +255,7 @@ class SQLExecutorService:
                 # 결과 변환 (어댑터 사용)
                 result_rows = [adapter.row_to_dict(row, columns) for row in rows]
 
-                logger.info(f"SQL 실행 완료: rows={len(result_rows)}, time={execution_time_ms}ms, sql={sql[:100]}")
+                logger.debug(f"SQL 실행 완료: rows={len(result_rows)}, time={execution_time_ms}ms, sql={sql[:100]}")
 
                 return SQLResult(
                     columns=columns,
