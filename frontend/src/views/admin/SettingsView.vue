@@ -652,10 +652,10 @@
             </el-form>
 
             <!-- Agent 프롬프트 -->
-            <el-divider content-position="left"  v-if="false">
+            <el-divider content-position="left">
               <span style="font-weight: 600;">Agent (도구 선택)</span>
             </el-divider>
-          <div v-if =false>
+         
             <el-form label-position="top" class="settings-form">
               <el-form-item label="Agent 시스템 프롬프트">
                 <el-input
@@ -738,7 +738,6 @@
                 가져오기
               </el-button>
             </div>
-          </div>
           </div>
         </el-tab-pane>
       </el-tabs>

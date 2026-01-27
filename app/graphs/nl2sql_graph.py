@@ -7,14 +7,12 @@ from app.config import settings
 from app.models.search import SearchResponse
 from app.models.rag import SQLResult
 import time
-from app.core.database.schema_loader import schema_loader
-from app.core.database.external import external_db_manager
 from app.core.config.settings_config import settings_config
 from app.core.llm.prompt_service import prompt_service
+from app.core.llm.sql_generator import sql_generator  # 공통 SQL 생성 모듈
 from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
-from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
-from app.core.llm.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
-from app.utils.common import strip_markdown_code_block  # 공통 유틸리티
+from app.utils.logger import setup_logger, log_step
+from app.core.llm.llm_config import LLMConfigManager
 
 logger = setup_logger(__name__)
 
@@ -33,13 +31,16 @@ class NL2SQLState(TypedDict):
 
 
 class NL2SQLGraph:
-    """NL2SQL 검색 그래프 (LangGraph)"""
+    """NL2SQL 검색 그래프 (LangGraph)
+
+    sql_generator 공통 모듈을 사용하여 SQL 생성
+    - DB 타입 자동 감지 (PostgreSQL, Oracle)
+    - Admin UI 프롬프트 설정 반영
+    """
 
     def __init__(self):
-        # 스키마 로드
-        self.schema_description = schema_loader.generate_schema_description()
-
         # 그래프 구성 (LLM은 요청 시점에 생성)
+        # 스키마는 sql_generator에서 캐싱 관리
         self.graph = self._build_graph()
 
     def _get_llm(self):
@@ -85,60 +86,32 @@ class NL2SQLGraph:
         return workflow.compile()
 
     def _generate_sql(self, state: NL2SQLState) -> NL2SQLState:
-        """SQL 생성 노드"""
+        """SQL 생성 노드 (sql_generator 공통 모듈 사용)"""
         question = state["question"]
         request_id = state.get("request_id", "unknown")
 
         log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작", question=question[:40])
 
-        # DB 타입 가져오기 (postgresql 또는 oracle)
-        db_type = external_db_manager.get_db_type()
-        adapter = external_db_manager.get_adapter()
-        sql_dialect = adapter.get_sql_dialect_name()
-
-        log_step(request_id, "NL2SQL", "1", "GENERATE", f"DB 타입: {db_type}, SQL 방언: {sql_dialect}")
-
-        # 시스템 프롬프트 (DB에서 동적 로드, 스키마 주입, DB 타입 전달)
-        system_prompt = prompt_service.get_nl2sql_generation_prompt(self.schema_description, db_type)
-
-        user_prompt = f"""질문: {question}
-
-위 질문에 대한 {sql_dialect} SELECT 쿼리를 생성해주세요.
-SQL만 출력하세요 (설명 없이)."""
-
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ]
-
-        # 매 요청마다 DB 설정 반영된 LLM 사용
-        llm = self._get_llm()
-        llm_model = settings_config.get_value("llm", "model", settings.llm_model)
-
-        # LLM 입력 로그
-        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt))
-        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", f"USER_PROMPT: {user_prompt}")
-
         try:
-            logger.info(f"[{request_id}] [LLM-INFO] LLM Original Object : {llm}")
-            logger.info(f"[{request_id}] [LLM-INFO] {type(llm).__name__}(model={llm.model_name}, temp={llm.temperature})")
-            # LLM 호출 전 messages 원문 로깅
-            logger.info(f"[{request_id} [NL2SQL-1a] [LLM-RAW-INPUT] Message원문 SystemMessage: {messages}")
-            response = llm.invoke(messages)
-            # Response 원문 로깅
-            logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response원문 AIMessage: {response}")
-            logger.info(f"[{request_id}] [NL2SQL-1b] [LLM-RAW-OUTPUT] Response.content: {response.content}")
+            # sql_generator 공통 모듈 사용
+            sql, gen_metadata = sql_generator.generate_sql(question, request_id)
 
-            # SQL 추출 및 마크다운 코드 블록 제거
-            sql = strip_markdown_code_block(response.content, language="sql")
-
-            state["generated_sql"] = sql
-            state["schema_description"] = self.schema_description
-            state["metadata"] = {"llm_model": llm_model}
-
-            # LLM 출력 로그
-            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
-            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", f"GENERATED_SQL: {sql}")
+            if sql:
+                state["generated_sql"] = sql
+                state["schema_description"] = sql_generator.get_schema_description()
+                state["metadata"] = {
+                    "llm_model": gen_metadata.get("llm_model"),
+                    "db_type": gen_metadata.get("db_type"),
+                    "sql_dialect": gen_metadata.get("sql_dialect")
+                }
+                log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
+                log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", f"GENERATED_SQL: {sql}")
+            else:
+                error_msg = gen_metadata.get("error", "SQL 생성 실패")
+                state["generated_sql"] = ""
+                state["validation_error"] = f"SQL 생성 오류: {error_msg}"
+                state["validated"] = False
+                logger.error(f"[{request_id}] [NL2SQL-1] SQL 생성 실패: {error_msg}")
 
         except Exception as e:
             logger.error(f"[{request_id}] [NL2SQL-1] [LLM] SQL 생성 실패: {e}")

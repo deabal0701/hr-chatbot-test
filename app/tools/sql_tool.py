@@ -2,7 +2,7 @@
 SQL 쿼리 도구
 
 기능:
-- 자연어 → SQL 변환
+- 자연어 → SQL 변환 (sql_generator 공통 모듈 사용)
 - SQL 검증 및 실행
 - 결과 포맷팅
 
@@ -14,25 +14,25 @@ SQL 쿼리 도구
 
 from typing import Dict, Any
 from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.tools.base import BaseTool, ToolResult
 from app.core.database.sql_executor import sql_executor
-from app.core.database.schema_loader import schema_loader
-from app.core.config.settings_config import settings_config
-from app.config import settings
+from app.core.llm.sql_generator import sql_generator  # 공통 SQL 생성 모듈
 from app.utils.logger import setup_logger
-from app.core.llm.llm_config import LLMConfigManager  # Phase 1: init_chat_model 사용
 
 logger = setup_logger(__name__)
 
 
 class SQLQueryTool(BaseTool):
-    """SQL 쿼리 실행 도구"""
+    """SQL 쿼리 실행 도구
+
+    sql_generator 공통 모듈을 사용하여 SQL 생성
+    - DB 타입 자동 감지 (PostgreSQL, Oracle)
+    - Admin UI 프롬프트 설정 반영
+    """
 
     def __init__(self):
         super().__init__()
-        self._schema_cache = None
         self._query_cache: Dict[str, Any] = {}  # 간단한 캐싱 (확장: Redis)
 
     @property
@@ -136,19 +136,15 @@ Examples:
             )
 
         try:
-            # 1. 스키마 로드 (캐싱)
-            if self._schema_cache is None:
-                self._schema_cache = schema_loader.generate_schema_description()
-                logger.info(f"[{self.name}] Schema loaded and cached")
-
-            # 2. SQL 생성 (LLM)
-            sql = self._generate_sql(question, self._schema_cache)
+            # 1. SQL 생성 (sql_generator 공통 모듈 사용)
+            sql, gen_metadata = sql_generator.generate_sql(question)
 
             if not sql:
+                error_msg = gen_metadata.get("error", "Failed to generate SQL from question")
                 return ToolResult(
                     success=False,
-                    error="Failed to generate SQL from question",
-                    metadata={"original_question": question}
+                    error=error_msg,
+                    metadata={"original_question": question, **gen_metadata}
                 )
 
             # 3. SQL 실행 (보안 검증 포함)
@@ -173,6 +169,8 @@ Examples:
                     "row_count": result.row_count,
                     "execution_time_ms": result.execution_time_ms,
                     "cached": False,
+                    "db_type": gen_metadata.get("db_type"),
+                    "llm_model": gen_metadata.get("llm_model"),
                     # 구조화된 SQL 결과 (프론트엔드 테이블 표시용)
                     "sql_result": {
                         "sql": sql,
@@ -191,70 +189,6 @@ Examples:
                 error=f"Database query failed: {str(e)}",
                 metadata={"original_question": question}
             )
-
-    def _generate_sql(self, question: str, schema_description: str) -> str:
-        """
-        자연어 → SQL 변환 (기존 nl2sql_graph 로직 재사용)
-
-        확장 포인트:
-        - Few-shot learning (예제 추가)
-        - Chain-of-Thought prompting
-        """
-        # Phase 1: LLMConfigManager를 통해 init_chat_model 사용
-        llm = LLMConfigManager.create_llm(
-            temperature=0,  # SQL 생성은 deterministic하게
-            # model과 provider는 DB 설정 사용
-        )
-
-        system_prompt = f"""당신은 PostgreSQL 전문가입니다.
-사용자의 자연어 질문을 PostgreSQL SQL 쿼리로 변환해주세요.
-
-# 데이터베이스 스키마
-{schema_description}
-
-# 중요한 규칙
-1. **반드시 SELECT 문만 생성하세요** (INSERT, UPDATE, DELETE, DROP 등은 절대 사용 금지)
-2. **테이블명과 컬럼명은 정확하게 사용하세요**
-3. **WHERE 절을 적절히 사용하여 결과를 필터링하세요**
-4. **집계 함수 사용 시 GROUP BY를 정확히 지정하세요**
-5. **날짜 비교 시 적절한 형변환을 사용하세요**
-6. **JOIN 시 명확한 조인 조건을 지정하세요**
-7. **SQL만 출력하고, 설명이나 마크다운 코드 블록은 포함하지 마세요**
-
-# 사용자 의도 파악 규칙
-- "표로 보여줘", "목록으로", "리스트로", "상세 정보" 등의 표현이 있으면 **개별 데이터를 조회**하세요 (COUNT 사용 금지)
-- "몇 명", "총 수", "개수" 등의 표현이 있을 때만 COUNT를 사용하세요
-
-# LIMIT 사용 규칙
-- **COUNT, SUM, AVG, MAX, MIN 등 집계 함수 사용 시**: LIMIT 절 사용 금지
-- **GROUP BY 사용 시**: LIMIT 절 사용 금지
-- **개별 데이터 조회 시**: LIMIT 1000 사용
-
-# 필드 매핑 규칙 (데이터베이스 언어에 맞춤)
-- 사용자 질문의 키워드를 스키마 정의에 정의된 실제 컬럼명과 정확히 매칭하세요.
-"""
-
-        user_prompt = f"""질문: {question}
-
-위 질문에 대한 PostgreSQL SELECT 쿼리를 생성해주세요.
-SQL만 출력하세요 (설명 없이)."""
-
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ]
-
-        response = llm.invoke(messages)
-        sql = response.content.strip()
-
-        # 마크다운 코드 블록 제거
-        if sql.startswith("```"):
-            lines = sql.split("\n")
-            sql = "\n".join(lines[1:-1]) if len(lines) > 2 else sql
-            sql = sql.replace("```sql", "").replace("```", "").strip()
-
-        logger.info(f"[{self.name}] Generated SQL: {sql[:100]}")
-        return sql
 
     def _format_single_result(self, result) -> str:
         """단일 결과 포맷팅"""
