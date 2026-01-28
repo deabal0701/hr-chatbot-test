@@ -131,11 +131,11 @@ class SQLExecutorService:
         if db_type == "oracle":
             # Oracle: FETCH FIRST 또는 ROWNUM
             if 'FETCH' not in sql_upper and 'ROWNUM' not in sql_upper:
-                logger.warning(f"Oracle 쿼리에 FETCH/ROWNUM 절이 없음: {sql[:100]}")
+                logger.warning(f"Oracle 쿼리에 FETCH/ROWNUM 절이 없음: {sql}")
         else:
             # PostgreSQL: LIMIT
             if 'LIMIT' not in sql_upper:
-                logger.warning(f"LIMIT 절이 없는 쿼리: {sql[:100]}")
+                logger.warning(f"LIMIT 절이 없는 쿼리: {sql}")
 
         return True, None
 
@@ -255,7 +255,7 @@ class SQLExecutorService:
                 # 결과 변환 (어댑터 사용)
                 result_rows = [adapter.row_to_dict(row, columns) for row in rows]
 
-                logger.debug(f"SQL 실행 완료: rows={len(result_rows)}, time={execution_time_ms}ms, sql={sql[:100]}")
+                logger.debug(f"SQL 실행 완료: rows={len(result_rows)}, time={execution_time_ms}ms, sql={sql}")
 
                 return SQLResult(
                     columns=columns,

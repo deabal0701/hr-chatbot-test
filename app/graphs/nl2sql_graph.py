@@ -255,17 +255,18 @@ class NL2SQLGraph:
                 system_prompt_length=len(system_prompt),
                 user_prompt_length=len(user_prompt),
                 data_rows=len(rows_summary))
-        # DEBUG: 상세 내용
+        # DEBUG: 상세 내용 (전문 출력)
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{request_id}] [NL2SQL-4a] USER_PROMPT: {user_prompt[:200]}...")
-            logger.debug(f"[{request_id}] [NL2SQL-4a] DATA_SAMPLE: {str(rows_summary)[:200]}...")
+            logger.debug(f"[{request_id}] [NL2SQL-4a] SYSTEM_PROMPT:\n{system_prompt}")
+            logger.debug(f"[{request_id}] [NL2SQL-4a] USER_PROMPT:\n{user_prompt}")
+            logger.debug(f"[{request_id}] [NL2SQL-4a] DATA_ROWS:\n{rows_summary}")
 
         try:
             response = llm.invoke(messages)
 
-            # RAW 응답 로그 (DEBUG 레벨)
+            # RAW 응답 로그 (DEBUG 레벨, 전문 출력)
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"[{request_id}] [NL2SQL-4b] [LLM-RAW-OUTPUT] Response.content: {str(response.content)[:200]}...")
+                logger.debug(f"[{request_id}] [NL2SQL-4b] LLM_RESPONSE:\n{response.content}")
 
             answer = response.content
 
@@ -273,8 +274,9 @@ class NL2SQLGraph:
             # LLM 출력 로그 (답변 생성)
             log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료",
                     answer_length=len(answer))
-            # DEBUG: 상세 답변
-            logger.debug(f"[{request_id}] [NL2SQL-4b] ANSWER: {answer[:100]}...")
+            # DEBUG: 상세 답변 (전문 출력)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{request_id}] [NL2SQL-4b] ANSWER:\n{answer}")
 
         except Exception as e:
             logger.error(f"[{request_id}] [NL2SQL-4] [LLM] 답변 생성 실패: {e}")

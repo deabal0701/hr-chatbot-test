@@ -93,7 +93,7 @@ class SchemaLoaderService:
             # allowed_tables 설정으로 필터링 (보안)
             if allowed_tables:
                 filtered_tables = [t for t in all_tables if t in allowed_tables]
-                logger.info(f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 (허용: {allowed_tables})")
+                logger.info(f"테이블 필터링: {len(all_tables)}개 → {len(filtered_tables)}개 (허용: {len(allowed_tables)}개) | tables={filtered_tables}")
                 return filtered_tables
 
             return all_tables
