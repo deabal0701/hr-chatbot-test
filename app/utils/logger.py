@@ -56,7 +56,7 @@ def setup_logger(name: str) -> logging.Logger:
 logger = setup_logger("chatbot_mureum")
 
 
-def log_step(request_id: str, module: str, step: str, stage: str, message: str, **kwargs):
+def log_step(request_id: str, module: str, step: str, stage: str, message: str, level: str = "INFO", **kwargs):
     """
     통합 로깅 함수
 
@@ -68,21 +68,30 @@ def log_step(request_id: str, module: str, step: str, stage: str, message: str, 
         step: 단계 번호 또는 식별자 (0, 1, 2, INIT, END, ERR 등)
         stage: 처리 스테이지 (INIT, THINK, ACTION, GENERATE, COMPLETE 등)
         message: 로그 메시지
+        level: 로그 레벨 (DEBUG, INFO, WARNING, ERROR). 기본값 INFO
         **kwargs: 추가 정보 (key=value 형태로 출력, 값이 잘리지 않음)
+                  특수 키: content - 여러 줄 내용을 별도 줄에 출력
 
     출력 형식:
         [request_id] [MODULE-step] [STAGE] message | key1=value1 | key2=value2
+        content가 있는 경우:
+        [request_id] [MODULE-step] [STAGE] message | key1=value1
+        <content 내용>
 
     Example:
         >>> log_step("abc123", "AGENT", "0", "INIT", "Agent 실행 시작", max_iter=10, model="gpt-4o")
         [abc123] [AGENT-0] [INIT] Agent 실행 시작 | max_iter=10 | model=gpt-4o
 
-        >>> log_step("abc123", "NL2SQL", "1", "GENERATE", "SQL 생성 완료", sql="SELECT * FROM employee WHERE ...")
-        [abc123] [NL2SQL-1] [GENERATE] SQL 생성 완료 | sql=SELECT * FROM employee WHERE ...
+        >>> log_step("abc123", "NL2SQL", "1", "GENERATE", "SQL 생성 완료", level="DEBUG", sql="SELECT ...")
+        [abc123] [NL2SQL-1] [GENERATE] SQL 생성 완료 | sql=SELECT ...
 
-        >>> log_step("abc123", "RAG", "2", "LLM-OUTPUT", "답변 생성 완료", answer="재택근무 정책은...")
-        [abc123] [RAG-2] [LLM-OUTPUT] 답변 생성 완료 | answer=재택근무 정책은...
+        >>> log_step("abc123", "AGENT", "1", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content="긴 응답 내용...")
+        [abc123] [AGENT-1] [LLM-OUTPUT] LLM 응답
+        긴 응답 내용...
     """
+    # content 키는 별도 처리 (여러 줄 내용)
+    content = kwargs.pop("content", None)
+
     # 추가 정보를 key=value 형태로 포맷팅 (값을 자르지 않음)
     extra_parts = []
     for key, value in kwargs.items():
@@ -95,4 +104,17 @@ def log_step(request_id: str, module: str, step: str, stage: str, message: str, 
     if extra_info:
         log_message += f" | {extra_info}"
 
-    logger.info(log_message)
+    # content가 있으면 별도 줄에 추가
+    if content:
+        log_message += f"\n{content}"
+
+    # 로그 레벨에 따라 출력
+    level_upper = level.upper()
+    if level_upper == "DEBUG":
+        logger.debug(log_message)
+    elif level_upper == "WARNING":
+        logger.warning(log_message)
+    elif level_upper == "ERROR":
+        logger.error(log_message)
+    else:
+        logger.info(log_message)

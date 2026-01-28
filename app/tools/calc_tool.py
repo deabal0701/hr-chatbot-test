@@ -19,7 +19,7 @@ import math
 from langchain_core.tools import tool
 
 from app.tools.base import BaseTool, ToolResult
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
@@ -112,7 +112,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             # 공백 제거 및 정리
             expression = expression.strip()
 
-            logger.debug(f"[{self.name}] Evaluating: {expression}")
+            log_step("SYSTEM", "TOOL", self.name, "EXECUTE", f"수식 평가: {expression}", level="DEBUG")
 
             # AST 파싱
             tree = ast.parse(expression, mode='eval')
@@ -134,7 +134,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except SyntaxError as e:
-            logger.error(f"[{self.name}] Syntax error: {e}")
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"구문 오류: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Invalid mathematical expression: {str(e)}",
@@ -142,7 +142,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except ValueError as e:
-            logger.error(f"[{self.name}] Value error: {e}")
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"값 오류: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Calculation error: {str(e)}",
@@ -150,7 +150,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except ZeroDivisionError:
-            logger.error(f"[{self.name}] Division by zero")
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", "0으로 나누기 오류", level="ERROR")
             return ToolResult(
                 success=False,
                 error="Division by zero",
@@ -158,7 +158,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except Exception as e:
-            logger.error(f"[{self.name}] Unexpected error: {e}", exc_info=True)
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"예상치 못한 오류: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Calculation failed: {str(e)}",
@@ -258,7 +258,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             calculator.add_custom_function("mean", statistics.mean)
         """
         self.ALLOWED_FUNCTIONS[name] = func
-        logger.info(f"[{self.name}] Custom function registered: {name}")
+        log_step("SYSTEM", "TOOL", self.name, "REGISTER", f"커스텀 함수 등록: {name}")
 
 
 # LangChain tool 래퍼

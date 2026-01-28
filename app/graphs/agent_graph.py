@@ -70,7 +70,7 @@ class InsightAgentGraph:
         # 그래프 빌드
         self.graph = self._build_graph()
 
-        logger.debug(f"[InsightAgentGraph] Initialized with {len(self.tools)} tools and InMemorySaver")
+        log_step("SYSTEM", "AGENT", "INIT", "SETUP", "InsightAgentGraph 초기화 완료", level="DEBUG", tools_count=len(self.tools))
 
     def _get_tools(self) -> List:
         """
@@ -101,7 +101,7 @@ class InsightAgentGraph:
         provider = getattr(config, 'llm_provider', None) or \
                    settings_config.get_value("agent", "llm_provider", "openai")
 
-        logger.debug(f"[_get_llm] Creating LLM: model={config.llm_model}, provider={provider}, temperature={config.llm_temperature}")
+        log_step("SYSTEM", "AGENT", "LLM", "CREATE", "LLM 인스턴스 생성", level="DEBUG", model=config.llm_model, provider=provider, temperature=config.llm_temperature)
 
         # LLMConfigManager를 통해 LLM 생성 (init_chat_model 사용)
         llm = LLMConfigManager.create_llm(
@@ -166,11 +166,11 @@ class InsightAgentGraph:
         # 1. 메시지 준비: state["messages"]는 checkpointer + add_messages reducer가 자동 관리
         # SystemMessage를 제외하고 LLM에 전달할 메시지 준비
         current_messages = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
-        validated_messages = self._validate_messages(current_messages)
+        validated_messages = self._validate_messages(current_messages, request_id, iteration)
 
         # 검증 후 메시지가 비어있으면 에러
         if not validated_messages:
-            logger.error(f"[{request_id}] 검증 후 메시지가 비어있음. 원본 메시지 수: {len(state['messages'])}")
+            log_step(request_id, "AGENT", str(iteration), "ERROR", "검증 후 메시지가 비어있음", level="ERROR", original_count=len(state['messages']))
             error_msg = "메시지 검증 실패: 유효한 메시지가 없습니다."
             # add_messages reducer가 자동으로 추가하므로 새 메시지만 반환
             state["messages"] = [AIMessage(content=error_msg)]
@@ -186,22 +186,30 @@ class InsightAgentGraph:
         # 3. LLM 호출
         llm = self._get_llm(config)
 
-        # 디버깅: LLM 입력 메시지 로그 (DEBUG 레벨)
+        # 디버깅: LLM 입력 메시지 로그 (DEBUG 레벨, 전문 출력)
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{request_id}] [AGENT-{iteration}] [LLM-INPUT] Messages to LLM ({len(messages_for_llm)} total):")
+            log_step(request_id, "AGENT", str(iteration), "LLM-INPUT", f"LLM 입력 메시지 ({len(messages_for_llm)}개)", level="DEBUG")
             for i, msg in enumerate(messages_for_llm):
                 msg_type = type(msg).__name__
-                content_preview = str(msg.content)[:100] if hasattr(msg, 'content') and msg.content else "(empty)"
-                has_tool_calls = isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
-                logger.debug(f"  [{i}] {msg_type}: {content_preview}... | has_tool_calls={has_tool_calls}")
+                msg_content = str(msg.content) if hasattr(msg, 'content') and msg.content else "(empty)"
+                tool_info = ""
+                if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    tool_info = f", tool_calls={len(msg.tool_calls)}"
+                log_step(request_id, "AGENT", str(iteration), "LLM-INPUT", f"[{i}] {msg_type}{tool_info}", level="DEBUG", content=msg_content)
 
         try:
             response = llm.invoke(messages_for_llm)
             
-            # 디버깅: LLM 출력 로그 (DEBUG 레벨)
-            response_content = response.content if hasattr(response, 'content') else "(no content)"
-            response_tool_calls = len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0
-            logger.debug(f"[{request_id}] [AGENT-{iteration}] [LLM-OUTPUT] content_length={len(response_content)}, tool_calls={response_tool_calls}")
+            # 디버깅: LLM 출력 로그 (DEBUG 레벨, 전문 출력)
+            if logger.isEnabledFor(logging.DEBUG):
+                response_content = response.content if hasattr(response, 'content') else "(no content)"
+                response_tool_calls = len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0
+                log_step(request_id, "AGENT", str(iteration), "LLM-OUTPUT", "LLM 응답", level="DEBUG", content_length=len(response_content), tool_calls=response_tool_calls)
+                if response_content:
+                    log_step(request_id, "AGENT", str(iteration), "LLM-OUTPUT", "응답 내용", level="DEBUG", content=response_content)
+                if response_tool_calls > 0:
+                    for tc in response.tool_calls:
+                        log_step(request_id, "AGENT", str(iteration), "LLM-OUTPUT", f"TOOL_CALL: {tc['name']}", level="DEBUG", args=tc['args'])
 
             # 4. 메시지 추가: add_messages reducer가 자동으로 기존 메시지에 추가
             # 새로 추가된 response만 반환하면 reducer가 기존 메시지와 merge
@@ -231,16 +239,16 @@ class InsightAgentGraph:
             else:
                 log_step(request_id, "AGENT", str(iteration), "FINISH", "최종 답변 생성",  answer_length=len(response.content) if response.content else 0)
 
-                # 디버깅: 최종 답변 내용 로그 (DEBUG 레벨, 비어있을 때만 WARNING)
+                # 디버깅: 최종 답변 내용 로그 (DEBUG 레벨, 전문 출력)
                 if response.content:
-                    logger.debug(f"[{request_id}] [AGENT-{iteration}] [ANSWER] {response.content[:100]}")
+                    log_step(request_id, "AGENT", str(iteration), "ANSWER", "최종 답변", level="DEBUG", content=response.content)
                 else:
-                    logger.warning(f"[{request_id}] [AGENT-{iteration}] [ANSWER] 최종 답변이 비어있음!")
+                    log_step(request_id, "AGENT", str(iteration), "ANSWER", "최종 답변이 비어있음!", level="WARNING")
 
             return state
 
         except Exception as e:
-            logger.error(f"[{request_id}] [AGENT-{iteration}] LLM 호출 실패: {e}", exc_info=True)
+            log_step(request_id, "AGENT", str(iteration), "ERROR", f"LLM 호출 실패: {e}", level="ERROR")
 
             # 에러 메시지 추가: add_messages reducer가 자동으로 기존 메시지에 추가
             error_msg = f"LLM 호출 중 오류가 발생했습니다: {str(e)}"
@@ -249,7 +257,7 @@ class InsightAgentGraph:
 
             return state
 
-    def _validate_messages(self, messages: List[BaseMessage]) -> List[BaseMessage]:
+    def _validate_messages(self, messages: List[BaseMessage], request_id: str = "SYSTEM", iteration: int = 0) -> List[BaseMessage]:
         """
         메시지 순서 및 형식 검증
 
@@ -258,7 +266,7 @@ class InsightAgentGraph:
         - 모든 tool_call_id에 대한 응답이 있어야 함 (실패한 경우에도 에러 메시지 포함)
         """
         if not messages:
-            logger.warning("_validate_messages: 입력 메시지가 비어있음")
+            log_step(request_id, "AGENT", str(iteration), "VALIDATE", "입력 메시지가 비어있음", level="WARNING")
             return messages
 
         validated = []
@@ -278,20 +286,20 @@ class InsightAgentGraph:
                 if not last_has_tool_calls:
                     # CRITICAL: 고아 ToolMessage도 유지해야 함 (OpenAI API 요구사항)
                     # 실패한 도구 호출에 대한 응답도 포함되어야 함
-                    logger.warning(f"[{i}] ToolMessage without preceding tool_calls (possibly error response): {msg.content[:50] if msg.content else 'empty'}...")
-                    # continue를 제거하여 메시지를 유지
-                logger.debug(f"[{i}] Keeping ToolMessage")
+                    content_preview = msg.content[:50] if msg.content else "empty"
+                    log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"[{i}] ToolMessage without preceding tool_calls", level="WARNING", content=content_preview)
+                log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"[{i}] Keeping ToolMessage", level="DEBUG")
 
             # 다른 메시지 타입 로깅
             if isinstance(msg, AIMessage):
                 has_tool_calls = hasattr(msg, "tool_calls") and bool(msg.tool_calls)
-                logger.debug(f"[{i}] AIMessage, has_tool_calls={has_tool_calls}")
+                log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"[{i}] AIMessage", level="DEBUG", has_tool_calls=has_tool_calls)
             else:
-                logger.debug(f"[{i}] {msg_type}")
+                log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"[{i}] {msg_type}", level="DEBUG")
 
             validated.append(msg)
 
-        logger.debug(f"_validate_messages: {len(messages)} -> {len(validated)} messages")
+        log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"메시지 검증 완료: {len(messages)} -> {len(validated)}", level="DEBUG")
         return validated
 
     def _should_continue(self, state: AgentState) -> Literal["continue", "end"]:
@@ -329,11 +337,11 @@ class InsightAgentGraph:
             final_content = last_message.content if hasattr(last_message, "content") else ""
             state["final_answer"] = final_content # type: ignore
             
-            # 디버깅: 최종 답변 내용 확인 (DEBUG 레벨, 비어있을 때만 WARNING)
+            # 디버깅: 최종 답변 내용 확인 (DEBUG 레벨, 전문 출력)
             if final_content:
-                logger.debug(f"[{request_id}] [DECISION] 최종 답변 저장: {final_content[:100]}")
+                log_step(request_id, "AGENT", "DECISION", "END", "최종 답변 저장", level="DEBUG", content=final_content)
             else:
-                logger.warning(f"[{request_id}] [DECISION] 최종 답변이 비어있음! last_message type: {type(last_message).__name__}")
+                log_step(request_id, "AGENT", "DECISION", "END", "최종 답변이 비어있음!", level="WARNING", last_message_type=type(last_message).__name__)
             
             return "end"
 
@@ -361,19 +369,20 @@ class InsightAgentGraph:
             if existing_checkpoint:
                 existing_msgs = existing_checkpoint.get("channel_values", {}).get("messages", [])
                 # INFO: 요약만 출력
-                logger.info(f"[{request_id}] [MULTI-TURN] 기존 세션 발견: session_id={session_id}, messages={len(existing_msgs)}")
-                # DEBUG: 상세 히스토리
+                log_step(request_id, "AGENT", "MULTI-TURN", "SESSION", "기존 세션 발견", session_id=session_id, messages=len(existing_msgs))
+                # DEBUG: 상세 히스토리 (전문 출력)
                 if logger.isEnabledFor(logging.DEBUG):
                     for i, msg in enumerate(existing_msgs):
                         msg_type = type(msg).__name__
-                        content = str(msg.content)[:100] if hasattr(msg, 'content') and msg.content else "(empty)"
-                        has_tool_calls = isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and bool(msg.tool_calls)
-                        tool_info = f", tool_calls={len(msg.tool_calls)}" if has_tool_calls else ""
-                        logger.debug(f"[{request_id}] [MULTI-TURN]   [{i}] {msg_type}: {content}{tool_info}")
+                        msg_content = str(msg.content) if hasattr(msg, 'content') and msg.content else "(empty)"
+                        tool_info = ""
+                        if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                            tool_info = f", tool_calls={len(msg.tool_calls)}"
+                        log_step(request_id, "AGENT", "MULTI-TURN", "HISTORY", f"[{i}] {msg_type}{tool_info}", level="DEBUG", content=msg_content)
             else:
-                logger.info(f"[{request_id}] [MULTI-TURN] 새 세션 시작: session_id={session_id}")
+                log_step(request_id, "AGENT", "MULTI-TURN", "SESSION", "새 세션 시작", session_id=session_id)
         except Exception as e:
-            logger.warning(f"[{request_id}] [MULTI-TURN] 체크포인트 조회 실패: {e}")
+            log_step(request_id, "AGENT", "MULTI-TURN", "ERROR", f"체크포인트 조회 실패: {e}", level="WARNING")
 
     def _log_final_messages(self, request_id: str, session_id: str, messages: List[BaseMessage]) -> None:
         """
@@ -384,16 +393,16 @@ class InsightAgentGraph:
             session_id: 세션 ID
             messages: 최종 메시지 리스트
         """
-        # DEBUG 레벨에서만 상세 히스토리 출력
+        # DEBUG 레벨에서만 상세 히스토리 출력 (전문 출력)
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{request_id}] [MULTI-TURN] 실행 완료 후 전체 메시지 ({len(messages)}개), session_id={session_id}")
+            log_step(request_id, "AGENT", "MULTI-TURN", "COMPLETE", f"실행 완료 후 전체 메시지 ({len(messages)}개)", level="DEBUG", session_id=session_id)
             for i, msg in enumerate(messages):
                 msg_type = type(msg).__name__
-                content = str(msg.content)[:100] if hasattr(msg, 'content') and msg.content else "(empty)"
+                msg_content = str(msg.content) if hasattr(msg, 'content') and msg.content else "(empty)"
                 tool_info = ""
                 if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
                     tool_info = f", tool_calls={len(msg.tool_calls)}"
-                logger.debug(f"[{request_id}] [MULTI-TURN]   [{i}] {msg_type}: {content}{tool_info}")
+                log_step(request_id, "AGENT", "MULTI-TURN", "HISTORY", f"[{i}] {msg_type}{tool_info}", level="DEBUG", content=msg_content)
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> AgentResponse:
         """
@@ -453,8 +462,11 @@ class InsightAgentGraph:
                         
             
             
-            # 디버깅: 최종 답변 확인 (DEBUG 레벨)
-            logger.debug(f"[{request_id}] [EXTRACT] Final answer extracted: length={len(final_answer)}, preview={final_answer[:100] if final_answer else '(empty)'}")
+            # 디버깅: 최종 답변 확인 (DEBUG 레벨, 전문 출력)
+            if logger.isEnabledFor(logging.DEBUG):
+                log_step(request_id, "AGENT", "EXTRACT", "RESULT", "최종 답변 추출 완료", level="DEBUG", length=len(final_answer))
+                if final_answer:
+                    log_step(request_id, "AGENT", "EXTRACT", "ANSWER", "추출된 답변", level="DEBUG", content=final_answer)
 
             log_step(request_id, "AGENT", "END", "COMPLETE", "Agent 실행 완료", iterations=result["iteration_count"], tools_count=len(tools_used), execution_time_ms=execution_time_ms, answer_length=len(final_answer))
 
@@ -479,7 +491,7 @@ class InsightAgentGraph:
 
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[{request_id}] Agent 실행 실패: {e}", exc_info=True)
+            log_step(request_id, "AGENT", "END", "ERROR", f"Agent 실행 실패: {e}", level="ERROR")
 
             return AgentResponse(
                 answer=f"Agent 실행 중 오류가 발생했습니다: {str(e)}",
@@ -541,11 +553,11 @@ class InsightAgentGraph:
                                             row_count=sql_data.get("row_count", 0),
                                             execution_time_ms=sql_data.get("execution_time_ms")
                                         )
-                                        logger.debug(f"[STEP {step_num}] SQL result extracted: {sql_result.row_count} rows, {len(sql_result.columns)} columns")
+                                        log_step("SYSTEM", "AGENT", str(step_num), "EXTRACT", "SQL 결과 추출", level="DEBUG", row_count=sql_result.row_count, columns=len(sql_result.columns))
                                 except json_module.JSONDecodeError:
                                     # JSON 파싱 실패 시 원본 사용
                                     observation = raw_content[:500]
-                                    logger.warning(f"[STEP {step_num}] Failed to parse SQL tool response as JSON")
+                                    log_step("SYSTEM", "AGENT", str(step_num), "EXTRACT", "SQL 도구 응답 JSON 파싱 실패", level="WARNING")
                             else:
                                 observation = raw_content[:500]
                         else:

@@ -92,7 +92,7 @@ class SQLGeneratorService:
         if refresh or self._schema_cache is None:
             schema_loader = _get_schema_loader()
             self._schema_cache = schema_loader.generate_schema_description()
-            logger.info(f"[SQLGenerator] 스키마 캐시 갱신 완료")
+            log_step("SYSTEM", "SQL-GEN", "SCHEMA", "CACHE", "스키마 캐시 갱신 완료")
 
         return self._schema_cache
 
@@ -186,27 +186,28 @@ SQL만 출력하세요 (설명 없이)."""
             if logger.isEnabledFor(logging.DEBUG):
                 llm_model_name = getattr(llm, 'model_name', getattr(llm, 'model', 'unknown'))
                 llm_temp = getattr(llm, 'temperature', 'unknown')
-                logger.debug(f"[{request_id}] [SQL-GEN-2a] [LLM-INFO] {type(llm).__name__}(model={llm_model_name}, temp={llm_temp})")
-                logger.debug(f"[{request_id}] [SQL-GEN-2a] SYSTEM_PROMPT:\n{system_prompt}")
-                logger.debug(f"[{request_id}] [SQL-GEN-2a] USER_PROMPT:\n{user_prompt}")
+                log_step(request_id, "SQL-GEN", "2a", "LLM-INFO", f"{type(llm).__name__}(model={llm_model_name}, temp={llm_temp})", level="DEBUG")
+                log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+                log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
             # LLM 호출
             response = llm.invoke(messages)
 
             # LLM 출력 로그 (DEBUG 레벨, 전문 출력)
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"[{request_id}] [SQL-GEN-2b] LLM_RESPONSE:\n{response.content}")
+                log_step(request_id, "SQL-GEN", "2b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response.content)
 
             # 5. 마크다운 제거
             sql = strip_markdown_code_block(response.content, language="sql")
 
             log_step(request_id, "SQL-GEN", "3", "COMPLETE", "SQL 생성 완료", sql_length=len(sql))
-            logger.debug(f"[{request_id}] [SQL-GEN] Generated SQL:\n{sql}")
+            if logger.isEnabledFor(logging.DEBUG):
+                log_step(request_id, "SQL-GEN", "3", "SQL", "생성된 SQL", level="DEBUG", content=sql)
 
             return sql, metadata
 
         except Exception as e:
-            logger.error(f"[{request_id}] [SQL-GEN] SQL 생성 실패: {e}", exc_info=True)
+            log_step(request_id, "SQL-GEN", "ERR", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
             metadata["error"] = str(e)
             return "", metadata
 

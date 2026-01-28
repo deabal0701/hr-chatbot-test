@@ -106,16 +106,16 @@ class NL2SQLGraph:
                     "sql_dialect": gen_metadata.get("sql_dialect")
                 }
                 log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
-                logger.debug(f"[{request_id}] [NL2SQL-1b] GENERATED_SQL: {sql}")
+                log_step(request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
             else:
                 error_msg = gen_metadata.get("error", "SQL 생성 실패")
                 state["generated_sql"] = ""
                 state["validation_error"] = f"SQL 생성 오류: {error_msg}"
                 state["validated"] = False
-                logger.error(f"[{request_id}] [NL2SQL-1] SQL 생성 실패: {error_msg}")
+                log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {error_msg}", level="ERROR")
 
         except Exception as e:
-            logger.error(f"[{request_id}] [NL2SQL-1] [LLM] SQL 생성 실패: {e}")
+            log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
             state["generated_sql"] = ""
             state["validation_error"] = f"SQL 생성 오류: {str(e)}"
             state["validated"] = False
@@ -151,7 +151,7 @@ class NL2SQLGraph:
         except Exception as e:
             state["validated"] = False
             state["validation_error"] = str(e)
-            logger.error(f"[{request_id}] [NL2SQL-2] [VALIDATE] SQL 검증 중 오류: {e}")
+            log_step(request_id, "NL2SQL", "2", "ERROR", f"SQL 검증 중 오류: {e}", level="ERROR")
 
         return state
 
@@ -178,7 +178,7 @@ class NL2SQLGraph:
             log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
 
         except (SQLExecutionError, SQLValidationError) as e:
-            logger.error(f"[{request_id}] [NL2SQL-3] [EXECUTE] SQL 실행 실패: {e}")
+            log_step(request_id, "NL2SQL", "3", "ERROR", f"SQL 실행 실패: {e}", level="ERROR")
             state["validation_error"] = str(e)
             state["validated"] = False
 
@@ -257,16 +257,16 @@ class NL2SQLGraph:
                 data_rows=len(rows_summary))
         # DEBUG: 상세 내용 (전문 출력)
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{request_id}] [NL2SQL-4a] SYSTEM_PROMPT:\n{system_prompt}")
-            logger.debug(f"[{request_id}] [NL2SQL-4a] USER_PROMPT:\n{user_prompt}")
-            logger.debug(f"[{request_id}] [NL2SQL-4a] DATA_ROWS:\n{rows_summary}")
+            log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+            log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+            log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
 
         try:
             response = llm.invoke(messages)
 
             # RAW 응답 로그 (DEBUG 레벨, 전문 출력)
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"[{request_id}] [NL2SQL-4b] LLM_RESPONSE:\n{response.content}")
+                log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
 
             answer = response.content
 
@@ -276,10 +276,10 @@ class NL2SQLGraph:
                     answer_length=len(answer))
             # DEBUG: 상세 답변 (전문 출력)
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"[{request_id}] [NL2SQL-4b] ANSWER:\n{answer}")
+                log_step(request_id, "NL2SQL", "4b", "ANSWER", "생성된 답변", level="DEBUG", content=answer)
 
         except Exception as e:
-            logger.error(f"[{request_id}] [NL2SQL-4] [LLM] 답변 생성 실패: {e}")
+            log_step(request_id, "NL2SQL", "4", "ERROR", f"답변 생성 실패: {e}", level="ERROR")
             state["answer"] = f"조회 결과: {result.row_count}개 행이 발견되었습니다."
 
         return state

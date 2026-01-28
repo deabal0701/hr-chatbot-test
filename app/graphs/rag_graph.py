@@ -138,10 +138,10 @@ class RAGGraph:
 
         # LLM 입력 로그
         log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
-        # DEBUG: 상세 내용
+        # DEBUG: 상세 내용 (전문 출력)
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{request_id}] [RAG-2b] USER_PROMPT: {user_prompt[:200]}...")
-            logger.debug(f"[{request_id}] [RAG-2b] CONTEXT: {context[:200]}...")
+            log_step(request_id, "RAG", "2b", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+            log_step(request_id, "RAG", "2b", "LLM-INPUT", "CONTEXT", level="DEBUG", content=context)
 
         try:
             response = llm.invoke(messages)
@@ -153,11 +153,12 @@ class RAGGraph:
 
             # LLM 출력 로그
             log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료", answer_length=len(answer))
-            # DEBUG: 상세 답변
-            logger.debug(f"[{request_id}] [RAG-2b] ANSWER: {answer[:100]}...")
+            # DEBUG: 상세 답변 (전문 출력)
+            if logger.isEnabledFor(logging.DEBUG):
+                log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "ANSWER", level="DEBUG", content=answer)
 
         except Exception as e:
-            logger.error(f"[{request_id}] [RAG-2b] [LLM] LLM 호출 실패: {e}")
+            log_step(request_id, "RAG", "2b", "ERROR", f"LLM 호출 실패: {e}", level="ERROR")
             state["answer"] = f"답변 생성 중 오류가 발생했습니다: {str(e)}"
 
         return state
@@ -184,7 +185,7 @@ class RAGGraph:
             # 최대 컨텍스트 길이 체크
             current_length = sum(len(p) for p in context_parts)
             if current_length > max_context_length:
-                logger.warning(f"컨텍스트 길이 초과: {current_length} > {max_context_length}")
+                log_step("SYSTEM", "RAG", "CTX", "WARN", "컨텍스트 길이 초과", level="WARNING", current=current_length, max=max_context_length)
                 break
 
         return "\n".join(context_parts)   # 각 문서를 "\n"로 구분하여 연결

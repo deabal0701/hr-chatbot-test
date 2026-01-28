@@ -15,7 +15,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 import time
 
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
@@ -68,7 +68,7 @@ class ToolValidator:
             dangerous_patterns = ["--", "/*", "*/", "xp_", "sp_"]
             for pattern in dangerous_patterns:
                 if pattern in question.lower():
-                    logger.warning(f"Suspicious pattern detected in SQL tool input: {pattern}")
+                    log_step("SYSTEM", "TOOL", tool_name, "VALIDATE", f"Suspicious pattern detected: {pattern}", level="WARNING")
 
         return True, None
 
@@ -229,7 +229,7 @@ class BaseTool(ABC):
                 **kwargs
             )
             if not valid:
-                logger.warning(f"[{self.name}] Input validation failed: {error_msg}")
+                log_step("SYSTEM", "TOOL", self.name, "VALIDATE", f"Input validation failed: {error_msg}", level="WARNING")
                 return ToolResult(
                     success=False,
                     error=f"Input validation failed: {error_msg}",
@@ -240,13 +240,13 @@ class BaseTool(ABC):
             kwargs = self.before_execute(**kwargs)
 
             # 4. 실제 실행
-            logger.debug(f"[{self.name}] Executing with params: {list(kwargs.keys())}")
+            log_step("SYSTEM", "TOOL", self.name, "EXECUTE", "도구 실행 시작", level="DEBUG", params=list(kwargs.keys()))
             result = self._execute(**kwargs)
 
             # 5. 출력 검증
             valid, error_msg = self.validator.validate_output(self.name, result)
             if not valid:
-                logger.warning(f"[{self.name}] Output validation failed: {error_msg}")
+                log_step("SYSTEM", "TOOL", self.name, "VALIDATE", f"Output validation failed: {error_msg}", level="WARNING")
                 result.success = False
                 result.error = error_msg
 
@@ -260,12 +260,12 @@ class BaseTool(ABC):
             # 7. 메트릭 기록
             ToolMetrics.record(self.name, execution_time_ms, result.success, result.error)
 
-            logger.debug(f"[{self.name}] Execution completed: success={result.success}, time={execution_time_ms}ms")
+            log_step("SYSTEM", "TOOL", self.name, "COMPLETE", "도구 실행 완료", level="DEBUG", success=result.success, time_ms=execution_time_ms)
             return result
 
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[{self.name}] Execution failed: {e}", exc_info=True)
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"도구 실행 실패: {e}", level="ERROR")
 
             # 메트릭 기록
             ToolMetrics.record(self.name, execution_time_ms, False, str(e))
@@ -300,13 +300,13 @@ class ToolRegistry:
         """도구 등록"""
         tool_instance = tool_class()
         self._tools[tool_instance.name] = tool_class
-        logger.info(f"Tool registered: {tool_instance.name}")
+        log_step("SYSTEM", "TOOL", tool_instance.name, "REGISTER", "도구 등록 완료")
 
     def unregister(self, tool_name: str):
         """도구 해제"""
         if tool_name in self._tools:
             del self._tools[tool_name]
-            logger.info(f"Tool unregistered: {tool_name}")
+            log_step("SYSTEM", "TOOL", tool_name, "UNREGISTER", "도구 해제 완료")
 
     def get_tool(self, tool_name: str) -> Optional[BaseTool]:
         """도구 가져오기"""

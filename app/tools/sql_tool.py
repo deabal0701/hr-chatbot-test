@@ -18,7 +18,7 @@ from langchain_core.tools import tool
 from app.tools.base import BaseTool, ToolResult
 from app.core.database.sql_executor import sql_executor
 from app.core.llm.sql_generator import sql_generator  # 공통 SQL 생성 모듈
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
@@ -94,7 +94,7 @@ Examples:
         # 캐시 체크 (간단한 구현)
         cache_key = question.lower().strip()
         if cache_key in self._query_cache:
-            logger.debug(f"[{self.name}] Cache hit: {cache_key[:50]}")
+            log_step("SYSTEM", "TOOL", self.name, "CACHE", "캐시 히트", level="DEBUG", cache_key=cache_key[:50])
             kwargs["_cached_result"] = self._query_cache[cache_key]
 
         return kwargs
@@ -183,7 +183,7 @@ Examples:
             )
 
         except Exception as e:
-            logger.error(f"[{self.name}] SQL tool execution failed: {e}", exc_info=True)
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"SQL 도구 실행 실패: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Database query failed: {str(e)}",

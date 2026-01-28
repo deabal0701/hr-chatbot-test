@@ -20,7 +20,7 @@ from app.core.vector.vector_store import vector_store
 from app.core.config.settings_config import settings_config
 from app.models.search import SearchFilters
 from app.config import settings
-from app.utils.logger import setup_logger
+from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
@@ -105,13 +105,13 @@ Examples:
 
         # top_k 제한
         if top_k > 20:
-            logger.warning(f"[{self.name}] top_k {top_k} exceeds max, setting to 20")
+            log_step("SYSTEM", "TOOL", self.name, "WARN", f"top_k 초과, 20으로 제한", level="WARNING", original_top_k=top_k)
             kwargs["top_k"] = 20
 
         # 캐시 체크
         cache_key = f"{question.lower().strip()}:{top_k}"
         if cache_key in self._search_cache:
-            logger.debug(f"[{self.name}] Cache hit: {cache_key[:50]}")
+            log_step("SYSTEM", "TOOL", self.name, "CACHE", f"캐시 히트", level="DEBUG", cache_key=cache_key[:50])
             kwargs["_cached_result"] = self._search_cache[cache_key]
 
         return kwargs
@@ -208,7 +208,7 @@ Examples:
             ) # type: ignore
 
         except Exception as e:
-            logger.error(f"[{self.name}] Document search failed: {e}", exc_info=True)
+            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"문서 검색 실패: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Document search failed: {str(e)}",
