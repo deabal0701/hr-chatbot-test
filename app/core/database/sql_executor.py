@@ -122,7 +122,12 @@ class SQLExecutorService:
         allowed_tables = external_db_manager.get_allowed_tables()
         table_names = self._extract_table_names(sql)
         for table in table_names:
-            if table.lower() not in allowed_tables:
+            table_lower = table.lower()
+            if table_lower not in allowed_tables:
+                # 짧은 이름(3자 이하)은 서브쿼리/테이블 별칭으로 간주하여 무시
+                if len(table) <= 3:
+                    logger.debug(f"테이블 검증: '{table}'는 별칭으로 간주하여 무시")
+                    continue
                 return False, f"허용되지 않은 테이블: {table} (허용: {allowed_tables})"
 
         # 5. LIMIT 절 체크 (권장) - DB 타입에 따라 다른 키워드 확인
@@ -139,20 +144,71 @@ class SQLExecutorService:
 
         return True, None
 
+    def _extract_cte_names(self, sql: str) -> set:
+        """
+        CTE(Common Table Expression) 이름 추출
+
+        WITH emp_scores AS (...), dept_summary AS (...) SELECT ...
+        → {'emp_scores', 'dept_summary'}
+
+        WITH RECURSIVE tree AS (...) SELECT ...
+        → {'tree'}
+        """
+        cte_names = set()
+        sql_upper = sql.upper().strip()
+
+        # WITH 절이 없으면 빈 집합 반환
+        if not sql_upper.startswith('WITH'):
+            return cte_names
+
+        # 첫 번째 CTE: WITH [RECURSIVE] name AS (
+        pattern = r'\bWITH\s+(?:RECURSIVE\s+)?(\w+)\s+AS\s*\('
+        match = re.search(pattern, sql, re.IGNORECASE)
+        if match:
+            cte_names.add(match.group(1).lower())
+
+        # 다중 CTE: ), name AS (
+        multi_pattern = r'\)\s*,\s*(\w+)\s+AS\s*\('
+        for m in re.finditer(multi_pattern, sql, re.IGNORECASE):
+            cte_names.add(m.group(1).lower())
+
+        if cte_names:
+            logger.debug(f"CTE 이름 감지: {cte_names}")
+
+        return cte_names
+
     def _extract_table_names(self, sql: str) -> List[str]:
         """
-        SQL에서 테이블 이름 추출
+        SQL에서 테이블 이름 추출 (CTE 이름 제외)
 
         sqlparse를 사용하여 정확하게 추출하며, 실패 시 정규식으로 fallback
+        CTE에서 정의된 임시 테이블 이름은 제외됩니다.
         """
+        # 1. CTE 이름 추출 (제외 대상)
+        cte_names = self._extract_cte_names(sql)
+
+        # 2. 테이블 추출
         try:
-            return self._extract_tables_with_sqlparse(sql)
+            table_names = self._extract_tables_with_sqlparse(sql)
         except Exception as e:
             logger.warning(f"sqlparse 테이블 추출 실패, regex fallback: {e}")
-            return self._extract_tables_with_regex(sql)
+            table_names = self._extract_tables_with_regex(sql)
+
+        # 3. CTE 이름 필터링
+        if cte_names:
+            original_count = len(table_names)
+            table_names = [t for t in table_names if t.lower() not in cte_names]
+            if len(table_names) < original_count:
+                logger.debug(f"CTE 이름 필터링 완료: 제외={cte_names}, 남은 테이블={table_names}")
+
+        return table_names
 
     def _extract_tables_with_sqlparse(self, sql: str) -> List[str]:
-        """sqlparse를 사용한 테이블 추출 (정확도 높음)"""
+        """sqlparse를 사용한 테이블 추출 (정확도 높음)
+
+        CTE, 서브쿼리 내부의 테이블도 추출합니다.
+        괄호 닫힘 직후의 식별자는 서브쿼리 별칭으로 무시합니다.
+        """
         parsed = sqlparse.parse(sql)
         if not parsed:
             return []
@@ -161,30 +217,46 @@ class SQLExecutorService:
         table_names = set()
         from_seen = False
         parenthesis_depth = 0
+        just_closed_paren = False  # 괄호가 방금 닫혔는지 (서브쿼리 별칭 감지용)
 
         for token in stmt.flatten():
-            # 괄호 깊이 추적 (함수/서브쿼리 내부 무시)
+            # 공백은 건너뛰기 (just_closed_paren 상태 유지)
+            if token.ttype is sqlparse.tokens.Whitespace:
+                continue
+
+            # 괄호 깊이 추적
             if token.value == '(':
                 parenthesis_depth += 1
+                just_closed_paren = False
+                continue
             elif token.value == ')':
                 parenthesis_depth -= 1
-            elif parenthesis_depth > 0:
-                # 괄호 내부는 무시
+                just_closed_paren = True  # 괄호가 닫힘 → 다음 식별자는 별칭
+                continue
+            elif just_closed_paren and token.ttype in (sqlparse.tokens.Name, None):
+                # 괄호 직후의 식별자는 서브쿼리 별칭이므로 무시
+                just_closed_paren = False
+                from_seen = False
                 continue
             elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() in (
                 'FROM', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL'
             ):
                 from_seen = True
+                just_closed_paren = False
             elif from_seen and token.ttype in (sqlparse.tokens.Name, None):
                 value = token.value.strip()
                 # 유효한 테이블명인 경우만 추가
                 if self._is_valid_table_identifier(value):
                     table_names.add(value.lower())
                     from_seen = False
+                just_closed_paren = False
             elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() in (
                 'WHERE', 'GROUP', 'ORDER', 'LIMIT', 'HAVING'
             ):
                 from_seen = False
+                just_closed_paren = False
+            else:
+                just_closed_paren = False
 
         return list(table_names)
 

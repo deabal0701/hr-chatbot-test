@@ -28,11 +28,19 @@ def setup_logger(name: str) -> logging.Logger:
     # 콘솔 핸들러
     handler = logging.StreamHandler(sys.stdout)
 
-    # 프로덕션 환경에서는 JSON 포맷 사용
-    if settings.is_production:
-        formatter = CustomJsonFormatter('%(timestamp)s %(level)s %(logger)s %(message)s', timestamp=True)
+    # 로그 포맷 설정: LOG_FORMAT 환경변수로 제어 (기본값: text)
+    # json: ELK/Datadog 등 로그 수집 시스템 연동 시 사용
+    # text: 콘솔에서 직접 확인 시 사용 (기본값)
+    log_format = getattr(settings, 'log_format', 'text').lower()
+
+    if log_format == 'json':
+        formatter = CustomJsonFormatter(
+            '%(timestamp)s %(level)s %(logger)s %(message)s',
+            timestamp=True,
+            json_ensure_ascii=False  # 한글 등 비-ASCII 문자를 그대로 출력
+        )
     else:
-        # 개발 환경에서는 일반 포맷 사용
+        # 텍스트 포맷 (기본값) - 개발/프로덕션 모두 동일
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     handler.setFormatter(formatter)

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0", description="애플리케이션 호스트")
     app_port: int = Field(default=19090, description="애플리케이션 포트")
     log_level: str = Field(default="INFO", description="로그 레벨")
+    log_format: str = Field(default="text", description="로그 포맷 (text: 텍스트, json: JSON)")
 
     # CORS
     cors_origins: str = Field(
@@ -79,6 +80,15 @@ class Settings(BaseSettings):
         v = v.upper()
         if v not in valid_levels:
             raise ValueError(f"log_level must be one of {valid_levels}")
+        return v
+
+    @field_validator("log_format")
+    @classmethod
+    def validate_log_format(cls, v: str) -> str:
+        valid_formats = ["text", "json"]
+        v = v.lower()
+        if v not in valid_formats:
+            raise ValueError(f"log_format must be one of {valid_formats}")
         return v
 
     @field_validator("app_env")
