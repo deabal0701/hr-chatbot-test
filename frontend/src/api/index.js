@@ -7,7 +7,7 @@ import axios from 'axios'
 //   - 프로덕션 빌드            : .env.production  → VITE_API_URL=https://api.yourcompany.com
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
-  timeout: 60000, // NL2SQL은 시간이 걸릴 수 있음
+  timeout: 120000, // 120초 (Agent/NL2SQL 처리 시간 고려)
   headers: {
     'Content-Type': 'application/json'
   }

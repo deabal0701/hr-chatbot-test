@@ -3,34 +3,28 @@
 # Python FastAPI + LangChain Application
 # ============================================
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# 시스템 패키지 설치, 시간대 및 locale 설정
+# 시스템 패키지 설치 및 시간대 설정
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     tzdata \
     gcc \
     libpq-dev \
-    locales \
     && ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime \
     && echo "Asia/Seoul" > /etc/timezone \
-    && sed -i '/ko_KR.UTF-8/s/^# //g' /etc/locale.gen \
-    && locale-gen ko_KR.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Python 환경 설정 및 Locale 설정
+# Python 환경 설정
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONIOENCODING=utf-8 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    TZ=Asia/Seoul \
-    LANG=ko_KR.UTF-8 \
-    LC_ALL=ko_KR.UTF-8
+    TZ=Asia/Seoul
 
 # 의존성 파일 복사 및 설치
 COPY requirements.txt .
