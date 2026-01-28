@@ -1,460 +1,584 @@
--- =========================================
--- Oracle 19c Business Database Schema
--- Converted from PostgreSQL psql-business_db.sql
--- =========================================
+-- H552_RND.V_AI_EMPLOYEE source
 
--- =========================================
--- Drop existing objects (optional)
--- =========================================
--- DROP TABLE salary CASCADE CONSTRAINTS;
--- DROP TABLE performance_review CASCADE CONSTRAINTS;
--- DROP TABLE job_history CASCADE CONSTRAINTS;
--- DROP TABLE employee CASCADE CONSTRAINTS;
--- DROP TABLE department CASCADE CONSTRAINTS;
--- DROP SEQUENCE department_seq;
--- DROP SEQUENCE employee_seq;
--- DROP SEQUENCE job_history_seq;
--- DROP SEQUENCE performance_review_seq;
--- DROP SEQUENCE salary_seq;
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_EMPLOYEE" ("EMP_ID", "EMP_NAME", "EMP_NAME_ENG", "POSITION", "BIRTH_DATE", "DEPARTMENT", "CAREER_MONTHS", "CAREER_YEARS", "DUTY", "DUTY_DATE", "EMP_TYPE", "GENDER", "GROUP_JOIN_DATE", "HIRE_TYPE", "HIRE_DATE", "WORK_STATUS", "GRADE", "GRADE_DATE", "RETIRE_REASON", "RETIRE_DATE", "SALARY_STEP", "SALARY_STEP_DATE") AS
+  SELECT
+    PE.EMP_ID                   AS EMP_ID,
+    PN.KOR_NAME                 AS EMP_NAME,
+    PN.ENG_NAME                 AS EMP_NAME_ENG,
+    FC.CD_NM                    AS POSITION,
+    PE.BIRTH_YMD                AS BIRTH_DATE,
+    FC11.CD_NM                  AS DEPARTMENT,
+    PE.CAREER_NUM               AS CAREER_MONTHS,
+    TRUNC(PE.CAREER_NUM / 12)   AS CAREER_YEARS,
+    FC3.CD_NM                   AS DUTY,
+    PE.DUTY_YMD                 AS DUTY_DATE,
+    FC4.CD_NM                   AS EMP_TYPE,
+    FC5.CD_NM                   AS GENDER,
+    PE.GROUP_YMD                AS GROUP_JOIN_DATE,
+    FC6.CD_NM                   AS HIRE_TYPE,
+    PE.HIRE_YMD                 AS HIRE_DATE,
+    CASE PE.IN_OFFI_YN
+        WHEN 'Y' THEN '재직'
+        WHEN 'N' THEN '퇴직'
+        ELSE PE.IN_OFFI_YN
+    END                         AS WORK_STATUS,
+    FC8.CD_NM                   AS GRADE,
+    PE.POS_GRD_YMD              AS GRADE_DATE,
+    FC9.CD_NM                   AS RETIRE_REASON,
+    PE.RETIRE_YMD               AS RETIRE_DATE,
+    FC10.CD_NM                  AS SALARY_STEP,
+    PE.YEARNUM_YMD              AS SALARY_STEP_DATE
+FROM PHM_EMP PE
+LEFT JOIN (
+    SELECT EMP_ID,
+           MAX(CASE WHEN NAME_TYPE_CD = 'KOR' THEN LAST_NM END) AS KOR_NAME,
+           MAX(CASE WHEN NAME_TYPE_CD = 'ENG' THEN LAST_NM END) AS ENG_NAME
+    FROM PHM_NAME
+    GROUP BY EMP_ID
+) PN ON PN.EMP_ID = PE.EMP_ID
+LEFT JOIN FRM_CODE FC ON FC.CD = PE.POS_CD AND FC.CD_KIND = 'PHM_POS_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PE.DUTY_CD AND FC3.CD_KIND = 'PHM_DUTY_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PE.EMP_KIND_CD AND FC4.CD_KIND = 'PHM_EMP_KIND_CD'
+LEFT JOIN FRM_CODE FC5 ON FC5.CD = PE.GENDER_CD AND FC5.CD_KIND = 'PHM_GENDER_CD'
+LEFT JOIN FRM_CODE FC6 ON FC6.CD = PE.HIRE_CD AND FC6.CD_KIND = 'CAM_CAU_CD'
+LEFT JOIN FRM_CODE FC8 ON FC8.CD = PE.POS_GRD_CD AND FC8.CD_KIND = 'PHM_POS_GRD_CD'
+LEFT JOIN FRM_CODE FC9 ON FC9.CD = PE.RETIRE_TYPE_CD AND FC9.CD_KIND = 'CAM_CAU_CD'
+LEFT JOIN FRM_CODE FC11 ON FC11.CD = PE.ORG_ID AND FC11.CD_KIND = 'CPE_GROUP_CD'
+LEFT JOIN FRM_CODE FC10 ON FC10.CD = PE.YEARNUM_CD AND FC10.CD_KIND = 'PHM_HOBONG';
 
--- =========================================
--- Sequences for auto-increment
--- =========================================
-CREATE SEQUENCE department_seq START WITH 10 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE employee_seq START WITH 101 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE job_history_seq START WITH 100 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE performance_review_seq START WITH 200 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE salary_seq START WITH 200 INCREMENT BY 1 NOCACHE;
+GRANT SELECT ON "H552_RND"."V_AI_EMPLOYEE" TO "MUSER";
 
--- =========================================
--- 1. DEPARTMENT table
--- =========================================
-CREATE TABLE department (
-    dept_id NUMBER(19) DEFAULT department_seq.NEXTVAL NOT NULL,
-    dept_name VARCHAR2(500) NOT NULL,
-    dept_code VARCHAR2(100),
-    parent_dept_id NUMBER(19),
-    region VARCHAR2(200),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    CONSTRAINT department_pkey PRIMARY KEY (dept_id),
-    CONSTRAINT department_dept_code_key UNIQUE (dept_code),
-    CONSTRAINT department_parent_dept_id_fkey FOREIGN KEY (parent_dept_id) REFERENCES department(dept_id)
-);
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_ID IS '직원 고유 ID (다른 뷰와 조인 키)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_NAME IS '직원 이름 (한글)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_NAME_ENG IS '직원 영문 이름';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE."POSITION" IS '직위 (사원, 대리, 과장, 차장, 부장, 이사, 전무이사, 사장, 회장 등)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.BIRTH_DATE IS '생년월일';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.DEPARTMENT IS '부서명';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.CAREER_MONTHS IS '총 경력 개월수';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.CAREER_YEARS IS '총 경력 연수';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.DUTY IS '현재 직무/담당업무';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.DUTY_DATE IS '직무 배치일';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_TYPE IS '고용형태 (정규직, 계약직, 인턴 등)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GENDER IS '성별 (남, 여)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GROUP_JOIN_DATE IS '그룹 입사일 (그룹사 내 이동 시 최초 입사일)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.HIRE_TYPE IS '채용유형 (신입, 경력, 입사(신입), 입사(경력) 등)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.HIRE_DATE IS '입사일 ★ 입사자 수 집계 시 사용 (TO_CHAR(HIRE_DATE, ''YYYY'') = ''2024'')';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.WORK_STATUS IS '재직상태 (재직, 퇴직) ★ 현재 재직자/퇴직자 조회 시 사용';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GRADE IS '직급/등급(★ 직위아님- 대리,과장,차장,부장등 아님)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GRADE_DATE IS '직급/등급 변경일';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.RETIRE_REASON IS '퇴직 사유';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.RETIRE_DATE IS '퇴직일 ★ 퇴사자 수 집계 시 사용 (TO_CHAR(RETIRE_DATE, ''YYYY'') = ''2024'')';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.SALARY_STEP IS '호봉/급여 단계';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.SALARY_STEP_DATE IS '호봉/급여 단계 변경일';
 
-CREATE INDEX idx_department_parent ON department (parent_dept_id);
-CREATE INDEX idx_department_region ON department (region);
 
--- =========================================
--- 2. EMPLOYEE table
--- =========================================
-CREATE TABLE employee (
-    emp_id NUMBER(19) DEFAULT employee_seq.NEXTVAL NOT NULL,
-    emp_no VARCHAR2(100) NOT NULL,
-    name VARCHAR2(200) NOT NULL,
-    name_en VARCHAR2(200),
-    gender VARCHAR2(20),
-    birth_date DATE,
-    hire_date DATE NOT NULL,
-    position VARCHAR2(100),
-    job_family VARCHAR2(100),
-    department_id NUMBER(19),
-    work_location VARCHAR2(200),
-    employment_type VARCHAR2(50),
-    status VARCHAR2(50) DEFAULT 'active',
-    resignation_date DATE,
-    email VARCHAR2(500),
-    phone VARCHAR2(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    CONSTRAINT employee_pkey PRIMARY KEY (emp_id),
-    CONSTRAINT employee_emp_no_key UNIQUE (emp_no),
-    CONSTRAINT employee_department_id_fkey FOREIGN KEY (department_id) REFERENCES department(dept_id)
-);
 
-CREATE INDEX idx_employee_department ON employee (department_id);
-CREATE INDEX idx_employee_emp_no ON employee (emp_no);
-CREATE INDEX idx_employee_hire_date ON employee (hire_date);
-CREATE INDEX idx_employee_job_family ON employee (job_family);
-CREATE INDEX idx_employee_status ON employee (status);
-CREATE INDEX idx_employee_work_location ON employee (work_location);
 
--- =========================================
--- 3. JOB_HISTORY table
--- =========================================
-CREATE TABLE job_history (
-    id NUMBER(19) DEFAULT job_history_seq.NEXTVAL NOT NULL,
-    emp_id NUMBER(19) NOT NULL,
-    from_date DATE NOT NULL,
-    to_date DATE,
-    department_id NUMBER(19),
-    position VARCHAR2(100),
-    job_family VARCHAR2(100),
-    work_location VARCHAR2(200),
-    change_reason VARCHAR2(1000),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    CONSTRAINT job_history_pkey PRIMARY KEY (id),
-    CONSTRAINT job_history_department_id_fkey FOREIGN KEY (department_id) REFERENCES department(dept_id),
-    CONSTRAINT job_history_emp_id_fkey FOREIGN KEY (emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE
-);
+-- H552_RND.V_AI_ADDRESS source
 
-CREATE INDEX idx_job_history_dates ON job_history (from_date, to_date);
-CREATE INDEX idx_job_history_emp ON job_history (emp_id);
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_ADDRESS" ("EMP_ID", "ADDRESS", "ADDRESS_DETAIL", "ZIP_CODE", "REGION", "MOD_DATE") AS
+  SELECT
+    PA.EMP_ID                   AS EMP_ID,
+    PA.ADDR                     AS ADDRESS,
+    PA.DETAIL_ADDR              AS ADDRESS_DETAIL,
+    PA.ZIP_NO                   AS ZIP_CODE,
+    CASE
+        WHEN PA.ADDR LIKE '서울%' THEN '서울'
+        WHEN PA.ADDR LIKE '부산%' THEN '부산'
+        WHEN PA.ADDR LIKE '대구%' THEN '대구'
+        WHEN PA.ADDR LIKE '인천%' THEN '인천'
+        WHEN PA.ADDR LIKE '광주%' THEN '광주'
+        WHEN PA.ADDR LIKE '대전%' THEN '대전'
+        WHEN PA.ADDR LIKE '울산%' THEN '울산'
+        WHEN PA.ADDR LIKE '세종%' THEN '세종'
+        WHEN PA.ADDR LIKE '경기%' THEN '경기'
+        WHEN PA.ADDR LIKE '강원%' THEN '강원'
+        WHEN PA.ADDR LIKE '충북%' OR PA.ADDR LIKE '충청북%' THEN '충북'
+        WHEN PA.ADDR LIKE '충남%' OR PA.ADDR LIKE '충청남%' THEN '충남'
+        WHEN PA.ADDR LIKE '전북%' OR PA.ADDR LIKE '전라북%' THEN '전북'
+        WHEN PA.ADDR LIKE '전남%' OR PA.ADDR LIKE '전라남%' THEN '전남'
+        WHEN PA.ADDR LIKE '경북%' OR PA.ADDR LIKE '경상북%' THEN '경북'
+        WHEN PA.ADDR LIKE '경남%' OR PA.ADDR LIKE '경상남%' THEN '경남'
+        WHEN PA.ADDR LIKE '제주%' THEN '제주'
+        ELSE '기타'
+    END                         AS REGION,
+    PA.MOD_DATE                 AS MOD_DATE
+FROM PHM_ADDR PA;
 
--- =========================================
--- 4. PERFORMANCE_REVIEW table
--- =========================================
-CREATE TABLE performance_review (
-    id NUMBER(19) DEFAULT performance_review_seq.NEXTVAL NOT NULL,
-    emp_id NUMBER(19) NOT NULL,
-    review_period VARCHAR2(50) NOT NULL,
-    reviewer_id NUMBER(19),
-    rating VARCHAR2(10),
-    comments VARCHAR2(4000),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    CONSTRAINT performance_review_pkey PRIMARY KEY (id),
-    CONSTRAINT performance_review_emp_id_fkey FOREIGN KEY (emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE,
-    CONSTRAINT performance_review_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES employee(emp_id)
-);
+GRANT SELECT ON "H552_RND"."V_AI_ADDRESS" TO "MUSER";
 
-CREATE INDEX idx_performance_emp ON performance_review (emp_id);
-CREATE INDEX idx_performance_period ON performance_review (review_period);
+COMMENT ON TABLE H552_RND.V_AI_ADDRESS IS '사원 주소 정보 (EMP_ID로 V_AI_EMPLOYEE와 JOIN)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.ADDRESS IS '기본 주소';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.ADDRESS_DETAIL IS '상세 주소';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.ZIP_CODE IS '우편번호';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.REGION IS '거주 시/도 (서울, 경기 등)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.MOD_DATE IS '수정일시';
 
--- =========================================
--- 5. SALARY table
--- =========================================
-CREATE TABLE salary (
-    id NUMBER(19) DEFAULT salary_seq.NEXTVAL NOT NULL,
-    emp_id NUMBER(19) NOT NULL,
-    effective_date DATE NOT NULL,
-    base_salary NUMBER(12, 2),
-    currency VARCHAR2(10) DEFAULT 'KRW',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
-    CONSTRAINT salary_pkey PRIMARY KEY (id),
-    CONSTRAINT salary_emp_id_fkey FOREIGN KEY (emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE
-);
 
-CREATE INDEX idx_salary_date ON salary (effective_date DESC);
-CREATE INDEX idx_salary_emp ON salary (emp_id);
+-- H552_RND.V_AI_CAREER source
 
--- =========================================
--- Test Data Insertion Order:
--- 1. department (기준 테이블)
--- 2. employee (department_id 참조)
--- 3. job_history, salary, performance_review (emp_id 참조)
--- =========================================
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_CAREER" ("EMP_ID", "PREV_COMPANY", "LOCATION", "PREV_POSITION", "WORK_MONTHS", "WORK_YEARS", "RECOGNITION_RATE", "LEAVE_REASON") AS
+  SELECT
+    PC.EMP_ID                   AS EMP_ID,
+    PC.ORG_CORP_NM              AS PREV_COMPANY,
+    PC.PLACE_NM                 AS LOCATION,
+    PC.POSITION_NM              AS PREV_POSITION,
+    PC.RCAREER_NUM              AS WORK_MONTHS,
+    TRUNC(PC.RCAREER_NUM / 12)  AS WORK_YEARS,
+    PC.RECO_RATE                AS RECOGNITION_RATE,
+    PC.RETIRE_CAUSE             AS LEAVE_REASON
+FROM PHM_CAREER PC;
 
--- =========================================
--- 1. Department data
--- =========================================
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (1, '경영지원본부', 'MGMT', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (2, '인사팀', 'HR', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (3, '재무팀', 'FIN', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (4, '기술본부', 'TECH', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (5, '개발1팀', 'DEV1', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (6, '개발2팀', 'DEV2', NULL, '판교', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (7, '마케팅본부', 'MKT', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (8, '영업본부', 'SALES', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
-INSERT INTO department (dept_id, dept_name, dept_code, parent_dept_id, region, created_at, updated_at) VALUES (9, '데이터팀', 'DATA', NULL, '서울', TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'), TO_TIMESTAMP_TZ('2026-01-14 13:31:06.514554 +09:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM'));
+GRANT SELECT ON "H552_RND"."V_AI_CAREER" TO "MUSER";
 
-COMMIT;
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.PREV_COMPANY IS '이전에 근무한 회사명';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.LOCATION IS '전직장 소재지';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.PREV_POSITION IS '전직장 직위';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.WORK_MONTHS IS '해당 직장 근무 개월 수';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.WORK_YEARS IS '해당 직장 근무 연수';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.RECOGNITION_RATE IS '경력 인정 비율 (%)';
 
--- =========================================
--- 2. Employee data (references department_id)
--- =========================================
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (1, 'EMP00001', '홍길동', 'john1', '남', TO_DATE('1980-12-20', 'YYYY-MM-DD'), TO_DATE('2023-09-24', 'YYYY-MM-DD'), '과장', '마케팅', 5, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp1@company.com', '010-5494-0001', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (2, 'EMP00002', '박대식', 'john2', '남', TO_DATE('1995-10-14', 'YYYY-MM-DD'), TO_DATE('2022-01-14', 'YYYY-MM-DD'), '과장', '마케팅', 6, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp2@company.com', '010-5494-0002', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (3, 'EMP00003', '김길동', 'john3', '여', TO_DATE('1991-09-04', 'YYYY-MM-DD'), TO_DATE('2023-12-27', 'YYYY-MM-DD'), '과장', '마케팅', 7, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp3@company.com', '010-5494-0003', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (4, 'EMP00006', '박찬호', 'john4', '여', TO_DATE('1981-11-25', 'YYYY-MM-DD'), TO_DATE('2023-03-29', 'YYYY-MM-DD'), '부장', '마케팅', 4, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp6@company.com', '010-5494-0004', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (5, 'EMP00007', '김태용', 'john5', '여', TO_DATE('1997-12-14', 'YYYY-MM-DD'), TO_DATE('2023-04-25', 'YYYY-MM-DD'), '과장', '개발', 8, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp7@company.com', '010-5494-0005', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (6, 'EMP00009', '정순후', 'john6', '여', TO_DATE('1991-05-07', 'YYYY-MM-DD'), TO_DATE('2022-06-04', 'YYYY-MM-DD'), '대리', '디자인', 5, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp9@company.com', '010-5494-0006', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (7, 'EMP00010', '세종대왕', 'john7', '남', TO_DATE('1996-04-21', 'YYYY-MM-DD'), TO_DATE('2022-03-24', 'YYYY-MM-DD'), '상무', '마케팅', 6, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp10@company.com', '010-5494-0007', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (8, 'EMP00011', '김철민', 'john8', '여', TO_DATE('1981-08-31', 'YYYY-MM-DD'), TO_DATE('2020-04-21', 'YYYY-MM-DD'), '대리', '디자인', 3, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp11@company.com', '010-5494-0008', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (9, 'EMP00012', '박지성', 'john9', '여', TO_DATE('1990-03-27', 'YYYY-MM-DD'), TO_DATE('2022-05-30', 'YYYY-MM-DD'), '사원', 'HR', 7, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp12@company.com', '010-5494-0009', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (10, 'EMP00013', '이만기', 'john10', '여', TO_DATE('1999-12-10', 'YYYY-MM-DD'), TO_DATE('2022-08-22', 'YYYY-MM-DD'), '대리', '디자인', 6, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp13@company.com', '010-5494-0010', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (11, 'EMP00014', '이준기', 'john11', '남', TO_DATE('1988-07-05', 'YYYY-MM-DD'), TO_DATE('2023-02-07', 'YYYY-MM-DD'), '대리', '기획', 2, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp14@company.com', '010-5494-0011', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (12, 'EMP00015', '고길동', 'john12', '남', TO_DATE('1997-12-06', 'YYYY-MM-DD'), TO_DATE('2020-11-22', 'YYYY-MM-DD'), '과장', '영업', 2, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp15@company.com', '010-5494-0012', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (13, 'EMP00016', '박상현', 'john13', '남', TO_DATE('1984-09-13', 'YYYY-MM-DD'), TO_DATE('2023-04-25', 'YYYY-MM-DD'), '차장', '디자인', 9, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp16@company.com', '010-5494-0013', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (14, 'EMP00017', '김성수', 'john14', '여', TO_DATE('1997-10-22', 'YYYY-MM-DD'), TO_DATE('2021-09-27', 'YYYY-MM-DD'), '부장', '영업', 4, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp17@company.com', '010-5494-0014', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (15, 'EMP00018', '박상원', 'john15', '남', TO_DATE('1986-07-27', 'YYYY-MM-DD'), TO_DATE('2020-03-18', 'YYYY-MM-DD'), '대리', '개발', 5, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp18@company.com', '010-5494-0015', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (16, 'EMP00019', '정성수', 'john16', '남', TO_DATE('1991-10-08', 'YYYY-MM-DD'), TO_DATE('2021-11-09', 'YYYY-MM-DD'), '사원', '마케팅', 6, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp19@company.com', '010-5494-0016', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (17, 'EMP00020', '김삼', 'john17', '여', TO_DATE('1984-02-02', 'YYYY-MM-DD'), TO_DATE('2020-02-08', 'YYYY-MM-DD'), '차장', '개발', 7, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp20@company.com', '010-5494-0017', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (18, 'EMP00022', '이성훈', 'john18', '남', TO_DATE('1980-02-03', 'YYYY-MM-DD'), TO_DATE('2023-11-08', 'YYYY-MM-DD'), '과장', 'HR', 7, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp22@company.com', '010-5494-0018', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (19, 'EMP00024', '봉준호', 'john19', '남', TO_DATE('1984-01-06', 'YYYY-MM-DD'), TO_DATE('2020-07-28', 'YYYY-MM-DD'), '대리', '기획', 1, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp24@company.com', '010-5494-0019', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (20, 'EMP00025', '김혜수', 'john20', '남', TO_DATE('1992-05-23', 'YYYY-MM-DD'), TO_DATE('2020-11-26', 'YYYY-MM-DD'), '부장', '개발', 2, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp25@company.com', '010-5494-0020', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (21, 'EMP00026', '아이유', 'john21', '남', TO_DATE('1995-06-21', 'YYYY-MM-DD'), TO_DATE('2021-04-06', 'YYYY-MM-DD'), '차장', 'HR', 5, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp26@company.com', '010-5494-0021', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (22, 'EMP00027', '김범수', 'john22', '여', TO_DATE('1998-07-18', 'YYYY-MM-DD'), TO_DATE('2023-12-26', 'YYYY-MM-DD'), '대리', 'HR', 8, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp27@company.com', '010-5494-0022', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (23, 'EMP00028', '김사', 'john23', '여', TO_DATE('1987-12-05', 'YYYY-MM-DD'), TO_DATE('2023-09-17', 'YYYY-MM-DD'), '부장', '개발', 8, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp28@company.com', '010-5494-0023', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (24, 'EMP00029', '김기원', 'john24', '여', TO_DATE('1982-05-27', 'YYYY-MM-DD'), TO_DATE('2021-01-09', 'YYYY-MM-DD'), '과장', '개발', 8, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp29@company.com', '010-5494-0024', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (25, 'EMP00030', '일론머스크', 'john25', '여', TO_DATE('1994-05-25', 'YYYY-MM-DD'), TO_DATE('2023-07-27', 'YYYY-MM-DD'), '과장', '기획', 1, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp30@company.com', '010-5494-0025', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (26, 'EMP00031', '젠슨황', 'john26', '여', TO_DATE('1998-06-30', 'YYYY-MM-DD'), TO_DATE('2021-01-08', 'YYYY-MM-DD'), '차장', '마케팅', 7, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp31@company.com', '010-5494-0026', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (27, 'EMP00032', '트럼프', 'john27', '남', TO_DATE('1980-07-14', 'YYYY-MM-DD'), TO_DATE('2022-03-10', 'YYYY-MM-DD'), '사원', '영업', 4, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp32@company.com', '010-5494-0027', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (28, 'EMP00033', '제임스', 'john28', '남', TO_DATE('1998-09-06', 'YYYY-MM-DD'), TO_DATE('2020-07-30', 'YYYY-MM-DD'), '대리', 'HR', 4, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp33@company.com', '010-5494-0028', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (29, 'EMP00034', '스미스', 'john29', '남', TO_DATE('1997-05-16', 'YYYY-MM-DD'), TO_DATE('2021-09-08', 'YYYY-MM-DD'), '과장', 'HR', 7, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp34@company.com', '010-5494-0029', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (30, 'EMP00035', '야고보', 'john30', '남', TO_DATE('1991-05-20', 'YYYY-MM-DD'), TO_DATE('2021-06-26', 'YYYY-MM-DD'), '부장', 'HR', 6, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp35@company.com', '010-5494-0030', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (31, 'EMP00037', '김요셉', 'john31', '여', TO_DATE('1987-08-07', 'YYYY-MM-DD'), TO_DATE('2022-12-18', 'YYYY-MM-DD'), '사원', '디자인', 6, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp37@company.com', '010-5494-0031', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (32, 'EMP00038', '박야고보', 'john32', '남', TO_DATE('1999-07-20', 'YYYY-MM-DD'), TO_DATE('2023-10-16', 'YYYY-MM-DD'), '과장', '마케팅', 4, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp38@company.com', '010-5494-0032', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (33, 'EMP00039', '민모세', 'john33', '여', TO_DATE('1997-04-21', 'YYYY-MM-DD'), TO_DATE('2021-06-01', 'YYYY-MM-DD'), '과장', '마케팅', 4, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp39@company.com', '010-5494-0033', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (34, 'EMP00040', '박모세', 'john34', '여', TO_DATE('1994-09-04', 'YYYY-MM-DD'), TO_DATE('2022-11-12', 'YYYY-MM-DD'), '과장', '마케팅', 5, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp40@company.com', '010-5494-0034', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (35, 'EMP00041', '윤불교', 'john35', '남', TO_DATE('1986-08-21', 'YYYY-MM-DD'), TO_DATE('2020-08-13', 'YYYY-MM-DD'), '과장', '디자인', 9, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp41@company.com', '010-5494-0035', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (36, 'EMP00042', '직원42', 'john36', '여', TO_DATE('1980-01-30', 'YYYY-MM-DD'), TO_DATE('2021-09-18', 'YYYY-MM-DD'), '부장', '기획', 3, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp42@company.com', '010-5494-0036', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (37, 'EMP00043', '직원43', 'john37', '남', TO_DATE('1994-09-22', 'YYYY-MM-DD'), TO_DATE('2023-05-07', 'YYYY-MM-DD'), '대리', 'HR', 8, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp43@company.com', '010-5494-0037', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (38, 'EMP00044', '김기독교', 'john38', '남', TO_DATE('1991-01-18', 'YYYY-MM-DD'), TO_DATE('2022-05-15', 'YYYY-MM-DD'), '사원', '기획', 4, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp44@company.com', '010-5494-0038', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (39, 'EMP00045', '박천주교', 'john39', '남', TO_DATE('1989-10-05', 'YYYY-MM-DD'), TO_DATE('2021-12-28', 'YYYY-MM-DD'), '대리', '디자인', 3, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp45@company.com', '010-5494-0039', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (40, 'EMP00046', '윤이나', 'john40', '남', TO_DATE('1989-09-25', 'YYYY-MM-DD'), TO_DATE('2020-11-23', 'YYYY-MM-DD'), '사원', '기획', 8, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp46@company.com', '010-5494-0040', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (41, 'EMP00005', '박이나', 'john41', '여', TO_DATE('1995-07-13', 'YYYY-MM-DD'), TO_DATE('2024-05-17', 'YYYY-MM-DD'), '사원', '영업', 8, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp5@company.com', '010-5494-0041', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (42, 'EMP00008', '황명석', 'john42', '남', TO_DATE('1992-02-11', 'YYYY-MM-DD'), TO_DATE('2024-12-29', 'YYYY-MM-DD'), '사원', '마케팅', 2, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp8@company.com', '010-5494-0042', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (43, 'EMP00021', '박명석', 'john43', '남', TO_DATE('1990-03-13', 'YYYY-MM-DD'), TO_DATE('2024-04-25', 'YYYY-MM-DD'), '과장', '개발', 3, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp21@company.com', '010-5494-0043', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (44, 'EMP00023', '민기수', 'john44', '여', TO_DATE('1981-11-17', 'YYYY-MM-DD'), TO_DATE('2024-03-22', 'YYYY-MM-DD'), '과장', '영업', 3, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp23@company.com', '010-5494-0044', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (45, 'EMP00036', '황시순', 'john45', '남', TO_DATE('1986-12-20', 'YYYY-MM-DD'), TO_DATE('2024-02-24', 'YYYY-MM-DD'), '사원', '영업', 8, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp36@company.com', '010-5494-0045', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (46, 'EMP00047', '윤도현', 'john46', '남', TO_DATE('1981-03-05', 'YYYY-MM-DD'), TO_DATE('2020-01-26', 'YYYY-MM-DD'), '사원', '마케팅', 9, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp47@company.com', '010-5494-0046', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (47, 'EMP00048', '이봉원', 'john47', '여', TO_DATE('1991-08-17', 'YYYY-MM-DD'), TO_DATE('2023-01-06', 'YYYY-MM-DD'), '부장', '개발', 1, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp48@company.com', '010-5494-0047', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (48, 'EMP00049', '박민기', 'john48', '남', TO_DATE('1988-10-12', 'YYYY-MM-DD'), TO_DATE('2023-06-07', 'YYYY-MM-DD'), '대리', '영업', 9, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp49@company.com', '010-5494-0048', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (49, 'EMP00050', '최양락', 'john49', '여', TO_DATE('1994-06-29', 'YYYY-MM-DD'), TO_DATE('2022-03-22', 'YYYY-MM-DD'), '대리', '개발', 8, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp50@company.com', '010-5494-0049', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (50, 'EMP00051', '마틴', 'john50', '여', TO_DATE('1998-01-01', 'YYYY-MM-DD'), TO_DATE('2022-10-25', 'YYYY-MM-DD'), '사원', '기획', 4, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp51@company.com', '010-5494-0050', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (51, 'EMP00052', '탐크루즈', 'john51', '남', TO_DATE('1984-01-14', 'YYYY-MM-DD'), TO_DATE('2023-08-10', 'YYYY-MM-DD'), '과장', 'HR', 5, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp52@company.com', '010-5494-0051', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (52, 'EMP00053', '이승기', 'john52', '남', TO_DATE('1994-07-10', 'YYYY-MM-DD'), TO_DATE('2020-10-13', 'YYYY-MM-DD'), '부장', '영업', 8, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp53@company.com', '010-5494-0052', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (53, 'EMP00054', '박준태', 'john53', '남', TO_DATE('1999-03-24', 'YYYY-MM-DD'), TO_DATE('2020-01-29', 'YYYY-MM-DD'), '부장', '마케팅', 2, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp54@company.com', '010-5494-0053', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (54, 'EMP00055', '정청래', 'john54', '여', TO_DATE('1988-07-10', 'YYYY-MM-DD'), TO_DATE('2023-05-20', 'YYYY-MM-DD'), '부장', '영업', 7, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp55@company.com', '010-5494-0054', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (55, 'EMP00056', '장경태', 'john55', '여', TO_DATE('1996-01-28', 'YYYY-MM-DD'), TO_DATE('2020-10-08', 'YYYY-MM-DD'), '과장', 'HR', 8, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp56@company.com', '010-5494-0055', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (56, 'EMP00057', '다카이치', 'john56', '여', TO_DATE('1989-06-01', 'YYYY-MM-DD'), TO_DATE('2021-12-14', 'YYYY-MM-DD'), '사원', '기획', 8, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp57@company.com', '010-5494-0056', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (57, 'EMP00058', '이말순', 'john57', '남', TO_DATE('1988-02-29', 'YYYY-MM-DD'), TO_DATE('2020-11-18', 'YYYY-MM-DD'), '사원', '디자인', 6, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp58@company.com', '010-5494-0057', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (58, 'EMP00059', '이초순', 'john58', '여', TO_DATE('1998-06-18', 'YYYY-MM-DD'), TO_DATE('2023-07-18', 'YYYY-MM-DD'), '부장', '개발', 2, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp59@company.com', '010-5494-0058', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (59, 'EMP00060', '이중순', 'john59', '남', TO_DATE('1996-09-06', 'YYYY-MM-DD'), TO_DATE('2023-03-31', 'YYYY-MM-DD'), '부장', '영업', 2, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp60@company.com', '010-5494-0059', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (60, 'EMP00061', '일민주', 'john60', '여', TO_DATE('1990-02-05', 'YYYY-MM-DD'), TO_DATE('2023-08-05', 'YYYY-MM-DD'), '부장', '개발', 2, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp61@company.com', '010-5494-0060', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (61, 'EMP00062', '이민주', 'john61', '남', TO_DATE('1997-03-14', 'YYYY-MM-DD'), TO_DATE('2023-05-05', 'YYYY-MM-DD'), '사원', '영업', 1, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp62@company.com', '010-5494-0061', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (62, 'EMP00063', '삼민주', 'john62', '남', TO_DATE('1982-02-24', 'YYYY-MM-DD'), TO_DATE('2021-09-26', 'YYYY-MM-DD'), '과장', '디자인', 8, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp63@company.com', '010-5494-0062', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (63, 'EMP00064', '사민주', 'john63', '여', TO_DATE('1983-06-02', 'YYYY-MM-DD'), TO_DATE('2022-09-16', 'YYYY-MM-DD'), '대리', '기획', 6, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp64@company.com', '010-5494-0063', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (64, 'EMP00066', '오민주', 'john64', '여', TO_DATE('1991-06-12', 'YYYY-MM-DD'), TO_DATE('2021-12-19', 'YYYY-MM-DD'), '과장', '영업', 5, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp66@company.com', '010-5494-0064', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (65, 'EMP00068', '일중립', 'john65', '남', TO_DATE('1987-12-06', 'YYYY-MM-DD'), TO_DATE('2022-03-17', 'YYYY-MM-DD'), '과장', 'HR', 8, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp68@company.com', '010-5494-0065', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (66, 'EMP00069', '이중립', 'john66', '여', TO_DATE('1983-07-17', 'YYYY-MM-DD'), TO_DATE('2021-07-31', 'YYYY-MM-DD'), '사원', '기획', 8, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp69@company.com', '010-5494-0066', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (67, 'EMP00070', '삼중립', 'john67', '여', TO_DATE('1997-12-06', 'YYYY-MM-DD'), TO_DATE('2022-09-20', 'YYYY-MM-DD'), '과장', '영업', 1, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp70@company.com', '010-5494-0067', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (68, 'EMP00071', '사중립', 'john68', '여', TO_DATE('1985-03-16', 'YYYY-MM-DD'), TO_DATE('2022-12-30', 'YYYY-MM-DD'), '차장', '마케팅', 1, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp71@company.com', '010-5494-0068', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (69, 'EMP00072', '오중립', 'john69', '여', TO_DATE('1983-12-21', 'YYYY-MM-DD'), TO_DATE('2022-03-31', 'YYYY-MM-DD'), '대리', 'HR', 5, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp72@company.com', '010-5494-0069', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (70, 'EMP00073', '김한국', 'john70', '여', TO_DATE('1981-06-11', 'YYYY-MM-DD'), TO_DATE('2021-01-30', 'YYYY-MM-DD'), '차장', '기획', 6, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp73@company.com', '010-5494-0070', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (71, 'EMP00074', '이한국', 'john71', '남', TO_DATE('1983-12-06', 'YYYY-MM-DD'), TO_DATE('2022-06-30', 'YYYY-MM-DD'), '대리', '마케팅', 4, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp74@company.com', '010-5494-0071', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (72, 'EMP00075', '민한국', 'john72', '여', TO_DATE('1983-06-03', 'YYYY-MM-DD'), TO_DATE('2022-10-15', 'YYYY-MM-DD'), '부장', '기획', 5, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp75@company.com', '010-5494-0072', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (73, 'EMP00076', '박한국', 'john73', '여', TO_DATE('1993-05-20', 'YYYY-MM-DD'), TO_DATE('2020-01-13', 'YYYY-MM-DD'), '과장', '기획', 9, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp76@company.com', '010-5494-0073', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (74, 'EMP00077', '윤한국', 'john74', '남', TO_DATE('1991-05-18', 'YYYY-MM-DD'), TO_DATE('2021-05-19', 'YYYY-MM-DD'), '대리', '마케팅', 1, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp77@company.com', '010-5494-0074', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (75, 'EMP00078', '원한국', 'john75', '남', TO_DATE('1990-12-13', 'YYYY-MM-DD'), TO_DATE('2021-07-10', 'YYYY-MM-DD'), '과장', '디자인', 5, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp78@company.com', '010-5494-0075', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (76, 'EMP00079', '황한국', 'john76', '여', TO_DATE('1981-03-24', 'YYYY-MM-DD'), TO_DATE('2021-10-26', 'YYYY-MM-DD'), '과장', '기획', 8, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp79@company.com', '010-5494-0076', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (77, 'EMP00080', '김미국', 'john77', '남', TO_DATE('1995-10-16', 'YYYY-MM-DD'), TO_DATE('2021-01-23', 'YYYY-MM-DD'), '과장', '디자인', 1, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp80@company.com', '010-5494-0077', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (78, 'EMP00081', '이미국', 'john78', '남', TO_DATE('1991-03-29', 'YYYY-MM-DD'), TO_DATE('2023-10-07', 'YYYY-MM-DD'), '차장', '마케팅', 4, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp81@company.com', '010-5494-0078', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (79, 'EMP00082', '삼미국', 'john79', '남', TO_DATE('1982-07-20', 'YYYY-MM-DD'), TO_DATE('2021-09-01', 'YYYY-MM-DD'), '대리', 'HR', 6, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp82@company.com', '010-5494-0079', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (80, 'EMP00083', '홍길덩', 'john80', '남', TO_DATE('1984-09-26', 'YYYY-MM-DD'), TO_DATE('2020-07-02', 'YYYY-MM-DD'), '대리', '기획', 6, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp83@company.com', '010-5494-0080', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (81, 'EMP00084', '강감탕', 'john81', '여', TO_DATE('1991-10-30', 'YYYY-MM-DD'), TO_DATE('2023-05-08', 'YYYY-MM-DD'), '차장', '디자인', 7, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp84@company.com', '010-5494-0081', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (82, 'EMP00085', '허현준', 'john82', '남', TO_DATE('1993-03-18', 'YYYY-MM-DD'), TO_DATE('2022-08-17', 'YYYY-MM-DD'), '사원', '마케팅', 3, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp85@company.com', '010-5494-0082', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (83, 'EMP00086', '김다빈', 'john83', '여', TO_DATE('1992-07-25', 'YYYY-MM-DD'), TO_DATE('2022-07-13', 'YYYY-MM-DD'), '대리', '기획', 1, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp86@company.com', '010-5494-0083', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (84, 'EMP00087', '육군민', 'john84', '여', TO_DATE('1984-01-21', 'YYYY-MM-DD'), TO_DATE('2021-09-05', 'YYYY-MM-DD'), '차장', '기획', 1, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp87@company.com', '010-5494-0084', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (85, 'EMP00088', '육시민', 'john85', '여', TO_DATE('1986-10-01', 'YYYY-MM-DD'), TO_DATE('2020-07-20', 'YYYY-MM-DD'), '사원', 'HR', 4, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp88@company.com', '010-5494-0085', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (86, 'EMP00089', '박민술', 'john86', '남', TO_DATE('1983-10-28', 'YYYY-MM-DD'), TO_DATE('2021-08-18', 'YYYY-MM-DD'), '차장', 'HR', 5, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp89@company.com', '010-5494-0086', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (87, 'EMP00090', '박소주', 'john87', '남', TO_DATE('1985-07-25', 'YYYY-MM-DD'), TO_DATE('2022-09-02', 'YYYY-MM-DD'), '부장', '마케팅', 2, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp90@company.com', '010-5494-0087', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (88, 'EMP00091', '나우리', 'john88', '여', TO_DATE('1988-09-14', 'YYYY-MM-DD'), TO_DATE('2020-12-22', 'YYYY-MM-DD'), '대리', '디자인', 4, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp91@company.com', '010-5494-0088', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (89, 'EMP00092', '나야나', 'john89', '남', TO_DATE('1982-05-27', 'YYYY-MM-DD'), TO_DATE('2023-08-19', 'YYYY-MM-DD'), '부장', '마케팅', 8, '서울', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp92@company.com', '010-5494-0089', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (90, 'EMP00093', '너는너', 'john90', '남', TO_DATE('1988-04-02', 'YYYY-MM-DD'), TO_DATE('2021-10-20', 'YYYY-MM-DD'), '차장', '마케팅', 2, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp93@company.com', '010-5494-0090', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (91, 'EMP00094', '이경태', 'john91', '남', TO_DATE('1999-10-26', 'YYYY-MM-DD'), TO_DATE('2021-06-13', 'YYYY-MM-DD'), '부장', '기획', 3, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp94@company.com', '010-5494-0091', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (92, 'EMP00067', '직원67', 'john92', '여', TO_DATE('1995-09-10', 'YYYY-MM-DD'), TO_DATE('2025-01-02', 'YYYY-MM-DD'), '사원', '디자인', 4, '부산', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp67@company.com', '010-5494-0092', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (93, 'EMP00095', '박청래', 'john93', '남', TO_DATE('1987-11-26', 'YYYY-MM-DD'), TO_DATE('2021-01-09', 'YYYY-MM-DD'), '사원', 'HR', 3, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp95@company.com', '010-5494-0093', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (94, 'EMP00096', '민경환', 'john94', '남', TO_DATE('1998-08-24', 'YYYY-MM-DD'), TO_DATE('2020-01-21', 'YYYY-MM-DD'), '차장', '영업', 3, '부산', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp96@company.com', '010-5494-0094', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (95, 'EMP00097', '이경환', 'john95', '남', TO_DATE('1999-04-09', 'YYYY-MM-DD'), TO_DATE('2022-03-01', 'YYYY-MM-DD'), '차장', '개발', 4, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp97@company.com', '010-5494-0095', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (96, 'EMP00098', '펜타시스템', 'john96', '남', TO_DATE('1996-11-18', 'YYYY-MM-DD'), TO_DATE('2022-04-13', 'YYYY-MM-DD'), '대리', '기획', 6, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp98@company.com', '010-5494-0096', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (97, 'EMP00099', '화이트정보', 'john97', '남', TO_DATE('1990-09-27', 'YYYY-MM-DD'), TO_DATE('2022-11-26', 'YYYY-MM-DD'), '과장', '마케팅', 8, '서울', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp99@company.com', '010-5494-0097', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (98, 'EMP00100', '모범사원', 'john98', '여', TO_DATE('1997-06-24', 'YYYY-MM-DD'), TO_DATE('2020-01-28', 'YYYY-MM-DD'), '차장', '영업', 6, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp100@company.com', '010-5494-0098', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (99, 'EMP00004', '불량사원', 'john99', '여', TO_DATE('1991-03-22', 'YYYY-MM-DD'), TO_DATE('2024-04-09', 'YYYY-MM-DD'), '사원', '기획', 5, '판교', '정규직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp4@company.com', '010-5494-0099', SYSTIMESTAMP, SYSTIMESTAMP);
-INSERT INTO employee (emp_id, emp_no, name, name_en, gender, birth_date, hire_date, position, job_family, department_id, work_location, employment_type, status, resignation_date, email, phone, created_at, updated_at) VALUES (100, 'EMP00065', '직원65', 'john100', '여', TO_DATE('1981-09-02', 'YYYY-MM-DD'), TO_DATE('2024-04-27', 'YYYY-MM-DD'), '대리', '영업', 4, '판교', '계약직', 'active', TO_DATE('2023-01-15', 'YYYY-MM-DD'), 'emp65@company.com', '010-5494-0100', SYSTIMESTAMP, SYSTIMESTAMP);
 
-COMMIT;
+-- H552_RND.V_AI_EDUCATION source
 
--- =========================================
--- 3. JOB_HISTORY data (references emp_id)
--- =========================================
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (54, 1, TO_DATE('2023-09-24', 'YYYY-MM-DD'), TO_DATE('2024-03-31', 'YYYY-MM-DD'), 5, '사원', '마케팅', '판교', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (55, 1, TO_DATE('2024-04-01', 'YYYY-MM-DD'), TO_DATE('2024-12-31', 'YYYY-MM-DD'), 5, '대리', '마케팅', '판교', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (56, 1, TO_DATE('2025-01-01', 'YYYY-MM-DD'), NULL, 5, '과장', '마케팅', '판교', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (57, 3, TO_DATE('2023-12-27', 'YYYY-MM-DD'), TO_DATE('2024-06-30', 'YYYY-MM-DD'), 6, '사원', '마케팅', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (58, 3, TO_DATE('2024-07-01', 'YYYY-MM-DD'), TO_DATE('2024-12-31', 'YYYY-MM-DD'), 7, '대리', '마케팅', '서울', '부서이동 및 승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (59, 3, TO_DATE('2025-01-01', 'YYYY-MM-DD'), NULL, 7, '과장', '마케팅', '서울', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (60, 6, TO_DATE('2023-03-29', 'YYYY-MM-DD'), TO_DATE('2024-09-30', 'YYYY-MM-DD'), 4, '차장', '마케팅', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (61, 6, TO_DATE('2024-10-01', 'YYYY-MM-DD'), NULL, 4, '부장', '마케팅', '서울', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (62, 7, TO_DATE('2023-04-25', 'YYYY-MM-DD'), TO_DATE('2024-08-31', 'YYYY-MM-DD'), 8, '사원', '개발', '판교', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (63, 7, TO_DATE('2025-09-01', 'YYYY-MM-DD'), NULL, 8, '상무', '마케팅', '서울', '승진 및 근무지 변경', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (64, 11, TO_DATE('2020-04-21', 'YYYY-MM-DD'), TO_DATE('2021-04-20', 'YYYY-MM-DD'), 3, '사원', '디자인', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (65, 11, TO_DATE('2021-04-21', 'YYYY-MM-DD'), TO_DATE('2023-04-20', 'YYYY-MM-DD'), 3, '대리', '디자인', '서울', '1년 근속 승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (66, 11, TO_DATE('2023-04-21', 'YYYY-MM-DD'), NULL, 3, '대리', '디자인', '서울', '2년 근속', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (67, 15, TO_DATE('2020-11-22', 'YYYY-MM-DD'), TO_DATE('2022-12-31', 'YYYY-MM-DD'), 8, '대리', '영업', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (68, 15, TO_DATE('2023-01-01', 'YYYY-MM-DD'), TO_DATE('2024-06-30', 'YYYY-MM-DD'), 2, '대리', '영업', '판교', '부서이동 및 근무지 변경', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (69, 15, TO_DATE('2024-07-01', 'YYYY-MM-DD'), NULL, 2, '과장', '영업', '판교', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (70, 20, TO_DATE('2020-02-08', 'YYYY-MM-DD'), TO_DATE('2022-01-31', 'YYYY-MM-DD'), 7, '대리', '개발', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (71, 20, TO_DATE('2022-02-01', 'YYYY-MM-DD'), TO_DATE('2023-12-31', 'YYYY-MM-DD'), 7, '과장', '개발', '부산', '승진 및 지역 발령', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (72, 20, TO_DATE('2024-01-01', 'YYYY-MM-DD'), NULL, 7, '차장', '개발', '부산', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (73, 25, TO_DATE('2020-11-26', 'YYYY-MM-DD'), TO_DATE('2022-05-31', 'YYYY-MM-DD'), 2, '사원', '개발', '판교', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (74, 25, TO_DATE('2022-06-01', 'YYYY-MM-DD'), TO_DATE('2023-11-30', 'YYYY-MM-DD'), 2, '대리', '개발', '판교', '우수 성과 특별 승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (75, 25, TO_DATE('2023-12-01', 'YYYY-MM-DD'), TO_DATE('2024-12-31', 'YYYY-MM-DD'), 2, '과장', '개발', '판교', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (76, 25, TO_DATE('2025-01-01', 'YYYY-MM-DD'), NULL, 2, '부장', '개발', '판교', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (77, 28, TO_DATE('2023-09-17', 'YYYY-MM-DD'), TO_DATE('2024-06-30', 'YYYY-MM-DD'), 8, '과장', '개발', '서울', '신규입사 (경력)', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (78, 28, TO_DATE('2024-07-01', 'YYYY-MM-DD'), NULL, 8, '부장', '개발', '판교', '승진 및 근무지 변경', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (79, 42, TO_DATE('2021-09-18', 'YYYY-MM-DD'), TO_DATE('2023-03-31', 'YYYY-MM-DD'), 3, '차장', '기획', '부산', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (80, 42, TO_DATE('2023-04-01', 'YYYY-MM-DD'), NULL, 3, '부장', '기획', '부산', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (81, 48, TO_DATE('2023-01-06', 'YYYY-MM-DD'), TO_DATE('2024-03-31', 'YYYY-MM-DD'), 1, '과장', '개발', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (82, 48, TO_DATE('2024-04-01', 'YYYY-MM-DD'), NULL, 1, '부장', '개발', '서울', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (83, 55, TO_DATE('2023-05-20', 'YYYY-MM-DD'), TO_DATE('2024-09-30', 'YYYY-MM-DD'), 7, '차장', '영업', '부산', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (84, 55, TO_DATE('2024-10-01', 'YYYY-MM-DD'), NULL, 7, '부장', '영업', '부산', '승진', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (85, 71, TO_DATE('2022-12-30', 'YYYY-MM-DD'), TO_DATE('2024-06-30', 'YYYY-MM-DD'), 1, '과장', '마케팅', '서울', '신규입사', SYSTIMESTAMP);
-INSERT INTO job_history (id, emp_id, from_date, to_date, department_id, position, job_family, work_location, change_reason, created_at) VALUES (86, 71, TO_DATE('2024-07-01', 'YYYY-MM-DD'), NULL, 1, '차장', '마케팅', '판교', '승진 및 근무지 변경', SYSTIMESTAMP);
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_EDUCATION" ("EMP_ID", "SCHOOL_NAME", "SCHOOL_LOCATION", "MAJOR", "DOUBLE_MAJOR", "MINOR", "ADMISSION_DATE", "GRADUATION_DATE", "GRADUATION_YEAR") AS
+  SELECT
+    PS.EMP_ID                   AS EMP_ID,
+    FC2.CD_NM                   AS SCHOOL_NAME,
+    PS.SCH_PLACE_NM             AS SCHOOL_LOCATION,
+    PS.MAJOR_NM                 AS MAJOR,
+    PS.DOU_MAJOR_NM             AS DOUBLE_MAJOR,
+    PS.SUB_MAJOR_NM             AS MINOR,
+    PS.STA_YM                   AS ADMISSION_DATE,
+    PS.END_YM                   AS GRADUATION_DATE,
+    CASE
+        WHEN PS.END_YM IS NOT NULL THEN
+            SUBSTR(PS.END_YM, 1, 4)
+        ELSE NULL
+    END                         AS GRADUATION_YEAR
+FROM PHM_SCHOLAR PS
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PS.SCH_CD AND FC2.CD_KIND = 'PHM_SCH_CD';
 
-COMMIT;
+GRANT SELECT ON "H552_RND"."V_AI_EDUCATION" TO "MUSER";
 
--- =========================================
--- 4. PERFORMANCE_REVIEW data (references emp_id)
--- =========================================
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (61, 1, '2024-H1', 6, 'A', '마케팅 캠페인 성공적 수행. 목표 대비 120% 달성. 팀워크 우수.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (62, 1, '2024-H2', 6, 'S', '신규 프로젝트 리드. 매출 30% 증가 기여. 승진 추천.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (63, 2, '2023-H1', 6, 'B', '업무 수행 양호. 협업 능력 개선 필요.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (64, 2, '2023-H2', 6, 'A', '고객 만족도 향상. 프로세스 개선 제안 우수.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (65, 2, '2024-H1', 6, 'A', '안정적 성과 유지. 신입 멘토링 우수.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (66, 3, '2024-H1', 6, 'A', '데이터 분석 역량 우수. 인사이트 도출 탁월.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (67, 3, '2024-H2', 6, 'S', '부서 이동 후 빠른 적응. ROI 150% 달성.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (68, 7, '2024-H1', 28, 'A', '코드 품질 우수. 버그 감소율 40%.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (69, 7, '2024-H2', 28, 'S', '신기술 도입 주도. 개발 생산성 25% 향상.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (70, 9, '2023-H1', NULL, 'B', '기본 업무 충실. 창의성 개선 필요.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (71, 9, '2023-H2', NULL, 'A', 'UI/UX 개선 프로젝트 주도. 사용자 만족도 상승.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (72, 9, '2024-H1', NULL, 'A', '디자인 시스템 구축 기여. 일관성 향상.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (73, 11, '2021-H2', NULL, 'B', '성실한 근무 태도. 기술 역량 강화 필요.', TO_TIMESTAMP_TZ('2022-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (74, 11, '2022-H1', NULL, 'A', '포트폴리오 다양화. 브랜딩 프로젝트 성공.', TO_TIMESTAMP_TZ('2022-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (75, 11, '2022-H2', NULL, 'A', '안정적 성과 유지. 협업 능력 우수.', TO_TIMESTAMP_TZ('2023-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (76, 11, '2023-H1', NULL, 'A', '지속적 성장. 후배 양성 기여.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (77, 11, '2023-H2', NULL, 'B', '업무 부하 과다로 성과 다소 저하.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (78, 11, '2024-H1', NULL, 'A', '회복 및 개선. 프로젝트 일정 준수.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (79, 15, '2022-H2', NULL, 'A', '분기 목표 110% 달성. 신규 고객 확보.', TO_TIMESTAMP_TZ('2023-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (80, 15, '2023-H1', NULL, 'S', '대형 계약 체결. 분기 매출 1위.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (81, 15, '2023-H2', NULL, 'A', '영업 프로세스 개선. 팀 효율성 향상.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (82, 15, '2024-H1', NULL, 'S', '부서 이동 후 즉시 성과 창출. 리더십 우수.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (83, 20, '2022-H1', 48, 'A', '시스템 안정성 향상. 장애 감소 50%.', TO_TIMESTAMP_TZ('2022-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (84, 20, '2022-H2', 48, 'S', '아키텍처 개선 주도. 성능 2배 향상.', TO_TIMESTAMP_TZ('2023-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (85, 20, '2023-H1', 48, 'A', '지역 발령 후 팀 안정화. 부산 지사 성과 향상.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (86, 20, '2023-H2', 48, 'S', '신입 개발자 교육 프로그램 구축. 팀 역량 강화.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (87, 20, '2024-H1', 48, 'S', '차장 승진 후 리더십 발휘. 프로젝트 완수.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (88, 25, '2021-H2', 48, 'A', '신입이지만 뛰어난 기술력. 주요 기능 개발.', TO_TIMESTAMP_TZ('2022-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (89, 25, '2022-H1', 48, 'S', '핵심 서비스 아키텍처 설계. 특별 승진 추천.', TO_TIMESTAMP_TZ('2022-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (90, 25, '2022-H2', 48, 'S', '대리 승진 후 팀 리드 역할 수행. 프로젝트 성공.', TO_TIMESTAMP_TZ('2023-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (91, 25, '2023-H1', 48, 'S', 'AI 기반 신기능 개발. 특허 출원.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (92, 25, '2023-H2', 48, 'S', '과장 승진. 멀티 프로젝트 동시 관리 능력 탁월.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (93, 25, '2024-H1', 48, 'S', 'CTO 보좌. 기술 전략 수립 기여.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (94, 25, '2024-H2', 48, 'S', '부장 승진. 전사 기술 표준 확립. 차기 임원 후보.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (95, 28, '2024-H1', NULL, 'A', '경력 입사자. 빠른 조직 적응. 기술 리더십 발휘.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (96, 28, '2024-H2', NULL, 'S', '부장 승진. 개발팀 혁신 주도. 개발 문화 개선.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (97, 42, '2022-H1', NULL, 'A', '전략 기획 우수. 사업 계획 수립 주도.', TO_TIMESTAMP_TZ('2022-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (98, 42, '2022-H2', NULL, 'A', '신사업 발굴. 시장 분석 역량 탁월.', TO_TIMESTAMP_TZ('2023-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (99, 42, '2023-H1', NULL, 'S', '부장 승진. 전사 중장기 전략 수립.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (100, 42, '2023-H2', NULL, 'S', '신규 사업부 런칭 성공. 첫 해 목표 달성.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (101, 42, '2024-H1', NULL, 'A', '안정적 사업 운영. 수익성 개선.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (102, 48, '2023-H1', NULL, 'A', '경력 입사. 레거시 시스템 개선 착수.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (103, 48, '2023-H2', NULL, 'S', '기술 부채 해소. 코드 품질 향상 프로그램 도입.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (104, 48, '2024-H1', NULL, 'S', '부장 승진. 개발 생산성 30% 향상 달성.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (105, 48, '2024-H2', NULL, 'S', 'DevOps 문화 정착. CI/CD 파이프라인 구축.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (106, 55, '2023-H2', NULL, 'A', '지역 영업 총괄. 부산 지역 매출 성장.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (107, 55, '2024-H1', NULL, 'S', '대형 프로젝트 수주. 연간 목표 조기 달성.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (108, 55, '2024-H2', NULL, 'S', '부장 승진. 영업본부 전체 성과 향상 기여.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (109, 5, '2024-H2', NULL, 'B', '신입 교육 이수. 기본 업무 습득 중.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (110, 8, '2024-H2', 6, 'B', '입사 직후. 적응 기간 중. 성실한 태도.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (111, 21, '2024-H2', 28, 'A', '개발 과장. 즉시 전력화. 코드 리뷰 역량 우수.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (112, 23, '2024-H2', NULL, 'A', '영업 과장. 기존 고객 관리 탁월.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (113, 36, '2024-H2', NULL, 'B', '영업 사원. 교육 이수 중. 잠재력 보유.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (114, 4, '2024-H2', NULL, 'B', '기획 사원. 문서 작성 능력 우수. 분석 역량 개발 중.', TO_TIMESTAMP_TZ('2025-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (115, 12, '2023-H1', NULL, 'B', 'HR 사원. 급여 관리 정확성 우수.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (116, 12, '2023-H2', NULL, 'A', '채용 프로세스 개선 제안. 채용 기간 단축.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (117, 12, '2024-H1', NULL, 'A', '복리후생 제도 개선 기여. 직원 만족도 상승.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (118, 13, '2023-H1', NULL, 'A', '디자인 대리. 브랜드 리뉴얼 프로젝트 참여.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (119, 13, '2023-H2', NULL, 'A', 'UI 컴포넌트 라이브러리 구축. 생산성 향상.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (120, 13, '2024-H1', NULL, 'S', '디자인 시스템 2.0 주도. 전사 적용 완료.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (121, 14, '2023-H2', NULL, 'A', '기획 대리. 시장 조사 및 분석 우수.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (122, 14, '2024-H1', NULL, 'A', '신규 서비스 기획. 론칭 성공.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (123, 19, '2022-H1', 6, 'C', '업무 이해도 부족. 기한 미준수 빈번.', TO_TIMESTAMP_TZ('2022-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (124, 19, '2022-H2', 6, 'B', '개선 노력 인정. 교육 이수 후 성과 향상.', TO_TIMESTAMP_TZ('2023-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (125, 19, '2023-H1', 6, 'B', '안정적 업무 수행. 추가 성장 필요.', TO_TIMESTAMP_TZ('2023-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (126, 19, '2023-H2', 6, 'A', '마케팅 캠페인 기여. 데이터 분석 역량 향상.', TO_TIMESTAMP_TZ('2024-01-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
-INSERT INTO performance_review (id, emp_id, review_period, reviewer_id, rating, comments, created_at) VALUES (127, 19, '2024-H1', 6, 'A', '지속 성장. 팀워크 우수.', TO_TIMESTAMP_TZ('2024-07-15 10:00:00 +09:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM'));
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.SCHOOL_NAME IS '졸업 학교명';
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.SCHOOL_LOCATION IS '학교 소재지';
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.MAJOR IS '전공 학과명';
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.DOUBLE_MAJOR IS '복구전공 명';
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.GRADUATION_DATE IS '졸업일시';
+COMMENT ON COLUMN H552_RND.V_AI_EDUCATION.GRADUATION_YEAR IS '졸업 연도 (YYYY)';
 
-COMMIT;
 
--- =========================================
--- 5. SALARY data (references emp_id)
--- =========================================
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (73, 1, TO_DATE('2023-09-24', 'YYYY-MM-DD'), 3500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (74, 1, TO_DATE('2024-04-01', 'YYYY-MM-DD'), 4200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (75, 1, TO_DATE('2025-01-01', 'YYYY-MM-DD'), 5000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (76, 2, TO_DATE('2022-01-14', 'YYYY-MM-DD'), 4500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (77, 2, TO_DATE('2023-01-01', 'YYYY-MM-DD'), 4800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (78, 2, TO_DATE('2024-01-01', 'YYYY-MM-DD'), 5100000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (79, 3, TO_DATE('2023-12-27', 'YYYY-MM-DD'), 3500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (80, 3, TO_DATE('2024-07-01', 'YYYY-MM-DD'), 4000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (81, 3, TO_DATE('2025-01-01', 'YYYY-MM-DD'), 4800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (82, 6, TO_DATE('2023-03-29', 'YYYY-MM-DD'), 6500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (83, 6, TO_DATE('2024-10-01', 'YYYY-MM-DD'), 8000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (84, 7, TO_DATE('2023-04-25', 'YYYY-MM-DD'), 8500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (85, 7, TO_DATE('2025-09-01', 'YYYY-MM-DD'), 14800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (86, 9, TO_DATE('2022-06-04', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (87, 9, TO_DATE('2023-06-01', 'YYYY-MM-DD'), 4100000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (88, 9, TO_DATE('2024-06-01', 'YYYY-MM-DD'), 4400000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (89, 10, TO_DATE('2022-03-24', 'YYYY-MM-DD'), 5500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (90, 10, TO_DATE('2023-03-01', 'YYYY-MM-DD'), 5900000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (91, 10, TO_DATE('2024-03-01', 'YYYY-MM-DD'), 6300000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (92, 11, TO_DATE('2020-04-21', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (93, 11, TO_DATE('2021-04-21', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (94, 11, TO_DATE('2022-04-21', 'YYYY-MM-DD'), 4200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (95, 11, TO_DATE('2023-04-21', 'YYYY-MM-DD'), 4500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (96, 11, TO_DATE('2024-04-21', 'YYYY-MM-DD'), 4800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (97, 15, TO_DATE('2020-11-22', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (98, 15, TO_DATE('2022-01-01', 'YYYY-MM-DD'), 4200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (99, 15, TO_DATE('2023-01-01', 'YYYY-MM-DD'), 4500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (100, 15, TO_DATE('2024-07-01', 'YYYY-MM-DD'), 5200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (101, 20, TO_DATE('2020-02-08', 'YYYY-MM-DD'), 4000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (102, 20, TO_DATE('2022-02-01', 'YYYY-MM-DD'), 5000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (103, 20, TO_DATE('2023-02-01', 'YYYY-MM-DD'), 5500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (104, 20, TO_DATE('2024-01-01', 'YYYY-MM-DD'), 6500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (105, 25, TO_DATE('2020-11-26', 'YYYY-MM-DD'), 3500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (106, 25, TO_DATE('2022-06-01', 'YYYY-MM-DD'), 4200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (107, 25, TO_DATE('2023-12-01', 'YYYY-MM-DD'), 5500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (108, 25, TO_DATE('2025-01-01', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (109, 28, TO_DATE('2023-09-17', 'YYYY-MM-DD'), 6000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (110, 28, TO_DATE('2024-07-01', 'YYYY-MM-DD'), 7800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (111, 41, TO_DATE('2021-09-18', 'YYYY-MM-DD'), 6500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (112, 41, TO_DATE('2022-09-01', 'YYYY-MM-DD'), 6900000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (113, 41, TO_DATE('2023-04-01', 'YYYY-MM-DD'), 7800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (114, 41, TO_DATE('2024-04-01', 'YYYY-MM-DD'), 8200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (115, 48, TO_DATE('2023-01-06', 'YYYY-MM-DD'), 5500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (116, 48, TO_DATE('2024-04-01', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (117, 55, TO_DATE('2023-05-20', 'YYYY-MM-DD'), 6500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (118, 55, TO_DATE('2024-10-01', 'YYYY-MM-DD'), 8000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (119, 5, TO_DATE('2024-05-17', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (120, 8, TO_DATE('2024-12-29', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (121, 21, TO_DATE('2024-04-25', 'YYYY-MM-DD'), 4500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (122, 23, TO_DATE('2024-03-22', 'YYYY-MM-DD'), 4500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (123, 36, TO_DATE('2024-02-24', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (124, 67, TO_DATE('2025-01-02', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (125, 4, TO_DATE('2024-04-09', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (126, 65, TO_DATE('2024-04-27', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (127, 12, TO_DATE('2022-05-30', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (128, 13, TO_DATE('2022-08-22', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (129, 14, TO_DATE('2023-02-07', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (130, 16, TO_DATE('2023-04-25', 'YYYY-MM-DD'), 5800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (131, 17, TO_DATE('2021-09-27', 'YYYY-MM-DD'), 7000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (132, 18, TO_DATE('2020-03-18', 'YYYY-MM-DD'), 3800000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (133, 19, TO_DATE('2021-11-09', 'YYYY-MM-DD'), 3200000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (134, 22, TO_DATE('2023-11-08', 'YYYY-MM-DD'), 4500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (135, 26, TO_DATE('2021-04-06', 'YYYY-MM-DD'), 6000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (136, 31, TO_DATE('2021-01-08', 'YYYY-MM-DD'), 6000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (137, 71, TO_DATE('2022-12-30', 'YYYY-MM-DD'), 5000000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (138, 71, TO_DATE('2024-07-01', 'YYYY-MM-DD'), 6500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (139, 35, TO_DATE('2021-06-26', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (140, 53, TO_DATE('2020-10-13', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (141, 54, TO_DATE('2020-01-29', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (142, 59, TO_DATE('2023-07-18', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (143, 60, TO_DATE('2023-03-31', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
-INSERT INTO salary (id, emp_id, effective_date, base_salary, currency, created_at) VALUES (144, 61, TO_DATE('2023-08-05', 'YYYY-MM-DD'), 7500000.00, 'KRW', SYSTIMESTAMP);
+-- H552_RND.V_AI_FAMILY source
 
-COMMIT;
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_FAMILY" ("EMP_ID", "RELATION", "FAMILY_NAME", "FAMILY_GENDER", "FAMILY_BIRTH_DATE", "FAMILY_COMPANY", "FAMILY_POSITION", "FAMILY_SCHOOL", "DISABILITY_STATUS", "DISABILITY_GRADE") AS
+  SELECT
+    PF.EMP_ID                   AS EMP_ID,
+    FC_REL.CD_NM                AS RELATION,
+    PF.FAM_FIRST_NM             AS FAMILY_NAME,
+    FC_GEN.CD_NM                AS FAMILY_GENDER,
+    PF.BIRTH_YMD                AS FAMILY_BIRTH_DATE,
+    PF.COMPANY_NM               AS FAMILY_COMPANY,
+    PF.POSITION_NM              AS FAMILY_POSITION,
+    PF.SCH_NM                   AS FAMILY_SCHOOL,
+    CASE PF.HANICAP_YN
+        WHEN 'Y' THEN '장애있음'
+        WHEN 'N' THEN '장애없음'
+        ELSE PF.HANICAP_YN
+    END                         AS DISABILITY_STATUS,
+    FC_HAN.CD_NM                AS DISABILITY_GRADE
+FROM PHM_FAMILY PF
+LEFT JOIN FRM_CODE FC_REL ON PF.FAM_REL_CD = FC_REL.CD AND FC_REL.CD_KIND = 'PHM_FAM_REL_CD'
+LEFT JOIN FRM_CODE FC_GEN ON PF.GENDER_CD = FC_GEN.CD AND FC_GEN.CD_KIND = 'PHM_GENDER_CD'
+LEFT JOIN FRM_CODE FC_HAN ON PF.HANDICAP_GRD_CD = FC_HAN.CD AND FC_HAN.CD_KIND = 'PHM_HANDICAP_GRD_CD';
 
--- =========================================
--- End of Oracle 19c Business Database Script
--- =========================================
+GRANT SELECT ON "H552_RND"."V_AI_FAMILY" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.RELATION IS '가족 관계 (배우자, 자녀, 부모 등)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_NAME IS '가족 구성원 이름';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_GENDER IS '가족 성별';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_BIRTH_DATE IS '가족 생년월일';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_COMPANY IS '가족 근무회사';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_POSITION IS '가족 근무회사 직위';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_SCHOOL IS '가족 출신학교';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.DISABILITY_STATUS IS '장애 여부 (장애있음, 장애없음)';
+
+
+-- H552_RND.V_AI_LANGUAGE source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_LANGUAGE" ("EMP_ID", "LANGUAGE_TYPE", "EXAM_TYPE", "EXAM_INSTITUTION", "SCORE", "LANGUAGE_GRADE", "EXAM_DATE", "EXAM_YEAR", "EVALUATION_YEAR", "EVALUATION_SEQ") AS
+  SELECT
+    PL.EMP_ID                   AS EMP_ID,
+    FC1.CD_NM                   AS LANGUAGE_TYPE,
+    FC2.CD_NM                   AS EXAM_TYPE,
+    FC4.CD_NM               AS EXAM_INSTITUTION,
+    PL.EST_PNT                  AS SCORE,
+    PL.EST_GRD_CD                   AS LANGUAGE_GRADE,
+    PL.EST_YMD                  AS EXAM_DATE,
+    CASE
+        WHEN PL.EST_YMD IS NOT NULL THEN
+            SUBSTR(PL.EST_YMD, 1, 4)
+        ELSE NULL
+    END                         AS EXAM_YEAR,
+    PL.STD_YY                   AS EVALUATION_YEAR,
+    PL.STD_SEQ                  AS EVALUATION_SEQ
+FROM PHM_LANG_EST PL
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PL.LANG_CD AND FC1.CD_KIND = 'PHM_LANG_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PL.EST_CD AND FC2.CD_KIND = 'PHM_EST_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PL.EST_ORG_CD AND FC3.CD_KIND = 'REM_LANG_LEVEL_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PL.EST_ORG_CD AND FC4.CD_KIND = 'PHM_EST_ORG_CD'
+;
+
+GRANT SELECT ON "H552_RND"."V_AI_LANGUAGE" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.LANGUAGE_TYPE IS '어학 종류 (영어, 일본어, 중국어 등)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EXAM_TYPE IS '시험 종류 (TOEIC, TOEFL, JLPT 등)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.SCORE IS '어학 시험 점수';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.LANGUAGE_GRADE IS '어학 등급';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EXAM_YEAR IS '시험 응시 연도 (YYYY)';
+
+-- H552_RND.V_AI_LICENSE source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_LICENSE" ("EMP_ID", "LICENSE_TYPE", "LICENSE_NAME", "LICENSE_NO", "ISSUING_ORG", "ISSUE_DATE", "EXPIRY_DATE", "VALIDITY_STATUS", "ALLOWANCE_TYPE") AS
+  SELECT
+    PL.EMP_ID                   AS EMP_ID,
+    FC2.CD_NM                   AS LICENSE_TYPE,
+    FC1.CD_NM                   AS LICENSE_NAME,
+    PL.LICENSE_NO               AS LICENSE_NO,
+    PL.ORG_NM                   AS ISSUING_ORG,
+    PL.STA_YMD                  AS ISSUE_DATE,
+    PL.END_YMD                  AS EXPIRY_DATE,
+    CASE
+        WHEN PL.END_YMD IS NOT NULL AND REGEXP_LIKE(PL.END_YMD, '^\d{8}$') AND PL.END_YMD < TO_CHAR(SYSDATE, 'YYYYMMDD') THEN '만료'
+        WHEN PL.END_YMD IS NOT NULL AND REGEXP_LIKE(PL.END_YMD, '^\d{8}$') AND PL.END_YMD >= TO_CHAR(SYSDATE, 'YYYYMMDD') THEN '유효'
+        WHEN PL.END_YMD IS NULL OR NOT REGEXP_LIKE(NVL(PL.END_YMD, ''), '^\d{8}$') THEN '영구'
+        ELSE '확인필요'
+    END                         AS VALIDITY_STATUS,
+    PL.BONUS_TYPE               AS ALLOWANCE_TYPE
+FROM PHM_LICENSE PL
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PL.LICENSE_CD AND FC1.CD_KIND = 'PHM_LICENSE_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PL.LICENSE_TYPE_CD AND FC2.CD_KIND = 'PHM_LICENSE_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_LICENSE" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.LICENSE_TYPE IS '자격 구분 (국가자격, 민간자격 등)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.LICENSE_NAME IS '자격증 이름';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.LICENSE_NO IS '자격증 번호';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.ISSUING_ORG IS '발급기관';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.ISSUE_DATE IS '자격증 취득일';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.EXPIRY_DATE IS '자격증 만료일';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.VALIDITY_STATUS IS '자격증 유효 상태 (유효, 만료, 영구)';
+
+
+-- H552_RND.V_AI_MILITARY source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_MILITARY" ("EMP_ID", "MILITARY_TYPE", "MILITARY_BRANCH", "MILITARY_RANK", "SERVICE_TYPE", "SERVICE_STATUS", "DISCHARGE_TYPE", "DISCHARGE_DATE", "DISCHARGE_YEAR", "SPECIALTY", "MILITARY_NO") AS
+  SELECT
+    PA.EMP_ID                   AS EMP_ID,
+    FC7.CD_NM                   AS MILITARY_TYPE,
+    FC1.CD_NM                   AS MILITARY_BRANCH,
+    FC2.CD_NM                   AS MILITARY_RANK,
+    FC6.CD_NM                   AS SERVICE_TYPE,
+    FC5.CD_NM                   AS SERVICE_STATUS,
+    FC3.CD_NM                   AS DISCHARGE_TYPE,
+    PA.OUT_YMD                  AS DISCHARGE_DATE,
+    CASE
+        WHEN PA.OUT_YMD IS NOT NULL THEN
+            SUBSTR(PA.OUT_YMD, 1, 4)
+        ELSE NULL
+    END                         AS DISCHARGE_YEAR,
+    FC4.CD_NM                   AS SPECIALTY,
+    PA.ARMY_NO                  AS MILITARY_NO
+FROM PHM_ARMY PA
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PA.ARMY_BRANCH_CD AND FC1.CD_KIND = 'PHM_ARMY_BRANCH_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PA.ARMY_CLASS_CD AND FC2.CD_KIND = 'PHM_ARMY_CLASS_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PA.ARMY_DISCHARGE_CD AND FC3.CD_KIND = 'PHM_ARMY_DISCHARGE_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PA.ARMY_MTALENT_CD AND FC4.CD_KIND = 'PHM_ARMY_MTALENT_CD'
+LEFT JOIN FRM_CODE FC5 ON FC5.CD = PA.ARMY_NO_REASON_CD AND FC5.CD_KIND = 'PHM_ARMY_NO_REASON_CD'
+LEFT JOIN FRM_CODE FC6 ON FC6.CD = PA.ARMY_SERV_CD AND FC6.CD_KIND = 'PHMARMY_SERV_CD'
+LEFT JOIN FRM_CODE FC7 ON FC7.CD = PA.ARMY_TYPE_CD AND FC7.CD_KIND = 'PHM_ARMY_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_MILITARY" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_TYPE IS '군 종류 (육군, 해군, 공군, 해병대 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_BRANCH IS '병과 주특기';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_RANK IS '최종 계급 (병장, 상병 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.SERVICE_STATUS IS '군필 여부 (군필, 미필, 면제 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.DISCHARGE_TYPE IS '전역사유';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.DISCHARGE_DATE IS '전역일자';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.DISCHARGE_YEAR IS '전역한 연도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_NO IS '군번';
+
+
+-- H552_RND.V_AI_REWARD source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_REWARD" ("EMP_ID", "REWARD_TYPE", "REWARD_KIND", "REWARD_REASON", "REWARD_CONTENT", "REWARD_DATE", "REWARD_YEAR", "AWARDING_ORG", "REWARD_AMOUNT", "REWARD_NO") AS
+  SELECT
+    PM.EMP_ID                   AS EMP_ID,
+    FC3.CD_NM                   AS REWARD_TYPE,
+    FC2.CD_NM                   AS REWARD_KIND,
+    PM.PPM_DESC                 AS REWARD_REASON,
+    PM.PRIZE_DESC               AS REWARD_CONTENT,
+    PM.PPM_YMD                  AS REWARD_DATE,
+    CASE
+        WHEN PM.PPM_YMD IS NOT NULL THEN
+            SUBSTR(PM.PPM_YMD, 1, 4)
+        ELSE NULL
+    END                         AS REWARD_YEAR,
+    PM.PPM_ORG_NM               AS AWARDING_ORG,
+    PM.PPM_MON                  AS REWARD_AMOUNT,
+    PM.PPM_NO                   AS REWARD_NO
+FROM PPM_MNT PM
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PM.KIND_CD AND FC2.CD_KIND = 'PPM_KIND_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PM.TYPE_CD AND FC3.CD_KIND = 'PPM_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_REWARD" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_TYPE IS '상벌 구분 (포상, 징계)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_KIND IS '상벌 종류';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_REASON IS '사유';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_DATE IS '일자';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_YEAR IS '상벌 발생 연도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.AWARDING_ORG IS '기관';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_AMOUNT IS '포상금 금액';
+
+-- H552_RND.V_AI_SCHOLAR source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_SCHOLAR" ("EMP_ID", "EMP_NAME", "POSITION", "MAJOR_CODE", "MAJOR_NAME", "DOUBLE_MAJOR_NAME", "SCHOOL_NAME", "ADMISSION_DATE", "GRADUATION_DATE", "SUB_MAJOR_CD", "SUB_MAJOR_NM", "SCHOOL_LOCATION_CODE", "SCHOOL_LOCATION_NAME") AS
+  SELECT
+    PS.EMP_ID AS EMP_ID,
+    PN.LAST_NM AS EMP_NAME,
+    FC.CD_NM AS POSITION,
+    PS.MAJOR_CD AS MAJOR_CODE,
+    PS.MAJOR_NM AS MAJOR_NAME,
+    PS.DOU_MAJOR_NM AS DOUBLE_MAJOR_NAME,
+    FC2.CD_NM AS SCHOOL_NAME,
+    PS.STA_YM AS ADMISSION_DATE,
+    PS.END_YM AS GRADUATION_DATE,
+    PS.SUB_MAJOR_CD AS SUB_MAJOR_CD,
+    PS.SUB_MAJOR_NM AS SUB_MAJOR_NM,
+    PS.SCH_PLACE_CD AS SCHOOL_LOCATION_CODE,
+    PS.SCH_PLACE_NM AS SCHOOL_LOCATION_NAME
+FROM PHM_SCHOLAR PS
+JOIN PHM_EMP PE
+  ON PE.EMP_ID = PS.EMP_ID
+JOIN PHM_NAME PN
+  ON PN.EMP_ID = PS.EMP_ID
+LEFT JOIN FRM_CODE FC2
+  ON FC2.CD = PS.SCH_CD
+ AND FC2.CD_KIND = 'PHM_SCH_CD'
+LEFT JOIN FRM_CODE FC
+  ON FC.CD = PE.POS_CD
+ AND FC.CD_KIND = 'PHM_POS_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_SCHOLAR" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.EMP_ID IS '평가자 ID';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.EMP_NAME IS '사원 이름';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR."POSITION" IS '직위';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.MAJOR_NAME IS '전공학과 명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.DOUBLE_MAJOR_NAME IS '복수 전공 명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SCHOOL_NAME IS '학교 명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.ADMISSION_DATE IS '입학일자';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.GRADUATION_DATE IS '졸업일자';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SUB_MAJOR_NM IS '부전공 명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SCHOOL_LOCATION_NAME IS '학교 위치(소재지)';
+
+
+-- H552_RND.V_AI_TRAINING source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_TRAINING" ("EMP_ID", "TRAINING_YEAR", "COURSE_TYPE", "COURSE_GRADE", "COURSE_FIELD", "COURSE_NAME", "INSTITUTION_TYPE", "INSTITUTION_NAME", "TRAINING_LOCATION", "TRAINING_TYPE", "START_DATE", "END_DATE", "TRAINING_COST", "COMPLETION_POINTS", "COMPLETION_HOURS", "COMPLETION_STATUS", "REFUND_AMOUNT") AS
+  SELECT
+    PED.EMP_ID                  AS EMP_ID,
+    PED.EDU_YY                  AS TRAINING_YEAR,
+    FC1.CD_NM                   AS COURSE_TYPE,
+    FC2.CD_NM                   AS COURSE_GRADE,
+    FC3.CD_NM                   AS COURSE_FIELD,
+    PED.EDU_NM                  AS COURSE_NAME,
+    FC4.CD_NM                   AS INSTITUTION_TYPE,
+    PED.EDU_ORG_NM              AS INSTITUTION_NAME,
+    FC5.CD_NM                   AS TRAINING_LOCATION,
+    FC6.CD_NM                   AS TRAINING_TYPE,
+    PED.STA_YMD                 AS START_DATE,
+    PED.END_YMD                 AS END_DATE,
+    PED.REAL_AMT                AS TRAINING_COST,
+    PED.RESULT_PNT              AS COMPLETION_POINTS,
+    PED.RESULT_TIMES            AS COMPLETION_HOURS,
+    CASE PED.RESULT_YN
+        WHEN 'Y' THEN '수료'
+        WHEN 'N' THEN '미수료'
+        ELSE PED.RESULT_YN
+    END                         AS COMPLETION_STATUS,
+    PED.RETURN_AMT              AS REFUND_AMOUNT
+FROM PHM_EDU PED
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PED.EDU_CD AND FC1.CD_KIND = 'PHM_EDU_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PED.EDU_GRD_CD AND FC2.CD_KIND = 'PHM_EDU_GRD_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PED.EDU_KIND_CD AND FC3.CD_KIND = 'PHM_EDU_KIND_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PED.EDU_ORG_CD AND FC4.CD_KIND = 'PHM_EDU_ORG_CD'
+LEFT JOIN FRM_CODE FC5 ON FC5.CD = PED.EDU_PLA_CD AND FC5.CD_KIND = 'PHM_EDU_PLA_CD'
+LEFT JOIN FRM_CODE FC6 ON FC6.CD = PED.EDU_TYPE_CD AND FC6.CD_KIND = 'PHM_EDU_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_TRAINING" TO "MUSER";
+
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_YEAR IS '교육 실시 연도';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COURSE_GRADE IS '등급';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COURSE_NAME IS '교육 과정 이름';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_LOCATION IS '교육장소';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.START_DATE IS '교육시작일자';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.END_DATE IS '교육종료일자';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_COST IS '교육비용';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COMPLETION_POINTS IS '총이수포인트';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COMPLETION_HOURS IS '총 이수 시간';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COMPLETION_STATUS IS '수료 여부 (수료, 미수료)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.REFUND_AMOUNT IS '환급금액';
+
+
+-- H552_RND.V_AI_FEEDBACK source
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_FEEDBACK" ("RATEE_ID", "COMPANY_CD", "LOCALE_CD", "PEE_DEFINITION_ID", "APPR_ID", "APPR_NM", "PEE_TYPE_CD", "PEE_TYPE_NM", "EMP_ORG_ID", "EMP_ORG_NM", "RATEE_ORG_ID", "RATEE_ORG_NM", "RATEE_GROUP_ID", "RATEE_GROUP_NM", "RATEE_LEVEL_CD", "RATEE_LEVEL_NM", "EMP_ID", "EMP_NO", "EMP_NM", "APPR_SCORE", "APPR_GRADE", "RK", "PEE_OPINION", "APPR_SCORE_OPEN_YN", "APPR_GRADE_OPEN_YN", "APPR_RANK_OPEN_YN", "APPR_OPINION_OPEN_YN", "END_YMD", "APPR_YMD") AS 
+  SELECT  RATEE_ID                  as Evaluator_employee_ID,
+          COMPANY_CD                as Company_code,
+          LOCALE_CD                 as Locale_code,
+          PEE_DEFINITION_ID         as DEFINITION_ID,
+          APPR_ID                   as Evaluation_ID,
+          APPR_NM                   as Evaluation_name,
+          PEE_TYPE_CD               as Evaluation_type_code,
+          PEE_TYPE_NM               as Evaluation_type_name,
+          EMP_ORG_ID                as Employee_organization_code,
+          EMP_ORG_NM                as Employee_organization_name,
+          RATEE_ORG_ID              as Employee_org_identifier_R,
+          RATEE_ORG_NM              as Employee_org_name_R,
+          RATEE_GROUP_ID            as Employee_group_identifier,
+          RATEE_GROUP_NM            as Employee_group_name,
+          RATEE_LEVEL_CD            as Position_job_level_code,
+          RATEE_LEVEL_NM            as Position_job_level_name,
+          EMP_ID                    as Employee_unique_identifier,
+          EMP_NO                    as Employee_number,
+          EMP_NM                    as Employee_name,
+          APPR_SCORE                as Evaluation_score,
+          APPR_GRADE                as Evaluation_grade,
+          RK                        as Ranking,
+          PEE_OPINION               as Evaluator_comments,
+          APPR_SCORE_OPEN_YN        as Whether_evaluation_score_is_disclosed,
+          APPR_GRADE_OPEN_YN        as Whether_evaluation_grade_is_disclosed,
+          APPR_RANK_OPEN_YN         as Whether_ranking_are_disclosed,
+          APPR_OPINION_OPEN_YN      as Whether_opinion_are_disclosed_,
+          END_YMD                   as Evaluation_end_date,
+          APPR_YMD                  as Evaluation_date
+   FROM (SELECT C.RATEE_ID,
+                  E.COMPANY_CD,
+                  E.LOCALE_CD,
+                  A.PEE_DEFINITION_ID,
+                  B.APPR_ID,
+                  B.APPR_NM,
+                  B.PEE_TYPE_CD,
+                  F_FRM_CODE_NM (E.COMPANY_CD,
+                                 E.LOCALE_CD,
+                                 'PEE_TYPE_CD',
+                                 B.PEE_TYPE_CD,
+                                 C.END_YMD,
+                                 '1')
+                     AS PEE_TYPE_NM,
+                  C.EMP_ORG_ID,
+                  F_FRM_ORM_ORG_NM (C.EMP_ORG_ID,
+                                    E.LOCALE_CD,
+                                    B.END_YMD,
+                                    '11')
+                     AS EMP_ORG_NM,
+                  C.RATEE_ORG_ID,
+                  F_FRM_ORM_ORG_NM (C.RATEE_ORG_ID,
+                                    E.LOCALE_CD,
+                                    B.APPR_YMD,
+                                    '11')
+                     AS RATEE_ORG_NM,
+                  C.RATEE_GROUP_ID,
+                  F_PEE_GET_RATEE_GROUP_INFO (E.COMPANY_CD,
+                                              C.RATEE_GROUP_ID,
+                                              'RATEE_GROUP_NM')
+                     AS RATEE_GROUP_NM,
+                  C.RATEE_LEVEL_CD,
+                  F_FRM_CODE_NM (E.COMPANY_CD,
+                                 E.LOCALE_CD,
+                                 'PEE_RATEE_LEVEL_CD',
+                                 C.RATEE_LEVEL_CD,
+                                 C.END_YMD,
+                                 '1')
+                     AS RATEE_LEVEL_NM,
+                  E.EMP_ID,
+                  E.EMP_NO,
+                  E.EMP_NM,
+                  CASE
+                     WHEN D.FIXED_SCORE > 0 THEN D.FIXED_SCORE
+                     ELSE NULL
+                  END
+                     AS APPR_SCORE,
+                  F_FRM_CODE_NM (E.COMPANY_CD,
+                                 E.LOCALE_CD,
+                                 'PEE_APPR_GRADE_CD',
+                                 D.FIXED_GRADE,
+                                 C.END_YMD,
+                                 '1')
+                     AS APPR_GRADE,
+                  F_PEE_GET_APPR_GRADE_RANK (C.RATEE_ID, 'RANK') AS RK,
+                  F_PEE_GET_APPR_OPINION (E.COMPANY_CD,
+                                          E.LOCALE_CD,
+                                          C.RATEE_ID,
+                                          NULL)
+                     AS PEE_OPINION,
+                  XF_NVL_C (B.APPR_SCORE_OPEN_YN, 'N') AS APPR_SCORE_OPEN_YN,
+                  XF_NVL_C (B.APPR_GRADE_OPEN_YN, 'N') AS APPR_GRADE_OPEN_YN,
+                  XF_NVL_C (B.APPR_RANK_OPEN_YN, 'N') AS APPR_RANK_OPEN_YN,
+                  XF_NVL_C (B.APPR_OPINION_OPEN_YN, 'N')
+                     AS APPR_OPINION_OPEN_YN,
+                  XF_NVL_C (C.EXCEPT_YN, 'N') AS EXCEPT_YN,
+                  XF_NVL_C (B.CLOSE_YN, 'N') AS CLOSE_YN,
+                  XF_NVL_C (B.FEEDBACK_YN, 'N') AS FEEDBACK_YN,
+                  C.END_YMD AS END_YMD,
+                  B.APPR_YMD
+             FROM PEE_DEFINITION A,
+                  PEE_APPR_AGGREGATE B,
+                  PEE_RATEE C,
+                  PEE_APPR_RESULT D,
+                  VI_FRM_PHM_EMP E
+            WHERE     A.PEE_DEFINITION_ID = B.PEE_DEFINITION_ID
+                  AND B.APPR_ID = C.APPR_ID
+                  AND C.RATEE_ID = D.RATEE_ID
+                  AND C.RATEE_EMP_ID = E.EMP_ID
+                  AND A.COMPANY_CD = E.COMPANY_CD);
+
+GRANT SELECT ON "H552_RND"."V_AI_FEEDBACK" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_FEEDBACK IS '평가, 직원 평가  (EMP_ID로 V_AI_EMPLOYEE와 JOIN, 1:N)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_ID IS '평가자 ID';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_DEFINITION_ID IS '회사코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_ID IS '평가번호';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_NM IS '평가 명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_TYPE_CD IS '평가 종류 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_TYPE_NM IS '평가 이름';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_ORG_ID IS '소속 부서 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_ORG_NM IS '소속 부서 명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_GROUP_ID IS '소속 그룹 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_GROUP_NM IS '소속 그룹 명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_LEVEL_CD IS '직책 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_LEVEL_NM IS '직책 명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_ID IS '사원번호';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_NO IS '직원번호';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_NM IS '이름';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_SCORE IS '평가 점수';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_GRADE IS '평가등급';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RK IS '주석';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_OPINION IS '평가자 의견';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_SCORE_OPEN_YN IS '평가 점수 공개 여부';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_GRADE_OPEN_YN IS '평가등급 공개 여부';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_RANK_OPEN_YN IS '랭킹 공개 여부';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.END_YMD IS '평가종료일자';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_YMD IS '평가 일자';
