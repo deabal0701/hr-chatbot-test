@@ -6,6 +6,7 @@
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import json
 
 from app.utils.logger import setup_logger
 
@@ -189,6 +190,9 @@ class CodeService:
                 if cur.fetchone():
                     raise ValueError(f"중복된 코드: {code_group}.{code_value}")
 
+                # metadata를 JSON 문자열로 변환 (psycopg3는 dict를 자동 변환하지 않음)
+                metadata_json = json.dumps(metadata) if metadata else None
+
                 # 코드 생성
                 cur.execute("""
                     INSERT INTO tb_code (
@@ -199,7 +203,7 @@ class CodeService:
                     RETURNING code_id
                 """, (
                     code_group, code_value, code_name,
-                    description, metadata, sort_order,
+                    description, metadata_json, sort_order,
                     is_active, is_system, parent
                 ))
 
@@ -261,7 +265,11 @@ class CodeService:
             params = []
             for field, value in update_fields.items():
                 set_clauses.append(f"{field} = %s")
-                params.append(value)
+                # metadata는 JSON 문자열로 변환 (psycopg3는 dict를 자동 변환하지 않음)
+                if field == 'metadata' and isinstance(value, dict):
+                    params.append(json.dumps(value))
+                else:
+                    params.append(value)
 
             # updated_at 추가 (트리거 대신 직접 갱신)
             set_clauses.append("updated_at = %s")

@@ -37,9 +37,17 @@
               </el-form-item>
 
               <el-form-item label="문서 용도" prop="usageType">
-                <el-select v-model="form.usageType" style="width: 100%">
-                  <el-option label="RAG 문서 (정책, 가이드 등)" value="rag" />
-                  <el-option label="Cortex SQL (스키마, 쿼리예제)" value="cortex" />
+                <el-select
+                  v-model="form.usageType"
+                  style="width: 100%"
+                  :loading="usageTypesLoading"
+                >
+                  <el-option
+                    v-for="usageType in usageTypes"
+                    :key="usageType.code_value"
+                    :label="usageType.code_name"
+                    :value="usageType.code_value"
+                  />
                 </el-select>
                 <div class="form-tip">RAG: 문서 기반 답변 / Cortex: SQL 생성 컨텍스트</div>
               </el-form-item>
@@ -207,9 +215,26 @@ const chunkPreviewVisible = ref(false)
 const chunkPreviewData = ref(null)
 const isLoading = ref(false)
 
+// 문서 용도 코드 (DB에서 동적 로드)
+const usageTypes = ref([])
+const usageTypesLoading = ref(false)
+
 // 문서 유형 코드 (DB에서 동적 로드)
 const docTypes = ref([])
 const docTypesLoading = ref(false)
+
+// 문서 용도 코드 로드
+const loadUsageTypes = async () => {
+  usageTypesLoading.value = true
+  try {
+    const response = await codesApi.getByGroup('USAGE_TYPE', false)
+    usageTypes.value = response.codes
+  } catch (error) {
+    console.error('문서 용도 로드 실패:', error)
+  } finally {
+    usageTypesLoading.value = false
+  }
+}
 
 // 문서 유형 코드 로드
 const loadDocTypes = async () => {
@@ -283,7 +308,8 @@ const rules = {
 
 // 문서 데이터 로드
 onMounted(async () => {
-  // 문서 유형 코드 로드
+  // 코드 로드
+  loadUsageTypes()
   loadDocTypes()
 
   // 새 문서 생성 모드: 쿼리 파라미터에서 usageType 읽기

@@ -18,11 +18,16 @@
           v-model="filters.usageType"
           placeholder="문서 용도"
           clearable
-          style="width: 130px"
+          style="width: 150px"
           @change="handleFilterChange"
+          :loading="usageTypesLoading"
         >
-          <el-option label="RAG 문서" value="rag" />
-          <el-option label="Cortex SQL" value="cortex" />
+          <el-option
+            v-for="usageType in usageTypes"
+            :key="usageType.code_value"
+            :label="usageType.code_name"
+            :value="usageType.code_value"
+          />
         </el-select>
 
         <el-select
@@ -184,6 +189,10 @@ import codesApi from '@/api/codes'
 const store = useStore()
 const router = useRouter()
 
+// 문서 용도 코드 (DB에서 동적 로드)
+const usageTypes = ref([])
+const usageTypesLoading = ref(false)
+
 // 문서 유형 코드 (DB에서 동적 로드)
 const docTypes = ref([])
 const docTypesLoading = ref(false)
@@ -196,6 +205,19 @@ const filters = computed(() => store.state.document.filters)
 const total = computed(() => store.state.document.pagination.total)
 const pageSize = computed(() => store.state.document.pagination.limit)
 const currentPage = computed(() => store.state.document.pagination.page)
+
+// 문서 용도 코드 로드
+const loadUsageTypes = async () => {
+  usageTypesLoading.value = true
+  try {
+    const response = await codesApi.getByGroup('USAGE_TYPE', false)
+    usageTypes.value = response.codes
+  } catch (error) {
+    console.error('문서 용도 로드 실패:', error)
+  } finally {
+    usageTypesLoading.value = false
+  }
+}
 
 // 문서 유형 코드 로드
 const loadDocTypes = async () => {
@@ -241,6 +263,7 @@ watch(() => filters.value.usageType, (newUsageType) => {
 
 // 초기 로드
 onMounted(() => {
+  loadUsageTypes()
   loadDocTypes()
   store.dispatch('document/fetchDocuments')
 })
