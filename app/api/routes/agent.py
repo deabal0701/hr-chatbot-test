@@ -75,13 +75,13 @@ async def agent_search(request: AgentRequest):
     request_id = str(uuid.uuid4())[:8]
 
     try:
+        logger.info(f"[{request_id}] ========== Agent 검색 요청 처리 시작 ==========")
         logger.info(f"[{request_id}] Agent 검색 요청: {request.question[:100]}")
 
         # 서비스 호출 (설정은 서비스에서 DB로부터 로드)
         result = await agent_service.search(question=request.question, session_id=request.session_id, request_id=request_id)
-        logger.info(f"[{request_id}] Agent 검색 완료: " f"iterations={result.total_iterations}, " f"tools={result.tools_used}, "
-                    f"success={result.success}"
-        )
+        logger.info(f"[{request_id}] Agent 검색 완료: iterations={result.total_iterations}, tools={result.tools_used}, success={result.success}")
+        logger.info(f"[{request_id}] ========== Agent 검색 요청 처리 완료 ==========")
         return result
 
     except Exception as e:
