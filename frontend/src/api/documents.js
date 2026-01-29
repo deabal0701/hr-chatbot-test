@@ -31,7 +31,7 @@ export default {
       metadata: data.metadata || {},
       source_type: data.sourceType || 'ui_input',
       source_file: data.sourceFile || null,
-      usage_type: data.usageType || 'rag'
+      usage_type: data.usageType || 'rag_knowledge'
     })
   },
 

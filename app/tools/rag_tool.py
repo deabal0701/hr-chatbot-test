@@ -168,8 +168,8 @@ Examples:
                 settings.rag_similarity_threshold
             )
 
-            # 필터 구성 (RAG 전용 - Cortex 문서 제외)
-            filters = SearchFilters(usage_type="rag", doc_type=doc_type) if doc_type else SearchFilters(usage_type="rag")
+            # 필터 구성 (지식 문서 전용 - Action 문서 제외)
+            filters = SearchFilters(usage_type="rag_knowledge", doc_type=doc_type) if doc_type else SearchFilters(usage_type="rag_knowledge")
 
             # 벡터 검색 (기존 vector_store 재사용)
             documents = vector_store.search_similar_documents(

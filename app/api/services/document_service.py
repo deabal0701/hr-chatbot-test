@@ -74,7 +74,7 @@ class DocumentService:
         metadata: Optional[Dict[str, Any]] = None,
         source_type: str = "ui_input",
         source_file: Optional[str] = None,
-        usage_type: str = "rag"
+        usage_type: str = "rag_knowledge"
     ) -> Dict[str, Any]:
         """
         문서 저장 (임베딩 없이)

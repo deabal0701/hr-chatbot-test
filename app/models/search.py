@@ -13,7 +13,7 @@ from .rag import DocumentSource, SQLResult
 
 class SearchFilters(BaseModel):
     """검색 필터"""
-    usage_type: Optional[str] = Field(default="rag", description="문서 용도 (rag/cortex)")
+    usage_type: Optional[str] = Field(default="rag_knowledge", description="문서 용도 (rag_knowledge/rag_action)")
     from_date: Optional[str] = Field(None, description="시작 날짜 (YYYY-MM-DD)")
     to_date: Optional[str] = Field(None, description="종료 날짜 (YYYY-MM-DD)")
     department: Optional[str] = Field(None, description="부서")

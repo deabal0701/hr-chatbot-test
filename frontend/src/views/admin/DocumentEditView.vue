@@ -255,16 +255,16 @@ const loadDocTypes = async () => {
 const filteredDocTypes = computed(() => {
   if (!docTypes.value.length) return []
 
-  const isRag = form.value.usageType === 'rag'
+  const isRagKnowledge = form.value.usageType === 'rag_knowledge'
   return docTypes.value.filter(dt => {
     const sortOrder = dt.sort_order || 0
-    return isRag ? sortOrder < 10 : sortOrder >= 10
+    return isRagKnowledge ? sortOrder < 10 : sortOrder >= 10
   })
 })
 
 // 기본 문서 유형 반환
 const getDefaultDocType = (usageType) => {
-  return usageType === 'rag' ? 'policy' : 'schema'
+  return usageType === 'rag_knowledge' ? 'policy' : 'schema'
 }
 
 // 모드 판단
@@ -277,7 +277,7 @@ const form = ref({
   title: '',
   docType: 'policy',
   language: 'ko',
-  usageType: 'rag',
+  usageType: 'rag_knowledge',
   content: '',
   chunkSize: 1000,
   chunkOverlap: 100
@@ -315,7 +315,7 @@ onMounted(async () => {
   // 새 문서 생성 모드: 쿼리 파라미터에서 usageType 읽기
   if (!isEditMode.value) {
     const queryUsageType = route.query.usageType
-    if (queryUsageType && ['rag', 'cortex'].includes(queryUsageType)) {
+    if (queryUsageType && ['rag_knowledge', 'rag_action'].includes(queryUsageType)) {
       form.value.usageType = queryUsageType
       form.value.docType = getDefaultDocType(queryUsageType)
     }
@@ -345,7 +345,7 @@ onMounted(async () => {
         title: originalTitle,
         docType: doc.doc_type || 'policy',
         language: doc.language || 'ko',
-        usageType: doc.usage_type || 'rag',
+        usageType: doc.usage_type || 'rag_knowledge',
         content: fullContent,
         chunkSize: 1000,
         chunkOverlap: 100

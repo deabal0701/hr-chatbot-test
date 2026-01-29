@@ -116,8 +116,8 @@
 
         <el-table-column prop="usage_type" label="용도" width="90" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.usage_type === 'cortex' ? 'warning' : 'primary'">
-              {{ row.usage_type === 'cortex' ? 'Cortex' : 'RAG' }}
+            <el-tag size="small" :type="row.usage_type === 'rag_action' ? 'warning' : 'primary'">
+              {{ row.usage_type === 'rag_action' ? 'Action' : '지식' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -242,10 +242,10 @@ const filteredDocTypes = computed(() => {
   const usageType = filters.value.usageType
   if (!usageType) return docTypes.value  // 전체 표시
 
-  const isRag = usageType === 'rag'
+  const isRagKnowledge = usageType === 'rag_knowledge'
   return docTypes.value.filter(dt => {
     const sortOrder = dt.sort_order || 0
-    return isRag ? sortOrder < 10 : sortOrder >= 10
+    return isRagKnowledge ? sortOrder < 10 : sortOrder >= 10
   })
 })
 
