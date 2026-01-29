@@ -67,6 +67,7 @@ class DocumentSaveRequest(BaseModel):
     content: str = Field(..., min_length=1, description="문서 내용")
     language: str = Field(default="ko", description="언어 (ko, en)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="메타데이터")
+    context_data: Optional[str] = Field(default=None, description="임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)")
     source_type: str = Field(default="ui_input", description="소스 타입 (ui_input, pdf, web, api)")
     source_file: Optional[str] = Field(default=None, description="원본 파일명")
     usage_type: str = Field(default="rag_knowledge", description="문서 용도 (rag_knowledge, rag_action)")
@@ -148,6 +149,7 @@ class DocumentUpdateRequest(BaseModel):
     content: Optional[str] = Field(None, min_length=1, description="문서 내용")
     language: Optional[str] = Field(None, description="언어 (ko, en)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="메타데이터")
+    context_data: Optional[str] = Field(None, description="임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)")
 
     model_config = {
         "json_schema_extra": {

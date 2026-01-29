@@ -59,6 +59,7 @@ async def save_document(doc: DocumentSaveRequest):
             content=doc.content,
             language=doc.language,
             metadata=doc.metadata,
+            context_data=doc.context_data,
             source_type=doc.source_type,
             source_file=doc.source_file,
             usage_type=doc.usage_type
@@ -181,7 +182,8 @@ async def update_document(doc_id: int, doc: DocumentUpdateRequest):
             doc_type=doc.doc_type,
             content=doc.content,
             language=doc.language,
-            metadata=doc.metadata
+            metadata=doc.metadata,
+            context_data=doc.context_data
         )
 
         message = "문서가 수정되었습니다."

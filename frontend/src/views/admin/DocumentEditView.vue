@@ -203,6 +203,25 @@
                   :autosize="{ minRows: 20, maxRows: 40 }"
                 />
               </el-form-item>
+
+              <!-- 컨텍스트 데이터 -->
+              <div class="context-data-section">
+                <div class="content-header">
+                  <h3>컨텍스트 데이터</h3>
+                  <span class="char-count">{{ form.contextData?.length || 0 }}자</span>
+                </div>
+                <div class="form-tip context-tip">
+                  임베딩되지 않고 스키마, SQL 등 Agent 참조용으로 사용됩니다.
+                </div>
+                <el-form-item prop="contextData" class="context-form-item">
+                  <el-input
+                    v-model="form.contextData"
+                    type="textarea"
+                    placeholder="스키마, SQL 예시 등 Agent가 참조할 컨텍스트 데이터를 입력하세요..."
+                    :autosize="{ minRows: 6, maxRows: 15 }"
+                  />
+                </el-form-item>
+              </div>
             </div>
           </el-col>
         </el-row>
@@ -320,6 +339,7 @@ const form = ref({
   language: 'ko',
   usageType: 'rag_knowledge',
   content: '',
+  contextData: '',
   chunkSize: 1000,
   chunkOverlap: 100,
   metadata: {}
@@ -426,6 +446,7 @@ onMounted(async () => {
         language: doc.language || 'ko',
         usageType: doc.usage_type || 'rag_knowledge',
         content: fullContent,
+        contextData: doc.context_data || '',
         chunkSize: 1000,
         chunkOverlap: 100,
         metadata: doc.metadata || {}
@@ -482,6 +503,7 @@ const handleSubmit = async () => {
       language: form.value.language,
       usageType: form.value.usageType,
       content: form.value.content,
+      contextData: form.value.contextData || null,
       metadata: form.value.metadata || {}
     }
 
@@ -648,6 +670,27 @@ const formatNumber = (num) => {
         font-family: 'Pretendard', sans-serif;
         font-size: 14px;
         line-height: 1.8;
+      }
+    }
+
+    .context-data-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color-light);
+
+      .context-tip {
+        margin-bottom: 12px;
+        color: var(--text-color-secondary);
+        font-size: 12px;
+      }
+
+      .context-form-item {
+        :deep(.el-textarea__inner) {
+          font-family: 'Consolas', 'Monaco', monospace;
+          font-size: 13px;
+          line-height: 1.6;
+          background-color: var(--bg-color-hover);
+        }
       }
     }
   }

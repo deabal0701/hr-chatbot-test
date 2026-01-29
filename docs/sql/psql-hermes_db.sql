@@ -100,6 +100,8 @@ CREATE TABLE tb_docs (
 	created_at timestamptz DEFAULT now() NULL,
 	updated_at timestamptz DEFAULT now() NULL,
 	original_content text NULL,
+	usage_type varchar(20) DEFAULT 'rag'::character varying NULL, -- 문서 용도 구분: rag(문서 답변), cortex(SQL 생성)
+	context_data text NULL, -- 임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)
 	CONSTRAINT hr_docs_pkey PRIMARY KEY (id),
 	CONSTRAINT hr_docs_parent_doc_id_fkey FOREIGN KEY (parent_doc_id) REFERENCES tb_docs(id) ON DELETE CASCADE
 );
@@ -112,6 +114,13 @@ CREATE INDEX idx_hr_docs_language ON public.tb_docs USING btree (language);
 CREATE INDEX idx_hr_docs_metadata ON public.tb_docs USING gin (metadata);
 CREATE INDEX idx_hr_docs_parent_doc ON public.tb_docs USING btree (parent_doc_id);
 CREATE INDEX idx_hr_docs_source_type ON public.tb_docs USING btree (source_type);
+CREATE INDEX idx_tb_docs_usage_doc_type ON public.tb_docs USING btree (usage_type, doc_type);
+CREATE INDEX idx_tb_docs_usage_type ON public.tb_docs USING btree (usage_type);
+
+-- Column comments
+
+COMMENT ON COLUMN public.tb_docs.usage_type IS '문서 용도 구분: rag(문서 답변), cortex(SQL 생성)';
+COMMENT ON COLUMN public.tb_docs.context_data IS '임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)';
 
 
 -- public.tb_prompt_history definition

@@ -29,6 +29,7 @@ export default {
       content: data.content,
       language: data.language || 'ko',
       metadata: data.metadata || {},
+      context_data: data.contextData || null,
       source_type: data.sourceType || 'ui_input',
       source_file: data.sourceFile || null,
       usage_type: data.usageType || 'rag_knowledge'
@@ -47,6 +48,7 @@ export default {
     if (data.content !== undefined) updateData.content = data.content
     if (data.language !== undefined) updateData.language = data.language
     if (data.metadata !== undefined) updateData.metadata = data.metadata
+    if (data.contextData !== undefined) updateData.context_data = data.contextData
 
     return apiClient.put(`/api/admin/v1/documents/${docId}`, updateData)
   },

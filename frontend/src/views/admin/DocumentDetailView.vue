@@ -174,6 +174,27 @@
                   @current-change="handleChunkPageChange"
                 />
               </div>
+
+              <!-- 컨텍스트 데이터 -->
+              <div class="context-data-section">
+                <div class="content-header">
+                  <h3>컨텍스트 데이터</h3>
+                  <el-button
+                    v-if="document.context_data"
+                    text
+                    :icon="CopyDocument"
+                    @click="copyContextData"
+                  >
+                    복사
+                  </el-button>
+                </div>
+                <div class="context-tip">
+                  임베딩되지 않고 스키마, SQL 등 Agent 참조용으로 사용됩니다.
+                </div>
+                <div class="context-body">
+                  {{ document.context_data || '(컨텍스트 데이터 없음)' }}
+                </div>
+              </div>
             </div>
           </el-col>
         </el-row>
@@ -314,6 +335,16 @@ const copyContent = async () => {
   try {
     await navigator.clipboard.writeText(currentContent.value)
     ElMessage.success('내용이 클립보드에 복사되었습니다.')
+  } catch (error) {
+    ElMessage.error('복사에 실패했습니다.')
+  }
+}
+
+// 컨텍스트 데이터 복사
+const copyContextData = async () => {
+  try {
+    await navigator.clipboard.writeText(document.value.context_data || '')
+    ElMessage.success('컨텍스트 데이터가 클립보드에 복사되었습니다.')
   } catch (error) {
     ElMessage.error('복사에 실패했습니다.')
   }
@@ -480,6 +511,33 @@ const formatDateTime = (dateStr) => {
       margin-top: 16px;
       padding-top: 16px;
       border-top: 1px solid var(--border-color-light);
+    }
+
+    .context-data-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color-light);
+
+      .context-tip {
+        margin-bottom: 12px;
+        color: var(--text-color-secondary);
+        font-size: 12px;
+      }
+
+      .context-body {
+        padding: 16px;
+        background-color: var(--bg-color-hover);
+        border-radius: 8px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--text-color-primary);
+        max-height: 300px;
+        overflow-y: auto;
+        transition: var(--theme-transition);
+      }
     }
   }
 }

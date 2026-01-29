@@ -72,6 +72,7 @@ class DocumentService:
         content: str,
         language: str = "ko",
         metadata: Optional[Dict[str, Any]] = None,
+        context_data: Optional[str] = None,
         source_type: str = "ui_input",
         source_file: Optional[str] = None,
         usage_type: str = "rag_knowledge"
@@ -85,6 +86,7 @@ class DocumentService:
             content: 문서 내용
             language: 언어 (기본: ko)
             metadata: 추가 메타데이터
+            context_data: 임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)
             source_type: 소스 타입 (ui_input, pdf, web, api)
             source_file: 원본 파일명
             usage_type: 문서 용도 (rag/cortex, 기본: rag)
@@ -105,12 +107,13 @@ class DocumentService:
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
-                    INSERT INTO tb_docs (title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash, chunk_index, total_chunks, usage_type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO tb_docs (title, doc_type, language, content, metadata, context_data, indexed, source_type, source_file, content_hash, chunk_index, total_chunks, usage_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     title, doc_type, language, content,
                     psycopg.types.json.Json(metadata or {}), # type: ignore
+                    context_data,  # 임베딩 제외 컨텍스트 데이터
                     False,  # indexed = False (임베딩 없음)
                     source_type, source_file, content_hash,
                     0,  # chunk_index
@@ -160,7 +163,7 @@ class DocumentService:
                 # 문서 조회
                 cur.execute("""
                     SELECT id, title, doc_type, language, content, original_content, metadata,
-                           source_type, source_file, chunk_index, total_chunks,
+                           context_data, source_type, source_file, chunk_index, total_chunks,
                            parent_doc_id, indexed, embedded_at,
                            LENGTH(content) as content_length,
                            created_at, updated_at
@@ -299,7 +302,8 @@ class DocumentService:
         doc_type: Optional[str] = None,
         content: Optional[str] = None,
         language: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        context_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         문서 수정 (내용 변경 시 임베딩 무효화)
@@ -311,6 +315,7 @@ class DocumentService:
             content: 새 내용 (변경 시 임베딩 무효화)
             language: 새 언어
             metadata: 새 메타데이터
+            context_data: 임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)
 
         Returns:
             {
@@ -375,6 +380,10 @@ class DocumentService:
             if metadata is not None:
                 updates.append("metadata = %s")
                 params.append(psycopg.types.json.Json(metadata))
+
+            if context_data is not None:
+                updates.append("context_data = %s")
+                params.append(context_data if context_data else None)
 
             if not updates:
                 # 변경 사항 없음
