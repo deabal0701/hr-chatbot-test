@@ -30,7 +30,8 @@ export default {
       language: data.language || 'ko',
       metadata: data.metadata || {},
       source_type: data.sourceType || 'ui_input',
-      source_file: data.sourceFile || null
+      source_file: data.sourceFile || null,
+      usage_type: data.usageType || 'rag'
     })
   },
 

@@ -60,7 +60,8 @@ async def save_document(doc: DocumentSaveRequest):
             language=doc.language,
             metadata=doc.metadata,
             source_type=doc.source_type,
-            source_file=doc.source_file
+            source_file=doc.source_file,
+            usage_type=doc.usage_type
         )
 
         return DocumentSaveResponse(
@@ -91,6 +92,7 @@ async def save_document(doc: DocumentSaveRequest):
 async def list_documents(
     doc_type: Optional[str] = Query(None, description="문서 유형 필터 (policy, job_posting, faq, guide)"),
     source_type: Optional[str] = Query(None, description="소스 타입 필터 (ui_input, pdf, web, api)"),
+    usage_type: Optional[str] = Query(None, description="문서 용도 필터 (rag, cortex, 미지정: 전체)"),
     indexed: Optional[bool] = Query(None, description="임베딩 여부 필터 (true: 임베딩됨, false: 미임베딩, 미지정: 전체)"),
     include_chunks: bool = Query(False, description="청크 포함 여부 (기본: 원본만)"),
     limit: int = Query(100, ge=1, le=1000, description="최대 결과 수"),
@@ -99,6 +101,10 @@ async def list_documents(
     """
     문서 목록 조회
 
+    - usage_type 파라미터로 문서 용도 필터링:
+        - usage_type=rag: RAG 문서만 (정책, 가이드 등)
+        - usage_type=cortex: Cortex 문서만 (스키마, 쿼리예제, 용어집)
+        - 미지정: 전체 문서
     - indexed 파라미터로 임베딩 여부 필터링:
         - indexed=true: 임베딩 완료된 문서만
         - indexed=false: 미임베딩 문서만 (임베딩 실행 필요)
@@ -112,6 +118,7 @@ async def list_documents(
             source_type=source_type,
             indexed=indexed,
             include_chunks=include_chunks,
+            usage_type=usage_type,
             limit=limit,
             offset=offset
         )

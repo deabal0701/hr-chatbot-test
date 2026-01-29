@@ -73,7 +73,8 @@ class DocumentService:
         language: str = "ko",
         metadata: Optional[Dict[str, Any]] = None,
         source_type: str = "ui_input",
-        source_file: Optional[str] = None
+        source_file: Optional[str] = None,
+        usage_type: str = "rag"
     ) -> Dict[str, Any]:
         """
         문서 저장 (임베딩 없이)
@@ -86,6 +87,7 @@ class DocumentService:
             metadata: 추가 메타데이터
             source_type: 소스 타입 (ui_input, pdf, web, api)
             source_file: 원본 파일명
+            usage_type: 문서 용도 (rag/cortex, 기본: rag)
 
         Returns:
             {
@@ -103,8 +105,8 @@ class DocumentService:
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
-                    INSERT INTO tb_docs (title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash, chunk_index, total_chunks)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO tb_docs (title, doc_type, language, content, metadata, indexed, source_type, source_file, content_hash, chunk_index, total_chunks, usage_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     title, doc_type, language, content,
@@ -112,7 +114,8 @@ class DocumentService:
                     False,  # indexed = False (임베딩 없음)
                     source_type, source_file, content_hash,
                     0,  # chunk_index
-                    1   # total_chunks (아직 청킹 안됨)
+                    1,  # total_chunks (아직 청킹 안됨)
+                    usage_type
                 ))
 
                 result = cur.fetchone()
@@ -211,6 +214,7 @@ class DocumentService:
         source_type: Optional[str] = None,
         indexed: Optional[bool] = None,
         include_chunks: bool = False,
+        usage_type: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -222,6 +226,7 @@ class DocumentService:
             source_type: 소스 타입 필터
             indexed: 임베딩 여부 필터 (True: 임베딩됨, False: 미임베딩, None: 전체)
             include_chunks: 청크 포함 여부
+            usage_type: 문서 용도 필터 (rag/cortex, None이면 전체)
             limit: 최대 결과 수
             offset: 시작 위치
 
@@ -234,6 +239,11 @@ class DocumentService:
         # 청크 제외 (원본 문서만)
         if not include_chunks:
             conditions.append("(parent_doc_id IS NULL OR chunk_index = 0)")
+
+        # usage_type 필터 (rag/cortex)
+        if usage_type:
+            conditions.append("usage_type = %s")
+            params.append(usage_type)
 
         if doc_type:
             conditions.append("doc_type = %s")
@@ -264,7 +274,7 @@ class DocumentService:
                 # 문서 목록 조회
                 list_params = params + [limit, offset]
                 cur.execute(f"""
-                    SELECT id, title, doc_type, language,
+                    SELECT id, title, doc_type, usage_type, language,
                            LENGTH(content) as content_length,
                            COALESCE(LENGTH(original_content), LENGTH(content)) as original_length,
                            source_type, source_file, total_chunks, indexed,

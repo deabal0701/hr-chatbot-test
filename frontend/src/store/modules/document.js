@@ -13,6 +13,7 @@ export default {
     filters: {
       docType: null,
       sourceType: null,
+      usageType: null,  // rag, cortex
       indexed: null
     },
     pagination: {
@@ -44,6 +45,7 @@ export default {
       state.filters = {
         docType: null,
         sourceType: null,
+        usageType: null,
         indexed: null
       }
     },
@@ -101,6 +103,9 @@ export default {
         }
         if (state.filters.sourceType) {
           params.source_type = state.filters.sourceType
+        }
+        if (state.filters.usageType) {
+          params.usage_type = state.filters.usageType
         }
         if (state.filters.indexed !== null) {
           params.indexed = state.filters.indexed

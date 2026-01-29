@@ -36,6 +36,14 @@
                 <el-input v-model="form.title" placeholder="문서 제목을 입력하세요" />
               </el-form-item>
 
+              <el-form-item label="문서 용도" prop="usageType">
+                <el-select v-model="form.usageType" style="width: 100%">
+                  <el-option label="RAG 문서 (정책, 가이드 등)" value="rag" />
+                  <el-option label="Cortex SQL (스키마, 쿼리예제)" value="cortex" />
+                </el-select>
+                <div class="form-tip">RAG: 문서 기반 답변 / Cortex: SQL 생성 컨텍스트</div>
+              </el-form-item>
+
               <el-form-item label="문서 유형" prop="docType">
                 <el-select
                   v-model="form.docType"
@@ -44,7 +52,7 @@
                   :loading="docTypesLoading"
                 >
                   <el-option
-                    v-for="docType in docTypes"
+                    v-for="docType in filteredDocTypes"
                     :key="docType.code_value"
                     :label="docType.code_name"
                     :value="docType.code_value"
@@ -182,7 +190,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -216,6 +224,24 @@ const loadDocTypes = async () => {
   }
 }
 
+// 문서 용도에 따른 문서 유형 필터링
+// - RAG (sort_order 1-9): policy, guide, faq, job_posting 등
+// - Cortex (sort_order 10+): schema, query_example, glossary
+const filteredDocTypes = computed(() => {
+  if (!docTypes.value.length) return []
+
+  const isRag = form.value.usageType === 'rag'
+  return docTypes.value.filter(dt => {
+    const sortOrder = dt.sort_order || 0
+    return isRag ? sortOrder < 10 : sortOrder >= 10
+  })
+})
+
+// 기본 문서 유형 반환
+const getDefaultDocType = (usageType) => {
+  return usageType === 'rag' ? 'policy' : 'schema'
+}
+
 // 모드 판단
 const isEditMode = computed(() => route.name === 'AdminDocumentEdit')
 const docId = computed(() => route.params.id)
@@ -226,9 +252,19 @@ const form = ref({
   title: '',
   docType: 'policy',
   language: 'ko',
+  usageType: 'rag',
   content: '',
   chunkSize: 1000,
   chunkOverlap: 100
+})
+
+// 문서 용도 변경 시 문서 유형 초기화
+watch(() => form.value.usageType, (newUsageType) => {
+  // 현재 선택된 docType이 새 usageType에서 유효한지 확인
+  const validDocTypes = filteredDocTypes.value.map(dt => dt.code_value)
+  if (!validDocTypes.includes(form.value.docType)) {
+    form.value.docType = getDefaultDocType(newUsageType)
+  }
 })
 
 // 유효성 검사 규칙
@@ -249,6 +285,15 @@ const rules = {
 onMounted(async () => {
   // 문서 유형 코드 로드
   loadDocTypes()
+
+  // 새 문서 생성 모드: 쿼리 파라미터에서 usageType 읽기
+  if (!isEditMode.value) {
+    const queryUsageType = route.query.usageType
+    if (queryUsageType && ['rag', 'cortex'].includes(queryUsageType)) {
+      form.value.usageType = queryUsageType
+      form.value.docType = getDefaultDocType(queryUsageType)
+    }
+  }
 
   // 수정 모드인 경우 문서 데이터 로드
   if (isEditMode.value && docId.value) {
@@ -274,6 +319,7 @@ onMounted(async () => {
         title: originalTitle,
         docType: doc.doc_type || 'policy',
         language: doc.language || 'ko',
+        usageType: doc.usage_type || 'rag',
         content: fullContent,
         chunkSize: 1000,
         chunkOverlap: 100
@@ -318,6 +364,7 @@ const handleSubmit = async () => {
       title: form.value.title,
       docType: form.value.docType,
       language: form.value.language,
+      usageType: form.value.usageType,
       content: form.value.content
     }
 

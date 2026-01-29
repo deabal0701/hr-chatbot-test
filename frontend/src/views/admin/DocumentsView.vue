@@ -15,6 +15,17 @@
     <div class="content-card filter-section">
       <div class="filter-row">
         <el-select
+          v-model="filters.usageType"
+          placeholder="문서 용도"
+          clearable
+          style="width: 130px"
+          @change="handleFilterChange"
+        >
+          <el-option label="RAG 문서" value="rag" />
+          <el-option label="Cortex SQL" value="cortex" />
+        </el-select>
+
+        <el-select
           v-model="filters.docType"
           placeholder="문서 유형"
           clearable
@@ -23,7 +34,7 @@
           :loading="docTypesLoading"
         >
           <el-option
-            v-for="docType in docTypes"
+            v-for="docType in filteredDocTypes"
             :key="docType.code_value"
             :label="docType.code_name"
             :value="docType.code_value"
@@ -98,6 +109,14 @@
           </template>
         </el-table-column>
 
+        <el-table-column prop="usage_type" label="용도" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.usage_type === 'cortex' ? 'warning' : 'primary'">
+              {{ row.usage_type === 'cortex' ? 'Cortex' : 'RAG' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="original_length" label="길이" width="100">
           <template #default="{ row }">
             {{ formatNumber(row.original_length || row.content_length) }}자
@@ -155,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -191,6 +210,35 @@ const loadDocTypes = async () => {
   }
 }
 
+// 문서 용도에 따른 문서 유형 필터링
+// - RAG (sort_order 1-9): policy, guide, faq, job_posting 등
+// - Cortex (sort_order 10+): schema, query_example, glossary
+// - 미선택: 전체 표시
+const filteredDocTypes = computed(() => {
+  if (!docTypes.value.length) return []
+
+  const usageType = filters.value.usageType
+  if (!usageType) return docTypes.value  // 전체 표시
+
+  const isRag = usageType === 'rag'
+  return docTypes.value.filter(dt => {
+    const sortOrder = dt.sort_order || 0
+    return isRag ? sortOrder < 10 : sortOrder >= 10
+  })
+})
+
+// 문서 용도 변경 시 문서 유형 필터 초기화
+watch(() => filters.value.usageType, (newUsageType) => {
+  if (newUsageType && filters.value.docType) {
+    // 현재 선택된 docType이 새 usageType에서 유효한지 확인
+    const validDocTypes = filteredDocTypes.value.map(dt => dt.code_value)
+    if (!validDocTypes.includes(filters.value.docType)) {
+      // 유효하지 않으면 docType 필터 초기화
+      store.dispatch('document/setFilters', { ...filters.value, docType: null })
+    }
+  }
+})
+
 // 초기 로드
 onMounted(() => {
   loadDocTypes()
@@ -223,7 +271,9 @@ const handleSelectionChange = (selection) => {
 
 // 새 문서 페이지로 이동
 const showCreateForm = () => {
-  router.push({ name: 'AdminDocumentNew' })
+  // 현재 필터된 용도가 있으면 쿼리 파라미터로 전달
+  const query = filters.value.usageType ? { usageType: filters.value.usageType } : {}
+  router.push({ name: 'AdminDocumentNew', query })
 }
 
 // 문서 수정 페이지로 이동

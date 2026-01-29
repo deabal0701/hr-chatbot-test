@@ -69,6 +69,7 @@ class DocumentSaveRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="메타데이터")
     source_type: str = Field(default="ui_input", description="소스 타입 (ui_input, pdf, web, api)")
     source_file: Optional[str] = Field(default=None, description="원본 파일명")
+    usage_type: str = Field(default="rag", description="문서 용도 (rag, cortex)")
 
     model_config = {
         "json_schema_extra": {
@@ -117,6 +118,7 @@ class DocumentListItem(BaseModel):
     id: int
     title: str
     doc_type: str
+    usage_type: str = "rag"  # 문서 용도 (rag, cortex)
     language: str
     content_length: int
     original_length: Optional[int] = None  # 원본 문서 전체 길이 (청킹된 경우 원본 길이)

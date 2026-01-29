@@ -150,6 +150,13 @@ class VectorStoreService:
         filter_conditions = []
         filter_params = []
 
+        # usage_type 필터 (기본값: 'rag' - Cortex 문서 제외)
+        usage_type = "rag"
+        if filters and filters.usage_type:
+            usage_type = filters.usage_type
+        filter_conditions.append("usage_type = %s")
+        filter_params.append(usage_type)
+
         if filters:
             if filters.doc_type:
                 filter_conditions.append("doc_type = %s")
