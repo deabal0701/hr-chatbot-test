@@ -185,67 +185,67 @@ COMMENT ON COLUMN tb_prompt_history.change_reason IS '변경 사유 (선택)';
 
 
 
-INSERT INTO tb_app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 ('openai','api_key','********','string','OpenAI API Key',true,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.252249+09'),
-	 ('openai','organization_id','','string','OpenAI Organization ID (선택)',false,'2025-11-29 21:28:33.4552+09','2025-11-29 21:34:18.293148+09'),
-	 ('agent','max_iterations','10','int','최대 반복 횟수 (1-20)',false,'2026-01-04 22:33:09.921925+09','2026-01-04 22:33:09.921925+09'),
-	 ('agent','timeout_seconds','60','int','전체 타임아웃 (초, 10-300)',false,'2026-01-04 22:33:09.967964+09','2026-01-04 22:33:09.967964+09'),
-	 ('agent','enable_memory','true','bool','대화 메모리 활성화',false,'2026-01-04 22:33:10.010695+09','2026-01-04 22:33:10.010695+09'),
-	 ('agent','enabled_tools','query_database,search_documents,calculate','string','사용 가능한 도구 (쉼표 구분)',false,'2026-01-04 22:33:10.050835+09','2026-01-04 22:33:10.050835+09'),
-	 ('anthropic','api_key','','string','Anthropic API Key (Phase 2)',true,'2026-01-07 11:20:44.64738+09','2026-01-07 11:20:44.64738+09'),
-	 ('agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-07 10:37:38.861841+09'),
-	 ('llm','provider','openai','string','LLM 제공자 (openai, anthropic)',false,'2026-01-07 10:37:38.861841+09','2026-01-09 00:19:11.201721+09'),
-	 ('llm','model','gpt-4.1-nano','string','LLM 모델명',false,'2025-11-29 21:28:33.4552+09','2026-01-09 00:19:11.251521+09');
-INSERT INTO tb_app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 ('prompt','rag_persona','기업용 지식 베이스 전문가','string','RAG 시스템의 페르소나',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.335383+09'),
-	 ('prompt','rag_system_prompt','당신은 기업용 지식 베이스 전문가입니다.
-제공된 문서를 기반으로 사용자의 질문에 정확하고 친절하게 답변해주세요.
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (222,'agent','enable_streaming','false','bool','스트리밍 응답 (확장)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (17,'agent','timeout_seconds','120','int','전체 타임아웃 (초, 10-300)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (221,'agent','llm_temperature','0','float','Agent LLM 온도 (0.0-2.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (18,'agent','enable_memory','true','bool','대화 메모리 활성화',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (23,'agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (16,'agent','max_iterations','10','int','최대 반복 횟수 (1-20)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (19,'agent','enabled_tools','query_database_tool,search_documents_tool,calculate_tool','string','사용 가능한 도구 (쉼표 구분)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (21,'anthropic','api_key','','string','Anthropic API Key (Phase 2)',true,'2026-01-18 17:01:23.967158+09','2026-01-26 09:18:01.243609+09'),
+	 (5,'chunking','default_overlap','100','int','기본 오버랩 크기 (문자)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.450275+09'),
+	 (4,'chunking','default_chunk_size','1000','int','기본 청크 크기 (문자)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.437198+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (1473,'cortex','glossary_top_k','3','int','용어집 검색 결과 수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1474,'cortex','min_similarity','0.5','float','최소 유사도 임계값',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1475,'cortex','human_approval_enabled','true','bool','Human 승인 기능 활성화',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1476,'cortex','sensitive_tables','salary,performance_review','string','민감 테이블 목록 (쉼표 구분)',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1469,'cortex','max_corrections','3','int','Cortex 최대 재시도 횟수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1471,'cortex','schema_top_k','5','int','스키마 검색 결과 수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1472,'cortex','example_top_k','3','int','쿼리 예제 검색 결과 수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1470,'cortex','timeout_seconds','60','int','Cortex 전체 타임아웃 (초)',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (9,'embedding','dimension','1536','int','벡터 차원 수',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.396856+09'),
+	 (20,'embedding','provider','openai','string','임베딩 제공자 (현재 openai만 지원)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.411791+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (8,'embedding','model','text-embedding-3-small','string','임베딩 모델명',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.383829+09'),
+	 (29,'external_database','username','muser','string','DB 사용자명',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.153732+09'),
+	 (24,'external_database','enabled','true','bool','외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.148712+09'),
+	 (25,'external_database','db_type','oracle','string','DB 타입 (postgresql, oracle, mysql)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.149871+09'),
+	 (34,'external_database','connection_timeout','10','int','연결 타임아웃 (초)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.158097+09'),
+	 (26,'external_database','host','115.68.223.220','string','DB 호스트',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.150975+09'),
+	 (27,'external_database','port','1521','int','DB 포트',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.1519+09'),
+	 (28,'external_database','database','ORCLCDB','string','데이터베이스 이름',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.152854+09'),
+	 (30,'external_database','password','muser123','string','DB 비밀번호',true,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.154616+09'),
+	 (31,'external_database','schema','muser','string','비즈니스 데이터 스키마',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.155506+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (32,'external_database','allowed_tables','V_AI_EMPLOYEE, V_AI_ADDRESS, V_AI_MILITARY, V_AI_CAREER, V_AI_TRAINING,V_AI_FAMILY, V_AI_LANGUAGE, V_AI_LICENSE, V_AI_EDUCATION, V_AI_REWARD,V_AI_FEEDBACK,V_AI_PAY_REPORT','string','NL2SQL 쿼리 허용 테이블 (쉼표 구분)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.156343+09'),
+	 (33,'external_database','connection_pool_size','5','int','연결 풀 크기',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.15721+09'),
+	 (15,'llm','max_tokens','8000','int','최대 토큰 수',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.66529+09'),
+	 (13,'llm','model','gpt-4.1-nano','string','LLM 모델명',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.61491+09'),
+	 (22,'llm','provider','openai','string','LLM 제공자 (openai, anthropic)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.591311+09'),
+	 (14,'llm','temperature','0.6','float','생성 온도 (0.0-2.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.639346+09'),
+	 (2,'nl2sql','max_rows','1000','int','최대 반환 행 수',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.138426+09'),
+	 (1,'nl2sql','timeout_seconds','120','int','SQL 실행 타임아웃 (초)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.136904+09'),
+	 (3,'nl2sql','read_only_mode','true','bool','읽기 전용 모드',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.139409+09'),
+	 (6,'openai','api_key','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','string','OpenAI API Key',true,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (7,'openai','organization_id','','string','OpenAI Organization ID (선택)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 09:18:01.150468+09'),
+	 (91,'prompt','tool_calculator_description','Perform mathematical calculations.
 
-답변 시 주의사항:
-1. 반드시 제공된 문서의 내용만을 기반으로 답변하세요
-2. 문서에 정보가 없으면 "제공된 문서에서 해당 정보를 찾을 수 없습니다"라고 명확히 안내하세요
-3. 출처를 명시하세요 (예: "지식 베이스 문서에 따르면...")
-4. 답변은 명확하고 구체적으로 작성하세요
-5. 필요시 불릿 포인트나 번호를 사용하여 가독성을 높이세요','text','RAG 답변 생성용 시스템 프롬프트 (문서 검색 후 답변 생성 시 사용)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:21.099312+09'),
-	 ('nl2sql','timeout_seconds','30','int','SQL 실행 타임아웃 (초)',false,'2025-11-29 21:28:33.4552+09','2026-01-08 16:22:09.656886+09'),
-	 ('nl2sql','max_rows','1000','int','최대 반환 행 수',false,'2025-11-29 21:28:33.4552+09','2026-01-08 16:22:09.714122+09'),
-	 ('nl2sql','read_only_mode','true','bool','읽기 전용 모드',false,'2025-11-29 21:28:33.4552+09','2026-01-08 16:22:09.75639+09'),
-	 ('external_database','enabled','true','bool','외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:09.841292+09'),
-	 ('external_database','db_type','postgresql','string','DB 타입 (postgresql, oracle, mysql)',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.027895+09'),
-	 ('external_database','host','115.68.223.220','string','DB 호스트',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.081914+09'),
-	 ('external_database','port','5432','int','DB 포트',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.123471+09'),
-	 ('external_database','database','hr_chatbot','string','데이터베이스 이름',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.162328+09');
-INSERT INTO tb_app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 ('external_database','username','chatuser','string','DB 사용자명',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.207031+09'),
-	 ('external_database','password','chatuser123','string','DB 비밀번호',true,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.245744+09'),
-	 ('external_database','schema','public','string','비즈니스 데이터 스키마',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.288786+09'),
-	 ('external_database','allowed_tables','employee,department,job_history,performance_review,salary','string','NL2SQL 쿼리 허용 테이블 (쉼표 구분)',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.335994+09'),
-	 ('external_database','connection_pool_size','5','int','연결 풀 크기',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.373271+09'),
-	 ('external_database','connection_timeout','10','int','연결 타임아웃 (초)',false,'2026-01-08 15:59:54.345475+09','2026-01-08 16:22:10.409533+09'),
-	 ('llm','temperature','0.6','float','생성 온도 (0.0-2.0)',false,'2025-11-29 21:28:33.4552+09','2026-01-09 00:19:11.29354+09'),
-	 ('llm','max_tokens','5000','int','최대 토큰 수',false,'2025-11-29 21:28:33.4552+09','2026-01-09 00:19:11.330442+09'),
-	 ('rag','top_k','5','int','검색 문서 수',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:02.635361+09'),
-	 ('rag','similarity_threshold','0.3','float','유사도 임계값 (0.0-1.0)',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:02.716537+09');
-INSERT INTO tb_app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 ('rag','max_context_length','4000','int','최대 컨텍스트 길이',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:02.796231+09'),
-	 ('embedding','model','text-embedding-3-small','string','임베딩 모델명',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:02.842164+09'),
-	 ('embedding','dimension','1536','int','벡터 차원 수',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:02.894549+09'),
-	 ('embedding','provider','openai','string','임베딩 제공자 (현재 openai만 지원)',false,'2026-01-07 10:37:38.861841+09','2026-01-09 09:54:02.946933+09'),
-	 ('chunking','default_chunk_size','1000','int','기본 청크 크기 (문자)',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:02.997867+09'),
-	 ('chunking','default_overlap','100','int','기본 오버랩 크기 (문자)',false,'2025-11-29 21:28:33.4552+09','2026-01-09 09:54:03.037749+09'),
-	 ('prompt','nl2sql_answer_prompt','당신은 데이터 분석 전문가입니다.
-SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요.
+Use this tool when you need to:
+- Calculate percentages, averages, sums (e.g., "what is 15% of 100?")
+- Perform arithmetic operations (e.g., "(50+30)/2")
+- Compare numeric values (e.g., "100 * 1.15")
+- Statistical calculations (e.g., "average of [10, 20, 30]")
 
-답변 작성 시:
-1. 핵심 통계나 수치를 강조하세요
-2. 결과를 명확하고 간결하게 설명하세요
-3. 필요시 불릿 포인트를 사용하세요
-4. 데이터에서 발견되는 인사이트나 특징을 언급하세요','text','NL2SQL 답변 생성용 프롬프트 (SQL 실행 결과를 자연어로 변환)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.42643+09'),
-	 ('prompt','nl2sql_sql_persona','PostgreSQL 전문가','string','NL2SQL SQL 생성 시 페르소나',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.477122+09'),
-	 ('prompt','nl2sql_answer_persona','데이터 분석 전문가','string','NL2SQL 답변 생성 시 페르소나',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.519871+09'),
-	 ('prompt','agent_persona','AI assistant for corporate knowledge base and database systems','string','Agent 페르소나',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.607376+09');
-INSERT INTO tb_app_settings (category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 ('prompt','tool_sql_description','Query the database using natural language.
+DO NOT use this tool for:
+- Database queries (use query_database instead)
+- Document searches (use search_documents instead)
+
+Input: Mathematical expression or calculation request
+Output: Numerical result with explanation','text','Calculator Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.315836+09'),
+	 (89,'prompt','tool_sql_description','Query the database using natural language.
 
 Use this tool when you need to:
 - Get counts, statistics, aggregations from structured tables
@@ -260,8 +260,228 @@ DO NOT use this tool for:
 - Calculations only (use calculate instead)
 
 Input: Natural language question about database data
-Output: Query results with relevant information','text','SQL Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.651972+09'),
-	 ('prompt','tool_rag_description','Search corporate documents and regulations.
+Output: Query results with relevant information','text','SQL Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.283941+09'),
+	 (88,'prompt','agent_persona','기업 지식 기반 및 데이터베이스 시스템을 위한 AI 어시스턴트','string','Agent 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.267375+09'),
+	 (82,'prompt','rag_persona','기업용 지식 베이스 전문가','string','RAG 시스템의 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.150935+09'),
+	 (81,'prompt','rag_system_prompt','당신은 기업용 지식 베이스 전문가입니다.
+제공된 문서를 기반으로 사용자의 질문에 정확하고 친절하게 답변해주세요.
+
+답변 시 주의사항:
+1. 반드시 제공된 문서의 내용만을 기반으로 답변하세요.
+2. 제공된 문서의 내용을 최대한 모두 답변에 포함 하세요.
+2. 문서에 정보가 없으면 "제공된 문서에서 해당 정보를 찾을 수 없습니다"라고 명확히 안내하세요
+3. 출처를 명시하세요 (예: "지식 베이스 문서에 따르면...")
+4. 장문은 피하고, 답변은 명확하고 구체적으로 작성하세요
+5. ** 중요 ** : 불릿 포인트나 번호 사용하여 가독성을 높이세요','text','RAG 답변 생성용 시스템 프롬프트 (문서 검색 후 답변 생성 시 사용)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.12471+09'),
+	 (83,'prompt','nl2sql_generation_prompt','당신은 Oracle 전문가입니다.
+사용자의 자연어 질문을 Oracle SQL 쿼리로 변환해주세요.
+
+# 데이터베이스 스키마
+{schema_description}
+
+## 테이블 관계
+- 모든 뷰는 EMP_ID를 통해 V_AI_EMPLOYEE와 조인 가능
+- 1:N 관계 뷰: V_AI_ADDRESS, V_AI_CAREER, V_AI_EDUCATION, V_AI_FAMILY, V_AI_LANGUAGE, V_AI_LICENSE, V_AI_REWARD, V_AI_TRAINING, V_AI_FEEDBACK , V_AI_PAY_REPORT
+- 1:1 관계 뷰: V_AI_MILITARY
+
+# 중요한 규칙
+1. **반드시 SELECT 문만 생성하세요** (INSERT, UPDATE, DELETE, DROP 등은 절대 사용 금지)
+2. **테이블명과 컬럼명은 정확하게 사용하세요**
+3. **WHERE 절을 적절히 사용하여 결과를 필터링하세요**
+4. **집계 함수 사용 시 GROUP BY를 정확히 지정하세요**
+5. **날짜 비교 시 적절한 형변환을 사용하세요**
+6. **JOIN 시 명확한 조인 조건을 지정하세요**
+7. **SQL만 출력하고, 설명이나 마크다운 코드 블록은 포함하지 마세요**
+8. **## 인사평가, 직원평가, 평가 등 관련 질의시 V_AI_FEEDBACK 테이블을 조회하세요.
+
+# ★★★ 재직자 기본 조건 (매우 중요) ★★★
+- **직원 수, 직원 명단 조회 시 특별한 언급이 없으면 재직자만 대상으로 합니다**
+- 기본 조건: WHERE WORK_STATUS = ''재직''
+- 최근 몇 년간 입사자 추이 등 과 같은 경우 절대 ''재직'' 조건을 넣으면 안된다.
+- 예외 키워드: "퇴직자", "퇴사자", "전체 직원", "모든 직원", "퇴사한" 등 명시적 언급 시에만 조건 변경
+
+# ★★★ 1:N 관계 조인 시 중복 방지 규칙 (매우 중요) ★★★
+1:N 관계 뷰와 조인하여 **직원 수를 집계**할 때는 반드시 **EXISTS 서브쿼리** 사용
+
+## 잘못된 쿼리 (중복 카운트 발생)
+SELECT COUNT(*) FROM v_ai_employee e
+JOIN v_ai_address a ON e.EMP_ID = a.EMP_ID
+WHERE a.REGION = ''경북''
+
+## 올바른 쿼리 (EXISTS 사용)
+SELECT COUNT(*) FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+  AND EXISTS (SELECT 1 FROM v_ai_address a WHERE a.EMP_ID = e.EMP_ID AND a.REGION = ''경북'')
+
+## 적용 대상
+- 직원 **수** 집계 (COUNT) + 1:N 관계 뷰 조건 → EXISTS 사용
+- 직원 **목록** 조회 + 1:N 관계 뷰 조건 → EXISTS 또는 IN 사용
+- 1:N 관계 뷰의 **상세 데이터**가 필요한 경우만 JOIN 사용
+
+# ★★★ 서브쿼리 = 연산자 금지 (ORA-01427 방지) ★★★
+- 이름으로 ID 조회 시 동명이인 존재 가능 → 반드시 `IN` 사용
+- `=` 사용 금지, `IN` 사용 필수
+
+## 잘못된 예
+WHERE EMPLOYEE_ID = (SELECT EMP_ID FROM v_ai_employee WHERE EMP_NAME = ''홍길동'')
+
+## 올바른 예
+WHERE EMPLOYEE_ID IN (SELECT EMP_ID FROM v_ai_employee WHERE EMP_NAME = ''홍길동'')
+
+# ★★★ V_AI_PAY_REPORT 급여 조회 규칙 ★★★
+- PAY_YEAR_MONTH 형식: ''YYYYMM'' (예: ''201603'')
+- "2016년 3월" → PAY_YEAR_MONTH = ''201603'' (※ ''2016-03'' 아님!)
+- 일반 급여 질문: PAYMENT_TYPE_NAME = ''정기급여'' 조건 권장
+- 급여 컬럼: NET_PAY_AMOUNT(실수령액), GROSS_PAY_AMOUNT(세전)
+
+# 사용자 의도 파악 규칙
+- "표로 보여줘", "목록으로", "리스트로", "상세 정보" 등의 표현이 있으면 **개별 데이터를 조회**하세요 (COUNT 사용 금지). 100명 이하까지는 개별 데이터로 보여주세요.
+- "몇 명", "총 수", "개수" 등의 표현이 있을 때만 COUNT를 사용하세요
+- 이미 특정 수치("27명", "10건" 등)를 언급한 경우, 해당 데이터의 **상세 내용**을 원하는 것입니다 
+- 불확실한 경우, 상세 데이터를 조회하는 것이 더 유용합니다
+
+# 대용량 조회 방지 규칙
+- **행 수 제한 절을 사용하지 마세요** (LIMIT, FETCH FIRST, ROWNUM, TOP 등 사용 금지)
+- 시스템이 자동으로 적절한 행 수 제한을 추가합니다
+- **COUNT, SUM, AVG, MAX, MIN 등 집계 함수 사용 시**: 행 수 제한 불필요
+- **GROUP BY 사용 시**: 행 수 제한 불필요
+- **전체 테이블 조회(SELECT * FROM table)는 피하세요**: 반드시 WHERE 조건을 추가하거나 필요한 컬럼만 선택하세요
+
+# 필드 매핑 규칙
+- 사용자 질문의 키워드를 스키마 정의에 정의된 실제 컬럼명과 정확히 매칭하세요
+
+# Oracle 날짜 처리 규칙
+- **연도 추출**: TO_CHAR(날짜컬럼, ''YYYY'')
+- **월 추출**: TO_CHAR(날짜컬럼, ''MM'') 또는 TO_CHAR(날짜컬럼, ''YYYY-MM'')
+- **날짜 비교**: TO_DATE(''2024-01-01'', ''YYYY-MM-DD'')
+- **기간 조건**: TO_CHAR(날짜컬럼, ''YYYY'') BETWEEN ''2010'' AND ''2020''
+- **현재 연도**: TO_CHAR(SYSDATE, ''YYYY'')
+- **NULL 처리**: NVL(컬럼, 기본값)
+
+# ★★★ 입사자/퇴사자 집계 규칙 (매우 중요) ★★★
+
+## 핵심 원칙
+| 질문 유형 | 사용할 컬럼 | 재직 조건 |
+|----------|------------|----------|
+| N년 입사자 수 | HIRE_DATE | 불필요 (입사 시점 기준) |
+| N년 퇴사자 수 | RETIRE_DATE | 불필요 (퇴사 시점 기준) |
+| 현재 재직자 수 | WORK_STATUS = ''재직'' | 필수 |
+| 현재 퇴직자 수 | WORK_STATUS = ''퇴직'' | - |
+| 특정 조건 직원 수 | 해당 조건 | 기본 적용 |
+
+# 예제 쿼리
+
+## 기본 집계
+예제 1: 특정 연도 입사자 수
+질문: "2024년 입사자는 몇 명인가요?"
+SELECT COUNT(*) AS hire_count
+FROM v_ai_employee
+WHERE TO_CHAR(HIRE_DATE, ''YYYY'') = ''2024''
+
+예제 2: 특정 연도 퇴사자 수
+질문: "2024년 퇴사자는 몇 명인가요?"
+SELECT COUNT(*) AS retire_count
+FROM v_ai_employee
+WHERE RETIRE_DATE IS NOT NULL
+  AND TO_CHAR(RETIRE_DATE, ''YYYY'') = ''2024''
+
+예제 3: 연도별 입사자/퇴사자 수 (기간 조회)
+질문: "2010년부터 2020년까지 입사자/퇴사자 수를 연도별로 보여줘"
+SELECT
+    year,
+    SUM(hire_count) AS hire_count,
+    SUM(retire_count) AS retire_count
+FROM (
+    SELECT TO_CHAR(HIRE_DATE, ''YYYY'') AS year, 1 AS hire_count, 0 AS retire_count
+    FROM v_ai_employee
+    WHERE TO_CHAR(HIRE_DATE, ''YYYY'') BETWEEN ''2010'' AND ''2020''
+    UNION ALL
+    SELECT TO_CHAR(RETIRE_DATE, ''YYYY'') AS year, 0 AS hire_count, 1 AS retire_count
+    FROM v_ai_employee
+    WHERE RETIRE_DATE IS NOT NULL
+      AND TO_CHAR(RETIRE_DATE, ''YYYY'') BETWEEN ''2010'' AND ''2020''
+)
+GROUP BY year
+ORDER BY year
+
+예제 4: 현재 재직자 수
+질문: "현재 재직 중인 직원은 몇 명인가요?"
+SELECT COUNT(*) AS active_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직''
+
+예제 5: 부서별 재직자 수
+질문: "부서별 직원 수를 보여줘"
+SELECT DEPARTMENT, COUNT(*) AS emp_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직''
+GROUP BY DEPARTMENT
+ORDER BY emp_count DESC
+
+## 1:N 관계 조인 - EXISTS 패턴 (직원 수 집계)
+예제 6: 특정 지역 거주 재직자 수
+질문: "경상북도에 사는 직원 수"
+SELECT COUNT(*) AS emp_count
+FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+  AND EXISTS (SELECT 1 FROM v_ai_address a WHERE a.EMP_ID = e.EMP_ID AND a.REGION = ''경북'')
+
+예제 7: 특정 자격증 보유 재직자 수
+질문: "정보처리기사 자격증 보유자 수"
+SELECT COUNT(*) AS emp_count
+FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+  AND EXISTS (SELECT 1 FROM v_ai_license l WHERE l.EMP_ID = e.EMP_ID AND l.LICENSE_NAME LIKE ''%정보처리기사%'')
+
+예제 8: 특정 어학 점수 이상 재직자 수
+질문: "TOEIC 800점 이상인 직원 수"
+SELECT COUNT(*) AS emp_count
+FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+  AND EXISTS (SELECT 1 FROM v_ai_language l WHERE l.EMP_ID = e.EMP_ID AND l.EXAM_TYPE = ''TOEIC'' AND l.SCORE >= 800)
+
+## 1:N 관계 조인 - EXISTS 패턴 (직원 목록 조회)
+예제 9: 특정 지역 거주 재직자 명단
+질문: "서울에 사는 직원 명단"
+SELECT e.EMP_NAME, e.DEPARTMENT, e.POSITION
+FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+  AND EXISTS (SELECT 1 FROM v_ai_address a WHERE a.EMP_ID = e.EMP_ID AND a.REGION = ''서울'')
+ORDER BY e.EMP_NAME
+
+예제 10: 특정 자격증 보유자 명단
+질문: "정보처리기사 자격증 보유자 명단"
+SELECT e.EMP_NAME, e.DEPARTMENT, e.POSITION
+FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+  AND EXISTS (SELECT 1 FROM v_ai_license l WHERE l.EMP_ID = e.EMP_ID AND l.LICENSE_NAME LIKE ''%정보처리기사%'')
+ORDER BY e.EMP_NAME
+
+
+## 1:N 관계 조인 - JOIN 패턴 (상세 데이터 필요 시)
+예제 11: 직원의 자격증 상세 조회
+질문: "홍길동의 자격증 목록을 보여줘"
+SELECT e.EMP_NAME, l.LICENSE_NAME, l.ISSUING_ORG, l.ISSUE_DATE
+FROM v_ai_employee e
+JOIN v_ai_license l ON e.EMP_ID = l.EMP_ID
+WHERE e.EMP_NAME = ''홍길동''
+ORDER BY l.ISSUE_DATE DESC
+
+예제 12: 직원의 학력 상세 조회
+질문: "김철수의 학력을 보여줘"
+SELECT e.EMP_NAME, ed.SCHOOL_NAME, ed.MAJOR, ed.GRADUATION_YEAR
+FROM v_ai_employee e
+JOIN v_ai_education ed ON e.EMP_ID = ed.EMP_ID
+WHERE e.EMP_NAME = ''김철수''
+ORDER BY ed.GRADUATION_DATE DESC
+
+예제 13: 특정 직원 월별 급여
+질문: "홍길동의 2016년 3월 급여"
+SELECT EMPLOYEE_NAME, PAY_YEAR_MONTH, PAYMENT_TYPE_NAME, NET_PAY_AMOUNT
+FROM v_ai_pay_report
+WHERE EMPLOYEE_ID IN (SELECT EMP_ID FROM v_ai_employee WHERE EMP_NAME = ''홍길동'')
+  AND PAY_YEAR_MONTH = ''201603''','text','NL2SQL SQL 생성용 프롬프트 ({schema_description} 변수는 자동으로 DB 스키마로 치환됨)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.170634+09'),
+	 (90,'prompt','tool_rag_description','Search corporate documents and regulations.
 
 Use this tool when you need to:
 - Find company policies (e.g., "remote work policy", "travel policy")
@@ -276,83 +496,57 @@ DO NOT use this tool for:
 - Real-time database queries (use query_database instead)
 
 Input: Search query or question
-Output: Relevant document excerpts and information','text','RAG Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.697364+09'),
-	 ('prompt','tool_calculator_description','Perform mathematical calculations.
+Output: Relevant document excerpts and information','text','RAG Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.300129+09'),
+	 (85,'prompt','nl2sql_sql_persona','Oracle 전문가','string','NL2SQL SQL 생성 시 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.215098+09'),
+	 (86,'prompt','nl2sql_answer_persona','데이터 분석 전문가','string','NL2SQL 답변 생성 시 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.231833+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (87,'prompt','agent_system_prompt','당신은 기업용 지식베이스와 데이터베이스 시스템을 위한 AI 어시스턴트입니다.
 
-Use this tool when you need to:
-- Calculate percentages, averages, sums (e.g., "what is 15% of 100?")
-- Perform arithmetic operations (e.g., "(50+30)/2")
-- Compare numeric values (e.g., "100 * 1.15")
-- Statistical calculations (e.g., "average of [10, 20, 30]")
+**사용 가능한 도구:**
+1. query_database_tool: 데이터베이스 조회 (통계, 수치, 레코드 등 구조화된 데이터)
+2. search_documents_tool: 문서 검색 (정책, 규정, 가이드라인, FAQ)
+3. calculate_tool: 수학 계산 (백분율, 평균 등)
 
-DO NOT use this tool for:
-- Database queries (use query_database instead)
-- Document searches (use search_documents instead)
+**지침:**
+1. 행동하기 전에 단계별로 생각하세요
+2. 각 작업에 가장 적합한 도구를 사용하세요
+3. 필요시 여러 도구를 순차적으로 사용할 수 있습니다
+4. 최종 답변은 반드시 한국어로 작성하세요
+5. 간결하면서도 포괄적으로 답변하세요
 
-Input: Mathematical expression or calculation request
-Output: Numerical result with explanation','text','Calculator Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.742443+09'),
-	 ('prompt','nl2sql_generation_prompt','당신은 PostgreSQL 전문가입니다.
-사용자의 자연어 질문을 PostgreSQL SQL 쿼리로 변환해주세요.
+**사고 과정 (ReAct 패턴):**
+- 생각: 어떤 정보가 필요한지 분석
+- 행동: 적절한 도구 선택 및 사용
+- 관찰: 도구 결과 검토
+- 충분한 정보를 얻을 때까지 반복
+- 최종 답변: 한국어로 종합적인 답변 제공
 
-# 데이터베이스 스키마
-{schema_description}
+**도구 선택 가이드:**
+- 구조화된 데이터/통계 → query_database_tool
+- 문서/정책/규정 → search_documents_tool
+- 계산 → calculate_tool
+- 복잡한 질문 → 여러 도구 조합
 
-# 중요한 규칙
-1. **반드시 SELECT 문만 생성하세요** (INSERT, UPDATE, DELETE, DROP 등은 절대 사용 금지)
-2. **테이블명과 컬럼명은 정확하게 사용하세요**
-3. **WHERE 절을 적절히 사용하여 결과를 필터링하세요**
-4. **집계 함수 사용 시 GROUP BY를 정확히 지정하세요**
-5. **날짜 비교 시 적절한 형변환을 사용하세요**
-6. **JOIN 시 명확한 조인 조건을 지정하세요**
-7. **SQL만 출력하고, 설명이나 마크다운 코드 블록은 포함하지 마세요**
+**중요:**
+- 도구 사용 없이 추측하지 마세요
+- 정확하지 않은 데이터를 만들어내지 마세요
+- 도구 실패 시 무엇이 잘못되었는지 설명하세요
+- 도구 결과를 얻은 후 반드시 최종 답변을 한국어로 제공하세요
+- 빈 응답을 반환하지 마세요 - 항상 도구 결과를 종합하여 명확한 답변을 제공하세요','text','Agent 시스템 프롬프트 (ReAct 패턴 기반 도구 선택 및 실행)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.249592+09'),
+	 (84,'prompt','nl2sql_answer_prompt','당신은 데이터 분석 전문가입니다.
+SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요.
 
-# 사용자 의도 파악 규칙
-- "표로 보여줘", "목록으로", "리스트로", "상세 정보" 등의 표현이 있으면 **개별 데이터를 조회**하세요 (COUNT 사용 금지)
-- "몇 명", "총 수", "개수" 등의 표현이 있을 때만 COUNT를 사용하세요
-- 이미 특정 수치("27명", "10건" 등)를 언급한 경우, 해당 데이터의 **상세 내용**을 원하는 것입니다 (COUNT 사용 금지)
-- 불확실한 경우, 상세 데이터를 조회하는 것이 더 유용합니다
-
-# LIMIT 사용 규칙 (조건부 적용)
-- **COUNT, SUM, AVG, MAX, MIN 등 집계 함수 사용 시**: LIMIT 절 사용 금지
-- **GROUP BY 사용 시**: LIMIT 절 사용 금지 (모든 그룹 결과 필요)
-- **개별 데이터 조회 시**: LIMIT 1000 사용 (대용량 방지)
-- 사용자가 "상위 5개만", "10개만 보여줘" 등 명시적으로 제한을 요청한 경우에만 해당 숫자를 LIMIT에 사용
-
-# 필드 매핑 규칙 (데이터베이스 언어에 맞춤)
-- 사용자 질문의 키워드를 스키마 정의에 정의된 실제 컬럼명과 정확히 매칭하세요.','text','NL2SQL SQL 생성용 프롬프트 ({schema_description} 변수는 자동으로 DB 스키마로 치환됨)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.388723+09'),
-	 ('prompt','agent_system_prompt','You are an AI assistant for corporate knowledge base and database systems with access to multiple tools.
-
-**Available Tools:**
-1. query_database: Query corporate database (for structured data like counts, statistics, records)
-2. search_documents: Search corporate documents (for policies, regulations, guidelines, FAQs)
-3. calculate: Perform mathematical calculations (for percentages, averages, etc.)
-
-**Instructions:**
-1. Think step by step before taking action
-2. Use the most appropriate tool for each task
-3. You can use multiple tools in sequence if needed
-4. Always provide a final answer in Korean (한국어)
-5. Be concise but comprehensive
-
-**Thought Process (ReAct Pattern):**
-- Thought: Analyze what information you need
-- Action: Choose and use appropriate tool(s)
-- Observation: Review tool results
-- Repeat until you have enough information
-- Final Answer: Provide comprehensive answer in Korean
-
-**Tool Selection Guidelines:**
-- Structured data/statistics → query_database
-- Documents/policies/regulations → search_documents
-- Calculations → calculate
-- Complex queries → combine multiple tools
-
-**Important:**
-- Do NOT make assumptions without tool use
-- Do NOT invent data
-- If tools fail, explain what went wrong
-- **CRITICAL: After using tools and getting results, you MUST provide a final answer in Korean**
-- **Do NOT return empty responses - always synthesize tool results into a clear answer**','text','Agent 시스템 프롬프트 (ReAct 패턴 기반 도구 선택 및 실행)',false,'2026-01-08 20:54:52.551229+09','2026-01-08 23:38:00.562047+09');
+답변 작성 시:
+1. 핵심 통계나 수치를 강조하세요
+2. 결과를 명확하고 간결하게 설명하세요
+3. 필요시 불릿 포인트를 사용하세요
+4. 데이터에서 발견되는 인사이트나 특징을 언급하세요
+5. 리스트 형태의 데이타는 CSV(,)로 반드시 보여줘
+6. 답변의 마지막에는 오늘의 명언을 짧막하게 한줄 추가해줘','text','NL2SQL 답변 생성용 프롬프트 (SQL 실행 결과를 자연어로 변환)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.198693+09'),
+	 (10,'rag','top_k','3','int','검색 문서 수',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.310944+09'),
+	 (955,'rag','distance_metric','cosine','string','거리 측정 방식 (cosine, l2)',false,'2026-01-26 09:54:35.516977+09','2026-01-27 11:11:34.334496+09'),
+	 (12,'rag','max_context_length','4000','int','최대 컨텍스트 길이',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.366444+09'),
+	 (11,'rag','similarity_threshold','0.4','float','유사도 임계값 (0.0-1.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.353595+09');
 
 
 
