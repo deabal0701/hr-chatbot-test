@@ -5,7 +5,7 @@
 -- DROP TABLE tb_app_settings;
 
 CREATE TABLE tb_app_settings (
-	id bigserial NOT NULL,
+	id int8 DEFAULT nextval('app_settings_id_seq'::regclass) NOT NULL,
 	category varchar(50) NOT NULL,
 	"key" varchar(100) NOT NULL,
 	value text NOT NULL,
@@ -14,10 +14,10 @@ CREATE TABLE tb_app_settings (
 	is_secret bool DEFAULT false NULL,
 	created_at timestamptz DEFAULT now() NULL,
 	updated_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT tb_app_settings_category_key_key UNIQUE (category, key),
-	CONSTRAINT tb_app_settings_pkey PRIMARY KEY (id)
+	CONSTRAINT app_settings_category_key_key UNIQUE (category, key),
+	CONSTRAINT app_settings_pkey PRIMARY KEY (id)
 );
-CREATE INDEX idx_tb_app_settings_category ON public.tb_app_settings USING btree (category);
+CREATE INDEX idx_app_settings_category ON public.tb_app_settings USING btree (category);
 
 
 -- public.tb_code definition
@@ -26,7 +26,7 @@ CREATE INDEX idx_tb_app_settings_category ON public.tb_app_settings USING btree 
 
 -- DROP TABLE tb_code;
 
-CREATE TABLE public.tb_code (
+CREATE TABLE tb_code (
 	code_id int8 DEFAULT nextval('code_master_code_id_seq'::regclass) NOT NULL,
 	code_group varchar(50) NOT NULL,
 	code_value varchar(100) NOT NULL,
@@ -47,28 +47,31 @@ CREATE INDEX idx_code_master_group ON public.tb_code USING btree (code_group);
 CREATE INDEX idx_code_master_group_active ON public.tb_code USING btree (code_group, is_active);
 
 
--- public.query_log definition
+-- public.tb_code_old definition
 
 -- Drop table
 
--- DROP TABLE query_log;
+-- DROP TABLE tb_code_old;
 
-CREATE TABLE query_log (
-	id bigserial NOT NULL,
-	user_id text NULL,
-	query_text text NOT NULL,
-	query_type text NULL,
-	intent text NULL,
-	filters jsonb NULL,
-	response_time_ms int4 NULL,
-	success bool DEFAULT true NULL,
-	error_message text NULL,
+CREATE TABLE tb_code_old (
+	code_id int8 DEFAULT nextval('code_master_code_id_seq'::regclass) NOT NULL,
+	code_group varchar(50) NOT NULL,
+	code_value varchar(100) NOT NULL,
+	code_name varchar(200) NOT NULL,
+	description text NULL,
+	metadata jsonb NULL,
+	sort_order int4 DEFAULT 0 NULL,
+	is_active bool DEFAULT true NULL,
+	is_system bool DEFAULT false NULL,
 	created_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT query_log_pkey PRIMARY KEY (id)
+	updated_at timestamptz DEFAULT now() NULL,
+	parent varchar(50) NULL,
+	CONSTRAINT code_group_value_key_old UNIQUE (code_group, code_value),
+	CONSTRAINT code_master_pkey_old PRIMARY KEY (code_id)
 );
-CREATE INDEX idx_query_log_created ON public.query_log USING btree (created_at DESC);
-CREATE INDEX idx_query_log_type ON public.query_log USING btree (query_type);
-CREATE INDEX idx_query_log_user ON public.query_log USING btree (user_id);
+CREATE INDEX idx_code_master_active_old ON public.tb_code_old USING btree (is_active);
+CREATE INDEX idx_code_master_group_active_old ON public.tb_code_old USING btree (code_group, is_active);
+CREATE INDEX idx_code_master_group_old ON public.tb_code_old USING btree (code_group);
 
 
 -- public.tb_docs definition
@@ -78,13 +81,13 @@ CREATE INDEX idx_query_log_user ON public.query_log USING btree (user_id);
 -- DROP TABLE tb_docs;
 
 CREATE TABLE tb_docs (
-	id bigserial NOT NULL,
+	id int8 DEFAULT nextval('hr_docs_id_seq'::regclass) NOT NULL,
 	title text NOT NULL,
 	doc_type text NOT NULL,
 	"language" text DEFAULT 'ko'::text NULL,
 	"content" text NOT NULL,
 	metadata jsonb NULL,
-	embedding public.vector(1536) NULL,
+	embedding public.vector NULL,
 	embedding_model text DEFAULT 'text-embedding-3-small'::text NULL,
 	indexed bool DEFAULT false NULL,
 	embedded_at timestamptz NULL,
@@ -96,155 +99,56 @@ CREATE TABLE tb_docs (
 	content_hash text NULL,
 	created_at timestamptz DEFAULT now() NULL,
 	updated_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT tb_docs_pkey PRIMARY KEY (id),
-	CONSTRAINT tb_docs_parent_doc_id_fkey FOREIGN KEY (parent_doc_id) REFERENCES tb_docs(id) ON DELETE CASCADE
+	original_content text NULL,
+	CONSTRAINT hr_docs_pkey PRIMARY KEY (id),
+	CONSTRAINT hr_docs_parent_doc_id_fkey FOREIGN KEY (parent_doc_id) REFERENCES tb_docs(id) ON DELETE CASCADE
 );
-CREATE INDEX idx_tb_docs_content_hash ON public.tb_docs USING btree (content_hash);
-CREATE INDEX idx_tb_docs_created_at ON public.tb_docs USING btree (created_at DESC);
-CREATE INDEX idx_tb_docs_doc_type ON public.tb_docs USING btree (doc_type);
-CREATE INDEX idx_tb_docs_embedding ON public.tb_docs USING ivfflat (embedding) WITH (lists='100');
-CREATE INDEX idx_tb_docs_indexed ON public.tb_docs USING btree (indexed);
-CREATE INDEX idx_tb_docs_language ON public.tb_docs USING btree (language);
-CREATE INDEX idx_tb_docs_metadata ON public.tb_docs USING gin (metadata);
-CREATE INDEX idx_tb_docs_parent_doc ON public.tb_docs USING btree (parent_doc_id);
-CREATE INDEX idx_tb_docs_source_type ON public.tb_docs USING btree (source_type);
+CREATE INDEX idx_hr_docs_content_hash ON public.tb_docs USING btree (content_hash);
+CREATE INDEX idx_hr_docs_created_at ON public.tb_docs USING btree (created_at DESC);
+CREATE INDEX idx_hr_docs_doc_type ON public.tb_docs USING btree (doc_type);
+CREATE INDEX idx_hr_docs_embedding ON public.tb_docs USING ivfflat (embedding) WITH (lists='100');
+CREATE INDEX idx_hr_docs_indexed ON public.tb_docs USING btree (indexed);
+CREATE INDEX idx_hr_docs_language ON public.tb_docs USING btree (language);
+CREATE INDEX idx_hr_docs_metadata ON public.tb_docs USING gin (metadata);
+CREATE INDEX idx_hr_docs_parent_doc ON public.tb_docs USING btree (parent_doc_id);
+CREATE INDEX idx_hr_docs_source_type ON public.tb_docs USING btree (source_type);
 
 
--- public.rag_search_log definition
+-- public.tb_prompt_history definition
 
 -- Drop table
 
--- DROP TABLE rag_search_log;
+-- DROP TABLE tb_prompt_history;
 
-CREATE TABLE rag_search_log (
-	id bigserial NOT NULL,
-	query_log_id int8 NULL,
-	top_k int4 NULL,
-	retrieved_docs jsonb NULL,
-	llm_model text NULL,
-	llm_tokens int4 NULL,
-	created_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT rag_search_log_pkey PRIMARY KEY (id),
-	CONSTRAINT rag_search_log_query_log_id_fkey FOREIGN KEY (query_log_id) REFERENCES query_log(id) ON DELETE CASCADE
+CREATE TABLE tb_prompt_history (
+	id int4 DEFAULT nextval('prompt_history_id_seq'::regclass) NOT NULL,
+	category varchar(50) NOT NULL,
+	"key" varchar(100) NOT NULL,
+	old_value text NULL,
+	new_value text NOT NULL,
+	changed_by varchar(100) NULL,
+	changed_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
+	change_reason text NULL,
+	CONSTRAINT prompt_history_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_prompt_setting FOREIGN KEY (category,"key") REFERENCES tb_app_settings(category,"key") ON DELETE CASCADE
 );
-CREATE INDEX idx_rag_log_query ON public.rag_search_log USING btree (query_log_id);
-
-
--- public.sql_execution_log definition
-
--- Drop table
-
--- DROP TABLE sql_execution_log;
-
-CREATE TABLE sql_execution_log (
-	id bigserial NOT NULL,
-	query_log_id int8 NULL,
-	generated_sql text NOT NULL,
-	executed_sql text NULL,
-	row_count int4 NULL,
-	execution_time_ms int4 NULL,
-	success bool DEFAULT true NULL,
-	error_message text NULL,
-	created_at timestamptz DEFAULT now() NULL,
-	CONSTRAINT sql_execution_log_pkey PRIMARY KEY (id),
-	CONSTRAINT sql_execution_log_query_log_id_fkey FOREIGN KEY (query_log_id) REFERENCES query_log(id) ON DELETE CASCADE
-);
-CREATE INDEX idx_sql_log_created ON public.sql_execution_log USING btree (created_at DESC);
-CREATE INDEX idx_sql_log_query ON public.sql_execution_log USING btree (query_log_id);
-
-
-
--- 프롬프트 변경 이력 관리 테이블 생성
--- 모든 프롬프트 변경 사항을 추적하고 원복 가능하도록 합니다.
-
-CREATE TABLE IF NOT EXISTS tb_prompt_history (
-    id SERIAL PRIMARY KEY,
-    category VARCHAR(50) NOT NULL,
-    key VARCHAR(100) NOT NULL,
-    old_value TEXT,
-    new_value TEXT NOT NULL,
-    changed_by VARCHAR(100),  -- 변경자 (향후 인증 시스템 연동)
-    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    change_reason TEXT,  -- 변경 사유
-    CONSTRAINT fk_prompt_setting
-        FOREIGN KEY (category, key)
-        REFERENCES tb_app_settings(category, key)
-        ON DELETE CASCADE
-);
-
--- 인덱스 생성 (빠른 조회)
-CREATE INDEX idx_tb_prompt_history_category_key ON tb_prompt_history(category, key);
-CREATE INDEX idx_tb_prompt_history_changed_at ON tb_prompt_history(changed_at DESC);
-
--- 코멘트 추가
-COMMENT ON TABLE tb_prompt_history IS '프롬프트 변경 이력 테이블 (원복 기능 지원)';
-COMMENT ON COLUMN tb_prompt_history.old_value IS '변경 전 값 (NULL이면 최초 생성)';
-COMMENT ON COLUMN tb_prompt_history.new_value IS '변경 후 값';
-COMMENT ON COLUMN tb_prompt_history.changed_by IS '변경자 정보 (향후 사용자 인증 연동)';
-COMMENT ON COLUMN tb_prompt_history.change_reason IS '변경 사유 (선택)';
+CREATE INDEX idx_prompt_history_category_key ON public.tb_prompt_history USING btree (category, key);
+CREATE INDEX idx_prompt_history_changed_at ON public.tb_prompt_history USING btree (changed_at DESC);
 
 
 
 INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 (222,'agent','enable_streaming','false','bool','스트리밍 응답 (확장)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (17,'agent','timeout_seconds','120','int','전체 타임아웃 (초, 10-300)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (221,'agent','llm_temperature','0','float','Agent LLM 온도 (0.0-2.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (18,'agent','enable_memory','true','bool','대화 메모리 활성화',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (23,'agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (16,'agent','max_iterations','10','int','최대 반복 횟수 (1-20)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (19,'agent','enabled_tools','query_database_tool,search_documents_tool,calculate_tool','string','사용 가능한 도구 (쉼표 구분)',false,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
-	 (21,'anthropic','api_key','','string','Anthropic API Key (Phase 2)',true,'2026-01-18 17:01:23.967158+09','2026-01-26 09:18:01.243609+09'),
-	 (5,'chunking','default_overlap','100','int','기본 오버랩 크기 (문자)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.450275+09'),
-	 (4,'chunking','default_chunk_size','1000','int','기본 청크 크기 (문자)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.437198+09');
+	 (1474,'cortex','min_similarity','0.15','float','최소 유사도 임계값',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
+	 (1,'nl2sql','timeout_seconds','120','int','SQL 실행 타임아웃 (초)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.403101+09'),
+	 (2,'nl2sql','max_rows','1000','int','최대 반환 행 수',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.426917+09'),
+	 (3,'nl2sql','read_only_mode','true','bool','읽기 전용 모드',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.438648+09'),
+	 (24,'external_database','enabled','true','bool','외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.460931+09'),
+	 (25,'external_database','db_type','oracle','string','DB 타입 (postgresql, oracle, mysql)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.471762+09'),
+	 (23,'agent','llm_provider','openai','string','Agent용 LLM 제공자 (openai, anthropic)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.764703+09'),
+	 (16,'agent','max_iterations','10','int','최대 반복 횟수 (1-20)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.783262+09'),
+	 (82,'prompt','rag_persona','기업용 지식 베이스 전문가','string','RAG 시스템의 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.897351+09'),
+	 (88,'prompt','agent_persona','기업 지식 기반 및 데이터베이스 시스템을 위한 AI 어시스턴트','string','Agent 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:28.000611+09');
 INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 (1473,'cortex','glossary_top_k','3','int','용어집 검색 결과 수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1474,'cortex','min_similarity','0.5','float','최소 유사도 임계값',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1475,'cortex','human_approval_enabled','true','bool','Human 승인 기능 활성화',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1476,'cortex','sensitive_tables','salary,performance_review','string','민감 테이블 목록 (쉼표 구분)',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1469,'cortex','max_corrections','3','int','Cortex 최대 재시도 횟수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1471,'cortex','schema_top_k','5','int','스키마 검색 결과 수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1472,'cortex','example_top_k','3','int','쿼리 예제 검색 결과 수',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (1470,'cortex','timeout_seconds','60','int','Cortex 전체 타임아웃 (초)',false,'2026-01-29 11:36:33.027768+09','2026-01-29 11:36:33.027768+09'),
-	 (9,'embedding','dimension','1536','int','벡터 차원 수',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.396856+09'),
-	 (20,'embedding','provider','openai','string','임베딩 제공자 (현재 openai만 지원)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.411791+09');
-INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 (8,'embedding','model','text-embedding-3-small','string','임베딩 모델명',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.383829+09'),
-	 (29,'external_database','username','muser','string','DB 사용자명',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.153732+09'),
-	 (24,'external_database','enabled','true','bool','외부 비즈니스 DB 사용 여부 (비활성화 시 로컬 business 스키마 사용)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.148712+09'),
-	 (25,'external_database','db_type','oracle','string','DB 타입 (postgresql, oracle, mysql)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.149871+09'),
-	 (34,'external_database','connection_timeout','10','int','연결 타임아웃 (초)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.158097+09'),
-	 (26,'external_database','host','115.68.223.220','string','DB 호스트',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.150975+09'),
-	 (27,'external_database','port','1521','int','DB 포트',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.1519+09'),
-	 (28,'external_database','database','ORCLCDB','string','데이터베이스 이름',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.152854+09'),
-	 (30,'external_database','password','muser123','string','DB 비밀번호',true,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.154616+09'),
-	 (31,'external_database','schema','muser','string','비즈니스 데이터 스키마',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.155506+09');
-INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 (32,'external_database','allowed_tables','V_AI_EMPLOYEE, V_AI_ADDRESS, V_AI_MILITARY, V_AI_CAREER, V_AI_TRAINING,V_AI_FAMILY, V_AI_LANGUAGE, V_AI_LICENSE, V_AI_EDUCATION, V_AI_REWARD,V_AI_FEEDBACK,V_AI_PAY_REPORT','string','NL2SQL 쿼리 허용 테이블 (쉼표 구분)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.156343+09'),
-	 (33,'external_database','connection_pool_size','5','int','연결 풀 크기',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.15721+09'),
-	 (15,'llm','max_tokens','8000','int','최대 토큰 수',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.66529+09'),
-	 (13,'llm','model','gpt-4.1-nano','string','LLM 모델명',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.61491+09'),
-	 (22,'llm','provider','openai','string','LLM 제공자 (openai, anthropic)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.591311+09'),
-	 (14,'llm','temperature','0.6','float','생성 온도 (0.0-2.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.639346+09'),
-	 (2,'nl2sql','max_rows','1000','int','최대 반환 행 수',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.138426+09'),
-	 (1,'nl2sql','timeout_seconds','120','int','SQL 실행 타임아웃 (초)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.136904+09'),
-	 (3,'nl2sql','read_only_mode','true','bool','읽기 전용 모드',false,'2026-01-18 17:01:23.967158+09','2026-01-28 12:40:52.139409+09'),
-	 (6,'openai','api_key','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','string','OpenAI API Key',true,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09');
-INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 (7,'openai','organization_id','','string','OpenAI Organization ID (선택)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 09:18:01.150468+09'),
-	 (91,'prompt','tool_calculator_description','Perform mathematical calculations.
-
-Use this tool when you need to:
-- Calculate percentages, averages, sums (e.g., "what is 15% of 100?")
-- Perform arithmetic operations (e.g., "(50+30)/2")
-- Compare numeric values (e.g., "100 * 1.15")
-- Statistical calculations (e.g., "average of [10, 20, 30]")
-
-DO NOT use this tool for:
-- Database queries (use query_database instead)
-- Document searches (use search_documents instead)
-
-Input: Mathematical expression or calculation request
-Output: Numerical result with explanation','text','Calculator Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.315836+09'),
 	 (89,'prompt','tool_sql_description','Query the database using natural language.
 
 Use this tool when you need to:
@@ -260,9 +164,31 @@ DO NOT use this tool for:
 - Calculations only (use calculate instead)
 
 Input: Natural language question about database data
-Output: Query results with relevant information','text','SQL Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.283941+09'),
-	 (88,'prompt','agent_persona','기업 지식 기반 및 데이터베이스 시스템을 위한 AI 어시스턴트','string','Agent 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.267375+09'),
-	 (82,'prompt','rag_persona','기업용 지식 베이스 전문가','string','RAG 시스템의 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.150935+09'),
+Output: Query results with relevant information','text','SQL Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:28.014771+09'),
+	 (13,'llm','model','gpt-4.1-nano','string','LLM 모델명',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.61491+09'),
+	 (34,'external_database','connection_timeout','10','int','연결 타임아웃 (초)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.580565+09'),
+	 (11,'rag','similarity_threshold','0.4','float','유사도 임계값 (0.0-1.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.353595+09'),
+	 (22,'llm','provider','openai','string','LLM 제공자 (openai, anthropic)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.591311+09'),
+	 (17,'agent','timeout_seconds','120','int','전체 타임아웃 (초, 10-300)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.797269+09'),
+	 (18,'agent','enable_memory','true','bool','대화 메모리 활성화',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.810698+09'),
+	 (84,'prompt','nl2sql_answer_prompt','당신은 데이터 분석 전문가입니다.
+SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요.
+
+답변 작성 시:
+1. 핵심 통계나 수치를 강조하세요
+2. 결과를 명확하고 간결하게 설명하세요
+3. 필요시 불릿 포인트를 사용하세요
+4. 데이터에서 발견되는 인사이트나 특징을 언급하세요
+5. 리스트 형태의 데이타는 CSV(,)로 반드시 보여줘
+6. 답변의 마지막에는 오늘의 명언을 짧막하게 한줄 추가해줘','text','NL2SQL 답변 생성용 프롬프트 (SQL 실행 결과를 자연어로 변환)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.937437+09'),
+	 (85,'prompt','nl2sql_sql_persona','Oracle 전문가','string','NL2SQL SQL 생성 시 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.95387+09'),
+	 (86,'prompt','nl2sql_answer_persona','데이터 분석 전문가','string','NL2SQL 답변 생성 시 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.967828+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (14,'llm','temperature','0.6','float','생성 온도 (0.0-2.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.639346+09'),
+	 (32,'external_database','allowed_tables','V_AI_EMPLOYEE, V_AI_ADDRESS, V_AI_MILITARY, V_AI_CAREER, V_AI_TRAINING,V_AI_FAMILY, V_AI_LANGUAGE, V_AI_LICENSE, V_AI_EDUCATION, V_AI_REWARD,V_AI_FEEDBACK,V_AI_PAY_REPORT','string','NL2SQL 쿼리 허용 테이블 (쉼표 구분)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.558577+09'),
+	 (33,'external_database','connection_pool_size','5','int','연결 풀 크기',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.569918+09'),
+	 (221,'agent','llm_temperature','0','float','Agent LLM 온도 (0.0-2.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.833093+09'),
+	 (222,'agent','enable_streaming','false','bool','스트리밍 응답 (확장)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.845319+09'),
 	 (81,'prompt','rag_system_prompt','당신은 기업용 지식 베이스 전문가입니다.
 제공된 문서를 기반으로 사용자의 질문에 정확하고 친절하게 답변해주세요.
 
@@ -272,7 +198,50 @@ Output: Query results with relevant information','text','SQL Tool 설명 (Agent�
 2. 문서에 정보가 없으면 "제공된 문서에서 해당 정보를 찾을 수 없습니다"라고 명확히 안내하세요
 3. 출처를 명시하세요 (예: "지식 베이스 문서에 따르면...")
 4. 장문은 피하고, 답변은 명확하고 구체적으로 작성하세요
-5. ** 중요 ** : 불릿 포인트나 번호 사용하여 가독성을 높이세요','text','RAG 답변 생성용 시스템 프롬프트 (문서 검색 후 답변 생성 시 사용)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.12471+09'),
+5. ** 중요 ** : 불릿 포인트나 번호 사용하여 가독성을 높이세요','text','RAG 답변 생성용 시스템 프롬프트 (문서 검색 후 답변 생성 시 사용)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.871424+09'),
+	 (87,'prompt','agent_system_prompt','당신은 기업용 지식베이스와 데이터베이스 시스템을 위한 AI 어시스턴트입니다.
+
+**사용 가능한 도구:**
+1. query_database_tool: 데이터베이스 조회 (통계, 수치, 레코드 등 구조화된 데이터)
+2. search_documents_tool: 문서 검색 (정책, 규정, 가이드라인, FAQ)
+3. calculate_tool: 수학 계산 (백분율, 평균 등)
+
+**지침:**
+1. 행동하기 전에 단계별로 생각하세요
+2. 각 작업에 가장 적합한 도구를 사용하세요
+3. 필요시 여러 도구를 순차적으로 사용할 수 있습니다
+4. 최종 답변은 반드시 한국어로 작성하세요
+5. 간결하면서도 포괄적으로 답변하세요
+
+**사고 과정 (ReAct 패턴):**
+- 생각: 어떤 정보가 필요한지 분석
+- 행동: 적절한 도구 선택 및 사용
+- 관찰: 도구 결과 검토
+- 충분한 정보를 얻을 때까지 반복
+- 최종 답변: 한국어로 종합적인 답변 제공
+
+**도구 선택 가이드:**
+- 구조화된 데이터/통계 → query_database_tool
+- 문서/정책/규정 → search_documents_tool
+- 계산 → calculate_tool
+- 복잡한 질문 → 여러 도구 조합
+
+**중요:**
+- 도구 사용 없이 추측하지 마세요
+- 정확하지 않은 데이터를 만들어내지 마세요
+- 도구 실패 시 무엇이 잘못되었는지 설명하세요
+- 도구 결과를 얻은 후 반드시 최종 답변을 한국어로 제공하세요
+- 빈 응답을 반환하지 마세요 - 항상 도구 결과를 종합하여 명확한 답변을 제공하세요','text','Agent 시스템 프롬프트 (ReAct 패턴 기반 도구 선택 및 실행)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.983689+09'),
+	 (955,'rag','distance_metric','cosine','string','거리 측정 방식 (cosine, l2)',false,'2026-01-26 09:54:35.516977+09','2026-01-27 11:11:34.334496+09'),
+	 (26,'external_database','host','115.68.223.220','string','DB 호스트',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.491433+09'),
+	 (27,'external_database','port','1521','int','DB 포트',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.503214+09');
+INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
+	 (28,'external_database','database','ORCLCDB','string','데이터베이스 이름',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.513607+09'),
+	 (29,'external_database','username','muser','string','DB 사용자명',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.524183+09'),
+	 (30,'external_database','password','muser123','string','DB 비밀번호',true,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.536135+09'),
+	 (31,'external_database','schema','muser','string','비즈니스 데이터 스키마',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:19.546984+09'),
+	 (6,'openai','api_key','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','string','OpenAI API Key',true,'2026-01-18 17:01:23.967158+09','2026-01-18 17:01:23.967158+09'),
+	 (19,'agent','enabled_tools','query_database_tool,search_documents_tool,calculate_tool','string','사용 가능한 도구 (쉼표 구분)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:23.82245+09'),
 	 (83,'prompt','nl2sql_generation_prompt','당신은 Oracle 전문가입니다.
 사용자의 자연어 질문을 Oracle SQL 쿼리로 변환해주세요.
 
@@ -480,7 +449,9 @@ ORDER BY ed.GRADUATION_DATE DESC
 SELECT EMPLOYEE_NAME, PAY_YEAR_MONTH, PAYMENT_TYPE_NAME, NET_PAY_AMOUNT
 FROM v_ai_pay_report
 WHERE EMPLOYEE_ID IN (SELECT EMP_ID FROM v_ai_employee WHERE EMP_NAME = ''홍길동'')
-  AND PAY_YEAR_MONTH = ''201603''','text','NL2SQL SQL 생성용 프롬프트 ({schema_description} 변수는 자동으로 DB 스키마로 치환됨)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.170634+09'),
+  AND PAY_YEAR_MONTH = ''201603''','text','NL2SQL SQL 생성용 프롬프트 ({schema_description} 변수는 자동으로 DB 스키마로 치환됨)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:27.917185+09'),
+	 (7,'openai','organization_id','','string','OpenAI Organization ID (선택)',false,'2026-01-18 17:01:23.967158+09','2026-01-26 09:18:01.150468+09'),
+	 (21,'anthropic','api_key','','string','Anthropic API Key (Phase 2)',true,'2026-01-18 17:01:23.967158+09','2026-01-26 09:18:01.243609+09'),
 	 (90,'prompt','tool_rag_description','Search corporate documents and regulations.
 
 Use this tool when you need to:
@@ -496,58 +467,30 @@ DO NOT use this tool for:
 - Real-time database queries (use query_database instead)
 
 Input: Search query or question
-Output: Relevant document excerpts and information','text','RAG Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.300129+09'),
-	 (85,'prompt','nl2sql_sql_persona','Oracle 전문가','string','NL2SQL SQL 생성 시 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.215098+09'),
-	 (86,'prompt','nl2sql_answer_persona','데이터 분석 전문가','string','NL2SQL 답변 생성 시 페르소나',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.231833+09');
+Output: Relevant document excerpts and information','text','RAG Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:28.029606+09');
 INSERT INTO tb_app_settings (id,category,"key",value,value_type,description,is_secret,created_at,updated_at) VALUES
-	 (87,'prompt','agent_system_prompt','당신은 기업용 지식베이스와 데이터베이스 시스템을 위한 AI 어시스턴트입니다.
+	 (91,'prompt','tool_calculator_description','Perform mathematical calculations.
 
-**사용 가능한 도구:**
-1. query_database_tool: 데이터베이스 조회 (통계, 수치, 레코드 등 구조화된 데이터)
-2. search_documents_tool: 문서 검색 (정책, 규정, 가이드라인, FAQ)
-3. calculate_tool: 수학 계산 (백분율, 평균 등)
+Use this tool when you need to:
+- Calculate percentages, averages, sums (e.g., "what is 15% of 100?")
+- Perform arithmetic operations (e.g., "(50+30)/2")
+- Compare numeric values (e.g., "100 * 1.15")
+- Statistical calculations (e.g., "average of [10, 20, 30]")
 
-**지침:**
-1. 행동하기 전에 단계별로 생각하세요
-2. 각 작업에 가장 적합한 도구를 사용하세요
-3. 필요시 여러 도구를 순차적으로 사용할 수 있습니다
-4. 최종 답변은 반드시 한국어로 작성하세요
-5. 간결하면서도 포괄적으로 답변하세요
+DO NOT use this tool for:
+- Database queries (use query_database instead)
+- Document searches (use search_documents instead)
 
-**사고 과정 (ReAct 패턴):**
-- 생각: 어떤 정보가 필요한지 분석
-- 행동: 적절한 도구 선택 및 사용
-- 관찰: 도구 결과 검토
-- 충분한 정보를 얻을 때까지 반복
-- 최종 답변: 한국어로 종합적인 답변 제공
-
-**도구 선택 가이드:**
-- 구조화된 데이터/통계 → query_database_tool
-- 문서/정책/규정 → search_documents_tool
-- 계산 → calculate_tool
-- 복잡한 질문 → 여러 도구 조합
-
-**중요:**
-- 도구 사용 없이 추측하지 마세요
-- 정확하지 않은 데이터를 만들어내지 마세요
-- 도구 실패 시 무엇이 잘못되었는지 설명하세요
-- 도구 결과를 얻은 후 반드시 최종 답변을 한국어로 제공하세요
-- 빈 응답을 반환하지 마세요 - 항상 도구 결과를 종합하여 명확한 답변을 제공하세요','text','Agent 시스템 프롬프트 (ReAct 패턴 기반 도구 선택 및 실행)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.249592+09'),
-	 (84,'prompt','nl2sql_answer_prompt','당신은 데이터 분석 전문가입니다.
-SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요.
-
-답변 작성 시:
-1. 핵심 통계나 수치를 강조하세요
-2. 결과를 명확하고 간결하게 설명하세요
-3. 필요시 불릿 포인트를 사용하세요
-4. 데이터에서 발견되는 인사이트나 특징을 언급하세요
-5. 리스트 형태의 데이타는 CSV(,)로 반드시 보여줘
-6. 답변의 마지막에는 오늘의 명언을 짧막하게 한줄 추가해줘','text','NL2SQL 답변 생성용 프롬프트 (SQL 실행 결과를 자연어로 변환)',false,'2026-01-18 17:01:23.967158+09','2026-01-28 15:09:22.198693+09'),
+Input: Mathematical expression or calculation request
+Output: Numerical result with explanation','text','Calculator Tool 설명 (Agent에서 도구 선택 시 참조)',false,'2026-01-18 17:01:23.967158+09','2026-01-29 15:31:28.046462+09'),
 	 (10,'rag','top_k','3','int','검색 문서 수',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.310944+09'),
-	 (955,'rag','distance_metric','cosine','string','거리 측정 방식 (cosine, l2)',false,'2026-01-26 09:54:35.516977+09','2026-01-27 11:11:34.334496+09'),
+	 (15,'llm','max_tokens','8000','int','최대 토큰 수',false,'2026-01-18 17:01:23.967158+09','2026-01-26 13:47:31.66529+09'),
 	 (12,'rag','max_context_length','4000','int','최대 컨텍스트 길이',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.366444+09'),
-	 (11,'rag','similarity_threshold','0.4','float','유사도 임계값 (0.0-1.0)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.353595+09');
-
+	 (8,'embedding','model','text-embedding-3-small','string','임베딩 모델명',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.383829+09'),
+	 (9,'embedding','dimension','1536','int','벡터 차원 수',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.396856+09'),
+	 (20,'embedding','provider','openai','string','임베딩 제공자 (현재 openai만 지원)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.411791+09'),
+	 (4,'chunking','default_chunk_size','1000','int','기본 청크 크기 (문자)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.437198+09'),
+	 (5,'chunking','default_overlap','100','int','기본 오버랩 크기 (문자)',false,'2026-01-18 17:01:23.967158+09','2026-01-27 11:11:34.450275+09');
 
 
 INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,parent,created_at,updated_at) VALUES
@@ -578,7 +521,19 @@ INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadat
 	 (30,'DOC_TYPE','policy','정책','회사 정책 문서','{"tag_type": "primary"}',1,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
 	 (31,'DOC_TYPE','guide','가이드','업무 가이드 문서','{"tag_type": "success"}',2,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
 	 (32,'DOC_TYPE','faq','FAQ','자주 묻는 질문','{"tag_type": "info"}',3,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
-	 (33,'DOC_TYPE','job_posting','채용공고','채용 관련 공고','{"tag_type": "warning"}',4,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09');
+	 (33,'DOC_TYPE','job_posting','채용공고','채용 관련 공고','{"tag_type": "warning"}',4,true,true,'DOC_TYPE','2026-01-26 13:08:19.918811+09','2026-01-26 13:08:19.918811+09'),
+	 (36,'DOC_TYPE','nl2sql','NL2SQL','NL2SQL용',NULL,0,true,false,'DOC_TYPE','2026-01-27 11:08:20.642493+09','2026-01-27 20:24:52.939518+09'),
+	 (37,'CODE_GROUP','USAGE_TYPE','문서 용도','tb_docs usage_type 컬럼 값',NULL,12,true,true,NULL,'2026-01-29 11:36:32.976475+09','2026-01-29 11:36:32.976475+09'),
+	 (40,'CODE_GROUP','SQL_CONTEXT_TYPE','SQL 컨텍스트 유형','Cortex SQL 컨텍스트 유형',NULL,11,true,true,NULL,'2026-01-29 11:36:33.002061+09','2026-01-29 11:36:33.002061+09'),
+	 (41,'SQL_CONTEXT_TYPE','schema','스키마','테이블/컬럼 스키마 정보','{"tag_type": "primary"}',1,true,true,'SQL_CONTEXT_TYPE','2026-01-29 11:36:33.012558+09','2026-01-29 11:36:33.012558+09');
+INSERT INTO tb_code (code_id,code_group,code_value,code_name,description,metadata,sort_order,is_active,is_system,parent,created_at,updated_at) VALUES
+	 (42,'SQL_CONTEXT_TYPE','query_example','쿼리 예제','Few-shot SQL 쿼리 예제','{"tag_type": "success"}',2,true,true,'SQL_CONTEXT_TYPE','2026-01-29 11:36:33.012558+09','2026-01-29 11:36:33.012558+09'),
+	 (43,'SQL_CONTEXT_TYPE','glossary','용어집','비즈니스 용어 및 SQL 매핑','{"tag_type": "info"}',3,true,true,'SQL_CONTEXT_TYPE','2026-01-29 11:36:33.012558+09','2026-01-29 11:36:33.012558+09'),
+	 (44,'DOC_TYPE','schema','DB 스키마','데이터베이스 테이블 스키마 정보','{"tag_type": "danger"}',10,true,true,'DOC_TYPE','2026-01-29 11:36:33.019522+09','2026-01-29 11:36:33.019522+09'),
+	 (45,'DOC_TYPE','query_example','쿼리 예제','NL2SQL Few-shot 예제','{"tag_type": "warning"}',11,true,true,'DOC_TYPE','2026-01-29 11:36:33.019522+09','2026-01-29 11:36:33.019522+09'),
+	 (46,'DOC_TYPE','glossary','용어집','비즈니스 용어-SQL 매핑','{"tag_type": "secondary"}',12,true,true,'DOC_TYPE','2026-01-29 11:36:33.019522+09','2026-01-29 11:36:33.019522+09'),
+	 (39,'USAGE_TYPE','rag_action','Agentic SQL','SQL 생성 컨텍스트용 (schema, query_example, glossary)','{"tag_type": "warning"}',2,true,true,'USAGE_TYPE','2026-01-29 11:36:32.99509+09','2026-01-29 11:36:32.99509+09'),
+	 (38,'USAGE_TYPE','rag_knowledge','지식 문서','문서 기반 답변용 (policy, guide, faq 등)','{"tag_type": "primary"}',1,true,true,'USAGE_TYPE','2026-01-29 11:36:32.99509+09','2026-01-30 00:30:26.825525+09');
 
 
 INSERT INTO tb_docs (title,doc_type,"language","content",metadata,embedding,embedding_model,indexed,embedded_at,chunk_index,total_chunks,parent_doc_id,source_type,source_file,content_hash,created_at,updated_at) VALUES
