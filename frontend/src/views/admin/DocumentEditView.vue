@@ -75,6 +75,47 @@
                 </el-select>
               </el-form-item>
 
+              <!-- 메타데이터 -->
+              <el-divider />
+              <div class="metadata-section">
+                <div class="metadata-header">
+                  <h4>메타데이터</h4>
+                  <el-button type="primary" link size="small" @click="addMetadataItem">
+                    + 추가
+                  </el-button>
+                </div>
+                <div class="form-tip" style="margin-bottom: 8px;">문서 분류 및 검색에 활용되는 추가 정보</div>
+
+                <div v-if="metadataItems.length === 0" class="metadata-empty">
+                  메타데이터가 없습니다
+                </div>
+
+                <div v-for="(item, index) in metadataItems" :key="index" class="metadata-item">
+                  <el-input
+                    v-model="item.key"
+                    placeholder="키"
+                    size="small"
+                    style="width: 35%"
+                    @change="syncMetadataToForm"
+                  />
+                  <el-input
+                    v-model="item.value"
+                    placeholder="값"
+                    size="small"
+                    style="width: 50%"
+                    @change="syncMetadataToForm"
+                  />
+                  <el-button
+                    type="danger"
+                    link
+                    size="small"
+                    @click="removeMetadataItem(index)"
+                  >
+                    삭제
+                  </el-button>
+                </div>
+              </div>
+
               <!-- 청킹 설정 (생성 시에만) -->
               <template v-if="!isEditMode">
                 <el-divider />
@@ -280,8 +321,46 @@ const form = ref({
   usageType: 'rag_knowledge',
   content: '',
   chunkSize: 1000,
-  chunkOverlap: 100
+  chunkOverlap: 100,
+  metadata: {}
 })
+
+// 메타데이터 키-값 쌍 관리
+const metadataItems = ref([])
+
+// 메타데이터 항목 추가
+const addMetadataItem = () => {
+  metadataItems.value.push({ key: '', value: '' })
+}
+
+// 메타데이터 항목 삭제
+const removeMetadataItem = (index) => {
+  metadataItems.value.splice(index, 1)
+  syncMetadataToForm()
+}
+
+// 메타데이터 배열 → 객체 동기화
+const syncMetadataToForm = () => {
+  const metadata = {}
+  metadataItems.value.forEach(item => {
+    if (item.key && item.key.trim()) {
+      metadata[item.key.trim()] = item.value
+    }
+  })
+  form.value.metadata = metadata
+}
+
+// 메타데이터 객체 → 배열 변환
+const loadMetadataItems = (metadata) => {
+  if (!metadata || typeof metadata !== 'object') {
+    metadataItems.value = []
+    return
+  }
+  metadataItems.value = Object.entries(metadata).map(([key, value]) => ({
+    key,
+    value: typeof value === 'object' ? JSON.stringify(value) : String(value)
+  }))
+}
 
 // 문서 용도 변경 시 문서 유형 초기화
 watch(() => form.value.usageType, (newUsageType) => {
@@ -348,8 +427,12 @@ onMounted(async () => {
         usageType: doc.usage_type || 'rag_knowledge',
         content: fullContent,
         chunkSize: 1000,
-        chunkOverlap: 100
+        chunkOverlap: 100,
+        metadata: doc.metadata || {}
       }
+
+      // 메타데이터 UI에 로드
+      loadMetadataItems(doc.metadata)
     } catch (error) {
       ElMessage.error('문서를 불러올 수 없습니다.')
       router.push({ name: 'AdminDocuments' })
@@ -384,6 +467,13 @@ const previewChunks = async () => {
 // 폼 제출
 const handleSubmit = async () => {
   try {
+    // formRef 유효성 체크
+    if (!formRef.value) {
+      console.error('formRef가 null입니다')
+      ElMessage.error('폼을 초기화할 수 없습니다.')
+      return
+    }
+
     await formRef.value.validate()
 
     const documentData = {
@@ -391,8 +481,11 @@ const handleSubmit = async () => {
       docType: form.value.docType,
       language: form.value.language,
       usageType: form.value.usageType,
-      content: form.value.content
+      content: form.value.content,
+      metadata: form.value.metadata || {}
     }
+
+    console.log('저장할 데이터:', documentData)
 
     if (isEditMode.value) {
       await store.dispatch('document/updateDocument', {
@@ -413,8 +506,15 @@ const handleSubmit = async () => {
 
     router.push({ name: 'AdminDocuments' })
   } catch (error) {
+    console.error('문서 저장 오류:', error)
     if (error !== 'cancel') {
-      ElMessage.error('저장에 실패했습니다.')
+      // 유효성 검사 실패 시 error는 false
+      if (error === false) {
+        ElMessage.error('입력값을 확인해주세요.')
+      } else {
+        const message = error?.response?.data?.detail || error?.message || '저장에 실패했습니다.'
+        ElMessage.error(message)
+      }
     }
   }
 }
@@ -482,6 +582,38 @@ const formatNumber = (num) => {
       font-size: 12px;
       color: var(--text-color-secondary);
       margin-top: 4px;
+    }
+
+    .metadata-section {
+      .metadata-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+
+        h4 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--text-color-regular);
+        }
+      }
+
+      .metadata-empty {
+        font-size: 12px;
+        color: var(--text-color-secondary);
+        padding: 12px;
+        text-align: center;
+        background-color: var(--bg-color);
+        border-radius: 4px;
+      }
+
+      .metadata-item {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
     }
   }
 
