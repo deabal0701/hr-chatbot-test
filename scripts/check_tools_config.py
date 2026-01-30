@@ -23,19 +23,19 @@ def check_tools_config():
             print(f"  도구 수: {len(tools)}")
             for i, t in enumerate(tools, 1):
                 print(f"    {i}. {t}")
-            print(f"  context_search_tool 포함: {'context_search_tool' in value}")
+            print(f"  query_database_tool 포함: {'query_database_tool' in value}")
 
     # 2. settings_config 캐시 조회
     print("\n[2] settings_config 캐시 조회:")
     cached_value = settings_config.get_value("agent", "enabled_tools", "기본값")
     print(f"  캐시 값: {cached_value}")
-    print(f"  context_search_tool 포함: {'context_search_tool' in cached_value}")
+    print(f"  query_database_tool 포함: {'query_database_tool' in cached_value}")
 
     # 3. use_cache=False로 조회
     print("\n[3] DB 강제 조회 (use_cache=False):")
     direct_value = settings_config.get_value("agent", "enabled_tools", "기본값", use_cache=False)
     print(f"  직접 조회 값: {direct_value}")
-    print(f"  context_search_tool 포함: {'context_search_tool' in direct_value}")
+    print(f"  query_database_tool 포함: {'query_database_tool' in direct_value}")
 
     # 4. LLM 모델 확인
     print("\n[4] LLM 모델 설정:")

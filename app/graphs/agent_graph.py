@@ -140,6 +140,9 @@ class InsightAgentGraph:
         # Checkpointer 초기화 (InMemorySaver)
         self.checkpointer = InMemorySaver()
 
+        # 컨텍스트 프롬프트 임시 저장 (LangGraph 상태 병합 우회용)
+        self._current_context_prompt: str = ""
+
         # 그래프 빌드
         self.graph = self._build_graph()
 
@@ -155,8 +158,8 @@ class InsightAgentGraph:
         - 컨텍스트별 도구 선택
 
         Note:
-        - context_search_tool은 제거됨 (context_retrieval_node로 전처리 이동)
-        - SQL 컨텍스트(스키마, Few-shot, 용어집)는 Agent 진입 전에 자동 주입됨
+        SQL 컨텍스트(스키마, Few-shot, 용어집)는 context_retrieval_node에서
+        자동으로 검색되어 Agent System Prompt에 주입됩니다.
         """
         return [
             query_database_tool,      # SQL 실행 (context가 System Prompt에 주입됨)
@@ -206,7 +209,7 @@ class InsightAgentGraph:
         - context_retrieval_node에서 스키마/Few-shot/용어집 검색
         - 결과가 state["context_prompt"]에 저장됨
         - _agent_node에서 System Prompt에 자동 주입
-        - Agent는 context_search_tool 없이 query_database_tool만 호출
+        - Agent는 query_database_tool로 SQL 실행 (컨텍스트는 자동 주입됨)
         """
         # ExtendedAgentState 사용 (Phase 1에서 정의)
         workflow = StateGraph(ExtendedAgentState)
@@ -239,12 +242,15 @@ class InsightAgentGraph:
 
         return workflow.compile(checkpointer=self.checkpointer)
 
-    def _intent_analysis_wrapper(self, state: ExtendedAgentState) -> ExtendedAgentState:
+    def _intent_analysis_wrapper(self, state: ExtendedAgentState) -> Dict[str, Any]:
         """
         의도 분석 노드 래퍼
 
         config.enable_intent_analysis=True일 때만 실제 분석 수행
         False이면 패스스루 (기존 동작 유지)
+
+        Returns:
+            업데이트할 필드만 포함된 dict (LangGraph 상태 병합용)
         """
         request_id = state.get("request_id", "unknown")
         config = state.get("config")  # type: ignore
@@ -253,15 +259,15 @@ class InsightAgentGraph:
         enable = getattr(config, 'enable_intent_analysis', False) if config else False
 
         if not enable:
-            # 패스스루: 기본값으로 상태 초기화만 수행
+            # 패스스루: 빈 dict 반환 (상태 변경 없음)
             log_step(request_id, "AGENT", "INTENT", "SKIP", "의도 분석 비활성화 (패스스루)", level="DEBUG")
-            return state
+            return {}
 
-        # 의도 분석 실행
-        updated_state = intent_analysis_node(state)  # type: ignore
-        return updated_state  # type: ignore
+        # 의도 분석 실행 (업데이트 dict 반환)
+        updates = intent_analysis_node(state)  # type: ignore
+        return updates
 
-    def _context_retrieval_wrapper(self, state: ExtendedAgentState) -> ExtendedAgentState:
+    def _context_retrieval_wrapper(self, state: ExtendedAgentState) -> Dict[str, Any]:
         """
         컨텍스트 검색 노드 래퍼
 
@@ -271,9 +277,15 @@ class InsightAgentGraph:
         조건:
         - query_type이 sql_query 또는 hybrid인 경우만 검색
         - 의도 분석이 비활성화된 경우 기본적으로 sql_query로 간주하여 검색
+
+        Returns:
+            업데이트할 필드만 포함된 dict (LangGraph 상태 병합용)
         """
         request_id = state.get("request_id", "unknown")
         intent_analysis = state.get("intent_analysis", {})
+
+        # 반환할 업데이트 딕셔너리
+        updates: Dict[str, Any] = {}
 
         # 의도 분석이 비활성화된 경우 (intent_analysis가 비어있음)
         # Agent가 자율적으로 판단하도록 컨텍스트 검색 수행
@@ -281,11 +293,23 @@ class InsightAgentGraph:
             # 기본적으로 SQL 컨텍스트 검색 수행 (Agent의 도구 선택 지원)
             log_step(request_id, "AGENT", "CONTEXT", "DEFAULT", "의도 분석 미수행 - 기본 컨텍스트 검색", level="DEBUG")
             # query_type을 sql_query로 설정하여 컨텍스트 검색 트리거
-            state["intent_analysis"] = {"query_type": "sql_query"}
+            intent_analysis = {"query_type": "sql_query"}
+            updates["intent_analysis"] = intent_analysis
 
-        # 컨텍스트 검색 실행
-        updated_state = context_retrieval_node(state)  # type: ignore
-        return updated_state  # type: ignore
+        # 컨텍스트 검색용 임시 state 구성 (intent_analysis 포함)
+        state_for_context = dict(state)
+        state_for_context["intent_analysis"] = intent_analysis
+
+        # 컨텍스트 검색 실행 (업데이트 dict 반환)
+        context_updates = context_retrieval_node(state_for_context)
+
+        # 컨텍스트 프롬프트를 인스턴스 변수에 저장 (LangGraph 상태 병합 우회)
+        self._current_context_prompt = context_updates.get("context_prompt", "")
+        log_step(request_id, "AGENT", "CONTEXT", "STORE", f"컨텍스트 저장 | length={len(self._current_context_prompt)}", level="DEBUG")
+
+        # 두 업데이트 병합
+        updates.update(context_updates)
+        return updates
 
     def _agent_node(self, state: AgentState) -> AgentState:
         """
@@ -321,11 +345,13 @@ class InsightAgentGraph:
         # 이렇게 하면 InMemorySaver에 SystemMessage가 중복 저장되지 않음
         system_prompt = self._get_system_prompt()
 
-        # Phase 3: 컨텍스트 프롬프트 주입 (검색된 경우)
-        context_prompt = state.get("context_prompt", "")  # type: ignore
+        # Phase 3: 컨텍스트 프롬프트 주입 (인스턴스 변수에서 읽음)
+        context_prompt = self._current_context_prompt
         if context_prompt:
-            system_prompt = f"{system_prompt}\n\n{context_prompt}"
-            log_step(request_id, "AGENT", str(iteration), "CONTEXT", "컨텍스트 프롬프트 주입", context_length=len(context_prompt))
+            system_prompt = f"{system_prompt}\n\n---\n# SQL 컨텍스트 (자동 주입됨)\n{context_prompt}"
+            log_step(request_id, "AGENT", str(iteration), "CONTEXT-INJECT", f"컨텍스트 프롬프트 주입 | length={len(context_prompt)}")
+        else:
+            log_step(request_id, "AGENT", str(iteration), "CONTEXT-INJECT", "컨텍스트 프롬프트 없음", level="DEBUG")
 
         messages_for_llm = [SystemMessage(content=system_prompt)] + validated_messages
         log_step(request_id, "AGENT", str(iteration), "SYSTEM", "LLM 호출용 시스템 프롬프트 추가", total_messages=len(messages_for_llm))
@@ -568,6 +594,9 @@ class InsightAgentGraph:
         question = inputs["question"]
         session_id = inputs.get("session_id", f"session-{request_id}")
         config = inputs.get("config", AgentConfig()) # type: ignore
+
+        # 컨텍스트 프롬프트 초기화 (이전 요청 영향 방지)
+        self._current_context_prompt = ""
 
         start_time = time.time()
 

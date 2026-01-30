@@ -546,14 +546,13 @@
 
               <el-form-item label="사용 가능한 도구">
                 <el-checkbox-group v-model="formData.agent.enabled_tools" class="tool-checkbox-group">
-                  <el-checkbox label="context_search_tool">컨텍스트 검색 (스키마/예제/용어)</el-checkbox>
                   <el-checkbox label="query_database_tool">DB 조회 (SQL 실행)</el-checkbox>
                   <el-checkbox label="search_documents_tool">문서 검색 (정책/규정)</el-checkbox>
                   <el-checkbox label="calculate_tool">계산기</el-checkbox>
                 </el-checkbox-group>
                 <div class="form-help">
                   Agent가 사용할 수 있는 도구를 선택하세요.<br>
-                  <small>※ 컨텍스트 검색: SQL 작성 전 스키마/쿼리 예제 조회 (권장)</small>
+                  <small>※ SQL 컨텍스트(스키마/예제/용어)는 자동으로 주입됩니다</small>
                 </div>
               </el-form-item>
             </el-form>
@@ -894,7 +893,7 @@ const formData = reactive({
     max_iterations: 10,
     timeout_seconds: 60,
     enable_memory: true,
-    enabled_tools: ['context_search_tool', 'query_database_tool', 'search_documents_tool', 'calculate_tool']
+    enabled_tools: ['query_database_tool', 'search_documents_tool', 'calculate_tool']
   },
   chunking: {
     default_chunk_size: 1000,
@@ -936,12 +935,12 @@ const loadSettings = async () => {
 
             // 구 형식을 신 형식으로 자동 마이그레이션 (_tool 접미사 추가)
             const toolMapping = {
-              'context_search': 'context_search_tool',
               'query_database': 'query_database_tool',
               'search_documents': 'search_documents_tool',
               'calculate': 'calculate_tool'
             }
-            value = value.map(tool => toolMapping[tool] || tool)
+            // context_search_tool은 더 이상 사용하지 않음 (자동 주입으로 대체)
+            value = value.map(tool => toolMapping[tool] || tool).filter(t => t !== 'context_search_tool' && t !== 'context_search')
           }
 
           formData[cat.category][setting.key] = value

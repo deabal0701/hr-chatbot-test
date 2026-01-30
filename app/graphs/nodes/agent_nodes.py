@@ -65,49 +65,53 @@ def intent_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state: ExtendedAgentState (Dict 형태로 전달)
 
     Returns:
-        업데이트된 state (intent_analysis 관련 필드 채움)
+        업데이트할 필드만 포함된 dict (LangGraph 상태 병합용)
+        Note: 전체 state를 반환하면 messages의 add_messages reducer와 충돌함
     """
     request_id = state.get("request_id", "unknown")
     question = state.get("question", "")
 
     log_step(request_id, "AGENT", "INTENT", "START", f"의도 분석 시작 | question={truncate_text(question, 50)}...")
 
+    # 반환할 업데이트 딕셔너리 (변경된 필드만)
+    updates: Dict[str, Any] = {}
+
     try:
         # LLM 호출하여 의도 분석
         result = _analyze_intent(question, request_id)
 
-        # 상태 업데이트
-        state["intent_analysis"] = result
-        state["intent_confidence"] = result.get("confidence", 1.0)
-        state["is_ambiguous"] = result.get("is_ambiguous", False)
-        state["ambiguity_options"] = result.get("clarification_options", [])
-        state["extracted_entities"] = result.get("extracted_entities", {})
+        # 업데이트할 필드 설정
+        updates["intent_analysis"] = result
+        updates["intent_confidence"] = result.get("confidence", 1.0)
+        updates["is_ambiguous"] = result.get("is_ambiguous", False)
+        updates["ambiguity_options"] = result.get("clarification_options", [])
+        updates["extracted_entities"] = result.get("extracted_entities", {})
 
         # 로깅
-        if state["is_ambiguous"]:
+        if updates["is_ambiguous"]:
             log_step(
                 request_id, "AGENT", "INTENT", "AMBIGUOUS",
-                f"모호성 감지 | type={result.get('ambiguity_type')}, confidence={state['intent_confidence']:.2f}, options={len(state['ambiguity_options'])}"
+                f"모호성 감지 | type={result.get('ambiguity_type')}, confidence={updates['intent_confidence']:.2f}, options={len(updates['ambiguity_options'])}"
             )
         else:
             log_step(
                 request_id, "AGENT", "INTENT", "COMPLETE",
-                f"의도 분석 완료 | query_type={result.get('query_type')}, intent={result.get('intent')}, confidence={state['intent_confidence']:.2f}"
+                f"의도 분석 완료 | query_type={result.get('query_type')}, intent={result.get('intent')}, confidence={updates['intent_confidence']:.2f}"
             )
 
-        return state
+        return updates
 
     except Exception as e:
         log_step(request_id, "AGENT", "INTENT", "ERROR", f"의도 분석 실패: {e}", level="ERROR")
 
         # 실패 시 기본값으로 설정 (기존 플로우 계속 진행)
-        state["intent_analysis"] = {"error": str(e)}
-        state["intent_confidence"] = 1.0  # 실패 시 모호성 없음으로 처리
-        state["is_ambiguous"] = False
-        state["ambiguity_options"] = []
-        state["extracted_entities"] = {}
+        updates["intent_analysis"] = {"error": str(e)}
+        updates["intent_confidence"] = 1.0  # 실패 시 모호성 없음으로 처리
+        updates["is_ambiguous"] = False
+        updates["ambiguity_options"] = []
+        updates["extracted_entities"] = {}
 
-        return state
+        return updates
 
 
 def _get_intent_context() -> str:
@@ -502,7 +506,8 @@ def context_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state: ExtendedAgentState (Dict 형태로 전달)
 
     Returns:
-        업데이트된 state (context_prompt, relevant_schemas 등 채움)
+        업데이트할 필드만 포함된 dict (LangGraph 상태 병합용)
+        Note: 전체 state를 반환하면 messages의 add_messages reducer와 충돌함
     """
     request_id = state.get("request_id", "unknown")
     question = state.get("question", "")
@@ -511,37 +516,42 @@ def context_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     log_step(request_id, "AGENT", "CONTEXT", "START", f"컨텍스트 검색 시작 | query_type={query_type}")
 
+    # 반환할 업데이트 딕셔너리 (변경된 필드만)
+    updates: Dict[str, Any] = {}
+
     # SQL 관련 질의인 경우만 컨텍스트 검색
     if query_type in ("sql_query", "hybrid"):
         try:
             context_result = _search_sql_context(question, request_id)
 
-            # 상태 업데이트
-            state["relevant_schemas"] = context_result.get("schemas", [])
-            state["similar_queries"] = context_result.get("examples", [])
-            state["business_terms"] = context_result.get("glossary", [])
-            state["context_prompt"] = context_result.get("prompt", "")
+            # 업데이트할 필드 설정
+            updates["relevant_schemas"] = context_result.get("schemas", [])
+            updates["similar_queries"] = context_result.get("examples", [])
+            updates["business_terms"] = context_result.get("glossary", [])
+            updates["context_prompt"] = context_result.get("prompt", "")
 
-            schema_count = len(state["relevant_schemas"])
-            example_count = len(state["similar_queries"])
-            glossary_count = len(state["business_terms"])
+            # 디버깅: context_prompt 설정 확인
+            log_step(request_id, "AGENT", "CONTEXT", "SET", f"context_prompt 설정 | length={len(updates['context_prompt'])}", level="DEBUG")
 
             log_step(
                 request_id, "AGENT", "CONTEXT", "COMPLETE",
-                f"컨텍스트 검색 완료 | schema={schema_count}, example={example_count}, glossary={glossary_count}"
+                f"컨텍스트 검색 완료 | schema={len(updates['relevant_schemas'])}, example={len(updates['similar_queries'])}, glossary={len(updates['business_terms'])}"
             )
 
         except Exception as e:
             log_step(request_id, "AGENT", "CONTEXT", "ERROR", f"컨텍스트 검색 실패: {e}", level="ERROR")
             # 실패해도 계속 진행 (context 없이)
-            state["context_prompt"] = ""
+            updates["context_prompt"] = ""
+            updates["relevant_schemas"] = []
+            updates["similar_queries"] = []
+            updates["business_terms"] = []
 
     else:
         # SQL 외 질의는 컨텍스트 검색 생략
         log_step(request_id, "AGENT", "CONTEXT", "SKIP", f"SQL 외 질의 - 컨텍스트 검색 생략 | query_type={query_type}")
-        state["context_prompt"] = ""
+        updates["context_prompt"] = ""
 
-    return state
+    return updates
 
 
 def _search_sql_context(question: str, request_id: str) -> Dict[str, Any]:

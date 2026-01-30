@@ -74,7 +74,7 @@
           </template>
           <template v-else-if="searchMode === 'agent'">
             AI Agent가 도구를 자율 선택하여 복합 질문 처리<br>
-            <small>(컨텍스트 검색 → DB 조회 → 문서 검색 → 계산)</small>
+            <small>(DB 조회 → 문서 검색 → 계산)</small>
           </template>
         </p>
       </div>

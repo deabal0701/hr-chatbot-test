@@ -78,7 +78,7 @@ class SettingsConfig:
             "llm_temperature": ("0.0", "float", "Agent LLM 온도 (0.0-2.0)", False),
             "enable_memory": ("true", "bool", "대화 메모리 활성화", False),
             "enable_streaming": ("false", "bool", "스트리밍 응답 (확장)", False),
-            "enabled_tools": ("context_search_tool,query_database_tool,search_documents_tool,calculate_tool", "string", "사용 가능한 도구 (쉼표 구분)", False),
+            "enabled_tools": ("query_database_tool,search_documents_tool,calculate_tool", "string", "사용 가능한 도구 (쉼표 구분)", False),
             "intent_context": ("", "text", "의도 파악용 경량 컨텍스트 (빈값이면 기본값 사용)", False),
         },
         "external_database": {
