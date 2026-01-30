@@ -76,8 +76,11 @@ class AgentService:
         config.enable_memory = settings_config.get_value("agent", "enable_memory", True)
         config.enable_streaming = settings_config.get_value("agent", "enable_streaming", False)
 
+        # Phase 2: 의도 분석 (기본값 True)
+        config.enable_intent_analysis = settings_config.get_value("agent", "enable_intent_analysis", True)
+
         # enabled_tools: 쉼표 구분 문자열 → 리스트 변환
-        tools_str = settings_config.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool")
+        tools_str = settings_config.get_value("agent", "enabled_tools", "query_database_tool,search_documents_tool,calculate_tool,context_search_tool")
         if tools_str:
             enabled_tools = [t.strip() for t in tools_str.split(",") if t.strip()]
             if enabled_tools:

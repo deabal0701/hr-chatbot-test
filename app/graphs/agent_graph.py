@@ -30,6 +30,8 @@ from app.models.agent import (AgentRequest, AgentResponse, AgentStep, AgentConfi
 from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
 from app.tools.calc_tool import calculate_tool
+from app.tools.context_tool import context_search_tool
+from app.graphs.nodes.intent_analysis import intent_analysis_node
 from app.core.config.settings_config import settings_config
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
@@ -53,6 +55,77 @@ class AgentState(TypedDict):
     final_answer: str
     request_id: str
     start_time: float
+
+
+class ExtendedAgentState(TypedDict):
+    """
+    확장된 Agent 상태 (Phase 1)
+
+    기존 AgentState의 모든 필드를 포함하고,
+    의도 분석 및 컨텍스트 검색을 위한 신규 필드를 추가합니다.
+
+    하위 호환성:
+    - 기존 AgentState 필드는 모두 유지
+    - 신규 필드는 선택적 (기본값 사용)
+    """
+    # ===== 기존 필드 (AgentState 호환) =====
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    question: str
+    session_id: str
+    config: AgentConfig
+    iteration_count: int
+    final_answer: str
+    request_id: str
+    start_time: float
+
+    # ===== 의도 분석 (Phase 2에서 활용) =====
+    intent_analysis: Dict[str, Any]       # 의도 분석 결과 전체
+    intent_confidence: float              # 신뢰도 (0.0 ~ 1.0)
+    is_ambiguous: bool                    # 모호성 여부
+    ambiguity_options: List[str]          # 명확화 선택지
+    extracted_entities: Dict[str, Any]    # 추출된 엔티티 (테이블, 컬럼 등)
+
+    # ===== 컨텍스트 검색 (Phase 3에서 활용) =====
+    relevant_schemas: List[Dict[str, Any]]   # 검색된 스키마
+    similar_queries: List[Dict[str, Any]]    # 검색된 Few-shot 예제
+    business_terms: List[Dict[str, Any]]     # 검색된 용어집
+    context_prompt: str                      # 컨텍스트 프롬프트 문자열
+
+    # ===== Human in the Loop (Phase 5에서 활용) =====
+    waiting_for_human: bool                  # Human 응답 대기 중
+    human_intervention: Dict[str, Any]       # Human 개입 요청 정보
+    human_response: str                      # Human 응답
+
+
+def create_extended_state_defaults() -> Dict[str, Any]:
+    """
+    ExtendedAgentState의 신규 필드 기본값
+
+    사용법:
+        initial_state = {
+            **create_extended_state_defaults(),
+            "messages": [...],
+            "question": "...",
+            ...
+        }
+    """
+    return {
+        # 의도 분석 기본값
+        "intent_analysis": {},
+        "intent_confidence": 1.0,
+        "is_ambiguous": False,
+        "ambiguity_options": [],
+        "extracted_entities": {},
+        # 컨텍스트 검색 기본값
+        "relevant_schemas": [],
+        "similar_queries": [],
+        "business_terms": [],
+        "context_prompt": "",
+        # Human in the Loop 기본값
+        "waiting_for_human": False,
+        "human_intervention": {},
+        "human_response": "",
+    }
 
 
 class InsightAgentGraph:
@@ -82,9 +155,12 @@ class InsightAgentGraph:
         - 컨텍스트별 도구 선택
         """
         return [
-            query_database_tool,      # SQL Tool
-            search_documents_tool,    # RAG Tool
-            calculate_tool,           # Calculator Tool
+            # 기존 도구
+            query_database_tool,      # SQL 실행
+            search_documents_tool,    # RAG 검색 (usage_type='rag_knowledge')
+            calculate_tool,           # 계산기
+            # 신규 도구 (Phase 1)
+            context_search_tool,      # SQL 컨텍스트 통합 검색 (usage_type='rag_action')
         ]
 
     def _get_llm(self, config: AgentConfig):
@@ -115,22 +191,33 @@ class InsightAgentGraph:
 
     def _build_graph(self) -> CompiledStateGraph:
         """
-        Agent 그래프 구성 (ReAct 패턴)
+        Agent 그래프 구성 (ReAct 패턴 + 의도 분석 확장)
 
-        플로우:
-        1. agent (LLM 의사결정)
-        2. should_continue (도구 호출 여부 판단)
+        플로우 (enable_intent_analysis=True):
+        1. intent_analysis (의도 분석, 선택적)
+        2. agent (LLM 의사결정)
+        3. should_continue (도구 호출 여부 판단)
            - continue → tools (도구 실행) → agent (반복)
            - end → END (종료)
+
+        플로우 (enable_intent_analysis=False):
+        - 기존과 동일: agent → should_continue → tools/END
+
+        Note: 컨텍스트 검색은 Agent가 context_search_tool을 직접 호출하여 수행
         """
-        workflow = StateGraph(AgentState)
+        # ExtendedAgentState 사용 (Phase 1에서 정의)
+        workflow = StateGraph(ExtendedAgentState)
 
         # 노드 추가
+        workflow.add_node("intent_analysis", self._intent_analysis_wrapper)  # Phase 2: 의도 분석
         workflow.add_node("agent", self._agent_node)
         workflow.add_node("tools", ToolNode(self.tools))
 
-        # 진입점
-        workflow.set_entry_point("agent")
+        # 진입점: intent_analysis (내부에서 enable 여부 확인)
+        workflow.set_entry_point("intent_analysis")
+
+        # intent_analysis → agent
+        workflow.add_edge("intent_analysis", "agent")
 
         # 조건부 엣지: LLM이 도구 호출 여부 결정
         workflow.add_conditional_edges(
@@ -146,6 +233,28 @@ class InsightAgentGraph:
         workflow.add_edge("tools", "agent")
 
         return workflow.compile(checkpointer=self.checkpointer)
+
+    def _intent_analysis_wrapper(self, state: ExtendedAgentState) -> ExtendedAgentState:
+        """
+        의도 분석 노드 래퍼
+
+        config.enable_intent_analysis=True일 때만 실제 분석 수행
+        False이면 패스스루 (기존 동작 유지)
+        """
+        request_id = state.get("request_id", "unknown")
+        config = state.get("config")  # type: ignore
+
+        # enable_intent_analysis 확인
+        enable = getattr(config, 'enable_intent_analysis', False) if config else False
+
+        if not enable:
+            # 패스스루: 기본값으로 상태 초기화만 수행
+            log_step(request_id, "AGENT", "INTENT", "SKIP", "의도 분석 비활성화 (패스스루)", level="DEBUG")
+            return state
+
+        # 의도 분석 실행
+        updated_state = intent_analysis_node(state)  # type: ignore
+        return updated_state  # type: ignore
 
     def _agent_node(self, state: AgentState) -> AgentState:
         """
@@ -180,6 +289,13 @@ class InsightAgentGraph:
         # 2. 시스템 프롬프트를 LLM 호출용 메시지에만 추가 (state에는 저장하지 않음)
         # 이렇게 하면 InMemorySaver에 SystemMessage가 중복 저장되지 않음
         system_prompt = self._get_system_prompt()
+
+        # Phase 3: 컨텍스트 프롬프트 주입 (검색된 경우)
+        context_prompt = state.get("context_prompt", "")  # type: ignore
+        if context_prompt:
+            system_prompt = f"{system_prompt}\n\n{context_prompt}"
+            log_step(request_id, "AGENT", str(iteration), "CONTEXT", "컨텍스트 프롬프트 주입", context_length=len(context_prompt))
+
         messages_for_llm = [SystemMessage(content=system_prompt)] + validated_messages
         log_step(request_id, "AGENT", str(iteration), "SYSTEM", "LLM 호출용 시스템 프롬프트 추가", total_messages=len(messages_for_llm))
 
@@ -420,8 +536,9 @@ class InsightAgentGraph:
 
         start_time = time.time()
 
-        # 초기 상태
-        initial_state: AgentState = {
+        # 초기 상태 (ExtendedAgentState 사용)
+        initial_state: ExtendedAgentState = {  # type: ignore
+            # 기존 AgentState 필드
             "messages": [HumanMessage(content=question)],
             "question": question,
             "session_id": session_id,
@@ -429,10 +546,14 @@ class InsightAgentGraph:
             "iteration_count": 0,
             "final_answer": "",
             "request_id": request_id,
-            "start_time": start_time
+            "start_time": start_time,
+            # ExtendedAgentState 신규 필드 (Phase 1에서 정의된 기본값 사용)
+            **create_extended_state_defaults()
         }
 
-        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작", question=question[:50], session_id=session_id)
+        # Phase 2: 의도 분석 활성화 여부 로깅
+        enable_intent = getattr(config, 'enable_intent_analysis', False)
+        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작", question=question[:50], session_id=session_id, intent_analysis=enable_intent)
 
         try:
             # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
@@ -473,6 +594,16 @@ class InsightAgentGraph:
             # 멀티턴 디버깅: 실행 완료 후 전체 메시지 히스토리 로깅
             self._log_final_messages(request_id, session_id, result["messages"])
 
+            # 의도분석 결과 추출 (디버깅 및 검증용)
+            intent_analysis = result.get("intent_analysis", {})
+            intent_metadata = {
+                "query_type": intent_analysis.get("query_type"),
+                "intent": intent_analysis.get("intent"),
+                "confidence": intent_analysis.get("confidence"),
+                "is_ambiguous": result.get("is_ambiguous", False),
+                "ambiguity_type": intent_analysis.get("ambiguity_type"),
+            } if intent_analysis else None
+
             return AgentResponse(
                 answer=final_answer,
                 steps=steps,
@@ -484,7 +615,8 @@ class InsightAgentGraph:
                     "request_id": request_id,
                     "session_id": session_id,
                     "execution_time_ms": execution_time_ms,
-                    "llm_model": config.llm_model
+                    "llm_model": config.llm_model,
+                    "intent_analysis": intent_metadata  # Phase 2: 의도분석 결과 포함
                 },
                 session_id=session_id
             )

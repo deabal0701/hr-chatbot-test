@@ -56,6 +56,7 @@ class AgentConfig(BaseModel):
     llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="LLM 온도")
     enable_memory: bool = Field(default=True, description="메모리 활성화 여부")
     enable_streaming: bool = Field(default=False, description="스트리밍 응답 (확장)")
+    enable_intent_analysis: bool = Field(default=True, description="의도 분석 노드 활성화 (Phase 2)")
     tools_whitelist: Optional[List[str]] = Field(None, description="사용 가능한 도구 목록 (None=전체)")
     tools_blacklist: Optional[List[str]] = Field(None, description="사용 금지 도구 목록")
     timeout_seconds: int = Field(default=60, ge=10, le=300, description="전체 타임아웃(초)")
