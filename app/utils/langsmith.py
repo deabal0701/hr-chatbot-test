@@ -16,7 +16,6 @@ LangSmith는 LangChain 애플리케이션의 디버깅, 모니터링, 평가를 
 """
 
 import os
-from typing import Optional
 
 from app.config import settings
 from app.utils.logger import logger
@@ -67,34 +66,6 @@ def setup_langsmith() -> bool:
     except Exception as e:
         logger.warning(f"LangSmith 설정 중 오류 발생 (계속 진행): {e}")
         return False
-
-
-def disable_langsmith():
-    """LangSmith 트레이싱 비활성화"""
-    os.environ["LANGCHAIN_TRACING_V2"] = "false"
-    logger.info("LangSmith 트레이싱이 비활성화되었습니다.")
-
-
-def get_langsmith_url(run_id: Optional[str] = None) -> Optional[str]:
-    """
-    LangSmith 대시보드 URL 생성
-
-    Args:
-        run_id: 특정 실행의 ID (선택사항)
-
-    Returns:
-        str: LangSmith 대시보드 URL 또는 None
-    """
-    if not settings.langsmith_enabled:
-        return None
-
-    project_name = os.environ.get("LANGCHAIN_PROJECT", "chatbot-mureum")
-    base_url = f"https://smith.langchain.com/o/default/projects/{project_name}"
-
-    if run_id:
-        return f"{base_url}/runs/{run_id}"
-
-    return base_url
 
 
 # 애플리케이션 시작 시 자동 초기화

@@ -23,6 +23,7 @@ from app.config import settings
 from app.models.rag import DocumentSource
 from app.models.search import SearchFilters
 from app.utils.logger import setup_logger
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -221,7 +222,7 @@ class VectorStoreService:
                     similarity = 0.0
 
                 # DEBUG: 문서별 상세 로그
-                logger.debug(f"문서 ID={row['id']}, title='{row['title'][:30]}...', similarity={similarity:.4f}")
+                logger.debug(f"문서 ID={row['id']}, title='{truncate_text(row['title'], 30)}...', similarity={similarity:.4f}")
 
                 if similarity < similarity_threshold:
                     filtered_count += 1
@@ -245,7 +246,7 @@ class VectorStoreService:
 
             if filtered_count > 0:
                 logger.debug(f"임계값으로 필터링된 문서: {filtered_count}개")
-            logger.debug(f"벡터 검색 완료: query='{query[:30]}...', found={len(documents)}, filtered={filtered_count}")
+            logger.debug(f"벡터 검색 완료: query='{truncate_text(query, 30)}...', found={len(documents)}, filtered={filtered_count}")
             return documents
 
     # ============================================

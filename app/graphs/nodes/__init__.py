@@ -1,25 +1,17 @@
 """
 Agent 그래프 노드 모듈
 
-확장된 Agent 그래프의 개별 노드들을 정의합니다.
-각 노드는 ExtendedAgentState를 입력받아 처리 후 반환합니다.
+위치: app/graphs/nodes/
 
-노드 목록:
-- intent_analysis: 의도 분석 및 모호성 감지 (Phase 2)
-- human_clarification: Human 명확화 요청 (Phase 5, 미구현)
-- sql_validate: SQL 검증 (Phase 6, 미구현)
+각 노드는 상태(state)를 입력받아 처리 후 반환하는 함수형 노드입니다.
 
-Note: context_retrieval 노드는 v3.3에서 삭제됨.
-      Agent가 context_search_tool을 직접 호출하여 컨텍스트 검색 수행.
+모듈:
+- agent_nodes: Agent 노드들 (intent_analysis_node)
+- rag_nodes: RAG 검색 노드들 (retrieve, generate_answer)
+- nl2sql_nodes: NL2SQL 노드들 (generate_sql, validate_sql, execute_sql, generate_answer)
+
+사용법:
+    from app.graphs.nodes.agent_nodes import intent_analysis_node
+    from app.graphs.nodes.rag_nodes import retrieve_documents_node
+    from app.graphs.nodes.nl2sql_nodes import generate_sql_node
 """
-
-from app.graphs.nodes.intent_analysis import (
-    intent_analysis_node,
-    should_clarify
-)
-
-__all__ = [
-    # Phase 2: 의도 분석
-    "intent_analysis_node",
-    "should_clarify",
-]

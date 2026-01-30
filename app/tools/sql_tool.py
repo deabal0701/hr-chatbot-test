@@ -19,6 +19,7 @@ from app.tools.base import BaseTool, ToolResult
 from app.core.database.sql_executor import sql_executor
 from app.core.llm.sql_generator import sql_generator  # 공통 SQL 생성 모듈
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -94,7 +95,7 @@ Examples:
         # 캐시 체크 (간단한 구현)
         cache_key = question.lower().strip()
         if cache_key in self._query_cache:
-            log_step("SYSTEM", "TOOL", self.name, "CACHE", "캐시 히트", level="DEBUG", cache_key=cache_key[:50])
+            log_step("SYSTEM", "TOOL", self.name, "CACHE", "캐시 히트", level="DEBUG", cache_key=truncate_text(cache_key, 50))
             kwargs["_cached_result"] = self._query_cache[cache_key]
 
         return kwargs

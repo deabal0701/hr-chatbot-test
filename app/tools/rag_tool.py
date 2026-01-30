@@ -21,6 +21,7 @@ from app.core.config.settings_config import settings_config
 from app.models.search import SearchFilters
 from app.config import settings
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -111,7 +112,7 @@ Examples:
         # 캐시 체크
         cache_key = f"{question.lower().strip()}:{top_k}"
         if cache_key in self._search_cache:
-            log_step("SYSTEM", "TOOL", self.name, "CACHE", f"캐시 히트", level="DEBUG", cache_key=cache_key[:50])
+            log_step("SYSTEM", "TOOL", self.name, "CACHE", f"캐시 히트", level="DEBUG", cache_key=truncate_text(cache_key, 50))
             kwargs["_cached_result"] = self._search_cache[cache_key]
 
         return kwargs
@@ -231,10 +232,7 @@ Examples:
             formatted += f"제목: {doc.title}\n"
             formatted += f"유형: {doc.doc_type}\n"
             formatted += f"관련도: {similarity:.2f}\n"
-            formatted += f"내용: {doc.content_snippet[:300]}"
-
-            if len(doc.content_snippet) > 300:
-                formatted += "..."
+            formatted += f"내용: {truncate_text(doc.content_snippet, 300)}"
 
             formatted += "\n\n"
 

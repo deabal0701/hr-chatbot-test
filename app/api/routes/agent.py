@@ -24,6 +24,7 @@ from app.models.agent import (
     AgentResponse
 )
 from app.utils.logger import setup_logger
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -76,7 +77,7 @@ async def agent_search(request: AgentRequest):
 
     try:
         logger.info(f"[{request_id}] ========== Agent 검색 요청 처리 시작 ==========")
-        logger.info(f"[{request_id}] Agent 검색 요청: {request.question[:100]}")
+        logger.info(f"[{request_id}] Agent 검색 요청: {truncate_text(request.question, 100)}")
 
         # 서비스 호출 (설정은 서비스에서 DB로부터 로드)
         result = await agent_service.search(question=request.question, session_id=request.session_id, request_id=request_id)

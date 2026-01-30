@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 from app.graphs.rag_graph import rag_graph
 from app.models.search import SearchFilters, SearchResponse
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -34,7 +35,7 @@ class RAGService:
         Returns:
             SearchResponse: 검색 결과
         """
-        log_step(request_id, "SERVICE", "RAG", "START", "RAG 서비스 시작", query=query[:50])
+        log_step(request_id, "SERVICE", "RAG", "START", "RAG 서비스 시작", query=truncate_text(query, 50))
 
         # 입력 데이터 구성 (보안: top_k 무시)
         inputs = self._prepare_inputs(query, filters, top_k, request_id)

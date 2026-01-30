@@ -31,12 +31,13 @@ from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
 from app.tools.calc_tool import calculate_tool
 from app.tools.context_tool import context_search_tool
-from app.graphs.nodes.intent_analysis import intent_analysis_node
+from app.graphs.nodes.agent_nodes import intent_analysis_node
 from app.core.config.settings_config import settings_config
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
 from app.core.llm.llm_config import LLMConfigManager  # 통합 LLM 설정
 from app.core.llm.prompt_service import prompt_service  # 프롬프트 서비스
+from app.utils.common import truncate_text  # 디버그 모드 인식 텍스트 자르기
 
 logger = setup_logger(__name__)
 
@@ -402,7 +403,7 @@ class InsightAgentGraph:
                 if not last_has_tool_calls:
                     # CRITICAL: 고아 ToolMessage도 유지해야 함 (OpenAI API 요구사항)
                     # 실패한 도구 호출에 대한 응답도 포함되어야 함
-                    content_preview = msg.content[:50] if msg.content else "empty"
+                    content_preview = truncate_text(str(msg.content), 50) if msg.content else "empty"
                     log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"[{i}] ToolMessage without preceding tool_calls", level="WARNING", content=content_preview)
                 log_step(request_id, "AGENT", str(iteration), "VALIDATE", f"[{i}] Keeping ToolMessage", level="DEBUG")
 
@@ -553,7 +554,7 @@ class InsightAgentGraph:
 
         # Phase 2: 의도 분석 활성화 여부 로깅
         enable_intent = getattr(config, 'enable_intent_analysis', False)
-        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작", question=question[:50], session_id=session_id, intent_analysis=enable_intent)
+        log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작", question=truncate_text(question, 50), session_id=session_id, intent_analysis=enable_intent)
 
         try:
             # 그래프 실행 (InMemorySaver가 thread_id를 통해 대화 히스토리 관리)
@@ -673,7 +674,7 @@ class InsightAgentGraph:
                                 try:
                                     parsed = json_module.loads(raw_content)
                                     # answer 부분만 observation으로 사용
-                                    observation = str(parsed.get("answer", raw_content))[:500]
+                                    observation = truncate_text(str(parsed.get("answer", raw_content)), 500)
 
                                     # sql_result 추출
                                     sql_data = parsed.get("sql_result")
@@ -688,12 +689,12 @@ class InsightAgentGraph:
                                         log_step("SYSTEM", "AGENT", str(step_num), "EXTRACT", "SQL 결과 추출", level="DEBUG", row_count=sql_result.row_count, columns=len(sql_result.columns))
                                 except json_module.JSONDecodeError:
                                     # JSON 파싱 실패 시 원본 사용
-                                    observation = raw_content[:500]
+                                    observation = truncate_text(raw_content, 500)
                                     log_step("SYSTEM", "AGENT", str(step_num), "EXTRACT", "SQL 도구 응답 JSON 파싱 실패", level="WARNING")
                             else:
-                                observation = raw_content[:500]
+                                observation = truncate_text(raw_content, 500)
                         else:
-                            observation = str(next_msg.content)[:500]
+                            observation = truncate_text(str(next_msg.content), 500)
 
                     # Thought 추출 (간단 버전)
                     thought = f"도구 선택: {tool_call['name']}"

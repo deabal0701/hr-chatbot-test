@@ -20,6 +20,7 @@ from app.core.vector.vector_store import vector_store
 from app.core.config.settings_config import settings_config
 from app.models.search import SearchFilters
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -68,7 +69,7 @@ context_type:
             ToolResult: 검색 결과
         """
         request_id = kwargs.get("request_id", "unknown")
-        log_step(request_id, "TOOL", "CONTEXT", "START", f"컨텍스트 검색 시작 | type={context_type}, query={query[:30]}...")
+        log_step(request_id, "TOOL", "CONTEXT", "START", f"컨텍스트 검색 시작 | type={context_type}, query={truncate_text(query, 30)}...")
 
         results = []
         found_counts = {"schema": 0, "example": 0, "glossary": 0}

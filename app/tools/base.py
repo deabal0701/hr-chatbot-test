@@ -1,16 +1,15 @@
 """
-Tool 베이스 클래스 및 레지스트리
+Tool 베이스 클래스
 
 확장성:
 - BaseTool: 모든 도구의 추상 베이스 클래스
 - ToolResult: 표준화된 결과 포맷
-- ToolRegistry: 도구 자동 등록 및 관리
 - ToolValidator: 입력/출력 검증 (보안)
 - ToolMetrics: 도구 사용 메트릭 수집
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, List, Type
+from typing import Any, Dict, Optional, List
 from datetime import datetime
 from pydantic import BaseModel, Field
 import time
@@ -278,61 +277,3 @@ class BaseTool(ABC):
             ) # type: ignore
 
 
-class ToolRegistry:
-    """
-    Tool 레지스트리 (싱글톤)
-
-    확장 포인트:
-    - 동적 도구 등록/해제
-    - 도구 버전 관리
-    - 도구 권한 관리
-    """
-
-    _instance = None
-    _tools: Dict[str, Type[BaseTool]] = {}
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def register(self, tool_class: Type[BaseTool]):
-        """도구 등록"""
-        tool_instance = tool_class()
-        self._tools[tool_instance.name] = tool_class
-        log_step("SYSTEM", "TOOL", tool_instance.name, "REGISTER", "도구 등록 완료")
-
-    def unregister(self, tool_name: str):
-        """도구 해제"""
-        if tool_name in self._tools:
-            del self._tools[tool_name]
-            log_step("SYSTEM", "TOOL", tool_name, "UNREGISTER", "도구 해제 완료")
-
-    def get_tool(self, tool_name: str) -> Optional[BaseTool]:
-        """도구 가져오기"""
-        tool_class = self._tools.get(tool_name)
-        if tool_class:
-            return tool_class()
-        return None
-
-    def list_tools(self) -> List[str]:
-        """등록된 도구 목록"""
-        return list(self._tools.keys())
-
-    def get_all_tools(self) -> List[BaseTool]:
-        """모든 도구 인스턴스"""
-        return [tool_class() for tool_class in self._tools.values()]
-
-    def get_tools_info(self) -> List[Dict[str, Any]]:
-        """도구 정보 목록 (메타데이터 포함)"""
-        info = []
-        for tool_class in self._tools.values():
-            tool = tool_class()
-            stats = ToolMetrics.get_stats(tool.name)
-            info.append({
-                "name": tool.name,
-                "description": tool.description,
-                "enabled": tool.enabled,
-                "stats": stats
-            })
-        return info

@@ -9,6 +9,7 @@ from typing import Any, Dict
 from app.graphs.nl2sql_graph import nl2sql_graph
 from app.models.search import SearchResponse
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -27,7 +28,7 @@ class NL2SQLService:
         Returns:
             SearchResponse: 검색 결과 (SQL, 실행 결과, 답변 포함)
         """
-        log_step(request_id, "SERVICE", "NL2SQL", "START", "NL2SQL 서비스 시작", query=query[:50])
+        log_step(request_id, "SERVICE", "NL2SQL", "START", "NL2SQL 서비스 시작", query=truncate_text(query, 50))
 
         # 입력 데이터 구성
         inputs = self._prepare_inputs(query, request_id)

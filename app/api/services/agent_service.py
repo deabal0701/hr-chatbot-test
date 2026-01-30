@@ -11,6 +11,7 @@ from app.graphs.agent_graph import agent_graph
 from app.models.agent import (AgentConfig, AgentResponse)
 from app.core.config.settings_config import settings_config
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -30,7 +31,7 @@ class AgentService:
         Returns:
             AgentResponse: Agent 응답 (답변, 실행 단계, 메타데이터)
         """
-        log_step(request_id, "SERVICE", "AGENT", "START", "Agent 서비스 시작", question=question[:50])
+        log_step(request_id, "SERVICE", "AGENT", "START", "Agent 서비스 시작", question=truncate_text(question, 50))
 
         # 세션 ID 자동 생성
         if not session_id: 

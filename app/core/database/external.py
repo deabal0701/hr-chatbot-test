@@ -12,7 +12,8 @@ from contextlib import contextmanager
 from typing import Generator, Optional, Dict, Any
 import sys
 
-from app.core.database.adapters import get_adapter, DatabaseAdapter
+from app.core.database.adapters.factory import get_adapter
+from app.core.database.adapters.base import DatabaseAdapter
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)

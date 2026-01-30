@@ -1,34 +1,53 @@
-from typing import Any, Dict, TypedDict
-import logging
+"""
+NL2SQL 검색 그래프 (LangGraph)
 
-from langchain_core.messages import HumanMessage, SystemMessage
+위치: app/graphs/nl2sql_graph.py
+
+그래프 흐름:
+    generate_sql → validate_sql → should_execute 분기
+                                  ├─ "execute" → execute_sql → generate_answer → END
+                                  └─ "error" → handle_error → END
+
+노드:
+- generate_sql: 자연어 질문을 SQL로 변환
+- validate_sql: SQL 안전성 및 유효성 검증
+- execute_sql: SQL 실행
+- generate_answer: 결과를 자연어 답변으로 변환
+- handle_error: 오류 처리
+"""
+from typing import Any, Dict, TypedDict
+import time
+
 from langgraph.graph import END, StateGraph
 
-from app.config import settings
 from app.models.search import SearchResponse
 from app.models.rag import SQLResult
-import time
-from app.core.config.settings_config import settings_config
-from app.core.llm.prompt_service import prompt_service
-from app.core.llm.sql_generator import sql_generator  # 공통 SQL 생성 모듈
-from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_step
-from app.core.llm.llm_config import LLMConfigManager
+
+# 노드 함수 import
+from app.graphs.nodes.nl2sql_nodes import (
+    generate_sql_node,
+    validate_sql_node,
+    execute_sql_node,
+    generate_answer_node,
+    handle_error_node,
+    should_execute,
+)
 
 logger = setup_logger(__name__)
 
 
 class NL2SQLState(TypedDict):
     """NL2SQL Graph 상태"""
-    question: str                   # 사용자 질문
-    schema_description: str         # DB 스키마 설명 (LLM 제공)
+    question: str
+    schema_description: str
     generated_sql: str
-    validated: bool                 # 검증 통과 여부
+    validated: bool
     validation_error: str
     sql_result: SQLResult
-    answer: str                     # 최종 답변
-    metadata: Dict[str, Any]        # 메타 데이터
-    request_id: str                 # 요청 추적용 ID
+    answer: str
+    metadata: Dict[str, Any]
+    request_id: str
 
 
 class NL2SQLGraph:
@@ -40,40 +59,25 @@ class NL2SQLGraph:
     """
 
     def __init__(self):
-        # 그래프 구성 (LLM은 요청 시점에 생성)
-        # 스키마는 sql_generator에서 캐싱 관리
         self.graph = self._build_graph()
-
-    def _get_llm(self):
-        """
-        매 요청 시 DB 설정을 반영한 LLM 인스턴스 생성 (Phase 1: init_chat_model 적용)
-
-        NL2SQL은 temperature=0으로 고정하여 deterministic한 SQL 생성
-        """
-        return LLMConfigManager.create_llm(
-            temperature=0,  # SQL 생성은 deterministic하게
-            # model과 provider는 DB 설정 사용
-        )
 
     def _build_graph(self) -> StateGraph:
         """그래프 구성"""
         workflow = StateGraph(NL2SQLState)
 
-        # 노드 추가
-        workflow.add_node("generate_sql", self._generate_sql)
-        workflow.add_node("validate_sql", self._validate_sql)
-        workflow.add_node("execute_sql", self._execute_sql)
-        workflow.add_node("generate_answer", self._generate_answer)
-        workflow.add_node("handle_error", self._handle_error)
+        # 외부 노드 함수 사용
+        workflow.add_node("generate_sql", generate_sql_node)
+        workflow.add_node("validate_sql", validate_sql_node)
+        workflow.add_node("execute_sql", execute_sql_node)
+        workflow.add_node("generate_answer", generate_answer_node)
+        workflow.add_node("handle_error", handle_error_node)
 
-        # 엣지 정의
         workflow.set_entry_point("generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")
 
-        # 조건부 엣지: 검증 성공 여부에 따라 분기
         workflow.add_conditional_edges(
             "validate_sql",
-            self._should_execute,
+            should_execute,
             {
                 "execute": "execute_sql",
                 "error": "handle_error"
@@ -86,224 +90,8 @@ class NL2SQLGraph:
 
         return workflow.compile()
 
-    def _generate_sql(self, state: NL2SQLState) -> NL2SQLState:
-        """SQL 생성 노드 (sql_generator 공통 모듈 사용)"""
-        question = state["question"]
-        request_id = state.get("request_id", "unknown")
-
-        log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작", question=question[:40])
-
-        try:
-            # sql_generator 공통 모듈 사용
-            sql, gen_metadata = sql_generator.generate_sql(question, request_id)
-
-            if sql:
-                state["generated_sql"] = sql
-                state["schema_description"] = sql_generator.get_schema_description()
-                state["metadata"] = {
-                    "llm_model": gen_metadata.get("llm_model"),
-                    "db_type": gen_metadata.get("db_type"),
-                    "sql_dialect": gen_metadata.get("sql_dialect")
-                }
-                log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
-                log_step(request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
-            else:
-                error_msg = gen_metadata.get("error", "SQL 생성 실패")
-                state["generated_sql"] = ""
-                state["validation_error"] = f"SQL 생성 오류: {error_msg}"
-                state["validated"] = False
-                log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {error_msg}", level="ERROR")
-
-        except Exception as e:
-            log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
-            state["generated_sql"] = ""
-            state["validation_error"] = f"SQL 생성 오류: {str(e)}"
-            state["validated"] = False
-
-        return state
-
-    def _validate_sql(self, state: NL2SQLState) -> NL2SQLState:
-        """SQL 검증 노드"""
-        sql = state["generated_sql"]
-        request_id = state.get("request_id", "unknown")
-
-        if not sql:
-            log_step(request_id, "NL2SQL", "2", "VALIDATE", "검증 실패 - SQL 없음")
-            state["validated"] = False
-            state["validation_error"] = "생성된 SQL이 없습니다"
-            return state
-
-        log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 시작")
-
-        try:
-            is_valid, error_msg = sql_executor.validate_sql(sql)
-
-            if is_valid:
-                state["validated"] = True
-                state["validation_error"] = ""
-                log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 성공")
-            else:
-                state["validated"] = False
-                state["validation_error"] = error_msg
-                log_step(request_id, "NL2SQL", "2", "VALIDATE", f"SQL 검증 실패",
-                        error=error_msg)
-
-        except Exception as e:
-            state["validated"] = False
-            state["validation_error"] = str(e)
-            log_step(request_id, "NL2SQL", "2", "ERROR", f"SQL 검증 중 오류: {e}", level="ERROR")
-
-        return state
-
-    def _should_execute(self, state: NL2SQLState) -> str:
-        """조건부 엣지: 검증 성공 시 execute, 실패 시 error"""
-        request_id = state.get("request_id", "unknown")
-        decision = "execute" if state["validated"] else "error"
-        log_step(request_id, "NL2SQL", "2x", "BRANCH", f"분기 결정 → {decision.upper()}")
-        return decision
-
-    def _execute_sql(self, state: NL2SQLState) -> NL2SQLState:
-        """SQL 실행 노드"""
-        sql = state["generated_sql"]
-        request_id = state.get("request_id", "unknown")
-
-        log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 시작")
-
-        try:
-            result = sql_executor.execute_sql(sql, validate=False)  # 이미 검증됨
-            state["sql_result"] = result
-            state["metadata"]["execution_time_ms"] = result.execution_time_ms
-            state["metadata"]["row_count"] = result.row_count
-
-            log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
-
-        except (SQLExecutionError, SQLValidationError) as e:
-            log_step(request_id, "NL2SQL", "3", "ERROR", f"SQL 실행 실패: {e}", level="ERROR")
-            state["validation_error"] = str(e)
-            state["validated"] = False
-
-        return state
-
-    def _generate_answer(self, state: NL2SQLState) -> NL2SQLState:
-        """답변 생성 노드"""
-        question = state["question"]
-        sql = state["generated_sql"]
-        result = state.get("sql_result")
-        request_id = state.get("request_id", "unknown")
-
-        if not result or result.row_count == 0:
-            log_step(request_id, "NL2SQL", "4", "ANSWER", "결과 없음 - 기본 응답 반환")
-            state["answer"] = "조회된 결과가 없습니다."
-            return state
-
-        log_step(request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작", row_count=result.row_count)
-
-        # 시스템 프롬프트 (DB에서 동적 로드)
-        system_prompt = prompt_service.get_nl2sql_answer_prompt()
-
-        # 결과 데이터 요약 (집계 쿼리는 전체, 그 외는 100개까지)
-        max_rows = 100
-        rows_summary = result.rows[:max_rows] if len(result.rows) > max_rows else result.rows
-        is_truncated = len(result.rows) > max_rows
-
-        # 숫자 컬럼의 총합 계산 (집계 쿼리의 경우 정확한 총계 제공)
-        numeric_totals: dict[str, float] = {}
-        for col in result.columns:
-            try:
-                total = 0.0
-                has_numeric = False
-                for row in result.rows:
-                    val = row.get(col)
-                    if val is not None and isinstance(val, (int, float)):
-                        total += float(val)
-                        has_numeric = True
-                if has_numeric:
-                    numeric_totals[col] = total
-            except (TypeError, ValueError):
-                pass
-
-        # 총합 정보 문자열 생성
-        totals_info = ""
-        if numeric_totals:
-            totals_str = ", ".join([f"{k}={v}" for k, v in numeric_totals.items()])
-            totals_info = f"\n\n숫자 컬럼 총합 (전체 {result.row_count}개 행 기준): {totals_str}"
-
-        truncation_note = f"\n(※ 전체 {result.row_count}개 행 중 {max_rows}개만 표시)" if is_truncated else ""
-
-        user_prompt = f"""질문: {question}
-
-                    실행된 SQL:
-                    {sql}
-
-                    조회 결과 ({result.row_count}개 행):{truncation_note}
-                    컬럼: {', '.join(result.columns)}
-                    실제 데이터 :
-                    {rows_summary}{totals_info}
-
-                    위 결과를 바탕으로 질문에 대한 답변을 자연어/표/리스트등 사용자가 원하는 형태로 작성하라."""
-
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ]
-
-        # 매 요청마다 DB 설정 반영된 LLM 사용
-        llm = self._get_llm()
-
-        # LLM 입력 로그 (답변 생성)
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
-                system_prompt_length=len(system_prompt),
-                user_prompt_length=len(user_prompt),
-                data_rows=len(rows_summary))
-        # DEBUG: 상세 내용 (전문 출력)
-        if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
-            log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
-            log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
-
-        try:
-            response = llm.invoke(messages)
-
-            # RAW 응답 로그 (DEBUG 레벨, 전문 출력)
-            if logger.isEnabledFor(logging.DEBUG):
-                log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
-
-            answer = response.content
-
-            state["answer"] = answer
-            # LLM 출력 로그 (답변 생성)
-            log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료",
-                    answer_length=len(answer))
-            # DEBUG: 상세 답변 (전문 출력)
-            if logger.isEnabledFor(logging.DEBUG):
-                log_step(request_id, "NL2SQL", "4b", "ANSWER", "생성된 답변", level="DEBUG", content=answer)
-
-        except Exception as e:
-            log_step(request_id, "NL2SQL", "4", "ERROR", f"답변 생성 실패: {e}", level="ERROR")
-            state["answer"] = f"조회 결과: {result.row_count}개 행이 발견되었습니다."
-
-        return state
-
-    def _handle_error(self, state: NL2SQLState) -> NL2SQLState:
-        """에러 처리 노드"""
-        error_msg = state.get("validation_error", "알 수 없는 오류")
-        request_id = state.get("request_id", "unknown")
-
-        state["answer"] = f"""SQL 생성 또는 실행 중 오류가 발생했습니다.
-
-오류 내용: {error_msg}
-
-다음 사항을 확인해주세요:
-1. 질문이 데이터베이스 스키마에 맞는지 확인
-2. 테이블명과 컬럼명이 정확한지 확인
-3. 질문을 더 구체적으로 작성
-"""
-
-        log_step(request_id, "NL2SQL", "ERR", "ERROR", f"오류 처리 완료", error=error_msg)
-        return state
-
     def _prepare_initial_state(self, inputs: Dict[str, Any]) -> NL2SQLState:
-        """초기 상태 준비 (ainvoke와 invoke 공통 로직)"""
+        """초기 상태 준비"""
         return {
             "question": inputs["question"],
             "schema_description": "",
@@ -333,7 +121,6 @@ class NL2SQLGraph:
         """그래프 비동기 실행"""
         start_time = time.time()
 
-        # 초기 상태 준비 (공통 로직)
         initial_state = self._prepare_initial_state(inputs)
         request_id = initial_state["request_id"]
 
@@ -345,7 +132,6 @@ class NL2SQLGraph:
 
         log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
 
-        # 응답 구성 (공통 로직)
         return self._build_response(result, response_time_ms)
 
 

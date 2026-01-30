@@ -343,7 +343,7 @@ class SettingsService:
 
         # 어댑터 기반 연결 테스트
         try:
-            from app.core.database.adapters import get_adapter
+            from app.core.database.adapters.factory import get_adapter
             adapter = get_adapter(db_type)
 
             config = {

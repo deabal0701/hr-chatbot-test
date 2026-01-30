@@ -1,15 +1,16 @@
 """
-의도 분석 노드 (Intent Analysis Node)
+Agent 노드 (Agent Nodes)
 
 기능:
-- 질문 유형 분류 (SQL 질의 / 단순 질문 / 복합 질문)
-- 쿼리 의도 분석 (select, aggregate, compare, trend, join 등)
-- 모호성 감지 및 명확화 선택지 생성
-- 신뢰도 점수 산출
+- 의도 분석 (intent_analysis_node)
+  - 질문 유형 분류 (SQL 질의 / 단순 질문 / 복합 질문)
+  - 쿼리 의도 분석 (select, aggregate, compare, trend, join 등)
+  - 모호성 감지 및 명확화 선택지 생성
+  - 신뢰도 점수 산출
 
 사용:
-- Agent 그래프의 진입점 노드로 사용
-- 모호성 감지 시 human_clarification 노드로 분기 가능
+- InsightAgentGraph 클래스의 노드로 사용
+- 의도 분석 후 agent 노드로 분기
 """
 
 from typing import Dict, Any, Literal
@@ -20,6 +21,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.core.llm.llm_config import LLMConfigManager
 from app.utils.logger import setup_logger, log_step
+from app.utils.common import truncate_text
 
 logger = setup_logger(__name__)
 
@@ -62,7 +64,7 @@ def intent_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     request_id = state.get("request_id", "unknown")
     question = state.get("question", "")
 
-    log_step(request_id, "AGENT", "INTENT", "START", f"의도 분석 시작 | question={question[:50]}...")
+    log_step(request_id, "AGENT", "INTENT", "START", f"의도 분석 시작 | question={truncate_text(question, 50)}...")
 
     try:
         # LLM 호출하여 의도 분석
