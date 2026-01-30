@@ -57,6 +57,11 @@ class AgentState(TypedDict):
     start_time: float
 
 
+def _overwrite(_, new):
+    """덮어쓰기 reducer - 새 값으로 대체"""
+    return new
+
+
 class ExtendedAgentState(TypedDict):
     """
     확장된 Agent 상태 (Phase 1)
@@ -64,37 +69,38 @@ class ExtendedAgentState(TypedDict):
     기존 AgentState의 모든 필드를 포함하고,
     의도 분석 및 컨텍스트 검색을 위한 신규 필드를 추가합니다.
 
-    하위 호환성:
-    - 기존 AgentState 필드는 모두 유지
-    - 신규 필드는 선택적 (기본값 사용)
+    LangGraph 상태 병합:
+    - 각 필드에 reducer를 명시해야 노드 반환값이 상태에 병합됨
+    - add_messages: 메시지 리스트에 추가
+    - _overwrite: 새 값으로 덮어쓰기
     """
     # ===== 기존 필드 (AgentState 호환) =====
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    question: str
-    session_id: str
-    config: AgentConfig
-    iteration_count: int
-    final_answer: str
-    request_id: str
-    start_time: float
+    question: Annotated[str, _overwrite]
+    session_id: Annotated[str, _overwrite]
+    config: Annotated[AgentConfig, _overwrite]
+    iteration_count: Annotated[int, _overwrite]
+    final_answer: Annotated[str, _overwrite]
+    request_id: Annotated[str, _overwrite]
+    start_time: Annotated[float, _overwrite]
 
     # ===== 의도 분석 (Phase 2에서 활용) =====
-    intent_analysis: Dict[str, Any]       # 의도 분석 결과 전체
-    intent_confidence: float              # 신뢰도 (0.0 ~ 1.0)
-    is_ambiguous: bool                    # 모호성 여부
-    ambiguity_options: List[str]          # 명확화 선택지
-    extracted_entities: Dict[str, Any]    # 추출된 엔티티 (테이블, 컬럼 등)
+    intent_analysis: Annotated[Dict[str, Any], _overwrite]
+    intent_confidence: Annotated[float, _overwrite]
+    is_ambiguous: Annotated[bool, _overwrite]
+    ambiguity_options: Annotated[List[str], _overwrite]
+    extracted_entities: Annotated[Dict[str, Any], _overwrite]
 
     # ===== 컨텍스트 검색 (Phase 3에서 활용) =====
-    relevant_schemas: List[Dict[str, Any]]   # 검색된 스키마
-    similar_queries: List[Dict[str, Any]]    # 검색된 Few-shot 예제
-    business_terms: List[Dict[str, Any]]     # 검색된 용어집
-    context_prompt: str                      # 컨텍스트 프롬프트 문자열
+    relevant_schemas: Annotated[List[Dict[str, Any]], _overwrite]
+    similar_queries: Annotated[List[Dict[str, Any]], _overwrite]
+    business_terms: Annotated[List[Dict[str, Any]], _overwrite]
+    context_prompt: Annotated[str, _overwrite]
 
     # ===== Human in the Loop (Phase 5에서 활용) =====
-    waiting_for_human: bool                  # Human 응답 대기 중
-    human_intervention: Dict[str, Any]       # Human 개입 요청 정보
-    human_response: str                      # Human 응답
+    waiting_for_human: Annotated[bool, _overwrite]
+    human_intervention: Annotated[Dict[str, Any], _overwrite]
+    human_response: Annotated[str, _overwrite]
 
 
 def create_extended_state_defaults() -> Dict[str, Any]:
@@ -139,9 +145,6 @@ class InsightAgentGraph:
 
         # Checkpointer 초기화 (InMemorySaver)
         self.checkpointer = InMemorySaver()
-
-        # 컨텍스트 프롬프트 임시 저장 (LangGraph 상태 병합 우회용)
-        self._current_context_prompt: str = ""
 
         # 그래프 빌드
         self.graph = self._build_graph()
@@ -303,15 +306,11 @@ class InsightAgentGraph:
         # 컨텍스트 검색 실행 (업데이트 dict 반환)
         context_updates = context_retrieval_node(state_for_context)
 
-        # 컨텍스트 프롬프트를 인스턴스 변수에 저장 (LangGraph 상태 병합 우회)
-        self._current_context_prompt = context_updates.get("context_prompt", "")
-        log_step(request_id, "AGENT", "CONTEXT", "STORE", f"컨텍스트 저장 | length={len(self._current_context_prompt)}", level="DEBUG")
-
-        # 두 업데이트 병합
+        # 두 업데이트 병합 (LangGraph가 state에 자동 병합)
         updates.update(context_updates)
         return updates
 
-    def _agent_node(self, state: AgentState) -> AgentState:
+    def _agent_node(self, state: ExtendedAgentState) -> ExtendedAgentState:
         """
         Agent 노드: LLM이 다음 행동 결정
 
@@ -345,8 +344,8 @@ class InsightAgentGraph:
         # 이렇게 하면 InMemorySaver에 SystemMessage가 중복 저장되지 않음
         system_prompt = self._get_system_prompt()
 
-        # Phase 3: 컨텍스트 프롬프트 주입 (인스턴스 변수에서 읽음)
-        context_prompt = self._current_context_prompt
+        # Phase 3: 컨텍스트 프롬프트 주입 (LangGraph 상태에서 읽음)
+        context_prompt = state.get("context_prompt", "")  # type: ignore
         if context_prompt:
             system_prompt = f"{system_prompt}\n\n---\n# SQL 컨텍스트 (자동 주입됨)\n{context_prompt}"
             log_step(request_id, "AGENT", str(iteration), "CONTEXT-INJECT", f"컨텍스트 프롬프트 주입 | length={len(context_prompt)}")
@@ -594,9 +593,6 @@ class InsightAgentGraph:
         question = inputs["question"]
         session_id = inputs.get("session_id", f"session-{request_id}")
         config = inputs.get("config", AgentConfig()) # type: ignore
-
-        # 컨텍스트 프롬프트 초기화 (이전 요청 영향 방지)
-        self._current_context_prompt = ""
 
         start_time = time.time()
 
