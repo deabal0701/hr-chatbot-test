@@ -8,9 +8,15 @@ Agent 노드 (Agent Nodes)
   - 모호성 감지 및 명확화 선택지 생성
   - 신뢰도 점수 산출
 
+- 컨텍스트 검색 (context_retrieval_node)
+  - 의도 분석 결과 기반 선별적 컨텍스트 로딩
+  - SQL 질의: 스키마, Few-shot, 용어집 검색
+  - 문서 검색: 패스스루 (RAG 도구에서 처리)
+  - 검색 결과를 state["context_prompt"]에 저장
+
 사용:
 - InsightAgentGraph 클래스의 노드로 사용
-- 의도 분석 후 agent 노드로 분기
+- 의도 분석 → 컨텍스트 검색 → agent 노드 순서로 실행
 """
 
 from typing import Dict, Any, Literal
@@ -463,3 +469,172 @@ def should_clarify(state: Dict[str, Any]) -> Literal["need_clarification", "proc
         return "need_clarification"
 
     return "proceed"
+
+
+# ============================================================================
+# 컨텍스트 검색 노드 (Context Retrieval Node)
+# ============================================================================
+
+# 순환 import 방지를 위해 지연 import
+_vector_store = None
+
+
+def _get_vector_store():
+    """vector_store 지연 로드"""
+    global _vector_store
+    if _vector_store is None:
+        from app.core.vector.vector_store import vector_store
+        _vector_store = vector_store
+    return _vector_store
+
+
+def context_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    컨텍스트 검색 노드
+
+    의도 분석 결과를 기반으로 필요한 컨텍스트를 검색합니다.
+    - sql_query: 스키마, Few-shot 예제, 용어집 검색
+    - document_search: 패스스루 (RAG 도구에서 처리)
+    - hybrid: 스키마 + 문서 힌트
+    - 기타: 패스스루
+
+    Args:
+        state: ExtendedAgentState (Dict 형태로 전달)
+
+    Returns:
+        업데이트된 state (context_prompt, relevant_schemas 등 채움)
+    """
+    request_id = state.get("request_id", "unknown")
+    question = state.get("question", "")
+    intent_analysis = state.get("intent_analysis", {})
+    query_type = intent_analysis.get("query_type", "general")
+
+    log_step(request_id, "AGENT", "CONTEXT", "START", f"컨텍스트 검색 시작 | query_type={query_type}")
+
+    # SQL 관련 질의인 경우만 컨텍스트 검색
+    if query_type in ("sql_query", "hybrid"):
+        try:
+            context_result = _search_sql_context(question, request_id)
+
+            # 상태 업데이트
+            state["relevant_schemas"] = context_result.get("schemas", [])
+            state["similar_queries"] = context_result.get("examples", [])
+            state["business_terms"] = context_result.get("glossary", [])
+            state["context_prompt"] = context_result.get("prompt", "")
+
+            schema_count = len(state["relevant_schemas"])
+            example_count = len(state["similar_queries"])
+            glossary_count = len(state["business_terms"])
+
+            log_step(
+                request_id, "AGENT", "CONTEXT", "COMPLETE",
+                f"컨텍스트 검색 완료 | schema={schema_count}, example={example_count}, glossary={glossary_count}"
+            )
+
+        except Exception as e:
+            log_step(request_id, "AGENT", "CONTEXT", "ERROR", f"컨텍스트 검색 실패: {e}", level="ERROR")
+            # 실패해도 계속 진행 (context 없이)
+            state["context_prompt"] = ""
+
+    else:
+        # SQL 외 질의는 컨텍스트 검색 생략
+        log_step(request_id, "AGENT", "CONTEXT", "SKIP", f"SQL 외 질의 - 컨텍스트 검색 생략 | query_type={query_type}")
+        state["context_prompt"] = ""
+
+    return state
+
+
+def _search_sql_context(question: str, request_id: str) -> Dict[str, Any]:
+    """
+    SQL 생성용 컨텍스트 검색
+
+    Vector Store에서 스키마, Few-shot 예제, 용어집을 검색합니다.
+
+    Args:
+        question: 사용자 질문
+        request_id: 요청 ID
+
+    Returns:
+        {
+            "schemas": [...],     # 검색된 스키마 목록
+            "examples": [...],    # 검색된 Few-shot 예제 목록
+            "glossary": [...],    # 검색된 용어집 목록
+            "prompt": "..."       # Agent System Prompt에 주입할 컨텍스트 문자열
+        }
+    """
+    from app.models.search import SearchFilters
+
+    vector_store = _get_vector_store()
+    result = {
+        "schemas": [],
+        "examples": [],
+        "glossary": [],
+        "prompt": ""
+    }
+
+    prompt_parts = []
+
+    # 1. 스키마 검색
+    try:
+        schema_docs = vector_store.search_similar_documents(
+            query=question,
+            filters=SearchFilters(usage_type="rag_action", doc_type="schema"),
+            top_k=5,
+            similarity_threshold=0.4
+        )
+        if schema_docs:
+            result["schemas"] = [{"title": d.title, "content": d.content, "score": d.similarity_score} for d in schema_docs]
+            prompt_parts.append("## 관련 테이블 스키마\n")
+            for doc in schema_docs:
+                prompt_parts.append(f"### {doc.title}")
+                prompt_parts.append(f"{doc.content}")
+                if doc.context_data:
+                    prompt_parts.append(f"{doc.context_data}")
+                prompt_parts.append("")
+    except Exception as e:
+        log_step(request_id, "AGENT", "CONTEXT", "WARN", f"스키마 검색 실패: {e}", level="WARNING")
+
+    # 2. Few-shot 예제 검색
+    try:
+        example_docs = vector_store.search_similar_documents(
+            query=question,
+            filters=SearchFilters(usage_type="rag_action", doc_type="query_example"),
+            top_k=3,
+            similarity_threshold=0.3
+        )
+        if example_docs:
+            result["examples"] = [{"title": d.title, "content": d.content, "score": d.similarity_score} for d in example_docs]
+            prompt_parts.append("\n## 유사 쿼리 예제\n")
+            for i, doc in enumerate(example_docs, 1):
+                prompt_parts.append(f"### 예제 {i}: {doc.title}")
+                prompt_parts.append(f"{doc.content}")
+                if doc.context_data:
+                    prompt_parts.append(f"{doc.context_data}")
+                prompt_parts.append("")
+    except Exception as e:
+        log_step(request_id, "AGENT", "CONTEXT", "WARN", f"예제 검색 실패: {e}", level="WARNING")
+
+    # 3. 용어집 검색
+    try:
+        glossary_docs = vector_store.search_similar_documents(
+            query=question,
+            filters=SearchFilters(usage_type="rag_action", doc_type="glossary"),
+            top_k=5,
+            similarity_threshold=0.5
+        )
+        if glossary_docs:
+            result["glossary"] = [{"title": d.title, "content": d.content, "score": d.similarity_score} for d in glossary_docs]
+            prompt_parts.append("\n## 비즈니스 용어\n")
+            for doc in glossary_docs:
+                if doc.context_data:
+                    prompt_parts.append(f"- **{doc.title}**: {doc.content} | {doc.context_data}")
+                else:
+                    prompt_parts.append(f"- **{doc.title}**: {doc.content}")
+    except Exception as e:
+        log_step(request_id, "AGENT", "CONTEXT", "WARN", f"용어집 검색 실패: {e}", level="WARNING")
+
+    # 프롬프트 조합
+    if prompt_parts:
+        result["prompt"] = "\n".join(prompt_parts)
+
+    return result

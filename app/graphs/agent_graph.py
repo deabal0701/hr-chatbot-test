@@ -30,8 +30,7 @@ from app.models.agent import (AgentRequest, AgentResponse, AgentStep, AgentConfi
 from app.tools.sql_tool import query_database_tool
 from app.tools.rag_tool import search_documents_tool
 from app.tools.calc_tool import calculate_tool
-from app.tools.context_tool import context_search_tool
-from app.graphs.nodes.agent_nodes import intent_analysis_node
+from app.graphs.nodes.agent_nodes import intent_analysis_node, context_retrieval_node
 from app.core.config.settings_config import settings_config
 from app.config import settings
 from app.utils.logger import setup_logger, log_step  # 통합 로깅 유틸리티
@@ -154,14 +153,15 @@ class InsightAgentGraph:
         - 동적 도구 로딩 (플러그인)
         - 사용자별 권한 기반 도구 필터링
         - 컨텍스트별 도구 선택
+
+        Note:
+        - context_search_tool은 제거됨 (context_retrieval_node로 전처리 이동)
+        - SQL 컨텍스트(스키마, Few-shot, 용어집)는 Agent 진입 전에 자동 주입됨
         """
         return [
-            # 기존 도구
-            query_database_tool,      # SQL 실행
+            query_database_tool,      # SQL 실행 (context가 System Prompt에 주입됨)
             search_documents_tool,    # RAG 검색 (usage_type='rag_knowledge')
             calculate_tool,           # 계산기
-            # 신규 도구 (Phase 1)
-            context_search_tool,      # SQL 컨텍스트 통합 검색 (usage_type='rag_action')
         ]
 
     def _get_llm(self, config: AgentConfig):
@@ -192,38 +192,42 @@ class InsightAgentGraph:
 
     def _build_graph(self) -> CompiledStateGraph:
         """
-        Agent 그래프 구성 (ReAct 패턴 + 의도 분석 확장)
+        Agent 그래프 구성 (ReAct 패턴 + 의도 분석 + 컨텍스트 주입)
 
-        플로우 (enable_intent_analysis=True):
-        1. intent_analysis (의도 분석, 선택적)
-        2. agent (LLM 의사결정)
-        3. should_continue (도구 호출 여부 판단)
+        플로우:
+        1. intent_analysis (의도 분석, 선택적 - config.enable_intent_analysis)
+        2. context_retrieval (SQL 컨텍스트 검색 - query_type 기반)
+        3. agent (LLM 의사결정 - context가 System Prompt에 주입됨)
+        4. should_continue (도구 호출 여부 판단)
            - continue → tools (도구 실행) → agent (반복)
            - end → END (종료)
 
-        플로우 (enable_intent_analysis=False):
-        - 기존과 동일: agent → should_continue → tools/END
-
-        Note: 컨텍스트 검색은 Agent가 context_search_tool을 직접 호출하여 수행
+        Context 주입 방식:
+        - context_retrieval_node에서 스키마/Few-shot/용어집 검색
+        - 결과가 state["context_prompt"]에 저장됨
+        - _agent_node에서 System Prompt에 자동 주입
+        - Agent는 context_search_tool 없이 query_database_tool만 호출
         """
         # ExtendedAgentState 사용 (Phase 1에서 정의)
         workflow = StateGraph(ExtendedAgentState)
 
         # 노드 추가
-        workflow.add_node("intent_analysis", self._intent_analysis_wrapper)  # Phase 2: 의도 분석
+        workflow.add_node("intent_analysis", self._intent_analysis_wrapper)
+        workflow.add_node("context_retrieval", self._context_retrieval_wrapper)
         workflow.add_node("agent", self._agent_node)
         workflow.add_node("tools", ToolNode(self.tools))
 
-        # 진입점: intent_analysis (내부에서 enable 여부 확인)
+        # 진입점: intent_analysis
         workflow.set_entry_point("intent_analysis")
 
-        # intent_analysis → agent
-        workflow.add_edge("intent_analysis", "agent")
+        # intent_analysis → context_retrieval → agent
+        workflow.add_edge("intent_analysis", "context_retrieval")
+        workflow.add_edge("context_retrieval", "agent")
 
         # 조건부 엣지: LLM이 도구 호출 여부 결정
         workflow.add_conditional_edges(
             "agent",
-            self._should_continue,      # _should_continue에 평가에 따라 분기
+            self._should_continue,
             {
                 "continue": "tools",
                 "end": END
@@ -255,6 +259,32 @@ class InsightAgentGraph:
 
         # 의도 분석 실행
         updated_state = intent_analysis_node(state)  # type: ignore
+        return updated_state  # type: ignore
+
+    def _context_retrieval_wrapper(self, state: ExtendedAgentState) -> ExtendedAgentState:
+        """
+        컨텍스트 검색 노드 래퍼
+
+        의도 분석 결과를 기반으로 SQL 컨텍스트(스키마, Few-shot, 용어집)를 검색합니다.
+        검색 결과는 state["context_prompt"]에 저장되어 Agent System Prompt에 주입됩니다.
+
+        조건:
+        - query_type이 sql_query 또는 hybrid인 경우만 검색
+        - 의도 분석이 비활성화된 경우 기본적으로 sql_query로 간주하여 검색
+        """
+        request_id = state.get("request_id", "unknown")
+        intent_analysis = state.get("intent_analysis", {})
+
+        # 의도 분석이 비활성화된 경우 (intent_analysis가 비어있음)
+        # Agent가 자율적으로 판단하도록 컨텍스트 검색 수행
+        if not intent_analysis:
+            # 기본적으로 SQL 컨텍스트 검색 수행 (Agent의 도구 선택 지원)
+            log_step(request_id, "AGENT", "CONTEXT", "DEFAULT", "의도 분석 미수행 - 기본 컨텍스트 검색", level="DEBUG")
+            # query_type을 sql_query로 설정하여 컨텍스트 검색 트리거
+            state["intent_analysis"] = {"query_type": "sql_query"}
+
+        # 컨텍스트 검색 실행
+        updated_state = context_retrieval_node(state)  # type: ignore
         return updated_state  # type: ignore
 
     def _agent_node(self, state: AgentState) -> AgentState:
@@ -313,6 +343,10 @@ class InsightAgentGraph:
                 if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
                     tool_info = f", tool_calls={len(msg.tool_calls)}"
                 log_step(request_id, "AGENT", str(iteration), "LLM-INPUT", f"[{i}] {msg_type}{tool_info}", level="DEBUG", content=msg_content)
+                # AIMessage의 tool_calls 상세 내용 출력 (content가 비어있을 때)
+                if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        log_step(request_id, "AGENT", str(iteration), "LLM-INPUT", f"  └─ TOOL_CALL: {tc['name']}", level="DEBUG", args=tc.get('args', {}))
 
         try:
             response = llm.invoke(messages_for_llm)

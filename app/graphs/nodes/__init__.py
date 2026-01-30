@@ -6,12 +6,14 @@ Agent 그래프 노드 모듈
 각 노드는 상태(state)를 입력받아 처리 후 반환하는 함수형 노드입니다.
 
 모듈:
-- agent_nodes: Agent 노드들 (intent_analysis_node)
+- agent_nodes: Agent 노드들
+  - intent_analysis_node: 의도 분석 (질문 유형 분류, 모호성 감지)
+  - context_retrieval_node: 컨텍스트 검색 (스키마, Few-shot, 용어집)
 - rag_nodes: RAG 검색 노드들 (retrieve, generate_answer)
 - nl2sql_nodes: NL2SQL 노드들 (generate_sql, validate_sql, execute_sql, generate_answer)
 
 사용법:
-    from app.graphs.nodes.agent_nodes import intent_analysis_node
+    from app.graphs.nodes.agent_nodes import intent_analysis_node, context_retrieval_node
     from app.graphs.nodes.rag_nodes import retrieve_documents_node
     from app.graphs.nodes.nl2sql_nodes import generate_sql_node
 """
