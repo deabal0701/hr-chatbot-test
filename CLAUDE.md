@@ -409,4 +409,5 @@ from langgraph.graph import END, StateGraph
 중요:
 - 가상환경: `conda activate penv3.13-nlq`
 - DB확인: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
+- 로그파일 : ./logs/app.log
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.

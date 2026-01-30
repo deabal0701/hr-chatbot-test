@@ -15,6 +15,7 @@ class DocumentSource(BaseModel):
 
     LLM 컨텍스트 구성에 사용되는 문서 정보.
     content는 전체 내용, content_snippet은 미리보기용.
+    context_data는 임베딩 제외 데이터 (SQL, 스키마 등 Agent 참조용).
     """
     id: int
     title: str
@@ -23,6 +24,7 @@ class DocumentSource(BaseModel):
     content_snippet: str  # 미리보기용 스니펫 (API 응답, UI 표시)
     metadata: Dict[str, Any]
     similarity_score: Optional[float] = None
+    context_data: Optional[str] = None  # 임베딩 제외 컨텍스트 (SQL, 패턴 등)
 
 
 class SQLResult(BaseModel):

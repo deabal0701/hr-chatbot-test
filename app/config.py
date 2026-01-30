@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     app_port: int = Field(default=19090, description="애플리케이션 포트")
     log_level: str = Field(default="INFO", description="로그 레벨")
     log_format: str = Field(default="text", description="로그 포맷 (text: 텍스트, json: JSON)")
+    log_file: Optional[str] = Field(default=None, description="로그 파일 경로 (None이면 파일 출력 안함)")
 
     # CORS
     cors_origins: str = Field(

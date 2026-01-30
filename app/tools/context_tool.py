@@ -134,12 +134,13 @@ context_type:
                 similarity_threshold=0.4
             )
             for doc in docs:
-                # DocumentSource는 Pydantic 모델 - 직접 속성 접근
                 title = doc.title
-                content = doc.content
-                similarity = doc.similarity_score  # 필드명: similarity_score
+                similarity = doc.similarity_score
                 results.append(f"### {title}")
-                results.append(f"{content[:300]}...")
+                # content 기본 사용, context_data가 있으면 추가
+                results.append(f"{doc.content}")
+                if doc.context_data:
+                    results.append(f"{doc.context_data}")
                 results.append(f"유사도: {similarity:.2f}\n")
         except Exception as e:
             log_step(request_id, "TOOL", "CONTEXT", "ERROR", f"스키마 검색 실패: {e}", level="WARNING")
@@ -156,9 +157,11 @@ context_type:
                 similarity_threshold=0.3
             )
             for i, doc in enumerate(docs, 1):
-                # DocumentSource는 Pydantic 모델 - 직접 속성 접근
                 results.append(f"### 예제 {i}: {doc.title}")
-                results.append(f"```sql\n{doc.content}\n```\n")
+                # content 기본 사용, context_data가 있으면 추가
+                results.append(f"{doc.content}")
+                if doc.context_data:
+                    results.append(f"{doc.context_data}\n")
         except Exception as e:
             log_step(request_id, "TOOL", "CONTEXT", "ERROR", f"예제 검색 실패: {e}", level="WARNING")
         return results
@@ -174,8 +177,11 @@ context_type:
                 similarity_threshold=0.5
             )
             for doc in docs:
-                # DocumentSource는 Pydantic 모델 - 직접 속성 접근
-                results.append(f"- **{doc.title}**: {doc.content[:100]}")
+                # content 기본 사용, context_data가 있으면 추가
+                if doc.context_data:
+                    results.append(f"- **{doc.title}**: {doc.content} | {doc.context_data}")
+                else:
+                    results.append(f"- **{doc.title}**: {doc.content}")
         except Exception as e:
             log_step(request_id, "TOOL", "CONTEXT", "ERROR", f"용어집 검색 실패: {e}", level="WARNING")
         return results

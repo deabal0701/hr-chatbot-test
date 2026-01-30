@@ -1,5 +1,7 @@
 import logging
 import sys
+import os
+from logging.handlers import RotatingFileHandler
 from typing import Any, Dict
 from pythonjsonlogger import jsonlogger
 from app.config import settings
@@ -45,6 +47,28 @@ def setup_logger(name: str) -> logging.Logger:
 
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+    # 파일 핸들러 (log_file 설정 시)
+    log_file = getattr(settings, 'log_file', None)
+    if log_file:
+        try:
+            # 디렉토리가 없으면 생성
+            log_dir = os.path.dirname(log_file)
+            if log_dir and not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
+
+            # RotatingFileHandler: 10MB, 최대 5개 백업
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(getattr(logging, settings.log_level))
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        except Exception as e:
+            logger.warning(f"로그 파일 핸들러 설정 실패: {e}")
 
     # 상위 로거로 전파하지 않음
     logger.propagate = False

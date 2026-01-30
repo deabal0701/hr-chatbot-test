@@ -189,7 +189,7 @@ class VectorStoreService:
 
         # 벡터 검색 쿼리
         query_sql = f"""
-            SELECT id, title, doc_type, content, metadata, language, embedding {distance_operator} %s AS distance
+            SELECT id, title, doc_type, content, context_data, metadata, language, embedding {distance_operator} %s AS distance
             FROM tb_docs
             {where_clause}
             ORDER BY embedding {distance_operator} %s
@@ -238,7 +238,8 @@ class VectorStoreService:
                     content=content,
                     content_snippet=snippet,
                     metadata=row.get('metadata', {}),
-                    similarity_score=round(similarity, 4)
+                    similarity_score=round(similarity, 4),
+                    context_data=row.get('context_data')
                 )
                 documents.append(doc)
 
