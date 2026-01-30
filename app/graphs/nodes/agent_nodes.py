@@ -62,7 +62,7 @@ def intent_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     모호성이 감지되면 human_clarification으로 분기합니다.
 
     Args:
-        state: ExtendedAgentState (Dict 형태로 전달)
+        state: AgentState (Dict 형태로 전달)
 
     Returns:
         업데이트할 필드만 포함된 dict (LangGraph 상태 병합용)
@@ -459,7 +459,7 @@ def should_clarify(state: Dict[str, Any]) -> Literal["need_clarification", "proc
     모호성이 감지되고 신뢰도가 낮으면 human_clarification으로 분기
 
     Args:
-        state: ExtendedAgentState
+        state: AgentState
 
     Returns:
         "need_clarification": human_clarification 노드로 분기
@@ -503,7 +503,7 @@ def context_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
     - 기타: 패스스루
 
     Args:
-        state: ExtendedAgentState (Dict 형태로 전달)
+        state: AgentState (Dict 형태로 전달)
 
     Returns:
         업데이트할 필드만 포함된 dict (LangGraph 상태 병합용)

@@ -14,7 +14,7 @@ AI Agent Graph (ReAct 패턴)
 - 협업: Multi-Agent 협업 (확장)
 """
 
-from typing import Literal, Dict, Any, List, Sequence, Annotated
+from typing import Literal, Dict, Any, List, Sequence, Annotated, TypedDict
 import logging
 import time
 import uuid
@@ -41,40 +41,21 @@ from app.utils.common import truncate_text  # 디버그 모드 인식 텍스트 
 logger = setup_logger(__name__)
 
 
-# AgentState TypedDict 정의
-from typing import TypedDict
-
-
-class AgentState(TypedDict):
-    """Agent의 내부 상태"""
-    messages: Annotated[Sequence[BaseMessage], add_messages]
-    question: str
-    session_id: str
-    config: AgentConfig
-    iteration_count: int
-    final_answer: str
-    request_id: str
-    start_time: float
-
-
 def _overwrite(_, new):
     """덮어쓰기 reducer - 새 값으로 대체"""
     return new
 
 
-class ExtendedAgentState(TypedDict):
+class AgentState(TypedDict):
     """
-    확장된 Agent 상태 (Phase 1)
-
-    기존 AgentState의 모든 필드를 포함하고,
-    의도 분석 및 컨텍스트 검색을 위한 신규 필드를 추가합니다.
+    Agent 상태 (LangGraph StateGraph용)
 
     LangGraph 상태 병합:
     - 각 필드에 reducer를 명시해야 노드 반환값이 상태에 병합됨
-    - add_messages: 메시지 리스트에 추가
+    - add_messages: 메시지 리스트에 추가 (누적)
     - _overwrite: 새 값으로 덮어쓰기
     """
-    # ===== 기존 필드 (AgentState 호환) =====
+    # ===== 기본 필드 =====
     messages: Annotated[Sequence[BaseMessage], add_messages]
     question: Annotated[str, _overwrite]
     session_id: Annotated[str, _overwrite]
@@ -84,32 +65,34 @@ class ExtendedAgentState(TypedDict):
     request_id: Annotated[str, _overwrite]
     start_time: Annotated[float, _overwrite]
 
-    # ===== 의도 분석 (Phase 2에서 활용) =====
+    # ===== 의도 분석 =====
     intent_analysis: Annotated[Dict[str, Any], _overwrite]
     intent_confidence: Annotated[float, _overwrite]
     is_ambiguous: Annotated[bool, _overwrite]
     ambiguity_options: Annotated[List[str], _overwrite]
     extracted_entities: Annotated[Dict[str, Any], _overwrite]
 
-    # ===== 컨텍스트 검색 (Phase 3에서 활용) =====
+    # ===== 컨텍스트 검색 =====
     relevant_schemas: Annotated[List[Dict[str, Any]], _overwrite]
     similar_queries: Annotated[List[Dict[str, Any]], _overwrite]
     business_terms: Annotated[List[Dict[str, Any]], _overwrite]
     context_prompt: Annotated[str, _overwrite]
 
-    # ===== Human in the Loop (Phase 5에서 활용) =====
+    # ===== Human in the Loop =====
     waiting_for_human: Annotated[bool, _overwrite]
     human_intervention: Annotated[Dict[str, Any], _overwrite]
     human_response: Annotated[str, _overwrite]
 
 
-def create_extended_state_defaults() -> Dict[str, Any]:
+def create_state_defaults() -> Dict[str, Any]:
     """
-    ExtendedAgentState의 신규 필드 기본값
+    AgentState의 확장 필드 기본값
+
+    의도 분석, 컨텍스트 검색, Human in the Loop 관련 필드의 기본값을 반환합니다.
 
     사용법:
         initial_state = {
-            **create_extended_state_defaults(),
+            **create_state_defaults(),
             "messages": [...],
             "question": "...",
             ...
@@ -172,15 +155,14 @@ class InsightAgentGraph:
 
     def _get_llm(self, config: AgentConfig):
         """
-        LLM 인스턴스 생성 (Phase 1: init_chat_model 적용)
+        LLM 인스턴스 생성
 
         확장 포인트:
         - 모델 선택 로직
-        - 제공자 선택 로직 (Phase 2+에서 활성화)
+        - 제공자 선택 로직
         - 폴백 모델 (메인 모델 실패 시)
         - 비용 최적화 (간단한 질문은 저렴한 모델)
         """
-        # Agent 설정에서 provider 가져오기 (Phase 1: openai만 지원)
         provider = getattr(config, 'llm_provider', None) or \
                    settings_config.get_value("agent", "llm_provider", "openai")
 
@@ -214,8 +196,7 @@ class InsightAgentGraph:
         - _agent_node에서 System Prompt에 자동 주입
         - Agent는 query_database_tool로 SQL 실행 (컨텍스트는 자동 주입됨)
         """
-        # ExtendedAgentState 사용 (Phase 1에서 정의)
-        workflow = StateGraph(ExtendedAgentState)
+        workflow = StateGraph(AgentState)
 
         # 노드 추가
         workflow.add_node("intent_analysis", self._intent_analysis_wrapper)
@@ -245,7 +226,7 @@ class InsightAgentGraph:
 
         return workflow.compile(checkpointer=self.checkpointer)
 
-    def _intent_analysis_wrapper(self, state: ExtendedAgentState) -> Dict[str, Any]:
+    def _intent_analysis_wrapper(self, state: AgentState) -> Dict[str, Any]:
         """
         의도 분석 노드 래퍼
 
@@ -270,7 +251,7 @@ class InsightAgentGraph:
         updates = intent_analysis_node(state)  # type: ignore
         return updates
 
-    def _context_retrieval_wrapper(self, state: ExtendedAgentState) -> Dict[str, Any]:
+    def _context_retrieval_wrapper(self, state: AgentState) -> Dict[str, Any]:
         """
         컨텍스트 검색 노드 래퍼
 
@@ -310,7 +291,7 @@ class InsightAgentGraph:
         updates.update(context_updates)
         return updates
 
-    def _agent_node(self, state: ExtendedAgentState) -> ExtendedAgentState:
+    def _agent_node(self, state: AgentState) -> AgentState:
         """
         Agent 노드: LLM이 다음 행동 결정
 
@@ -344,7 +325,7 @@ class InsightAgentGraph:
         # 이렇게 하면 InMemorySaver에 SystemMessage가 중복 저장되지 않음
         system_prompt = self._get_system_prompt()
 
-        # Phase 3: 컨텍스트 프롬프트 주입 (LangGraph 상태에서 읽음)
+        # 컨텍스트 프롬프트 주입 (LangGraph 상태에서 읽음)
         context_prompt = state.get("context_prompt", "")  # type: ignore
         if context_prompt:
             system_prompt = f"{system_prompt}\n\n---\n# SQL 컨텍스트 (자동 주입됨)\n{context_prompt}"
@@ -596,9 +577,9 @@ class InsightAgentGraph:
 
         start_time = time.time()
 
-        # 초기 상태 (ExtendedAgentState 사용)
-        initial_state: ExtendedAgentState = {  # type: ignore
-            # 기존 AgentState 필드
+        # 초기 상태
+        initial_state: AgentState = {  # type: ignore
+            # 기본 필드
             "messages": [HumanMessage(content=question)],
             "question": question,
             "session_id": session_id,
@@ -607,11 +588,11 @@ class InsightAgentGraph:
             "final_answer": "",
             "request_id": request_id,
             "start_time": start_time,
-            # ExtendedAgentState 신규 필드 (Phase 1에서 정의된 기본값 사용)
-            **create_extended_state_defaults()
+            # 확장 필드 기본값
+            **create_state_defaults()
         }
 
-        # Phase 2: 의도 분석 활성화 여부 로깅
+        # 의도 분석 활성화 여부 로깅
         enable_intent = getattr(config, 'enable_intent_analysis', False)
         log_step(request_id, "AGENT", "0", "INIT", "Agent 실행 시작", question=truncate_text(question, 50), session_id=session_id, intent_analysis=enable_intent)
 
@@ -676,7 +657,7 @@ class InsightAgentGraph:
                     "session_id": session_id,
                     "execution_time_ms": execution_time_ms,
                     "llm_model": config.llm_model,
-                    "intent_analysis": intent_metadata  # Phase 2: 의도분석 결과 포함
+                    "intent_analysis": intent_metadata
                 },
                 session_id=session_id
             )
