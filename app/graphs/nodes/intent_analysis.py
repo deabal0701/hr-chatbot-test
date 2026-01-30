@@ -19,13 +19,25 @@ import re
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.core.llm.llm_config import LLMConfigManager
-from app.core.database.schema_loader import schema_loader
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
-# 스키마 캐시 (서버 시작 시 한 번만 로드)
-_schema_cache: str = ""
+# 의도 파악 컨텍스트 캐시 (서버 시작 시 한 번만 로드)
+_intent_context_cache: str = ""
+
+
+# 순환 import 방지를 위해 지연 import
+_settings_config = None
+
+
+def _get_settings_config():
+    """settings_config 지연 로드"""
+    global _settings_config
+    if _settings_config is None:
+        from app.core.config.settings_config import settings_config
+        _settings_config = settings_config
+    return _settings_config
 
 
 # 의도 분석 결과 타입 정의
@@ -90,22 +102,103 @@ def intent_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
 
-def _get_schema_description() -> str:
+def _get_intent_context() -> str:
     """
-    스키마 설명 가져오기 (캐시 사용)
+    의도 파악용 경량화된 컨텍스트 가져오기
+
+    DB(tb_app_settings)에서 조회하고, 없으면 하드코딩된 기본값 사용.
+    전체 스키마 대신 테이블 개요와 질문 유형 패턴만 제공.
 
     Returns:
-        DB 스키마 설명 문자열
+        경량화된 컨텍스트 문자열
     """
-    global _schema_cache
-    if not _schema_cache:
-        try:
-            _schema_cache = schema_loader.generate_schema_description()
-            logger.debug(f"스키마 로드 완료: {len(_schema_cache)} chars")
-        except Exception as e:
-            logger.warning(f"스키마 로드 실패, 기본값 사용: {e}")
-            _schema_cache = "스키마 정보를 로드할 수 없습니다."
-    return _schema_cache
+    global _intent_context_cache
+    if _intent_context_cache:
+        return _intent_context_cache
+
+    # 1. DB에서 조회 시도 (추후 tb_app_settings에 저장)
+    try:
+        settings_config = _get_settings_config()
+        db_context = settings_config.get_value("agent", "intent_context", "")
+        if db_context:
+            _intent_context_cache = db_context
+            logger.debug(f"의도 파악 컨텍스트 DB 로드 완료: {len(db_context)} chars")
+            return _intent_context_cache
+    except Exception as e:
+        logger.debug(f"DB 조회 실패, 기본값 사용: {e}")
+
+    # 2. 하드코딩된 경량 컨텍스트 (기본값)
+    _intent_context_cache = _get_default_intent_context()
+    logger.debug(f"의도 파악 컨텍스트 기본값 사용: {len(_intent_context_cache)} chars")
+    return _intent_context_cache
+
+
+def _get_default_intent_context() -> str:
+    """
+    하드코딩된 경량화된 의도 파악 컨텍스트
+
+    Returns:
+        기본 컨텍스트 문자열
+    """
+    return """## 데이터 소스 개요 (HR 인사 시스템)
+
+### 주요 테이블
+| 테이블명 | 설명 | 주요 조회 내용 |
+|---------|------|--------------|
+| v_ai_employee | 직원 마스터 | 입사일, 부서, 직위, 재직상태, 경력연수 |
+| v_ai_address | 주소 정보 | 거주 지역 (서울, 경기, 경북 등) |
+| v_ai_education | 학력 정보 | 학교명, 전공, 졸업연도 |
+| v_ai_career | 경력 정보 | 이전 회사, 근무 기간 |
+| v_ai_license | 자격증 | 자격증명, 발급기관, 취득일 |
+| v_ai_language | 어학 | TOEIC 점수, 어학 등급 |
+| v_ai_family | 가족 정보 | 가족 관계, 장애 여부 |
+| v_ai_training | 교육 이력 | 교육 과정, 수료 여부 |
+| v_ai_reward | 포상/징계 | 포상 종류, 포상금 |
+| v_ai_feedback | 인사평가 | 평가 점수, 평가 등급 |
+| v_ai_pay_report | 급여 | 급여액, 지급 내역 |
+| v_ai_military | 병역 | 군종, 계급, 전역일 |
+
+### 테이블 관계
+- 모든 테이블은 EMP_ID로 v_ai_employee와 조인
+- 1:N 관계: address, education, career, license, language, family, training, reward, feedback, pay_report
+- 1:1 관계: military
+
+## 질문 유형 패턴
+
+### SQL 조회 (sql_query)
+- "몇 명", "몇 건", "총 수" → 집계(aggregate) 의도
+- "목록", "명단", "리스트", "보여줘" → 조회(select) 의도
+- "부서별", "연도별", "직위별" → 그룹화(join) 의도
+- "추이", "변화", "기간별" → 추세(trend) 의도
+- "비교", "차이", "vs" → 비교(compare) 의도
+
+### 문서 검색 (document_search)
+- "정책", "규정", "지침", "가이드라인"
+- "절차", "방법", "어떻게"
+- "재택근무", "휴가", "복지"
+
+### 복합 질문 (hybrid)
+- "~정책을 따르는 직원 수" (문서 + SQL)
+- "~규정에 해당하는 사람 명단"
+
+### 계산 (calculation)
+- "퍼센트", "비율", "계산"
+- "X의 Y%"
+
+## 모호성 키워드 (명확화 필요)
+
+### 기간 모호 (period)
+- "최근", "요즘", "얼마 전" → 1개월? 3개월? 6개월?
+- "올해" → 현재 연도 (명확)
+- "2024년" → 명확 (모호하지 않음)
+
+### 수량 모호 (quantity)
+- "많은", "적은", "일부" → 기준 불명확
+- "상위", "하위" → 몇 %? 몇 명?
+
+### 기준 모호 (criteria)
+- "우수한", "좋은", "뛰어난" → 평가 기준 불명확
+- "경력 있는" → 몇 년 이상?"""
 
 
 def _get_business_glossary() -> str:
@@ -168,14 +261,14 @@ def _analyze_intent(question: str, request_id: str) -> Dict[str, Any]:
     """
     llm = LLMConfigManager.create_llm(temperature=0)
 
-    # 스키마 및 용어집 로드
-    schema_desc = _get_schema_description()
+    # 경량화된 의도 파악 컨텍스트 로드 (스키마 대신)
+    intent_context = _get_intent_context()
     glossary = _get_business_glossary()
 
     system_prompt = f"""당신은 HR(인사) 시스템의 자연어 질문을 분석하는 전문가입니다.
 사용자 질문을 분석하여 반드시 다음 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.
 
-{schema_desc}
+{intent_context}
 
 {glossary}
 
