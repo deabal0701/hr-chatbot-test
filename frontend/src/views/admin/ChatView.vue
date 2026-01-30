@@ -72,9 +72,10 @@
           <template v-else-if="searchMode === 'nl2sql'">
             데이터베이스 조회 (통계, 수치 데이터 등)
           </template>
-          <!-- <template v-else-if="searchMode === 'agent'">
-            복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)
-          </template> -->
+          <template v-else-if="searchMode === 'agent'">
+            AI Agent가 도구를 자율 선택하여 복합 질문 처리<br>
+            <small>(컨텍스트 검색 → DB 조회 → 문서 검색 → 계산)</small>
+          </template>
         </p>
       </div>
 

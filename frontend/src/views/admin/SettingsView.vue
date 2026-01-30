@@ -545,12 +545,16 @@
               </el-form-item>
 
               <el-form-item label="사용 가능한 도구">
-                <el-checkbox-group v-model="formData.agent.enabled_tools">
-                  <el-checkbox label="query_database_tool">DB 조회 (NL2SQL)</el-checkbox>
-                  <el-checkbox label="search_documents_tool">문서 검색 (RAG)</el-checkbox>
+                <el-checkbox-group v-model="formData.agent.enabled_tools" class="tool-checkbox-group">
+                  <el-checkbox label="context_search_tool">컨텍스트 검색 (스키마/예제/용어)</el-checkbox>
+                  <el-checkbox label="query_database_tool">DB 조회 (SQL 실행)</el-checkbox>
+                  <el-checkbox label="search_documents_tool">문서 검색 (정책/규정)</el-checkbox>
                   <el-checkbox label="calculate_tool">계산기</el-checkbox>
                 </el-checkbox-group>
-                <div class="form-help">Agent가 사용할 수 있는 도구를 선택하세요</div>
+                <div class="form-help">
+                  Agent가 사용할 수 있는 도구를 선택하세요.<br>
+                  <small>※ 컨텍스트 검색: SQL 작성 전 스키마/쿼리 예제 조회 (권장)</small>
+                </div>
               </el-form-item>
             </el-form>
           </div>
@@ -890,7 +894,7 @@ const formData = reactive({
     max_iterations: 10,
     timeout_seconds: 60,
     enable_memory: true,
-    enabled_tools: ['query_database_tool', 'search_documents_tool', 'calculate_tool']
+    enabled_tools: ['context_search_tool', 'query_database_tool', 'search_documents_tool', 'calculate_tool']
   },
   chunking: {
     default_chunk_size: 1000,
@@ -932,6 +936,7 @@ const loadSettings = async () => {
 
             // 구 형식을 신 형식으로 자동 마이그레이션 (_tool 접미사 추가)
             const toolMapping = {
+              'context_search': 'context_search_tool',
               'query_database': 'query_database_tool',
               'search_documents': 'search_documents_tool',
               'calculate': 'calculate_tool'
@@ -1661,6 +1666,17 @@ onMounted(async () => {
       line-height: 1.6;
       white-space: pre-wrap;
       word-wrap: break-word;
+    }
+  }
+
+  // Agent 도구 체크박스 그룹 스타일
+  .tool-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .el-checkbox {
+      margin-right: 0;
     }
   }
 }
