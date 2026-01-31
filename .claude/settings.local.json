@@ -14,7 +14,8 @@
       "Bash(python -c:*)",
       "Bash(conda run:*)",
       "Bash(\"C:\\\\Users\\\\USER\\\\miniconda3\\\\envs\\\\penv3.13-nlq\\\\python.exe\" -m pip show debugpy)",
-      "Bash(PGPASSWORD='hermesuser123!' psql -h 115.68.223.220 -p 5432 -U hermesuser -d hermesdb -c \"SELECT category, key, value FROM tb_app_settings WHERE category = ''llm'' OR \\(category = ''agent'' AND key LIKE ''%model%''\\) ORDER BY category, key;\")"
+      "Bash(PGPASSWORD='hermesuser123!' psql -h 115.68.223.220 -p 5432 -U hermesuser -d hermesdb -c \"SELECT category, key, value FROM tb_app_settings WHERE category = ''llm'' OR \\(category = ''agent'' AND key LIKE ''%model%''\\) ORDER BY category, key;\")",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

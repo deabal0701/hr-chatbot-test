@@ -53,29 +53,37 @@
       <div class="sidebar-section content-card">
         <h4>검색 모드</h4>
         <div class="mode-selector-wrapper">
+          <!-- Auto 모드 - 추후 사용 예정
           <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-primary">
             <el-radio-button value="auto">Auto</el-radio-button>
           </el-radio-group>
+          -->
           <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
             <el-radio-button value="rag">RAG</el-radio-button>
             <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
+            <!-- Agent 모드 - 추후 사용 예정
             <el-radio-button value="agent">Agent</el-radio-button>
+            -->
           </el-radio-group>
         </div>
         <p class="mode-description">
+          <!-- Auto 모드 설명 - 추후 사용 예정
           <template v-if="searchMode === 'auto'">
             질문을 분석하여 자동으로 적합한 검색 방식을 선택합니다.
           </template>
-          <template v-else-if="searchMode === 'rag'">
+          -->
+          <template v-if="searchMode === 'rag'">
             문서 기반 검색 (정책, 가이드, 규정 등)
           </template>
           <template v-else-if="searchMode === 'nl2sql'">
             데이터베이스 조회 (통계, 수치 데이터 등)
           </template>
+          <!-- Agent 모드 설명 - 추후 사용 예정
           <template v-else-if="searchMode === 'agent'">
             AI Agent가 도구를 자율 선택하여 복합 질문 처리<br>
             <small>(DB 조회 → 문서 검색 → 계산)</small>
           </template>
+          -->
         </p>
       </div>
 
@@ -126,12 +134,28 @@ const searchMode = computed({
   set: (value) => store.dispatch('chat/setMode', value)
 })
 
-const exampleQueries = [
-  '2024년 입사자 현황을 알려줘',
+// 검색 모드별 예시 질문
+const ragExampleQueries = [
   '재택근무 정책의 적용 조건과 제한 사항은?',
-  '부서별 직원 수는?',
-  '연차 휴가 신청 절차와 승인 기준은?'
+  '연차 휴가 신청 절차와 승인 기준은?',
+  '성과평가 제도는 어떻게 운영되나요?',
+  '출장비 정산 절차와 기준은?'
 ]
+
+const nl2sqlExampleQueries = [
+  '2017년 입사자 현황을 상세하게 알려줘!',
+  '우리회사의 부서별 직원 수는?',
+  '2000년 이후 재직자와 퇴직자 현황은?',
+  '가장 최근에 입사한 직원 5명은?'
+]
+
+const exampleQueries = computed(() => {
+  if (searchMode.value === 'nl2sql') {
+    return nl2sqlExampleQueries
+  }
+  // RAG 또는 기타 모드는 RAG 예시 사용
+  return ragExampleQueries
+})
 
 // 메시지 전송
 const handleSend = (query) => {

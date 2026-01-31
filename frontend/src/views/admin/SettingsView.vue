@@ -496,8 +496,8 @@
           </div>
         </el-tab-pane>
 
-        <!-- Agent 설정 -->
-        <el-tab-pane label="Agent" name="agent">
+        <!-- Agent 설정 - 추후 사용 예정 -->
+        <el-tab-pane v-if="false" label="Agent" name="agent">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
             <el-form label-position="top" class="settings-form">
@@ -654,76 +654,80 @@
               </el-row>
             </el-form>
 
-            <!-- Agent 프롬프트 -->
-            <el-divider content-position="left">
-              <span style="font-weight: 600;">Agent (도구 선택)</span>
-            </el-divider>
-         
-            <el-form label-position="top" class="settings-form">
-              <el-form-item label="Agent 시스템 프롬프트">
-                <el-input
-                  v-model="formData.prompt.agent_system_prompt"
-                  type="textarea"
-                  :rows="15"
-                  placeholder="Agent의 기본 동작 지침 및 도구 선택 규칙"
-                  class="prompt-textarea"
-                />
-                <div class="form-help">
-                  ReAct 패턴 기반 도구 선택 및 실행 시 사용됩니다.
-                  <el-button text type="primary" size="small" @click="showPromptPreview('agent_system_prompt')">
-                    프리뷰
-                  </el-button>
-                </div>
-              </el-form-item>
+            <!-- Agent 프롬프트 - 추후 사용 예정 -->
+            <template v-if="false">
+              <el-divider content-position="left">
+                <span style="font-weight: 600;">Agent (도구 선택)</span>
+              </el-divider>
 
-              <el-form-item label="Agent 페르소나">
-                <el-input
-                  v-model="formData.prompt.agent_persona"
-                  placeholder="예: AI assistant for corporate knowledge base"
-                  style="max-width: 500px"
-                />
-              </el-form-item>
-            </el-form>
+              <el-form label-position="top" class="settings-form">
+                <el-form-item label="Agent 시스템 프롬프트">
+                  <el-input
+                    v-model="formData.prompt.agent_system_prompt"
+                    type="textarea"
+                    :rows="15"
+                    placeholder="Agent의 기본 동작 지침 및 도구 선택 규칙"
+                    class="prompt-textarea"
+                  />
+                  <div class="form-help">
+                    ReAct 패턴 기반 도구 선택 및 실행 시 사용됩니다.
+                    <el-button text type="primary" size="small" @click="showPromptPreview('agent_system_prompt')">
+                      프리뷰
+                    </el-button>
+                  </div>
+                </el-form-item>
 
-            <!-- Tool 설명 -->
-            <el-divider content-position="left">
-              <span style="font-weight: 600;">Tool 설명 (Agent 도구 선택 시 참조)</span>
-            </el-divider>
+                <el-form-item label="Agent 페르소나">
+                  <el-input
+                    v-model="formData.prompt.agent_persona"
+                    placeholder="예: AI assistant for corporate knowledge base"
+                    style="max-width: 500px"
+                  />
+                </el-form-item>
+              </el-form>
+            </template>
 
-            <el-form label-position="top" class="settings-form">
-              <el-form-item label="SQL Tool 설명">
-                <el-input
-                  v-model="formData.prompt.tool_sql_description"
-                  type="textarea"
-                  :rows="8"
-                  placeholder="SQL Tool 설명"
-                  class="prompt-textarea"
-                />
-                <div class="form-help">Agent가 SQL Tool을 선택할 때 참조하는 설명</div>
-              </el-form-item>
+            <!-- Tool 설명 - 추후 사용 예정 (현재 Tool docstring은 코드에 하드코딩됨) -->
+            <template v-if="false">
+              <el-divider content-position="left">
+                <span style="font-weight: 600;">Tool 설명 (Agent 도구 선택 시 참조)</span>
+              </el-divider>
 
-              <el-form-item label="RAG Tool 설명">
-                <el-input
-                  v-model="formData.prompt.tool_rag_description"
-                  type="textarea"
-                  :rows="8"
-                  placeholder="RAG Tool 설명"
-                  class="prompt-textarea"
-                />
-                <div class="form-help">Agent가 RAG Tool을 선택할 때 참조하는 설명</div>
-              </el-form-item>
+              <el-form label-position="top" class="settings-form">
+                <el-form-item label="SQL Tool 설명">
+                  <el-input
+                    v-model="formData.prompt.tool_sql_description"
+                    type="textarea"
+                    :rows="8"
+                    placeholder="SQL Tool 설명"
+                    class="prompt-textarea"
+                  />
+                  <div class="form-help">Agent가 SQL Tool을 선택할 때 참조하는 설명</div>
+                </el-form-item>
 
-              <el-form-item label="Calculator Tool 설명">
-                <el-input
-                  v-model="formData.prompt.tool_calculator_description"
-                  type="textarea"
-                  :rows="8"
-                  placeholder="Calculator Tool 설명"
-                  class="prompt-textarea"
-                />
-                <div class="form-help">Agent가 Calculator Tool을 선택할 때 참조하는 설명</div>
-              </el-form-item>
-            </el-form>
+                <el-form-item label="RAG Tool 설명">
+                  <el-input
+                    v-model="formData.prompt.tool_rag_description"
+                    type="textarea"
+                    :rows="8"
+                    placeholder="RAG Tool 설명"
+                    class="prompt-textarea"
+                  />
+                  <div class="form-help">Agent가 RAG Tool을 선택할 때 참조하는 설명</div>
+                </el-form-item>
+
+                <el-form-item label="Calculator Tool 설명">
+                  <el-input
+                    v-model="formData.prompt.tool_calculator_description"
+                    type="textarea"
+                    :rows="8"
+                    placeholder="Calculator Tool 설명"
+                    class="prompt-textarea"
+                  />
+                  <div class="form-help">Agent가 Calculator Tool을 선택할 때 참조하는 설명</div>
+                </el-form-item>
+              </el-form>
+            </template>
 
             <!-- 프롬프트 관리 도구 -->
             <el-divider />

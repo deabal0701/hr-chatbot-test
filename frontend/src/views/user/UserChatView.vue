@@ -131,7 +131,8 @@
                   </div>
                 </el-dropdown-item>
               
-                 <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
+                <!-- Agent 모드 - 추후 사용 예정
+                <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
                   <div class="mode-option">
                     <span class="mode-name">
                       <el-icon class="mode-icon"><CoffeeCup /></el-icon>
@@ -139,7 +140,8 @@
                     </span>
                     <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
                   </div>
-                </el-dropdown-item> 
+                </el-dropdown-item>
+                --> 
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -228,12 +230,28 @@ const modeLabel = computed(() => {
   return labels[searchMode.value] || 'Auto'
 })
 
-const exampleQueries = [
+// 검색 모드별 예시 질문
+const ragExampleQueries = [
   '재택근무 정책의 적용 조건과 제한 사항은?',
   '연차 휴가 신청 절차와 승인 기준은?',
-  '2017년 입사자 현황을 상세하게 알려줘!',
-  '우리회사의 부서별 직원 수는?'
+  '성과평가 제도는 어떻게 운영되나요?',
+  '출장비 정산 절차와 기준은?'
 ]
+
+const nl2sqlExampleQueries = [
+  '2017년 입사자 현황을 상세하게 알려줘!',
+  '우리회사의 부서별 직원 수는?',
+  '2000년 이후 재직자와 퇴직자 현황은?',
+  '가장 최근에 입사한 직원 5명은?'
+]
+
+const exampleQueries = computed(() => {
+  if (searchMode.value === 'nl2sql') {
+    return nl2sqlExampleQueries
+  }
+  // RAG 또는 기타 모드는 RAG 예시 사용
+  return ragExampleQueries
+})
 
 // 관리자 페이지로 이동 (주석처리 - 로그인 기능 없음)
 // const goToAdmin = () => {
