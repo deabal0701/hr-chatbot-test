@@ -181,6 +181,24 @@
                   style="width: 100%"
                 />
               </el-form-item>
+
+              <!-- GPT-5 계열 모델인 경우에만 Reasoning Effort 표시 -->
+              <el-form-item v-if="isGPT5Model" label="Reasoning Effort (추론 강도)">
+                <el-select
+                  v-model="formData.llm.reasoning_effort"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="option in reasoningEffortOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <div class="form-help">
+                  GPT-5 계열 모델의 추론 강도를 설정합니다. 높을수록 더 깊은 추론을 수행하지만 응답 시간이 증가합니다.
+                </div>
+              </el-form-item>
             </el-form>
           </div>
         </el-tab-pane>
@@ -866,7 +884,8 @@ const formData = reactive({
     provider: 'openai',
     model: 'gpt-4-turbo-preview',
     temperature: 0.1,
-    max_tokens: 2000
+    max_tokens: 2000,
+    reasoning_effort: 'medium'
   },
   rag: {
     top_k: 10,
@@ -1088,6 +1107,21 @@ const temperatureHelpText = computed(() => {
   const max = temperatureMax.value
   return `낮을수록 일관된 응답, 높을수록 창의적 응답 (0.0-${max.toFixed(1)})`
 })
+
+// GPT-5 계열 모델 여부 확인 (reasoning_effort 지원)
+const isGPT5Model = computed(() => {
+  const model = formData.llm.model?.toLowerCase() || ''
+  return model.startsWith('gpt-5') || model.startsWith('gpt-5-mini') || model.startsWith('gpt-5-nano')
+})
+
+// reasoning_effort 옵션 목록
+const reasoningEffortOptions = [
+  { value: 'none', label: 'None (추론 비활성화)' },
+  { value: 'minimal', label: 'Minimal (최소 추론)' },
+  { value: 'low', label: 'Low (낮은 추론)' },
+  { value: 'medium', label: 'Medium (중간 추론, 권장)' },
+  { value: 'high', label: 'High (높은 추론)' }
+]
 
 // 코드 마스터에서 LLM 제공자 목록 로드
 const loadLLMProviders = async () => {

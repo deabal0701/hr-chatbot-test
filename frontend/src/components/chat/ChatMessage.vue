@@ -25,7 +25,6 @@
           <el-collapse-item title="실행된 SQL 쿼리" name="sql">
             <pre class="sql-code">{{ message.sql }}</pre>
           </el-collapse-item>
-          <!-- 조회 결과 테이블 - 추후 사용 예정 (현재 SQL 쿼리만 표시)
           <el-collapse-item v-if="message.sqlResult" title="조회 결과" name="result">
             <div class="result-summary">
               총 {{ message.sqlResult.row_count }}개 행 조회됨
@@ -49,7 +48,6 @@
               ... 외 {{ message.sqlResult.row_count - 10 }}개 행
             </div>
           </el-collapse-item>
-          -->
         </el-collapse>
       </div>
 

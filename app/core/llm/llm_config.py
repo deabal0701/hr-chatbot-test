@@ -38,6 +38,20 @@ class LLMConfigManager:
         "anthropic": "claude-3-5-sonnet-20241022",
     }
 
+    # GPT-5 계열 모델 (reasoning_effort 지원)
+    GPT5_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
+
+    # reasoning_effort 유효 값
+    VALID_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high"}
+
+    @staticmethod
+    def _is_gpt5_model(model: Optional[str]) -> bool:
+        """GPT-5 계열 모델 여부 확인"""
+        if not model:
+            return False
+        model_lower = model.lower()
+        return any(model_lower.startswith(gpt5) for gpt5 in LLMConfigManager.GPT5_MODELS)
+
     @staticmethod
     def _get_api_key(provider: str) -> str:
         """
@@ -152,7 +166,17 @@ class LLMConfigManager:
         # 4. API 키 가져오기 (제공자별)
         api_key = LLMConfigManager._get_api_key(provider)
 
-        # 5. init_chat_model 호출 (제공자 독립적 인터페이스)
+        # 5. GPT-5 계열 모델인 경우 reasoning_effort 설정
+        if LLMConfigManager._is_gpt5_model(model) and "reasoning_effort" not in kwargs:
+            reasoning_effort = settings_service.get_value("llm", "reasoning_effort", "medium")
+            if reasoning_effort in LLMConfigManager.VALID_REASONING_EFFORTS:
+                kwargs["reasoning_effort"] = reasoning_effort
+                logger.info(f"GPT-5 모델 감지, reasoning_effort={reasoning_effort} 적용")
+            else:
+                logger.warning(f"유효하지 않은 reasoning_effort={reasoning_effort}, 기본값 'medium' 적용")
+                kwargs["reasoning_effort"] = "medium"
+
+        # 6. init_chat_model 호출 (제공자 독립적 인터페이스)
         try:
             llm = init_chat_model(
                 model=model,
