@@ -16,7 +16,7 @@
         </el-tag>
       </el-tooltip>
 
-      <!-- 다크모드 토글 버튼 -->
+      <!-- 다크모드 토글 버튼 - 추후 사용 예정 (다크모드 기본 고정)
       <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
         <el-button
           circle
@@ -25,6 +25,7 @@
           class="theme-toggle-btn"
         />
       </el-tooltip>
+      -->
 
       <!-- 향후 사용자 메뉴 추가 위치 -->
       <!-- <el-dropdown>
