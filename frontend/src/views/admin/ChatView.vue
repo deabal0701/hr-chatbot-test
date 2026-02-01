@@ -49,6 +49,19 @@
 
     <!-- 우측: 설정 및 정보 -->
     <div class="chat-sidebar">
+      <!-- 프롬프트 가이드 -->
+      <div class="sidebar-section content-card">
+        <h4>프롬프트 가이드</h4>
+        <el-button
+          type="info"
+          plain
+          :icon="QuestionFilled"
+          @click="showGuideModal = true"
+        >
+          작성 가이드 보기
+        </el-button>
+      </div>
+
       <!-- 검색 모드 선택 -->
       <div class="sidebar-section content-card">
         <h4>검색 모드</h4>
@@ -114,18 +127,27 @@
         </el-button>
       </div>
     </div>
+
+    <!-- 프롬프트 가이드 모달 -->
+    <PromptGuideModal
+      v-model="showGuideModal"
+      :mode="searchMode"
+      @use-example="handleUseExample"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { ChatDotRound, Loading, Delete, Monitor } from '@element-plus/icons-vue'
+import { ChatDotRound, Loading, Delete, Monitor, QuestionFilled } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
+import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 
 const store = useStore()
 const messagesContainer = ref(null)
+const showGuideModal = ref(false)
 
 const messages = computed(() => store.state.chat.messages)
 const isLoading = computed(() => store.state.chat.isLoading)
@@ -180,6 +202,11 @@ const clearChat = () => {
 // 사용자 화면 새 창으로 열기
 const openUserChat = () => {
   window.open('/chat', '_blank', 'width=800,height=900')
+}
+
+// 가이드에서 예시 사용
+const handleUseExample = (example) => {
+  handleSend(example)
 }
 
 // 메시지 추가 시 스크롤

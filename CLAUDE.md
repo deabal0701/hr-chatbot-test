@@ -14,6 +14,7 @@ MUREUM is an enterprise AI knowledge base assistant combining multiple AI techni
 
 **Key Features**:
 - AI Agent with ReAct pattern (autonomous tool selection, multi-step reasoning)
+- **Intent Analysis & Context Retrieval** (질문 의도 분석, SQL 컨텍스트 자동 주입)
 - Multi-turn conversations with session-based memory (InMemorySaver)
 - Dynamic settings management (DB-based real-time configuration)
 - Multi-LLM provider support (OpenAI, Anthropic via init_chat_model)
@@ -101,19 +102,87 @@ This codebase uses **LangGraph** for AI workflows. Understanding the graph execu
 - Conditional: `workflow.add_conditional_edges(node, decision_func, mapping)`
 - Checkpointing: InMemorySaver for session-based conversation memory
 
-**AI Agent Flow** (ReAct pattern - `app/graphs/agent_graph.py:115-147`):
+**AI Agent Flow** (ReAct + Intent Analysis - `app/graphs/agent_graph.py`):
 ```
-agent (LLM decides) → should_continue() decision
-                      ├─ "continue" → tools (execute) → agent (loop)
-                      └─ "end" → END (final answer)
+┌─────────────────────────────────────────────────────────────┐
+│  intent_analysis (질문 유형/의도 분석)                        │
+│    ↓                                                        │
+│  context_retrieval (SQL 컨텍스트: 스키마, Few-shot, 용어집)    │
+│    ↓                                                        │
+│  agent (LLM decides) → should_continue() decision           │
+│                        ├─ "continue" → tools → agent (loop) │
+│                        └─ "end" → END (final answer)        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**NL2SQL Flow** (`app/graphs/nl2sql_graph.py:57-86`):
+**NL2SQL Flow** (`app/graphs/nl2sql_graph.py`):
 ```
 generate_sql → validate_sql → _should_execute() decision
                                ├─ "execute" → execute_sql → generate_answer → END
                                └─ "error" → handle_error → END
 ```
+
+### AgentState (확장된 상태 관리)
+
+Agent 상태는 TypedDict로 정의되며, LangGraph의 reducer 패턴을 사용합니다:
+
+```python
+class AgentState(TypedDict):
+    # ===== 기본 필드 =====
+    messages: Annotated[Sequence[BaseMessage], add_messages]  # 누적
+    question: Annotated[str, _overwrite]
+    session_id: Annotated[str, _overwrite]
+    config: Annotated[AgentConfig, _overwrite]
+    iteration_count: Annotated[int, _overwrite]
+    final_answer: Annotated[str, _overwrite]
+    request_id: Annotated[str, _overwrite]
+    start_time: Annotated[float, _overwrite]
+
+    # ===== 의도 분석 =====
+    intent_analysis: Annotated[Dict[str, Any], _overwrite]
+    intent_confidence: Annotated[float, _overwrite]
+    is_ambiguous: Annotated[bool, _overwrite]
+    ambiguity_options: Annotated[List[str], _overwrite]
+    extracted_entities: Annotated[Dict[str, Any], _overwrite]
+
+    # ===== 컨텍스트 검색 =====
+    relevant_schemas: Annotated[List[Dict], _overwrite]     # 관련 테이블 스키마
+    similar_queries: Annotated[List[Dict], _overwrite]      # Few-shot 예제
+    business_terms: Annotated[List[Dict], _overwrite]       # 비즈니스 용어집
+    context_prompt: Annotated[str, _overwrite]              # Agent에 주입할 컨텍스트
+
+    # ===== Human in the Loop =====
+    waiting_for_human: Annotated[bool, _overwrite]
+    human_intervention: Annotated[Dict[str, Any], _overwrite]
+    human_response: Annotated[str, _overwrite]
+```
+
+**초기 상태 생성**:
+```python
+from app.graphs.agent_graph import create_state_defaults
+
+initial_state = {
+    **create_state_defaults(),  # 확장 필드 기본값
+    "messages": [HumanMessage(content=question)],
+    "question": question,
+    # ...
+}
+```
+
+### Intent Analysis & Context Retrieval
+
+Agent 실행 전에 의도 분석과 컨텍스트 검색이 자동으로 수행됩니다:
+
+**의도 분석** (`app/graphs/nodes/agent_nodes.py:intent_analysis_node`):
+- 질문 유형 분류: `sql_query`, `document_search`, `hybrid`, `calculation`, `general`
+- 쿼리 의도: `select`, `aggregate`, `compare`, `trend`, `join`, `search`, `calculate`
+- 모호성 감지: `period`, `quantity`, `criteria`, `table`, `column`
+- 신뢰도 점수 산출
+
+**컨텍스트 검색** (`app/graphs/nodes/agent_nodes.py:context_retrieval_node`):
+- SQL 질의 시 자동으로 관련 스키마, Few-shot 예제, 용어집 검색
+- Vector Store에서 유사도 기반 검색 (usage_type='rag_action')
+- 결과는 `state["context_prompt"]`에 저장되어 Agent System Prompt에 자동 주입
 
 ### Async/Await Pattern
 
@@ -166,7 +235,15 @@ with db_manager.get_cursor(commit=True) as cur:
     cur.execute("INSERT ...")
 ```
 
-**Multi-DB Support** (NL2SQL via Adapter Pattern):
+**Multi-DB Support** (NL2SQL via Factory Pattern - `app/core/database/adapters/factory.py`):
+```python
+from app.core.database.adapters.factory import get_adapter, get_supported_db_types
+
+# 지원 DB 타입: postgresql, oracle
+adapter = get_adapter("postgresql")  # DatabaseAdapter 구현체 반환
+supported = get_supported_db_types()  # ["postgresql", "oracle"]
+```
+
 - PostgreSQL: `LIMIT N`, `information_schema`
 - Oracle: `FETCH FIRST N ROWS ONLY`, `ALL_TABLES`
 
@@ -191,9 +268,14 @@ app/
 │       ├── settings_service.py # Dynamic config
 │       └── code_service.py    # Code service
 ├── graphs/                    # LangGraph workflows (core AI logic)
-│   ├── agent_graph.py         # AI Agent (ReAct, line 57: class, 115: _build_graph, 149: _agent_node)
-│   ├── rag_graph.py           # Document search (line 27: class, 48: _build_graph)
-│   └── nl2sql_graph.py        # NL2SQL (line 33: class, 88: _generate_sql, 124: _validate_sql, 164: _execute_sql, 186: _generate_answer)
+│   ├── agent_graph.py         # AI Agent (ReAct + Intent Analysis)
+│   ├── rag_graph.py           # Document search
+│   ├── nl2sql_graph.py        # NL2SQL
+│   └── nodes/                 # 분리된 노드 모듈 (NEW)
+│       ├── __init__.py
+│       ├── agent_nodes.py     # intent_analysis_node, context_retrieval_node
+│       ├── nl2sql_nodes.py    # NL2SQL 노드 함수들
+│       └── rag_nodes.py       # RAG 노드 함수들
 ├── tools/                     # AI Agent tools
 │   ├── base.py                # BaseTool class with hooks
 │   ├── sql_tool.py            # SQL query tool
@@ -201,7 +283,11 @@ app/
 │   └── calc_tool.py           # Calculator tool (safe AST)
 ├── core/                      # Core infrastructure
 │   ├── database/              # Database layer
-│   │   ├── adapters/          # DB adapter pattern (base, postgresql, oracle)
+│   │   ├── adapters/          # DB adapter pattern
+│   │   │   ├── base.py        # DatabaseAdapter ABC
+│   │   │   ├── postgresql.py  # PostgreSQL adapter
+│   │   │   ├── oracle.py      # Oracle adapter
+│   │   │   └── factory.py     # Adapter factory (NEW)
 │   │   ├── connection.py      # Connection pool (psycopg3)
 │   │   ├── external.py        # External DB manager
 │   │   ├── schema_loader.py   # DB schema introspection
@@ -224,26 +310,47 @@ app/
 
 frontend/src/
 ├── views/
-│   ├── user/UserChatView.vue  # User chat interface
+│   ├── user/
+│   │   └── UserChatView.vue   # User chat interface (dark mode default)
 │   └── admin/                 # Admin views
-│       ├── ChatView.vue, DocumentsView.vue, SettingsView.vue, CodesView.vue
+│       ├── AdminLayout.vue    # Admin navigation wrapper
+│       ├── ChatView.vue       # Admin chat interface
+│       ├── DashboardView.vue  # Dashboard/analytics
+│       ├── DocumentsView.vue  # Document management
+│       ├── DocumentDetailView.vue  # Document detail
+│       ├── DocumentEditView.vue    # Document editor
+│       ├── SettingsView.vue   # Settings management
+│       └── CodesView.vue      # Code management
 ├── components/
 │   ├── chat/                  # Chat components
+│   │   └── PromptGuideModal.vue # Prompt guide modal (NL2SQL/RAG examples)
 │   ├── user/                  # User-facing components
+│   │   ├── UserChatLayout.vue
+│   │   ├── UserChatMessage.vue
+│   │   └── UserChatSidebar.vue
 │   └── layout/                # Layout components
 ├── store/                     # Vuex state
 │   └── modules/               # chat.js, document.js, app.js
 └── api/                       # Axios API clients
+
+scripts/
+├── init_db.py                 # DB initialization
+├── embed_documents.py         # Document embedding
+├── check_oracle_schema.py     # Oracle schema validation
+├── check_tools_config.py      # Tool configuration checker
+└── sql/                       # SQL scripts
 ```
 
 ### Request Flow Examples
 
-**AI Agent Flow** (ReAct pattern):
+**AI Agent Flow** (ReAct + Intent Analysis):
 ```
 User question → api/routes/agent.py
   → api/services/agent_service.py
     → graphs/agent_graph.py:ainvoke(state, config={thread_id})
-      → Iteration: agent_node → tools_node → agent_node (loop)
+      → intent_analysis_node (의도 분석)
+      → context_retrieval_node (SQL 컨텍스트 검색)
+      → agent_node → tools_node → agent_node (loop)
     → END (InMemorySaver auto-saves session)
   → Return AgentResponse
 ```
@@ -275,7 +382,7 @@ request_id = str(uuid.uuid4())[:8]
 logger.info(f"[{request_id}] [STEP] [STAGE] Message | key=value")
 ```
 
-**Agent stages**: INIT → THINK → ACTION → OBSERVE → FINISH → COMPLETE
+**Agent stages**: INIT → INTENT → CONTEXT → THINK → ACTION → OBSERVE → FINISH → COMPLETE
 **NL2SQL stages**: INIT → GENERATE → VALIDATE → EXECUTE → ANSWER → COMPLETE
 **RAG stages**: INIT → RETRIEVE → GENERATE → COMPLETE
 
@@ -293,9 +400,15 @@ OPENAI_API_KEY=sk-proj-...
 # Anthropic API (Optional)
 ANTHROPIC_API_KEY=sk-ant-...
 
+# LLM Provider
+LLM_PROVIDER=openai           # openai or anthropic
+EMBEDDING_PROVIDER=openai     # openai only (Anthropic doesn't provide embeddings)
+
 # Application
 APP_ENV=development
 LOG_LEVEL=INFO
+LOG_FORMAT=text               # text or json
+LOG_FILE=./logs/app.log       # Optional, None for no file output
 ```
 
 **Priority**: Admin UI (DB) > `.env` > code defaults
@@ -309,17 +422,30 @@ DATABASE_URL=postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermes
 
 ### Adding a New Graph Node
 
+**In separate node file** (`app/graphs/nodes/new_nodes.py`):
 ```python
-def _new_node(self, state: GraphState) -> GraphState:
-    """Node description"""
-    data = state["key"]
-    result = do_something(data)
-    state["new_key"] = result
-    log_step(state.get("request_id"), "X", "STAGE", "Message")
-    return state
+from typing import Dict, Any
+
+def new_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Node description - returns only updated fields"""
+    request_id = state.get("request_id", "unknown")
+
+    # Process state
+    result = do_something(state["question"])
+
+    # Return only changed fields (LangGraph merges automatically)
+    return {
+        "new_field": result,
+        "another_field": "value"
+    }
+```
+
+**In graph class** (`app/graphs/agent_graph.py`):
+```python
+from app.graphs.nodes.new_nodes import new_node
 
 # In _build_graph()
-workflow.add_node("new_node", self._new_node)
+workflow.add_node("new_node", new_node)
 workflow.add_edge("prev_node", "new_node")
 ```
 
@@ -368,8 +494,34 @@ value = settings_service.get_value("category", "new_setting", settings.new_setti
 ### Adding New Database Adapter
 
 1. Create adapter in `app/core/database/adapters/newdb.py` extending `DatabaseAdapter`
-2. Register in `app/core/database/adapters/__init__.py`
+2. Register in `app/core/database/adapters/factory.py`:
+   ```python
+   _ADAPTERS["newdb"] = NewDBAdapter
+   DEFAULT_PORTS["newdb"] = 3306
+   ```
 3. Update prompts in `app/core/llm/prompt_service.py`
+
+## Deployment
+
+### Docker
+
+```bash
+# Backend
+docker build -t mureum-backend .
+docker run -p 19090:19090 mureum-backend
+
+# Frontend
+cd frontend
+docker build -t mureum-frontend .
+docker run -p 80:80 mureum-frontend
+```
+
+**Files**:
+- `Dockerfile` - Backend container
+- `frontend/Dockerfile` - Frontend container
+- `deploy-docker.sh` - Deployment script
+- `frontend/nginx.conf` - Nginx configuration
+- `frontend/.env.development`, `.env.docker`, `.env.production` - Environment configs
 
 ## Known Issues & Workarounds
 
@@ -382,11 +534,14 @@ value = settings_service.get_value("category", "new_setting", settings.new_setti
 ### DB Connection Pool Exhausted
 **Fix**: Increase `DB_POOL_SIZE` in `.env` (default: 20)
 
+### Intent Analysis Not Working
+**Fix**: Ensure `config.enable_intent_analysis=True` in AgentConfig
+
 ## Dependencies (requirements.txt)
 
 ```python
 # Core: Python 3.10+ required, 3.13 tested
-fastapi>=0.115.0, pydantic>=2.7.4
+fastapi>=0.115.0, pydantic>=2.7.4, pydantic-settings>=2.1.0
 
 # Database
 psycopg[binary,pool]>=3.2.0, pgvector>=0.2.5, oracledb>=2.0.0
@@ -395,6 +550,9 @@ psycopg[binary,pool]>=3.2.0, pgvector>=0.2.5, oracledb>=2.0.0
 langchain-core>=1.2.5, langchain>=1.2.0, langchain-openai>=1.1.6
 langchain-anthropic>=0.2.4, langgraph>=1.0.5
 openai>=1.30.0, anthropic>=0.39.0
+
+# Utilities
+numpy>=1.26.2, sqlparse>=0.4.4, python-json-logger>=2.0.7
 ```
 
 **Import Pattern** (LangChain v1.0):

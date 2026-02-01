@@ -33,8 +33,7 @@ async def search(request: SearchRequest):
 
     try:
         # STEP 1: 사용자 요청 수신
-        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신",
-                query=request.query, mode=request.mode, top_k=request.top_k)
+        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신", query=request.query, mode=request.mode)
 
         # STEP 2: 모드 결정
         if request.mode == "auto":
@@ -48,7 +47,7 @@ async def search(request: SearchRequest):
         if query_type == "nl2sql":
             response = await nl2sql_service.search(query=request.query, request_id=request_id)
         else:  # rag
-            response = await rag_service.search(query=request.query, filters=request.filters, top_k=request.top_k, request_id=request_id)
+            response = await rag_service.search(query=request.query, filters=request.filters, request_id=request_id)
 
         # STEP 4: 응답 완료
         log_step(request_id, "API", "4", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))

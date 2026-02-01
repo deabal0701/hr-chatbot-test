@@ -93,6 +93,13 @@
     <footer class="chat-footer">
       <div class="input-container">
         <div class="input-wrapper">
+          <!-- 프롬프트 가이드 버튼 -->
+          <el-tooltip content="프롬프트 작성 가이드" placement="top">
+            <button class="guide-btn" @click="showGuideModal = true">
+              <el-icon><QuestionFilled /></el-icon>
+            </button>
+          </el-tooltip>
+
           <!-- 모드 선택 드롭다운 -->
           <el-dropdown trigger="click" popper-class="dark-dropdown-popper" @command="handleModeChange">
             <button class="mode-btn">
@@ -177,14 +184,22 @@
         </p>
       </div>
     </footer>
+
+    <!-- 프롬프트 가이드 모달 -->
+    <PromptGuideModal
+      v-model="showGuideModal"
+      :mode="searchMode"
+      @use-example="handleUseExample"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
-import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, Sunny, Moon } from '@element-plus/icons-vue'
+import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, Sunny, Moon, QuestionFilled } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
+import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 
 // Props
 defineProps({
@@ -216,6 +231,7 @@ onUnmounted(() => {
 const inputRef = ref(null)
 const chatMainRef = ref(null)
 const inputText = ref('')
+const showGuideModal = ref(false)
 
 const messages = computed(() => store.state.chat.messages)
 const isLoading = computed(() => store.state.chat.isLoading)
@@ -281,6 +297,14 @@ const handleSend = () => {
 // 예시 질문 전송
 const sendExample = (query) => {
   store.dispatch('chat/sendMessage', query)
+}
+
+// 가이드에서 예시 사용
+const handleUseExample = (example) => {
+  inputText.value = example
+  if (inputRef.value) {
+    inputRef.value.focus()
+  }
 }
 
 // 입력창 자동 크기 조절
@@ -620,6 +644,31 @@ watch(messages, async () => {
   }
 }
 
+// 프롬프트 가이드 버튼
+.guide-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background-color: var(--icon-bg);
+  border: none;
+  border-radius: 12px;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: var(--bg-color-hover);
+    color: var(--color-primary);
+  }
+
+  .el-icon {
+    font-size: 18px;
+  }
+}
+
 // 모드 선택 버튼
 .mode-btn {
   display: flex;
@@ -841,6 +890,16 @@ watch(messages, async () => {
     padding: 10px 12px;
     border-radius: 16px;
     gap: 8px;
+  }
+
+  .guide-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+
+    .el-icon {
+      font-size: 16px;
+    }
   }
 
   .mode-btn {

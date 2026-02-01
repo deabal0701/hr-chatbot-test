@@ -10,8 +10,7 @@ const routes = [
   {
     path: '/chat',
     name: 'UserChat',
-    component: () => import('@/components/user/UserChatLayout.vue'),
-    meta: { title: 'MUREUM' }
+    component: () => import('@/components/user/UserChatLayout.vue')
   },
 
   // 관리자 라우트

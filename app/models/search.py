@@ -27,7 +27,6 @@ class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, description="검색 질의")
     mode: str = Field(default="auto", description="검색 모드 (auto/rag/nl2sql)")
     filters: Optional[SearchFilters] = Field(default_factory=SearchFilters)
-    top_k: Optional[int] = Field(default=None, ge=1, le=50, description="상위 K개 결과 (None이면 DB 설정 사용)")
 
     model_config = {
         "json_schema_extra": {
