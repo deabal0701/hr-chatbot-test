@@ -117,9 +117,13 @@ This codebase uses **LangGraph** for AI workflows. Understanding the graph execu
 
 **NL2SQL Flow** (`app/graphs/nl2sql_graph.py`):
 ```
-generate_sql → validate_sql → _should_execute() decision
-                               ├─ "execute" → execute_sql → generate_answer → END
-                               └─ "error" → handle_error → END
+schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                                                        ├─ execute → execute_sql → should_continue_after_execute
+                                                                        │                            ├─ answer → generate_answer → END
+                                                                        │                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                        │                            └─ error → handle_error → END
+                                                                        ├─ retry → fewshot_retrieval (enhanced)
+                                                                        └─ error → handle_error → END
 ```
 
 ### AgentState (확장된 상태 관리)
@@ -271,7 +275,7 @@ app/
 │   ├── agent_graph.py         # AI Agent (ReAct + Intent Analysis)
 │   ├── rag_graph.py           # Document search
 │   ├── nl2sql_graph.py        # NL2SQL
-│   └── nodes/                 # 분리된 노드 모듈 (NEW)
+│   └── nodes/                 # 분리된 노드 모듈
 │       ├── __init__.py
 │       ├── agent_nodes.py     # intent_analysis_node, context_retrieval_node
 │       ├── nl2sql_nodes.py    # NL2SQL 노드 함수들
@@ -287,7 +291,7 @@ app/
 │   │   │   ├── base.py        # DatabaseAdapter ABC
 │   │   │   ├── postgresql.py  # PostgreSQL adapter
 │   │   │   ├── oracle.py      # Oracle adapter
-│   │   │   └── factory.py     # Adapter factory (NEW)
+│   │   │   └── factory.py     # Adapter factory
 │   │   ├── connection.py      # Connection pool (psycopg3)
 │   │   ├── external.py        # External DB manager
 │   │   ├── schema_loader.py   # DB schema introspection
@@ -360,7 +364,8 @@ User question → api/routes/agent.py
 User query → api/routes/search.py
   → api/services/nl2sql_service.py
     → graphs/nl2sql_graph.py:ainvoke()
-      → _generate_sql (LLM) → _validate_sql → _execute_sql → _generate_answer (LLM)
+      → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate
+        → validate_sql → execute_sql → generate_answer (with retry on error)
   → Return NL2SQLResponse
 ```
 

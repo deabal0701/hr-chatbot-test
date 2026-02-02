@@ -165,6 +165,8 @@
 
 ### 4.1 Graph 상태(State) 정의
 
+#### 기본 필드
+
 | 필드명 | 타입 | 설명 |
 |--------|------|------|
 | question | str | 사용자 자연어 질문 |
@@ -177,13 +179,49 @@
 | metadata | Dict | 메타데이터 (llm_model, execution_time_ms 등) |
 | request_id | str | 요청 추적용 ID (8자리) |
 
+#### 스키마 검색 필드
+
+| 필드명 | 타입 | 설명 |
+|--------|------|------|
+| selected_tables | List[str] | 선택된 테이블 목록 |
+| schema_retrieval_confidence | float | 테이블 선택 신뢰도 |
+
+#### Few-shot 필드
+
+| 필드명 | 타입 | 설명 |
+|--------|------|------|
+| fewshot_context | str | 포맷된 Few-shot 예제 문자열 |
+| fewshot_examples | List[Dict] | 원본 예제 데이터 목록 |
+| fewshot_count | int | 검색된 예제 수 |
+
+#### 프롬프트 빌드 필드
+
+| 필드명 | 타입 | 설명 |
+|--------|------|------|
+| sql_prompt | str | 완성된 System Prompt |
+| user_prompt | str | User Prompt |
+| prompt_metadata | Dict | 프롬프트 메타데이터 |
+
+#### 재시도 관련 필드
+
+| 필드명 | 타입 | 설명 |
+|--------|------|------|
+| retry_count | int | 현재 재시도 횟수 |
+| max_retries | int | 최대 재시도 횟수 (기본값 2) |
+| previous_sql | str | 이전 시도 SQL |
+| previous_error | str | 이전 오류 메시지 |
+| enhanced_fewshot | bool | 강화된 Few-shot 모드 플래그 |
+
 ---
 
 ### 4.2 노드 구성 및 역할
 
 | 노드명 | 역할 | LLM 호출 | 입력 | 출력 |
 |--------|------|:--------:|------|------|
-| **generate_sql** | 자연어 → SQL 변환 | ✅ (1차) | question, schema | generated_sql |
+| **schema_retrieval** | 질문 분석하여 필요한 테이블 스키마만 로드 | ✅ (경량) | question | schema_description, selected_tables |
+| **fewshot_retrieval** | Vector Store에서 유사한 쿼리 예제 검색 | ❌ | question | fewshot_context, fewshot_examples |
+| **prompt_build** | 스키마 + Few-shot + DB 가이드라인 조합 | ❌ | schema, fewshot | sql_prompt, user_prompt |
+| **sql_generate** | 자연어 → SQL 변환 (LLM 호출만) | ✅ (1차) | sql_prompt, user_prompt | generated_sql |
 | **validate_sql** | SQL 보안 검증 | ❌ | generated_sql | validated, validation_error |
 | **execute_sql** | SQL 실행 | ❌ | generated_sql | sql_result |
 | **generate_answer** | 결과 → 자연어 요약 | ✅ (2차) | question, sql, result | answer |
@@ -191,49 +229,82 @@
 
 ---
 
-### 4.3 Graph 실행 흐름도ㅂ
+### 4.3 Graph 실행 흐름도
 
 ```
-┌─────────────────┐
-│  generate_sql   │ ← LLM 호출 (1차): 질문 + 스키마 → SQL 생성
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│  validate_sql   │ ← 보안 검증: 금지 키워드, 테이블 화이트리스트
-└────────┬────────┘
-         ↓
-    ┌────┴────┐
-    │ 검증    │
-    │ 성공?   │
-    └────┬────┘
-    Yes ↓    ↘ No
-┌─────────────────┐    ┌─────────────────┐
-│  execute_sql    │    │  handle_error   │
-└────────┬────────┘    └────────┬────────┘
-         ↓                      ↓
-┌─────────────────┐            │
-│ generate_answer │ ← LLM (2차)│
-└────────┬────────┘            │
-         ↓                      ↓
-      [ END ] ←────────────────┘
+schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                                                        ↓
+                                                               should_execute (분기①)
+                                                    ┌─────────────┼─────────────┐
+                                                    ↓             ↓             ↓
+                                                "execute"      "retry"       "error"
+                                                    ↓             ↓             ↓
+                                               execute_sql   fewshot_retrieval  handle_error → END
+                                                    ↓          (enhanced)
+                                    should_continue_after_execute (분기②)
+                                    ┌─────────────┼─────────────┐
+                                    ↓             ↓             ↓
+                                 "answer"      "retry"       "error"
+                                    ↓             ↓             ↓
+                             generate_answer  fewshot_retrieval  handle_error → END
+                                    ↓          (enhanced)
+                                   END
 ```
+
+**노드별 역할:**
+- **schema_retrieval**: 경량 LLM으로 질문에 필요한 테이블만 선별 (토큰 최적화)
+- **fewshot_retrieval**: Vector Store에서 유사한 질문-SQL 예제 검색
+- **prompt_build**: 스키마 + Few-shot + 이전 오류 컨텍스트를 조합하여 프롬프트 생성
+- **sql_generate**: 준비된 프롬프트로 LLM 호출 (단일 책임)
+- **validate_sql**: SQL 보안 검증 (금지 키워드, 화이트리스트)
+- **execute_sql**: 검증된 SQL 실행
+- **generate_answer**: 실행 결과를 자연어 답변으로 변환
+- **handle_error**: 최종 실패 시 오류 안내 메시지 생성
 
 ---
 
 ### 4.4 조건부 분기 로직
 
+#### 분기① should_execute (검증 후)
+
 ```python
-def _should_execute(state) -> str:
+def should_execute(state) -> str:
     if state["validated"]:
-        return "execute"   # → execute_sql 노드로 이동
-    else:
-        return "error"     # → handle_error 노드로 이동
+        return "execute"   # → execute_sql
+    if retry_enabled and retry_count < max_retries and is_retryable_error:
+        return "retry"     # → fewshot_retrieval (enhanced mode)
+    return "error"         # → handle_error
 ```
 
-| 조건 | 분기 | 다음 노드 |
-|------|------|-----------|
-| validated = True | execute | execute_sql |
-| validated = False | error | handle_error |
+#### 분기② should_continue_after_execute (실행 후)
+
+```python
+def should_continue_after_execute(state) -> str:
+    if state["sql_result"] is not None:
+        return "answer"    # → generate_answer
+    if retry_enabled and retry_count < max_retries and is_retryable_error:
+        return "retry"     # → fewshot_retrieval (enhanced mode)
+    return "error"         # → handle_error
+```
+
+#### 분기 조건 요약
+
+| 분기점 | 조건 | 결과 | 다음 노드 |
+|--------|------|------|-----------|
+| ① should_execute | validated=True | execute | execute_sql |
+| ① should_execute | 재시도 가능 + retry_count < max | retry | fewshot_retrieval |
+| ① should_execute | 재시도 불가 또는 max 초과 | error | handle_error |
+| ② should_continue_after_execute | sql_result 존재 | answer | generate_answer |
+| ② should_continue_after_execute | 재시도 가능 + retry_count < max | retry | fewshot_retrieval |
+| ② should_continue_after_execute | 재시도 불가 또는 max 초과 | error | handle_error |
+
+#### 재시도 가능 오류 패턴
+
+- column, table, syntax, ambiguous, unknown, invalid
+- ORA-00904 (Oracle: invalid identifier)
+- ORA-00942 (Oracle: table or view does not exist)
+- ORA-00936 (Oracle: missing expression)
+- 컬럼, 테이블, 존재하지, 찾을 수 없
 
 ---
 

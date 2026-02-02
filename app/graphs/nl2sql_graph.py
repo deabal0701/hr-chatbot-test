@@ -4,16 +4,19 @@ NL2SQL 검색 그래프 (LangGraph)
 위치: app/graphs/nl2sql_graph.py
 
 그래프 흐름:
-    schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql → should_execute 분기
-                                                                                          ├─ "execute" → execute_sql → generate_answer → END
-                                                                                          ├─ "retry" → fewshot_retrieval (enhanced mode)
-                                                                                          └─ "error" → handle_error → END
+    schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                                                            ├─ execute → execute_sql → should_continue_after_execute
+                                                                            │                            ├─ answer → generate_answer → END
+                                                                            │                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                            │                            └─ error → handle_error → END
+                                                                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                            └─ error → handle_error → END
 
 노드:
 - schema_retrieval: 질문 분석하여 필요한 테이블 스키마만 로드
-- fewshot_retrieval: Few-shot 예제 검색 (NEW)
-- prompt_build: 스키마 + Few-shot + DB 가이드라인 조합 (NEW)
-- sql_generate: LLM 호출만 수행 (리팩토링)
+- fewshot_retrieval: Few-shot 예제 검색
+- prompt_build: 스키마 + Few-shot + DB 가이드라인 조합
+- sql_generate: LLM 호출만 수행
 - validate_sql: SQL 안전성 및 유효성 검증
 - execute_sql: SQL 실행
 - generate_answer: 결과를 자연어 답변으로 변환
@@ -31,15 +34,15 @@ from app.utils.logger import setup_logger, log_step
 # 노드 함수 import
 from app.graphs.nodes.nl2sql_nodes import (
     schema_retrieval_node,
-    fewshot_retrieval_node,   # NEW
-    prompt_build_node,        # NEW
-    sql_generate_node,        # 리팩토링됨
+    fewshot_retrieval_node,
+    prompt_build_node,
+    sql_generate_node,
     validate_sql_node,
     execute_sql_node,
     generate_answer_node,
     handle_error_node,
     should_execute,
-    should_continue_after_execute,  # NEW: 실행 후 재시도 분기
+    should_continue_after_execute,
 )
 
 logger = setup_logger(__name__)
@@ -62,17 +65,17 @@ class NL2SQLState(TypedDict):
     selected_tables: List[str]           # 선택된 테이블 목록
     schema_retrieval_confidence: float   # 테이블 선택 신뢰도
 
-    # ===== fewshot_retrieval_node 필드 (NEW) =====
+    # ===== fewshot_retrieval_node 필드 =====
     fewshot_context: str                 # 포맷된 Few-shot 예제 문자열
     fewshot_examples: List[Dict]         # 원본 예제 데이터 목록
     fewshot_count: int                   # 검색된 예제 수
 
-    # ===== prompt_build_node 필드 (NEW) =====
+    # ===== prompt_build_node 필드 =====
     sql_prompt: str                      # 완성된 System Prompt
     user_prompt: str                     # User Prompt
     prompt_metadata: Dict[str, Any]      # 프롬프트 메타데이터
 
-    # ===== 재시도 관련 필드 (NEW) =====
+    # ===== 재시도 관련 필드 =====
     retry_count: int                     # 현재 재시도 횟수
     max_retries: int                     # 최대 재시도 횟수
     previous_sql: str                    # 이전 시도 SQL
@@ -110,9 +113,9 @@ class NL2SQLGraph:
 
         # 노드 등록
         workflow.add_node("schema_retrieval", schema_retrieval_node)
-        workflow.add_node("fewshot_retrieval", fewshot_retrieval_node)  # NEW
-        workflow.add_node("prompt_build", prompt_build_node)            # NEW
-        workflow.add_node("sql_generate", sql_generate_node)            # 리팩토링됨
+        workflow.add_node("fewshot_retrieval", fewshot_retrieval_node)
+        workflow.add_node("prompt_build", prompt_build_node)
+        workflow.add_node("sql_generate", sql_generate_node)
         workflow.add_node("validate_sql", validate_sql_node)
         workflow.add_node("execute_sql", execute_sql_node)
         workflow.add_node("generate_answer", generate_answer_node)
@@ -168,15 +171,15 @@ class NL2SQLGraph:
             # schema_retrieval_node 필드
             "selected_tables": [],
             "schema_retrieval_confidence": 0.0,
-            # fewshot_retrieval_node 필드 (NEW)
+            # fewshot_retrieval_node 필드
             "fewshot_context": "",
             "fewshot_examples": [],
             "fewshot_count": 0,
-            # prompt_build_node 필드 (NEW)
+            # prompt_build_node 필드
             "sql_prompt": "",
             "user_prompt": "",
             "prompt_metadata": {},
-            # 재시도 관련 필드 (NEW)
+            # 재시도 관련 필드
             "retry_count": 0,
             "max_retries": inputs.get("max_retries", 2),
             "previous_sql": "",

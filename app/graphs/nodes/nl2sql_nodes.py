@@ -5,7 +5,7 @@ NL2SQL 노드 (NL2SQL Nodes)
 - 스키마 검색 (schema_retrieval_node)
 - Few-shot 예제 검색 (fewshot_retrieval_node) - NEW
 - 프롬프트 빌드 (prompt_build_node) - NEW
-- SQL 생성 (sql_generate_node) - 리팩토링 (LLM 호출만)
+- SQL 생성 (sql_generate_node)
 - SQL 검증 (validate_sql_node)
 - SQL 실행 (execute_sql_node)
 - 답변 생성 (generate_answer_node)
@@ -83,7 +83,7 @@ def _get_schema_loader():
 
 
 # =============================================================================
-# schema_retrieval_node (NEW)
+# schema_retrieval_node
 # =============================================================================
 
 def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
