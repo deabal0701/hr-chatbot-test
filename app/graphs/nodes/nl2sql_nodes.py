@@ -188,7 +188,8 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             result = json.loads(json_str)
             selected_tables = result.get("tables", [])
             confidence = float(result.get("confidence", 0.5))
-            reasoning = result.get("reasoning", "")
+            # LLM 응답의 불필요한 줄바꿈/공백 정리
+            reasoning = " ".join(result.get("reasoning", "").split())
         except json.JSONDecodeError as e:
             log_step(request_id, "NL2SQL", "0.5", "WARN", f"JSON 파싱 실패: {e} → 전체 스키마 사용")
             schema_loader = _get_schema_loader()
@@ -740,6 +741,10 @@ def _is_retryable_error(error: str) -> bool:
         "not found",
         "does not exist",
         "invalid",
+        "ora-00904",  # Oracle: invalid identifier (컬럼 오류)
+        "ora-00942",  # Oracle: table or view does not exist
+        "ora-00936",  # Oracle: missing expression
+        "ora-01747",  # Oracle: invalid column specification
         "컬럼",
         "테이블",
         "존재하지",
@@ -780,6 +785,55 @@ def execute_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["validated"] = False
 
     return state
+
+
+def should_continue_after_execute(state: Dict[str, Any]) -> str:
+    """
+    SQL 실행 후 조건부 분기 함수
+
+    실행 결과에 따라 다음 노드를 결정합니다.
+    실행 오류 발생 시 재시도 가능 여부를 확인하여 분기합니다.
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        "answer" - 실행 성공, 답변 생성으로
+        "retry" - 재시도 가능, enhanced fewshot으로 다시 시도
+        "error" - 최대 재시도 초과 또는 치명적 오류
+    """
+    request_id = state.get("request_id", "unknown")
+    sql_result = state.get("sql_result")
+    validation_error = state.get("validation_error", "")
+    retry_count = state.get("retry_count", 0)
+
+    # 실행 성공 (결과가 있음)
+    if sql_result is not None:
+        log_step(request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → ANSWER (실행 성공)")
+        return "answer"
+
+    # 실행 실패 - 재시도 가능 여부 확인
+    settings_config = _get_settings_config()
+    retry_enabled = settings_config.get_value("nl2sql", "retry_enabled", True)
+    max_retries = settings_config.get_value("nl2sql", "max_retries", 2)
+
+    # 재시도 가능 여부 확인
+    if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
+        log_step(request_id, "NL2SQL", "3x", "BRANCH",
+                f"분기 결정 → RETRY (실행 오류, attempt {retry_count + 1}/{max_retries})")
+        # 재시도를 위한 상태 업데이트
+        state["retry_count"] = retry_count + 1
+        state["previous_sql"] = state.get("generated_sql", "")
+        state["previous_error"] = validation_error
+        state["enhanced_fewshot"] = True
+        state["validated"] = False  # 재시도 시 검증 상태 초기화
+        state["sql_result"] = None
+        return "retry"
+
+    # 최종 실패
+    log_step(request_id, "NL2SQL", "3x", "BRANCH",
+            f"분기 결정 → ERROR (실행 실패, retry_count={retry_count}, max={max_retries})")
+    return "error"
 
 
 def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:

@@ -39,6 +39,7 @@ from app.graphs.nodes.nl2sql_nodes import (
     generate_answer_node,
     handle_error_node,
     should_execute,
+    should_continue_after_execute,  # NEW: 실행 후 재시도 분기
 )
 
 logger = setup_logger(__name__)
@@ -98,7 +99,10 @@ class NL2SQLGraph:
 
         흐름:
         schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                                                                ├─ execute → execute_sql → generate_answer → END
+                                                                                ├─ execute → execute_sql → should_continue_after_execute
+                                                                                │                            ├─ answer → generate_answer → END
+                                                                                │                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                                │                            └─ error → handle_error → END
                                                                                 ├─ retry → fewshot_retrieval (enhanced)
                                                                                 └─ error → handle_error → END
         """
@@ -121,18 +125,28 @@ class NL2SQLGraph:
         workflow.add_edge("prompt_build", "sql_generate")
         workflow.add_edge("sql_generate", "validate_sql")
 
-        # 조건부 분기 (재시도 포함)
+        # 조건부 분기 1: SQL 검증 후 (재시도 포함)
         workflow.add_conditional_edges(
             "validate_sql",
             should_execute,
             {
                 "execute": "execute_sql",
-                "retry": "fewshot_retrieval",  # 재시도: enhanced fewshot으로 다시 시도
+                "retry": "fewshot_retrieval",  # 검증 실패 재시도
                 "error": "handle_error"
             }
         )
 
-        workflow.add_edge("execute_sql", "generate_answer")
+        # 조건부 분기 2: SQL 실행 후 (실행 오류 재시도)
+        workflow.add_conditional_edges(
+            "execute_sql",
+            should_continue_after_execute,
+            {
+                "answer": "generate_answer",
+                "retry": "fewshot_retrieval",  # 실행 오류 재시도
+                "error": "handle_error"
+            }
+        )
+
         workflow.add_edge("generate_answer", END)
         workflow.add_edge("handle_error", END)
 
