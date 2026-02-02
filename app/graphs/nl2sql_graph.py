@@ -4,18 +4,19 @@ NL2SQL 검색 그래프 (LangGraph)
 위치: app/graphs/nl2sql_graph.py
 
 그래프 흐름:
-    generate_sql → validate_sql → should_execute 분기
-                                  ├─ "execute" → execute_sql → generate_answer → END
-                                  └─ "error" → handle_error → END
+    schema_retrieval → generate_sql → validate_sql → should_execute 분기
+                                                      ├─ "execute" → execute_sql → generate_answer → END
+                                                      └─ "error" → handle_error → END
 
 노드:
+- schema_retrieval: 질문 분석하여 필요한 테이블 스키마만 로드 (NEW)
 - generate_sql: 자연어 질문을 SQL로 변환
 - validate_sql: SQL 안전성 및 유효성 검증
 - execute_sql: SQL 실행
 - generate_answer: 결과를 자연어 답변으로 변환
 - handle_error: 오류 처리
 """
-from typing import Any, Dict, TypedDict
+from typing import Any, Dict, List, TypedDict
 import time
 
 from langgraph.graph import END, StateGraph
@@ -26,6 +27,7 @@ from app.utils.logger import setup_logger, log_step
 
 # 노드 함수 import
 from app.graphs.nodes.nl2sql_nodes import (
+    schema_retrieval_node,  # NEW
     generate_sql_node,
     validate_sql_node,
     execute_sql_node,
@@ -39,6 +41,7 @@ logger = setup_logger(__name__)
 
 class NL2SQLState(TypedDict):
     """NL2SQL Graph 상태"""
+    # 기본 필드
     question: str
     schema_description: str
     generated_sql: str
@@ -48,6 +51,10 @@ class NL2SQLState(TypedDict):
     answer: str
     metadata: Dict[str, Any]
     request_id: str
+
+    # schema_retrieval_node 필드 (NEW)
+    selected_tables: List[str]           # 선택된 테이블 목록
+    schema_retrieval_confidence: float   # 테이블 선택 신뢰도
 
 
 class NL2SQLGraph:
@@ -66,13 +73,16 @@ class NL2SQLGraph:
         workflow = StateGraph(NL2SQLState)
 
         # 외부 노드 함수 사용
+        workflow.add_node("schema_retrieval", schema_retrieval_node)  # NEW
         workflow.add_node("generate_sql", generate_sql_node)
         workflow.add_node("validate_sql", validate_sql_node)
         workflow.add_node("execute_sql", execute_sql_node)
         workflow.add_node("generate_answer", generate_answer_node)
         workflow.add_node("handle_error", handle_error_node)
-
-        workflow.set_entry_point("generate_sql")
+    
+        # 흐름 정의 (schema_retrieval → generate_sql → ...)
+        workflow.set_entry_point("schema_retrieval")  # 변경: generate_sql → schema_retrieval
+        workflow.add_edge("schema_retrieval", "generate_sql")  # NEW
         workflow.add_edge("generate_sql", "validate_sql")
 
         workflow.add_conditional_edges(
@@ -101,7 +111,10 @@ class NL2SQLGraph:
             "sql_result": None,
             "answer": "",
             "metadata": {},
-            "request_id": inputs.get("request_id", "unknown")
+            "request_id": inputs.get("request_id", "unknown"),
+            # schema_retrieval_node 필드 (NEW)
+            "selected_tables": [],
+            "schema_retrieval_confidence": 0.0,
         }
 
     def _build_response(self, result: NL2SQLState, response_time_ms: int = 0) -> SearchResponse:

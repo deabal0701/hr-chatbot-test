@@ -237,17 +237,34 @@ class SchemaLoaderService:
                 return table
         return {}
 
-    def generate_schema_description(self) -> str:
+    def generate_schema_description(self, tables: list = None) -> str:
         """
         LLM용 스키마 설명 생성 (자연어 형태)
         NL2SQL에서 프롬프트에 포함할 텍스트
+
+        Args:
+            tables: 포함할 테이블 목록 (None이면 전체)
+
+        Returns:
+            스키마 설명 문자열
         """
         schema = self.load_schema_metadata()
         db_type = schema.get('db_type', 'postgresql')
 
+        # 테이블 필터링(필터링이 필요한 테이블이 존재하는 경우)
+        if tables:
+            tables_lower = {t.lower() for t in tables}
+            target_tables = [
+                t for t in schema['tables']
+                if t['name'].lower() in tables_lower
+            ]
+            logger.info(f"스키마 필터링: {len(schema['tables'])}개 → {len(target_tables)}개 (선택: {tables})")
+        else:
+            target_tables = schema['tables']
+
         description = f"# 데이터베이스 스키마 ({db_type.upper()})\n\n"
 
-        for table in schema['tables']:
+        for table in target_tables:
             description += f"## 테이블: {table['name']}\n"
 
             # 컬럼 정보

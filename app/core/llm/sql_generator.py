@@ -121,7 +121,8 @@ class SQLGeneratorService:
         self,
         question: str,
         request_id: str = "unknown",
-        temperature: float = 0
+        temperature: float = 0,
+        schema_description: str = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
         자연어 → SQL 변환 (공통 로직)
@@ -130,6 +131,7 @@ class SQLGeneratorService:
             question: 사용자 자연어 질문
             request_id: 요청 추적 ID
             temperature: LLM 온도 (기본값 0, deterministic)
+            schema_description: 미리 생성된 스키마 설명 (None이면 전체 로드)
 
         Returns:
             (sql, metadata) 튜플
@@ -145,8 +147,13 @@ class SQLGeneratorService:
         metadata: Dict[str, Any] = {}
 
         try:
-            # 1. 스키마 로드 (캐싱)
-            schema_description = self.get_schema_description()
+            # 1. 스키마 로드 (전달받은 스키마 우선 사용)
+            if schema_description:
+                # schema_retrieval_node에서 전달받은 스키마 사용
+                log_step(request_id, "SQL-GEN", "0", "SCHEMA", "선택적 스키마 사용", schema_length=len(schema_description))
+            else:
+                # 전체 스키마 로드 (기존 동작)
+                schema_description = self.get_schema_description()
             metadata["schema_length"] = len(schema_description)
 
             # 2. DB 타입 감지

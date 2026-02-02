@@ -2,6 +2,7 @@
 NL2SQL 노드 (NL2SQL Nodes)
 
 기능:
+- 스키마 검색 (schema_retrieval_node)
 - SQL 생성 (generate_sql_node)
 - SQL 검증 (validate_sql_node)
 - SQL 실행 (execute_sql_node)
@@ -11,7 +12,7 @@ NL2SQL 노드 (NL2SQL Nodes)
 
 사용:
 - NL2SQLGraph 클래스의 노드로 사용
-- generate_sql → validate_sql → should_execute 분기 → execute_sql → generate_answer 순서로 실행
+- schema_retrieval → generate_sql → validate_sql → should_execute 분기 → execute_sql → generate_answer 순서로 실행
 """
 from typing import Dict, Any
 import logging
@@ -51,25 +52,223 @@ def _get_llm():
     return LLMConfigManager.create_llm(temperature=0)
 
 
+def _get_lightweight_llm():
+    """
+    테이블 선택용 경량 LLM 인스턴스 생성
+
+    schema_retrieval_node에서 사용 (비용 절감)
+    
+    필요시 경량 LLM을 사용할 수 있음.(현재는 동일 LLM을 사용하도록 처리함.)
+    """
+    settings_config = _get_settings_config()
+    model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4o-mini")
+    return LLMConfigManager.create_llm(temperature=0, model=model)
+
+
+def _get_table_catalog_service():
+    """table_catalog_service 지연 로드"""
+    from app.core.database.table_catalog import table_catalog_service
+    return table_catalog_service
+
+
+def _get_schema_loader():
+    """schema_loader 지연 로드"""
+    from app.core.database.schema_loader import schema_loader
+    return schema_loader
+
+
+# =============================================================================
+# schema_retrieval_node (NEW)
+# =============================================================================
+
+def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    스키마 검색 노드 (Schema Retrieval Node)
+
+    질문을 분석하여 필요한 테이블을 선택하고,
+    해당 테이블의 스키마만 로드합니다.
+
+    처리 흐름:
+    1. 테이블 카탈로그 조회 (이름 + 설명 + 컬럼)
+    2. 경량 LLM으로 관련 테이블 선택 (JSON 응답)
+    3. FK 관계 테이블 자동 포함
+    4. 선택된 테이블 스키마만 로드
+    5. 신뢰도 낮으면 전체 스키마 fallback
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        updated state with:
+        - selected_tables: List[str]
+        - schema_retrieval_confidence: float
+        - schema_description: str
+    """
+    question = state["question"]
+    request_id = state.get("request_id", "unknown")
+
+    log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "스키마 검색 시작", question=truncate_text(question, 40))
+
+    # 설정 조회
+    settings_config = _get_settings_config()
+    enabled = settings_config.get_value("nl2sql", "schema_retrieval_enabled", True)
+    confidence_threshold = settings_config.get_value("nl2sql", "schema_retrieval_confidence_threshold", 0.7)
+
+    # 비활성화된 경우 전체 스키마 사용
+    if not enabled:
+        log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "스키마 검색 비활성화 → 전체 스키마 사용")
+        schema_loader = _get_schema_loader()
+        return {
+            "selected_tables": [],
+            "schema_retrieval_confidence": 1.0,
+            "schema_description": schema_loader.generate_schema_description(),
+        }
+
+    try:
+        # 1. 테이블 카탈로그 조회
+        catalog_service = _get_table_catalog_service()
+        table_summary = catalog_service.get_table_summary_for_llm()
+
+        # 2. 경량 LLM으로 테이블 선택
+        llm = _get_lightweight_llm()
+
+        system_prompt = """당신은 SQL 전문가입니다.
+사용자 질문에 필요한 테이블을 선택하세요.
+
+{table_summary}
+
+## 응답 형식 (반드시 JSON으로)
+{{"tables": ["테이블1", "테이블2"], "reasoning": "선택 이유", "confidence": 0.9}}
+
+## 규칙
+- 필요한 테이블만 선택 (최소한으로)
+- v_ai_employee는 대부분의 질문에 필요합니다
+- 1:N 관계 테이블 조인 시 v_ai_employee 포함 필수
+- confidence: 확신도 (0.0~1.0)
+"""
+
+        user_prompt = f"질문: {question}\n\n위 질문에 필요한 테이블을 JSON 형식으로 응답하세요."
+
+        messages = [
+            SystemMessage(content=system_prompt.format(table_summary=table_summary)),
+            HumanMessage(content=user_prompt)
+        ]
+
+        log_step(request_id, "NL2SQL", "0.5a", "LLM-INPUT", "경량 LLM 호출 (테이블 선택)")
+
+        response = llm.invoke(messages)
+
+        # response.content가 list일 수 있음 (일부 모델)
+        content = response.content
+        if isinstance(content, list):
+            response_text = " ".join(str(item) for item in content).strip()
+        else:
+            response_text = str(content).strip()
+
+        log_step(request_id, "NL2SQL", "0.5b", "LLM-OUTPUT", "LLM 응답 수신", response_length=len(response_text))
+
+        # 3. JSON 파싱
+        import json
+        import re
+
+        # JSON 블록 추출 (```json ... ``` 또는 { ... })
+        json_match = re.search(r'\{[^{}]*"tables"[^{}]*\}', response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
+        else:
+            # 전체 응답이 JSON인 경우
+            json_str = response_text
+
+        try:
+            result = json.loads(json_str)
+            selected_tables = result.get("tables", [])
+            confidence = float(result.get("confidence", 0.5))
+            reasoning = result.get("reasoning", "")
+        except json.JSONDecodeError as e:
+            log_step(request_id, "NL2SQL", "0.5", "WARN", f"JSON 파싱 실패: {e} → 전체 스키마 사용")
+            schema_loader = _get_schema_loader()
+            return {
+                "selected_tables": [],
+                "schema_retrieval_confidence": 0.0,
+                "schema_description": schema_loader.generate_schema_description(),
+            }
+
+        # 4. FK 관계 테이블 자동 포함
+        all_tables = catalog_service.get_related_tables(selected_tables)
+
+        log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL",
+                f"테이블 선택 완료: {list(all_tables)}, confidence={confidence}", reasoning=truncate_text(reasoning, 50))
+
+        # 5. 신뢰도 체크 (낮으면 전체 스키마)
+        schema_loader = _get_schema_loader()
+
+        if confidence < confidence_threshold:
+            log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL",
+                    f"신뢰도 낮음 ({confidence} < {confidence_threshold}) → 전체 스키마 사용")
+            return {
+                "selected_tables": [],
+                "schema_retrieval_confidence": confidence,
+                "schema_description": schema_loader.generate_schema_description(),
+            }
+
+        # 6. 선택된 테이블 스키마만 로드
+        schema_description = schema_loader.generate_schema_description(tables=list(all_tables))
+
+        log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL",
+                f"선택적 스키마 로드 완료 (테이블 {len(all_tables)}개)", schema_length=len(schema_description))
+
+        return {
+            "selected_tables": list(all_tables),
+            "schema_retrieval_confidence": confidence,
+            "schema_description": schema_description,
+        }
+
+    except Exception as e:
+        log_step(request_id, "NL2SQL", "0.5", "ERROR", f"스키마 검색 실패: {e} → 전체 스키마 사용", level="ERROR")
+        schema_loader = _get_schema_loader()
+        return {
+            "selected_tables": [],
+            "schema_retrieval_confidence": 0.0,
+            "schema_description": schema_loader.generate_schema_description(),
+        }
+
+
+# =============================================================================
+# generate_sql_node (기존)
+# =============================================================================
+
+
 def generate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     SQL 생성 노드
 
     사용자 질문을 SQL 쿼리로 변환합니다.
+    schema_retrieval_node에서 준비한 스키마를 사용합니다.
 
     Args:
         state: NL2SQLState (Dict 형태로 전달)
 
     Returns:
-        업데이트된 state (generated_sql, schema_description, metadata 필드 채움)
+        업데이트된 state (generated_sql, metadata 필드 채움)
     """
     question = state["question"]
     request_id = state.get("request_id", "unknown")
 
-    log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작", question=truncate_text(question, 40))
+    # schema_retrieval_node에서 준비한 스키마 사용
+    schema_description = state.get("schema_description", "")
+    selected_tables = state.get("selected_tables", [])
+
+    log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작",
+            question=truncate_text(question, 40),
+            selected_tables=len(selected_tables) if selected_tables else "all")
 
     try:
-        sql, gen_metadata = sql_generator.generate_sql(question, request_id)
+        # schema_description을 전달 (있으면 사용, 없으면 sql_generator가 전체 로드)
+        sql, gen_metadata = sql_generator.generate_sql(
+            question,
+            request_id,
+            schema_description=schema_description if schema_description else None
+        )
 
         if sql:
             state["generated_sql"] = sql
