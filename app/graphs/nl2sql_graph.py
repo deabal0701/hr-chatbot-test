@@ -7,9 +7,9 @@ NL2SQL 검색 그래프 (LangGraph)
     schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
                                                                             ├─ execute → execute_sql → should_continue_after_execute
                                                                             │                            ├─ answer → generate_answer → END
-                                                                            │                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                            │                            ├─ retry → prepare_retry → fewshot_retrieval (enhanced)
                                                                             │                            └─ error → handle_error → END
-                                                                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                            ├─ retry → prepare_retry → fewshot_retrieval (enhanced)
                                                                             └─ error → handle_error → END
 
 노드:
@@ -21,6 +21,7 @@ NL2SQL 검색 그래프 (LangGraph)
 - execute_sql: SQL 실행
 - generate_answer: 결과를 자연어 답변으로 변환
 - handle_error: 오류 처리
+- prepare_retry: 재시도 상태 업데이트 (retry_count 증가)
 """
 from typing import Any, Dict, List, Optional, TypedDict
 import time
@@ -41,6 +42,7 @@ from app.graphs.nodes.nl2sql_nodes import (
     execute_sql_node,
     generate_answer_node,
     handle_error_node,
+    prepare_retry_node,
     should_execute,
     should_continue_after_execute,
 )
@@ -104,9 +106,9 @@ class NL2SQLGraph:
         schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
                                                                                 ├─ execute → execute_sql → should_continue_after_execute
                                                                                 │                            ├─ answer → generate_answer → END
-                                                                                │                            ├─ retry → fewshot_retrieval (enhanced)
+                                                                                │                            ├─ retry → prepare_retry → fewshot_retrieval
                                                                                 │                            └─ error → handle_error → END
-                                                                                ├─ retry → fewshot_retrieval (enhanced)
+                                                                                ├─ retry → prepare_retry → fewshot_retrieval
                                                                                 └─ error → handle_error → END
         """
         workflow = StateGraph(NL2SQLState)
@@ -120,6 +122,7 @@ class NL2SQLGraph:
         workflow.add_node("execute_sql", execute_sql_node)
         workflow.add_node("generate_answer", generate_answer_node)
         workflow.add_node("handle_error", handle_error_node)
+        workflow.add_node("prepare_retry", prepare_retry_node)
 
         # 순차 실행 흐름 정의
         workflow.set_entry_point("schema_retrieval")
@@ -134,7 +137,7 @@ class NL2SQLGraph:
             should_execute,
             {
                 "execute": "execute_sql",
-                "retry": "fewshot_retrieval",  # 검증 실패 재시도
+                "retry": "prepare_retry",  # 검증 실패 → 재시도 준비 → fewshot
                 "error": "handle_error"
             }
         )
@@ -145,10 +148,13 @@ class NL2SQLGraph:
             should_continue_after_execute,
             {
                 "answer": "generate_answer",
-                "retry": "fewshot_retrieval",  # 실행 오류 재시도
+                "retry": "prepare_retry",  # 실행 오류 → 재시도 준비 → fewshot
                 "error": "handle_error"
             }
         )
+
+        # prepare_retry → fewshot_retrieval
+        workflow.add_edge("prepare_retry", "fewshot_retrieval")
 
         workflow.add_edge("generate_answer", END)
         workflow.add_edge("handle_error", END)

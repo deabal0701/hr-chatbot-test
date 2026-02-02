@@ -228,6 +228,7 @@ class SQLExecutorService:
             if token.value == '(':
                 parenthesis_depth += 1
                 just_closed_paren = False
+                from_seen = False  # 서브쿼리 시작 시 from_seen 리셋 (서브쿼리 내부 컬럼을 테이블로 잘못 인식 방지)
                 continue
             elif token.value == ')':
                 parenthesis_depth -= 1
@@ -340,46 +341,6 @@ class SQLExecutorService:
             execution_time_ms = int((time.time() - start_time) * 1000)
             logger.error(f"SQL 실행 실패: {e}, sql={sql}")
             raise SQLExecutionError(f"SQL 실행 오류: {str(e)}")
-
-    def explain_sql(self, sql: str) -> Dict[str, Any]:
-        """SQL EXPLAIN 분석 (DB 타입에 따라 다른 EXPLAIN 사용)"""
-        external_db_manager = _get_external_db_manager()
-        adapter = external_db_manager.get_adapter()
-        try:
-            with external_db_manager.get_cursor() as cur:
-                explain_query = adapter.get_explain_query(sql)
-                cur.execute(explain_query)
-                result = cur.fetchone()
-
-                # DB 타입별 결과 처리
-                db_type = external_db_manager.get_db_type()
-                if db_type == "oracle":
-                    # Oracle은 PLAN_TABLE에 결과 저장, 별도 쿼리 필요
-                    cur.execute("SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY())")
-                    rows = cur.fetchall()
-                    return {"plan": [str(row) for row in rows]}
-                else:
-                    # PostgreSQL: JSON 형식 반환
-                    if result and isinstance(result, dict):
-                        return result.get('QUERY PLAN', {})
-                    return {}
-        except Exception as e:
-            logger.error(f"EXPLAIN 실패: {e}")
-            return {"error": str(e)}
-
-    def get_query_cost(self, sql: str) -> Optional[float]:
-        """쿼리 비용 추정"""
-        explain_result = self.explain_sql(sql)
-        if 'error' in explain_result:
-            return None
-
-        try:
-            if isinstance(explain_result, list) and len(explain_result) > 0:
-                plan = explain_result[0].get('Plan', {})
-                return plan.get('Total Cost')
-            return None
-        except (KeyError, IndexError, AttributeError):
-            return None
 
 
 # 싱글톤 인스턴스

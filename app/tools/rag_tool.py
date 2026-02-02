@@ -238,33 +238,6 @@ Examples:
 
         return formatted
 
-    def _hybrid_search(
-        self,
-        question: str,
-        top_k: int,
-        filters: Optional[SearchFilters]
-    ) -> List:
-        """
-        하이브리드 검색 (확장 기능)
-
-        벡터 검색 + 키워드 검색 결합
-        TODO: 추후 구현
-        """
-        # 1. 벡터 검색
-        vector_results = vector_store.search_similar_documents(
-            query=question,
-            top_k=top_k * 2,  # 더 많이 가져와서 리랭킹
-            filters=filters
-        )
-
-        # 2. 키워드 검색 (TODO: 구현)
-        # keyword_results = keyword_search(question, top_k * 2)
-
-        # 3. 결과 합치기 및 리랭킹 (TODO: Cross-encoder)
-        # combined = rerank(vector_results, keyword_results)
-
-        return vector_results[:top_k]
-
 
 # LangChain tool 래퍼
 @tool

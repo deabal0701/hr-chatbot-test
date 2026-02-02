@@ -5,7 +5,7 @@ NL2SQL 노드 (NL2SQL Nodes)
 - 스키마 검색 (schema_retrieval_node)
 - Few-shot 예제 검색 (fewshot_retrieval_node) - NEW
 - 프롬프트 빌드 (prompt_build_node) - NEW
-- SQL 생성 (sql_generate_node)
+- SQL 생성 (sql_generate_node) - 리팩토링 (LLM 호출만)
 - SQL 검증 (validate_sql_node)
 - SQL 실행 (execute_sql_node)
 - 답변 생성 (generate_answer_node)
@@ -27,7 +27,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.config import settings
 from app.core.llm.llm_config import LLMConfigManager
 from app.core.llm.prompt_service import prompt_service
-from app.core.llm.sql_generator import sql_generator
 from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text
@@ -66,7 +65,7 @@ def _get_lightweight_llm():
     필요시 경량 LLM을 사용할 수 있음.(현재는 동일 LLM을 사용하도록 처리함.)
     """
     settings_config = _get_settings_config()
-    model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4.1-mini")
+    model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4.1-nano")
     return LLMConfigManager.create_llm(temperature=0, model=model)
 
 
@@ -83,7 +82,7 @@ def _get_schema_loader():
 
 
 # =============================================================================
-# schema_retrieval_node
+# schema_retrieval_node (NEW)
 # =============================================================================
 
 def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -561,69 +560,6 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-# =============================================================================
-# generate_sql_node (기존 - deprecated, 호환성 유지)
-# =============================================================================
-
-
-def generate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    SQL 생성 노드
-
-    사용자 질문을 SQL 쿼리로 변환합니다.
-    schema_retrieval_node에서 준비한 스키마를 사용합니다.
-
-    Args:
-        state: NL2SQLState (Dict 형태로 전달)
-
-    Returns:
-        업데이트된 state (generated_sql, metadata 필드 채움)
-    """
-    question = state["question"]
-    request_id = state.get("request_id", "unknown")
-
-    # schema_retrieval_node에서 준비한 스키마 사용
-    schema_description = state.get("schema_description", "")
-    selected_tables = state.get("selected_tables", [])
-
-    log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작",
-            question=truncate_text(question, 40),
-            selected_tables=len(selected_tables) if selected_tables else "all")
-
-    try:
-        # schema_description을 전달 (있으면 사용, 없으면 sql_generator가 전체 로드)
-        sql, gen_metadata = sql_generator.generate_sql(
-            question,
-            request_id,
-            schema_description=schema_description if schema_description else None
-        )
-
-        if sql:
-            state["generated_sql"] = sql
-            state["schema_description"] = sql_generator.get_schema_description()
-            state["metadata"] = {
-                "llm_model": gen_metadata.get("llm_model"),
-                "db_type": gen_metadata.get("db_type"),
-                "sql_dialect": gen_metadata.get("sql_dialect")
-            }
-            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
-            log_step(request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
-        else:
-            error_msg = gen_metadata.get("error", "SQL 생성 실패")
-            state["generated_sql"] = ""
-            state["validation_error"] = f"SQL 생성 오류: {error_msg}"
-            state["validated"] = False
-            log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {error_msg}", level="ERROR")
-
-    except Exception as e:
-        log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
-        state["generated_sql"] = ""
-        state["validation_error"] = f"SQL 생성 오류: {str(e)}"
-        state["validated"] = False
-
-    return state
-
-
 def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     SQL 검증 노드
@@ -701,11 +637,7 @@ def should_execute(state: Dict[str, Any]) -> str:
     if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
         log_step(request_id, "NL2SQL", "2x", "BRANCH",
                 f"분기 결정 → RETRY (attempt {retry_count + 1}/{max_retries})")
-        # 재시도를 위한 상태 업데이트
-        state["retry_count"] = retry_count + 1
-        state["previous_sql"] = state.get("generated_sql", "")
-        state["previous_error"] = validation_error
-        state["enhanced_fewshot"] = True
+        # 상태 업데이트는 prepare_retry_node에서 수행
         return "retry"
 
     # 최종 실패
@@ -752,6 +684,41 @@ def _is_retryable_error(error: str) -> bool:
     ]
     error_lower = error.lower()
     return any(pattern in error_lower for pattern in retryable_patterns)
+
+
+def prepare_retry_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    재시도 준비 노드
+
+    재시도 시 필요한 상태를 업데이트합니다.
+    조건부 분기 함수에서는 상태 업데이트가 불가능하므로,
+    별도 노드에서 상태를 업데이트합니다.
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        업데이트된 state (retry_count, previous_sql, previous_error, enhanced_fewshot 등)
+    """
+    request_id = state.get("request_id", "unknown")
+    retry_count = state.get("retry_count", 0)
+    validation_error = state.get("validation_error", "")
+    generated_sql = state.get("generated_sql", "")
+
+    new_retry_count = retry_count + 1
+
+    log_step(request_id, "NL2SQL", "2r", "PREPARE-RETRY",
+            f"재시도 준비 | retry_count={retry_count} → {new_retry_count}")
+
+    return {
+        "retry_count": new_retry_count,
+        "previous_sql": generated_sql,
+        "previous_error": validation_error,
+        "enhanced_fewshot": True,
+        "validated": False,
+        "sql_result": None,
+        "generated_sql": "",
+    }
 
 
 def execute_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -821,13 +788,7 @@ def should_continue_after_execute(state: Dict[str, Any]) -> str:
     if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
         log_step(request_id, "NL2SQL", "3x", "BRANCH",
                 f"분기 결정 → RETRY (실행 오류, attempt {retry_count + 1}/{max_retries})")
-        # 재시도를 위한 상태 업데이트
-        state["retry_count"] = retry_count + 1
-        state["previous_sql"] = state.get("generated_sql", "")
-        state["previous_error"] = validation_error
-        state["enhanced_fewshot"] = True
-        state["validated"] = False  # 재시도 시 검증 상태 초기화
-        state["sql_result"] = None
+        # 상태 업데이트는 prepare_retry_node에서 수행
         return "retry"
 
     # 최종 실패

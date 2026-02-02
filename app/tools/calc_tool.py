@@ -250,16 +250,6 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
 
         raise ValueError(f"Expression type {type(node).__name__} not allowed")
 
-    def add_custom_function(self, name: str, func: callable):
-        """
-        커스텀 함수 추가 (확장 포인트)
-
-        Example:
-            calculator.add_custom_function("mean", statistics.mean)
-        """
-        self.ALLOWED_FUNCTIONS[name] = func
-        log_step("SYSTEM", "TOOL", self.name, "REGISTER", f"커스텀 함수 등록: {name}")
-
 
 # LangChain tool 래퍼
 @tool

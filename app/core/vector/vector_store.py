@@ -188,16 +188,19 @@ class VectorStoreService:
         else:
             distance_operator = "<=>"  # 코사인 거리 (기본값)
 
-        # 벡터 검색 쿼리
+        # 벡터 검색 쿼리 (서브쿼리로 거리 계산 1회만 수행)
         query_sql = f"""
-            SELECT id, title, doc_type, content, context_data, metadata, language, embedding {distance_operator} %s AS distance
-            FROM tb_docs
-            {where_clause}
-            ORDER BY embedding {distance_operator} %s
+            SELECT id, title, doc_type, content, context_data, metadata, language, distance
+            FROM (
+                SELECT id, title, doc_type, content, context_data, metadata, language, embedding {distance_operator} %s AS distance
+                FROM tb_docs
+                {where_clause}
+            ) subq
+            ORDER BY distance
             LIMIT %s
         """
 
-        query_params = [query_embedding_array] + filter_params + [query_embedding_array, top_k]
+        query_params = [query_embedding_array] + filter_params + [top_k]
 
         db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
