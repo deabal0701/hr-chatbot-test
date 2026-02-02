@@ -1,9 +1,9 @@
 """
-NL2SQL 검색 그래프 (LangGraph) - 방안 C
+NL2SQL 검색 그래프 (LangGraph)
 
 위치: app/graphs/nl2sql_graph.py
 
-그래프 흐름 (방안 C):
+그래프 흐름:
     schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql → should_execute 분기
                                                                                           ├─ "execute" → execute_sql → generate_answer → END
                                                                                           ├─ "retry" → fewshot_retrieval (enhanced mode)
@@ -46,7 +46,7 @@ logger = setup_logger(__name__)
 
 
 class NL2SQLState(TypedDict):
-    """NL2SQL Graph 상태 (방안 C 확장)"""
+    """NL2SQL Graph 상태"""
     # ===== 기본 필드 =====
     question: str
     schema_description: str
@@ -81,7 +81,7 @@ class NL2SQLState(TypedDict):
 
 
 class NL2SQLGraph:
-    """NL2SQL 검색 그래프 (LangGraph) - 방안 C
+    """NL2SQL 검색 그래프 (LangGraph)
 
     엔터프라이즈급 NL2SQL 시스템
     - SRP 준수: 각 노드가 단일 책임
@@ -95,7 +95,7 @@ class NL2SQLGraph:
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
-        """그래프 구성 (방안 C)
+        """그래프 구성
 
         흐름:
         schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
@@ -153,7 +153,7 @@ class NL2SQLGraph:
         return workflow.compile()
 
     def _prepare_initial_state(self, inputs: Dict[str, Any]) -> NL2SQLState:
-        """초기 상태 준비 (방안 C 확장)"""
+        """초기 상태 준비"""
         return {
             # 기본 필드
             "question": inputs["question"],

@@ -1,5 +1,5 @@
 """
-NL2SQL 노드 (NL2SQL Nodes) - 방안 C
+NL2SQL 노드 (NL2SQL Nodes)
 
 기능:
 - 스키마 검색 (schema_retrieval_node)
@@ -240,13 +240,13 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # =============================================================================
-# fewshot_retrieval_node (NEW - 방안 C)
+# fewshot_retrieval_node
 # =============================================================================
 
 
 def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Few-shot 예제 검색 노드 (NEW - 방안 C)
+    Few-shot 예제 검색 노드
 
     Vector Store에서 유사한 쿼리 예제를 검색하여
     SQL 생성 시 참조할 수 있는 컨텍스트를 제공합니다.
@@ -350,13 +350,13 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # =============================================================================
-# prompt_build_node (NEW - 방안 C)
+# prompt_build_node
 # =============================================================================
 
 
 def prompt_build_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    프롬프트 빌드 노드 (NEW - 방안 C)
+    프롬프트 빌드 노드
 
     스키마, Few-shot 예제, DB 가이드라인을 조합하여
     완성된 SQL 생성 프롬프트를 구성합니다.
@@ -456,13 +456,13 @@ SQL만 출력하세요 (설명 없이)."""
 
 
 # =============================================================================
-# sql_generate_node (리팩토링 - 방안 C: LLM 호출만)
+# sql_generate_node (LLM 호출만)
 # =============================================================================
 
 
 def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    SQL 생성 노드 (리팩토링 - 방안 C)
+    SQL 생성 노드
 
     prompt_build_node에서 준비된 프롬프트로 LLM을 호출하여 SQL을 생성합니다.
 
@@ -669,7 +669,7 @@ def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 def should_execute(state: Dict[str, Any]) -> str:
     """
-    조건부 분기 함수 (재시도 지원 - 방안 C)
+    조건부 분기 함수 (재시도 지원)
 
     SQL 검증 성공 여부에 따라 다음 노드를 결정합니다.
     검증 실패 시 재시도 가능 여부를 확인하여 분기합니다.

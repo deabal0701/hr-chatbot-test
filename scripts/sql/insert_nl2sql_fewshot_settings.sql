@@ -1,5 +1,5 @@
 -- =============================================================================
--- NL2SQL 방안 C 설정 (스키마 검색 + Few-shot + 재시도)
+-- NL2SQL 설정 (스키마 검색 + Few-shot + 재시도)
 -- =============================================================================
 -- 실행: psql -U hermesuser -d hermesdb -f insert_nl2sql_fewshot_settings.sql
 --
@@ -10,7 +10,7 @@
 --   - string
 -- =============================================================================
 
--- 스키마 검색 관련 설정 (방안 C)
+-- 스키마 검색 관련 설정
 INSERT INTO tb_app_settings (category, key, value, value_type, description, created_at, updated_at)
 VALUES
     ('nl2sql', 'schema_retrieval_enabled', 'true', 'bool', '스키마 선택 기능 활성화 (비활성화 시 전체 스키마 사용)', NOW(), NOW()),
@@ -22,7 +22,7 @@ ON CONFLICT (category, key) DO UPDATE SET
     description = EXCLUDED.description,
     updated_at = NOW();
 
--- Few-shot 관련 설정 (방안 C)
+-- Few-shot 관련 설정
 INSERT INTO tb_app_settings (category, key, value, value_type, description, created_at, updated_at)
 VALUES
     ('nl2sql', 'fewshot_enabled', 'true', 'bool', 'Few-shot 예제 검색 활성화', NOW(), NOW()),
@@ -34,7 +34,7 @@ ON CONFLICT (category, key) DO UPDATE SET
     description = EXCLUDED.description,
     updated_at = NOW();
 
--- 재시도 관련 설정 (방안 C)
+-- 재시도 관련 설정
 INSERT INTO tb_app_settings (category, key, value, value_type, description, created_at, updated_at)
 VALUES
     ('nl2sql', 'retry_enabled', 'true', 'bool', 'SQL 재시도 기능 활성화', NOW(), NOW()),
