@@ -3,14 +3,14 @@ NL2SQL 노드 (NL2SQL Nodes)
 
 기능:
 - 스키마 검색 (schema_retrieval_node)
-- Few-shot 예제 검색 (fewshot_retrieval_node) - NEW
-- 프롬프트 빌드 (prompt_build_node) - NEW
-- SQL 생성 (sql_generate_node) - 리팩토링 (LLM 호출만)
+- Few-shot 예제 검색 (fewshot_retrieval_node)
+- 프롬프트 빌드 (prompt_build_node)
+- SQL 생성 (sql_generate_node)
 - SQL 검증 (validate_sql_node)
 - SQL 실행 (execute_sql_node)
 - 답변 생성 (generate_answer_node)
 - 에러 처리 (handle_error_node)
-- 분기 판단 (should_execute) - 재시도 지원
+- 분기 판단 (should_execute, should_continue_after_execute)
 
 사용:
 - NL2SQLGraph 클래스의 노드로 사용
@@ -61,7 +61,7 @@ def _get_lightweight_llm():
     테이블 선택용 경량 LLM 인스턴스 생성
 
     schema_retrieval_node에서 사용 (비용 절감)
-    
+
     필요시 경량 LLM을 사용할 수 있음.(현재는 동일 LLM을 사용하도록 처리함.)
     """
     settings_config = _get_settings_config()
@@ -82,7 +82,7 @@ def _get_schema_loader():
 
 
 # =============================================================================
-# schema_retrieval_node (NEW)
+# schema_retrieval_node
 # =============================================================================
 
 def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:

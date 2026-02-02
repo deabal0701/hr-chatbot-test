@@ -280,7 +280,7 @@ app/
 │       ├── agent_nodes.py     # intent_analysis_node, context_retrieval_node
 │       ├── nl2sql_nodes.py    # NL2SQL 노드 함수들
 │       └── rag_nodes.py       # RAG 노드 함수들
-├── tools/                     # AI Agent tools
+├── graphs/agent/tools/        # AI Agent tools (ReAct 패턴에서만 사용)
 │   ├── base.py                # BaseTool class with hooks
 │   ├── sql_tool.py            # SQL query tool
 │   ├── rag_tool.py            # Document search tool
@@ -457,8 +457,8 @@ workflow.add_edge("prev_node", "new_node")
 ### Adding a New AI Agent Tool
 
 ```python
-# 1. Create tool class in app/tools/new_tool.py
-from app.tools.base import BaseTool, ToolResult
+# 1. Create tool class in app/graphs/agent/tools/new_tool.py
+from app.graphs.agent.tools.base import BaseTool, ToolResult
 from langchain_core.tools import tool
 
 class NewTool(BaseTool):
@@ -478,7 +478,7 @@ def new_tool_func(param1: str) -> str:
     result = tool_instance.execute(param1=param1)
     return str(result.data) if result.success else f"Error: {result.error}"
 
-# 3. Register in app/graphs/agent_graph.py _get_tools()
+# 3. Register in app/graphs/agent/nodes/agent_node.py _get_tools()
 ```
 
 ### Adding Dynamic Settings

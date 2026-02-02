@@ -6,7 +6,8 @@
 """
 from typing import Optional
 
-from app.graphs.rag_graph import rag_graph
+# 새 위치: app/graphs/rag/
+from app.graphs.rag.graph import rag_graph
 from app.models.search import SearchFilters, SearchResponse
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text

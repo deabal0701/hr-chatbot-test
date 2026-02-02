@@ -231,9 +231,9 @@ async def list_tools():
     - 도구별 성공률
     """
     try:
-        from app.tools.sql_tool import SQLQueryTool
-        from app.tools.rag_tool import DocumentSearchTool
-        from app.tools.calc_tool import CalculatorTool
+        from app.graphs.agent.tools.sql_tool import SQLQueryTool
+        from app.graphs.agent.tools.rag_tool import DocumentSearchTool
+        from app.graphs.agent.tools.calc_tool import CalculatorTool
 
         tools_info = []
 
@@ -283,9 +283,9 @@ async def test_tool(
     - 성능 프로파일링
     """
     try:
-        from app.tools.sql_tool import SQLQueryTool
-        from app.tools.rag_tool import DocumentSearchTool
-        from app.tools.calc_tool import CalculatorTool
+        from app.graphs.agent.tools.sql_tool import SQLQueryTool
+        from app.graphs.agent.tools.rag_tool import DocumentSearchTool
+        from app.graphs.agent.tools.calc_tool import CalculatorTool
 
         tool_map = {
             "query_database_tool": SQLQueryTool,

@@ -1,7 +1,7 @@
 """
 RAG 검색 그래프 (LangGraph)
 
-위치: app/graphs/rag_graph.py
+위치: app/graphs/rag/graph.py
 
 그래프 흐름:
     retrieve → generate_answer → END
@@ -10,33 +10,24 @@ RAG 검색 그래프 (LangGraph)
 - retrieve: 벡터 검색으로 유사 문서 검색
 - generate_answer: LLM을 사용하여 답변 생성
 """
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict
+import time
 
 from langgraph.graph import END, StateGraph
 
-from app.models.rag import DocumentSource
 from app.models.search import SearchResponse
-from app.core.llm.llm_config import LLMConfigManager
 from app.utils.logger import setup_logger, log_step
 
-# 노드 함수 import
-from app.graphs.nodes.rag_nodes import (
+# State import (로컬 모듈)
+from app.graphs.rag.state import RAGState, create_initial_state
+
+# 노드 함수 import (로컬 모듈)
+from app.graphs.rag.nodes import (
     retrieve_documents_node,
     generate_answer_node,
 )
 
 logger = setup_logger(__name__)
-
-
-class RAGState(TypedDict):
-    """RAG Graph 상태"""
-    question: str
-    filters: Dict[str, Any]
-    top_k: int
-    retrieved_docs: List[DocumentSource]
-    answer: str
-    metadata: Dict[str, Any]
-    request_id: str
 
 
 class RAGGraph:
@@ -61,18 +52,12 @@ class RAGGraph:
 
     def _prepare_initial_state(self, inputs: Dict[str, Any]) -> RAGState:
         """초기 상태 준비"""
-        request_id = inputs.get("request_id", "unknown")
-        rag_settings = LLMConfigManager.get_rag_settings()
-
-        return {
-            "question": inputs["question"],
-            "filters": inputs.get("filters", {}),
-            "top_k": inputs.get("top_k") or rag_settings["top_k"],
-            "retrieved_docs": [],
-            "answer": "",
-            "metadata": {},
-            "request_id": request_id
-        }
+        return create_initial_state(
+            question=inputs["question"],
+            request_id=inputs.get("request_id", "unknown"),
+            filters=inputs.get("filters", {}),
+            top_k=inputs.get("top_k"),
+        )
 
     def _build_response(self, result: RAGState, response_time_ms: int = 0) -> SearchResponse:
         """실행 결과를 SearchResponse로 변환"""
@@ -89,7 +74,6 @@ class RAGGraph:
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
         """그래프 비동기 실행"""
-        import time
         start_time = time.time()
 
         initial_state = self._prepare_initial_state(inputs)

@@ -1,13 +1,17 @@
 """AI Agent 검색 서비스
 
 위치: app/api/services/agent_service.py
-- AI Agent (ReAct 패턴) 비즈니스 로직 처리
+- AI Agent (Multi-Pipeline) 비즈니스 로직 처리
 - Route와 Graph 사이의 서비스 계층
 - 설정 로딩 및 세션 관리
+
+변경 이력:
+- 2024-xx: agent_graph → graphs/agent/graph.py로 이전 (Multi-Pipeline 구조)
 """
 from typing import Any, Dict, List, Optional
 
-from app.graphs.agent_graph import agent_graph
+# 새로운 Agent Graph (Multi-Pipeline)
+from app.graphs.agent.graph import agent_graph
 from app.models.agent import (AgentConfig, AgentResponse)
 from app.core.config.settings_config import settings_config
 from app.utils.logger import setup_logger, log_step

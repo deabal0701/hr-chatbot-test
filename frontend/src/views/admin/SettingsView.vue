@@ -647,8 +647,8 @@
           </div>
         </el-tab-pane>
 
-        <!-- Agent 설정 - 추후 사용 예정 -->
-        <el-tab-pane v-if="false" label="Agent" name="agent">
+        <!-- Agent 설정 -->
+        <el-tab-pane label="Agent" name="agent">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
             <el-form label-position="top" class="settings-form">
@@ -805,11 +805,10 @@
               </el-row>
             </el-form>
 
-            <!-- Agent 프롬프트 - 추후 사용 예정 -->
-            <template v-if="false">
-              <el-divider content-position="left">
-                <span style="font-weight: 600;">Agent (도구 선택)</span>
-              </el-divider>
+            <!-- Agent 프롬프트 -->
+            <el-divider content-position="left">
+              <span style="font-weight: 600;">Agent (도구 선택)</span>
+            </el-divider>
 
               <el-form label-position="top" class="settings-form">
                 <el-form-item label="Agent 시스템 프롬프트">
@@ -836,9 +835,8 @@
                   />
                 </el-form-item>
               </el-form>
-            </template>
 
-            <!-- Tool 설명 - 추후 사용 예정 (현재 Tool docstring은 코드에 하드코딩됨) -->
+            <!-- Tool 설명 - 현재 Tool docstring은 코드에 하드코딩되어 있어 미사용 -->
             <template v-if="false">
               <el-divider content-position="left">
                 <span style="font-weight: 600;">Tool 설명 (Agent 도구 선택 시 참조)</span>

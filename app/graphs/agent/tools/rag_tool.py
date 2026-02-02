@@ -15,7 +15,7 @@
 from typing import Dict, Any, List, Optional
 from langchain_core.tools import tool
 
-from app.tools.base import BaseTool, ToolResult
+from app.graphs.agent.tools.base import BaseTool, ToolResult
 from app.core.vector.vector_store import vector_store
 from app.core.config.settings_config import settings_config
 from app.models.search import SearchFilters

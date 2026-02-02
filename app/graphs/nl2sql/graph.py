@@ -1,7 +1,7 @@
 """
 NL2SQL 검색 그래프 (LangGraph)
 
-위치: app/graphs/nl2sql_graph.py
+위치: app/graphs/nl2sql/graph.py
 
 그래프 흐름:
     schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
@@ -23,17 +23,19 @@ NL2SQL 검색 그래프 (LangGraph)
 - handle_error: 오류 처리
 - prepare_retry: 재시도 상태 업데이트 (retry_count 증가)
 """
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict
 import time
 
 from langgraph.graph import END, StateGraph
 
 from app.models.search import SearchResponse
-from app.models.rag import SQLResult
 from app.utils.logger import setup_logger, log_step
 
-# 노드 함수 import
-from app.graphs.nodes.nl2sql_nodes import (
+# State import (로컬 모듈)
+from app.graphs.nl2sql.state import NL2SQLState, create_initial_state
+
+# 노드 함수 import (로컬 모듈)
+from app.graphs.nl2sql.nodes import (
     schema_retrieval_node,
     fewshot_retrieval_node,
     prompt_build_node,
@@ -48,41 +50,6 @@ from app.graphs.nodes.nl2sql_nodes import (
 )
 
 logger = setup_logger(__name__)
-
-
-class NL2SQLState(TypedDict):
-    """NL2SQL Graph 상태"""
-    # ===== 기본 필드 =====
-    question: str
-    schema_description: str
-    generated_sql: str
-    validated: bool
-    validation_error: str
-    sql_result: Optional[SQLResult]
-    answer: str
-    metadata: Dict[str, Any]
-    request_id: str
-
-    # ===== schema_retrieval_node 필드 =====
-    selected_tables: List[str]           # 선택된 테이블 목록
-    schema_retrieval_confidence: float   # 테이블 선택 신뢰도
-
-    # ===== fewshot_retrieval_node 필드 =====
-    fewshot_context: str                 # 포맷된 Few-shot 예제 문자열
-    fewshot_examples: List[Dict]         # 원본 예제 데이터 목록
-    fewshot_count: int                   # 검색된 예제 수
-
-    # ===== prompt_build_node 필드 =====
-    sql_prompt: str                      # 완성된 System Prompt
-    user_prompt: str                     # User Prompt
-    prompt_metadata: Dict[str, Any]      # 프롬프트 메타데이터
-
-    # ===== 재시도 관련 필드 =====
-    retry_count: int                     # 현재 재시도 횟수
-    max_retries: int                     # 최대 재시도 횟수
-    previous_sql: str                    # 이전 시도 SQL
-    previous_error: str                  # 이전 오류 메시지
-    enhanced_fewshot: bool               # 강화된 Few-shot 모드 플래그
 
 
 class NL2SQLGraph:
@@ -163,35 +130,11 @@ class NL2SQLGraph:
 
     def _prepare_initial_state(self, inputs: Dict[str, Any]) -> NL2SQLState:
         """초기 상태 준비"""
-        return {
-            # 기본 필드
-            "question": inputs["question"],
-            "schema_description": "",
-            "generated_sql": "",
-            "validated": False,
-            "validation_error": "",
-            "sql_result": None,
-            "answer": "",
-            "metadata": {},
-            "request_id": inputs.get("request_id", "unknown"),
-            # schema_retrieval_node 필드
-            "selected_tables": [],
-            "schema_retrieval_confidence": 0.0,
-            # fewshot_retrieval_node 필드
-            "fewshot_context": "",
-            "fewshot_examples": [],
-            "fewshot_count": 0,
-            # prompt_build_node 필드
-            "sql_prompt": "",
-            "user_prompt": "",
-            "prompt_metadata": {},
-            # 재시도 관련 필드
-            "retry_count": 0,
-            "max_retries": inputs.get("max_retries", 2),
-            "previous_sql": "",
-            "previous_error": "",
-            "enhanced_fewshot": False,
-        }
+        return create_initial_state(
+            question=inputs["question"],
+            request_id=inputs.get("request_id", "unknown"),
+            max_retries=inputs.get("max_retries", 2),
+        )
 
     def _build_response(self, result: NL2SQLState, response_time_ms: int = 0) -> SearchResponse:
         """실행 결과를 SearchResponse로 변환"""

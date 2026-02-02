@@ -224,9 +224,10 @@ class OracleAdapter(DatabaseAdapter):
         LLM이 PostgreSQL 스타일의 LIMIT을 생성할 수 있으므로,
         LIMIT 절이 있으면 FETCH FIRST로 변환합니다.
 
-        주의: GROUP BY가 있는 집계 쿼리에는 FETCH FIRST를 추가하지 않습니다.
-        Oracle에서 집계 쿼리에 FETCH FIRST를 사용하면 오류가 발생하거나
-        집계 전에 행 제한이 적용되어 잘못된 결과가 나올 수 있습니다.
+        주의:
+        1. GROUP BY가 있는 집계 쿼리에는 FETCH FIRST를 추가하지 않습니다.
+        2. 외부 SELECT에 FROM 절이 없는 경우(스칼라 서브쿼리만 있는 경우)
+           FROM DUAL을 추가합니다.
         """
         sql_upper = sql.upper()
 
@@ -237,7 +238,6 @@ class OracleAdapter(DatabaseAdapter):
         # GROUP BY가 있는 집계 쿼리에는 FETCH FIRST를 추가하지 않음
         if 'GROUP BY' in sql_upper:
             logger.debug("GROUP BY 쿼리에는 FETCH FIRST를 추가하지 않습니다.")
-            # PostgreSQL LIMIT이 있으면 제거만 함
             limit_pattern = re.compile(r'\s+LIMIT\s+\d+\s*;?\s*$', re.IGNORECASE)
             return limit_pattern.sub('', sql).rstrip(';').strip()
 
@@ -245,14 +245,67 @@ class OracleAdapter(DatabaseAdapter):
         limit_pattern = re.compile(r'\s+LIMIT\s+(\d+)\s*;?\s*$', re.IGNORECASE)
         match = limit_pattern.search(sql)
         if match:
-            # LIMIT 절 제거하고 FETCH FIRST로 대체
             existing_limit = int(match.group(1))
-            effective_limit = min(existing_limit, limit)  # 더 작은 값 사용
+            effective_limit = min(existing_limit, limit)
             sql = limit_pattern.sub('', sql).rstrip(';').strip()
+            sql = self._ensure_from_dual(sql)
             return sql + f' FETCH FIRST {effective_limit} ROWS ONLY'
 
         # LIMIT이 없으면 FETCH FIRST 추가
-        return sql.rstrip(';').strip() + f' FETCH FIRST {limit} ROWS ONLY'
+        sql = sql.rstrip(';').strip()
+        sql = self._ensure_from_dual(sql)
+        return sql + f' FETCH FIRST {limit} ROWS ONLY'
+
+    def _ensure_from_dual(self, sql: str) -> str:
+        """외부 SELECT에 FROM 절이 없으면 FROM DUAL 추가
+
+        Oracle에서 스칼라 서브쿼리만 있는 SELECT 문은 FROM DUAL이 필수입니다.
+        예: SELECT (SELECT COUNT(*) FROM emp) AS cnt; → 오류
+            SELECT (SELECT COUNT(*) FROM emp) AS cnt FROM DUAL; → 정상
+        """
+        sql_upper = sql.upper()
+
+        # 이미 FROM DUAL이 있으면 그대로 반환
+        if 'FROM DUAL' in sql_upper:
+            return sql
+
+        # 외부 SELECT의 FROM 절 존재 여부 확인
+        # 서브쿼리 내부의 FROM은 제외해야 함
+        if self._has_outer_from_clause(sql):
+            return sql
+
+        # FROM 절이 없으면 FROM DUAL 추가
+        logger.debug("외부 SELECT에 FROM 절이 없어 FROM DUAL을 추가합니다.")
+        return sql + ' FROM DUAL'
+
+    def _has_outer_from_clause(self, sql: str) -> bool:
+        """외부 SELECT 레벨에서 FROM 절이 있는지 확인
+
+        괄호 레벨을 추적하여 서브쿼리 내부의 FROM은 무시합니다.
+        """
+        depth = 0
+        sql_upper = sql.upper()
+        i = 0
+
+        while i < len(sql_upper):
+            char = sql_upper[i]
+
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+            elif depth == 0:
+                # 괄호 밖에서 FROM 키워드 찾기 (단어 경계 확인)
+                if sql_upper[i:i+4] == 'FROM':
+                    # 앞이 공백/시작이고 뒤가 공백인 경우만 FROM 키워드로 인식
+                    before_ok = (i == 0 or not sql_upper[i-1].isalnum())
+                    after_ok = (i + 4 >= len(sql_upper) or not sql_upper[i+4].isalnum())
+                    if before_ok and after_ok:
+                        return True
+
+            i += 1
+
+        return False
 
     def get_sample_query(self, table: str, limit: int, columns: Optional[List[str]] = None) -> str:
         """샘플 데이터 조회 쿼리 (Oracle)"""

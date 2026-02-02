@@ -6,7 +6,8 @@
 """
 from typing import Any, Dict
 
-from app.graphs.nl2sql_graph import nl2sql_graph
+# 새 위치: app/graphs/nl2sql/
+from app.graphs.nl2sql.graph import nl2sql_graph
 from app.models.search import SearchResponse
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text
