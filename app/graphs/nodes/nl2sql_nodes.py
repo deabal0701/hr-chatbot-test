@@ -1,18 +1,23 @@
 """
-NL2SQL 노드 (NL2SQL Nodes)
+NL2SQL 노드 (NL2SQL Nodes) - 방안 C
 
 기능:
 - 스키마 검색 (schema_retrieval_node)
-- SQL 생성 (generate_sql_node)
+- Few-shot 예제 검색 (fewshot_retrieval_node) - NEW
+- 프롬프트 빌드 (prompt_build_node) - NEW
+- SQL 생성 (sql_generate_node) - 리팩토링 (LLM 호출만)
 - SQL 검증 (validate_sql_node)
 - SQL 실행 (execute_sql_node)
 - 답변 생성 (generate_answer_node)
 - 에러 처리 (handle_error_node)
-- 분기 판단 (should_execute)
+- 분기 판단 (should_execute) - 재시도 지원
 
 사용:
 - NL2SQLGraph 클래스의 노드로 사용
-- schema_retrieval → generate_sql → validate_sql → should_execute 분기 → execute_sql → generate_answer 순서로 실행
+- schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql → should_execute 분기
+  - execute → execute_sql → generate_answer
+  - retry → fewshot_retrieval (enhanced mode)
+  - error → handle_error
 """
 from typing import Dict, Any
 import logging
@@ -234,7 +239,329 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # =============================================================================
-# generate_sql_node (기존)
+# fewshot_retrieval_node (NEW - 방안 C)
+# =============================================================================
+
+
+def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Few-shot 예제 검색 노드 (NEW - 방안 C)
+
+    Vector Store에서 유사한 쿼리 예제를 검색하여
+    SQL 생성 시 참조할 수 있는 컨텍스트를 제공합니다.
+
+    처리 흐름:
+    1. Vector Store에서 usage_type='rag_action', doc_type='query_example' 검색
+    2. 예제를 프롬프트 형식으로 포맷팅
+    3. enhanced_fewshot=True인 경우 top_k를 2배로 증가 (재시도 시)
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        updated state with:
+        - fewshot_context: str (포맷된 Few-shot 예제)
+        - fewshot_examples: List[Dict] (원본 예제 데이터)
+        - fewshot_count: int (검색된 예제 수)
+    """
+    question = state["question"]
+    request_id = state.get("request_id", "unknown")
+    enhanced_fewshot = state.get("enhanced_fewshot", False)
+
+    log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 검색 시작",
+             question=truncate_text(question, 40), enhanced=enhanced_fewshot)
+
+    # 설정 조회
+    settings_config = _get_settings_config()
+    enabled = settings_config.get_value("nl2sql", "fewshot_enabled", True)
+    base_top_k = settings_config.get_value("nl2sql", "fewshot_top_k", 3)
+    similarity_threshold = settings_config.get_value("nl2sql", "fewshot_similarity_threshold", 0.3)
+
+    # 비활성화된 경우
+    if not enabled:
+        log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 비활성화")
+        return {
+            "fewshot_context": "",
+            "fewshot_examples": [],
+            "fewshot_count": 0,
+        }
+
+    try:
+        from app.core.vector.vector_store import vector_store
+        from app.models.search import SearchFilters
+
+        # Enhanced 모드: 재시도 시 top_k 2배
+        top_k = base_top_k * 2 if enhanced_fewshot else base_top_k
+
+        # Few-shot 예제 검색
+        example_docs = vector_store.search_similar_documents(
+            query=question,
+            filters=SearchFilters(usage_type="rag_action", doc_type="query_example"),
+            top_k=top_k,
+            similarity_threshold=similarity_threshold
+        )
+
+        if not example_docs:
+            log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 예제 없음")
+            return {
+                "fewshot_context": "",
+                "fewshot_examples": [],
+                "fewshot_count": 0,
+            }
+
+        # 예제를 프롬프트 형식으로 포맷팅
+        fewshot_lines = ["## 유사 쿼리 예제 (Few-shot)\n"]
+        fewshot_examples = []
+
+        for i, doc in enumerate(example_docs, 1):
+            fewshot_lines.append(f"### 예제 {i}: {doc.title}")
+            fewshot_lines.append(f"질문: {doc.content}")
+            if doc.context_data:
+                # context_data에 SQL이 포함되어 있음
+                fewshot_lines.append(doc.context_data)
+            fewshot_lines.append("")
+
+            fewshot_examples.append({
+                "title": doc.title,
+                "question": doc.content,
+                "sql": doc.context_data,
+                "similarity": doc.similarity_score
+            })
+
+        fewshot_context = "\n".join(fewshot_lines)
+
+        log_step(request_id, "NL2SQL", "0.6", "FEWSHOT",
+                f"Few-shot 검색 완료 | count={len(example_docs)}, enhanced={enhanced_fewshot}")
+
+        return {
+            "fewshot_context": fewshot_context,
+            "fewshot_examples": fewshot_examples,
+            "fewshot_count": len(example_docs),
+        }
+
+    except Exception as e:
+        log_step(request_id, "NL2SQL", "0.6", "ERROR", f"Few-shot 검색 실패: {e}", level="ERROR")
+        return {
+            "fewshot_context": "",
+            "fewshot_examples": [],
+            "fewshot_count": 0,
+        }
+
+
+# =============================================================================
+# prompt_build_node (NEW - 방안 C)
+# =============================================================================
+
+
+def prompt_build_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    프롬프트 빌드 노드 (NEW - 방안 C)
+
+    스키마, Few-shot 예제, DB 가이드라인을 조합하여
+    완성된 SQL 생성 프롬프트를 구성합니다.
+
+    단일 책임: 프롬프트 조립만 수행, LLM 호출 없음
+
+    처리 흐름:
+    1. Base 프롬프트 로드 (prompt_service)
+    2. 스키마 정보 주입
+    3. Few-shot 예제 추가
+    4. 재시도 시 이전 오류 컨텍스트 추가
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        updated state with:
+        - sql_prompt: str (완성된 System Prompt)
+        - user_prompt: str (User Prompt)
+        - prompt_metadata: Dict (프롬프트 메타데이터)
+    """
+    question = state["question"]
+    request_id = state.get("request_id", "unknown")
+    schema_description = state.get("schema_description", "")
+    fewshot_context = state.get("fewshot_context", "")
+    previous_error = state.get("previous_error", "")
+    retry_count = state.get("retry_count", 0)
+
+    log_step(request_id, "NL2SQL", "0.7", "PROMPT", "프롬프트 조립 시작",
+             schema_len=len(schema_description), fewshot_len=len(fewshot_context))
+
+    try:
+        # DB 타입 및 SQL 방언 확인
+        from app.core.database.external import external_db_manager
+        db_type = external_db_manager.get_db_type()
+        adapter = external_db_manager.get_adapter()
+        sql_dialect = adapter.get_sql_dialect_name()
+
+        # Base 프롬프트 로드 (prompt_service)
+        base_prompt = prompt_service.get_nl2sql_generation_prompt(schema_description, db_type)
+
+        # 프롬프트 조립
+        prompt_parts = [base_prompt]
+
+        # Few-shot 예제 추가
+        if fewshot_context:
+            prompt_parts.append("\n---\n")
+            prompt_parts.append(fewshot_context)
+
+        # 재시도 시 이전 오류 컨텍스트 추가
+        if retry_count > 0 and previous_error:
+            error_context = f"""
+---
+## 이전 시도 오류 (재시도 #{retry_count})
+이전 SQL 생성 시 다음 오류가 발생했습니다. 이 오류를 피해 SQL을 생성하세요:
+```
+{previous_error}
+```
+"""
+            prompt_parts.append(error_context)
+
+        sql_prompt = "".join(prompt_parts)
+
+        # User Prompt 구성
+        user_prompt = f"""질문: {question}
+
+위 질문에 대한 {sql_dialect} SELECT 쿼리를 생성해주세요.
+SQL만 출력하세요 (설명 없이)."""
+
+        prompt_metadata = {
+            "db_type": db_type,
+            "sql_dialect": sql_dialect,
+            "schema_length": len(schema_description),
+            "fewshot_length": len(fewshot_context),
+            "fewshot_count": state.get("fewshot_count", 0),
+            "has_error_context": retry_count > 0,
+            "retry_count": retry_count,
+            "total_prompt_length": len(sql_prompt),
+        }
+
+        log_step(request_id, "NL2SQL", "0.7", "PROMPT",
+                f"프롬프트 조립 완료 | total_len={len(sql_prompt)}, db={db_type}, retry={retry_count}")
+
+        return {
+            "sql_prompt": sql_prompt,
+            "user_prompt": user_prompt,
+            "prompt_metadata": prompt_metadata,
+        }
+
+    except Exception as e:
+        log_step(request_id, "NL2SQL", "0.7", "ERROR", f"프롬프트 조립 실패: {e}", level="ERROR")
+        return {
+            "sql_prompt": "",
+            "user_prompt": question,
+            "prompt_metadata": {"error": str(e)},
+        }
+
+
+# =============================================================================
+# sql_generate_node (리팩토링 - 방안 C: LLM 호출만)
+# =============================================================================
+
+
+def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    SQL 생성 노드 (리팩토링 - 방안 C)
+
+    prompt_build_node에서 준비된 프롬프트로 LLM을 호출하여 SQL을 생성합니다.
+
+    단일 책임: LLM 호출 및 응답 처리만 수행
+    - 스키마 로드: schema_retrieval_node에서 수행
+    - Few-shot 검색: fewshot_retrieval_node에서 수행
+    - 프롬프트 빌드: prompt_build_node에서 수행
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        updated state with:
+        - generated_sql: str
+        - metadata: Dict
+    """
+    request_id = state.get("request_id", "unknown")
+    sql_prompt = state.get("sql_prompt", "")
+    user_prompt = state.get("user_prompt", "")
+    prompt_metadata = state.get("prompt_metadata", {})
+
+    log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작 (LLM 호출)")
+
+    # 프롬프트 존재 확인
+    if not sql_prompt or not user_prompt:
+        log_step(request_id, "NL2SQL", "1", "ERROR", "프롬프트 없음 - prompt_build_node 실패", level="ERROR")
+        return {
+            "generated_sql": "",
+            "validated": False,
+            "validation_error": "프롬프트 구성 실패",
+            "metadata": prompt_metadata,
+        }
+
+    try:
+        from app.utils.common import strip_markdown_code_block
+
+        # LLM 인스턴스 생성
+        llm = _get_llm()
+
+        messages = [
+            SystemMessage(content=sql_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+
+        # 모델 정보 조회
+        settings_config = _get_settings_config()
+        llm_model = settings_config.get_value("llm", "model", settings.llm_model)
+
+        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작",
+                model=llm_model, system_len=len(sql_prompt), user_len=len(user_prompt))
+
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=sql_prompt)
+            log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+
+        # LLM 호출
+        response = llm.invoke(messages)
+
+        # response.content가 list일 수 있음 (일부 모델)
+        content = response.content
+        if isinstance(content, list):
+            response_text = " ".join(str(item) for item in content).strip()
+        else:
+            response_text = str(content).strip()
+
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response_text)
+
+        # 마크다운 코드 블록 제거
+        sql = strip_markdown_code_block(response_text, language="sql")
+
+        # 메타데이터 구성
+        metadata = {
+            **prompt_metadata,
+            "llm_model": llm_model,
+            "sql_length": len(sql),
+        }
+
+        log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
+
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
+
+        return {
+            "generated_sql": sql,
+            "metadata": metadata,
+        }
+
+    except Exception as e:
+        log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
+        return {
+            "generated_sql": "",
+            "validated": False,
+            "validation_error": f"SQL 생성 오류: {str(e)}",
+            "metadata": {**prompt_metadata, "error": str(e)},
+        }
+
+
+# =============================================================================
+# generate_sql_node (기존 - deprecated, 호환성 유지)
 # =============================================================================
 
 
@@ -341,20 +668,85 @@ def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 def should_execute(state: Dict[str, Any]) -> str:
     """
-    조건부 분기 함수
+    조건부 분기 함수 (재시도 지원 - 방안 C)
 
     SQL 검증 성공 여부에 따라 다음 노드를 결정합니다.
+    검증 실패 시 재시도 가능 여부를 확인하여 분기합니다.
 
     Args:
         state: NL2SQLState
 
     Returns:
-        "execute" (검증 성공) 또는 "error" (검증 실패)
+        "execute" - 검증 성공, SQL 실행
+        "retry" - 재시도 가능, enhanced fewshot으로 다시 시도
+        "error" - 최대 재시도 초과 또는 치명적 오류
     """
     request_id = state.get("request_id", "unknown")
-    decision = "execute" if state["validated"] else "error"
-    log_step(request_id, "NL2SQL", "2x", "BRANCH", f"분기 결정 → {decision.upper()}")
-    return decision
+    validated = state.get("validated", False)
+    retry_count = state.get("retry_count", 0)
+    max_retries = state.get("max_retries", 2)
+    validation_error = state.get("validation_error", "")
+
+    # 검증 성공
+    if validated:
+        log_step(request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → EXECUTE")
+        return "execute"
+
+    # 설정에서 재시도 활성화 여부 확인
+    settings_config = _get_settings_config()
+    retry_enabled = settings_config.get_value("nl2sql", "retry_enabled", True)
+
+    # 재시도 가능 여부 확인
+    if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
+        log_step(request_id, "NL2SQL", "2x", "BRANCH",
+                f"분기 결정 → RETRY (attempt {retry_count + 1}/{max_retries})")
+        # 재시도를 위한 상태 업데이트
+        state["retry_count"] = retry_count + 1
+        state["previous_sql"] = state.get("generated_sql", "")
+        state["previous_error"] = validation_error
+        state["enhanced_fewshot"] = True
+        return "retry"
+
+    # 최종 실패
+    log_step(request_id, "NL2SQL", "2x", "BRANCH",
+            f"분기 결정 → ERROR (retry_count={retry_count}, max={max_retries})")
+    return "error"
+
+
+def _is_retryable_error(error: str) -> bool:
+    """
+    재시도 가능한 오류인지 판단
+
+    다음 패턴의 오류는 재시도로 해결 가능성이 있음:
+    - 컬럼/테이블 관련 오류
+    - 문법 오류
+    - 모호한 참조 오류
+
+    Args:
+        error: 오류 메시지
+
+    Returns:
+        재시도 가능 여부
+    """
+    if not error:
+        return False
+
+    retryable_patterns = [
+        "column",
+        "table",
+        "syntax",
+        "ambiguous",
+        "unknown",
+        "not found",
+        "does not exist",
+        "invalid",
+        "컬럼",
+        "테이블",
+        "존재하지",
+        "찾을 수 없",
+    ]
+    error_lower = error.lower()
+    return any(pattern in error_lower for pattern in retryable_patterns)
 
 
 def execute_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
