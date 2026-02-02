@@ -351,31 +351,164 @@
         <el-tab-pane label="NL2SQL" name="nl2sql">
           <div class="settings-section">
             <h3>NL2SQL 실행 설정</h3>
+            <p class="section-desc">
+              자연어를 SQL로 변환하는 NL2SQL 시스템의 동작 방식을 설정합니다.
+            </p>
+
             <el-form label-position="top" class="settings-form">
-              <el-form-item label="SQL 실행 타임아웃 (초)">
-                <el-input-number
-                  v-model="formData.nl2sql.timeout_seconds"
-                  :min="5"
-                  :max="120"
-                  style="width: 100%"
-                />
-              </el-form-item>
+              <!-- 섹션 1: 기본 실행 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Timer /></el-icon>
+                  기본 실행 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                </h4>
 
-              <el-form-item label="최대 반환 행 수">
-                <el-input-number
-                  v-model="formData.nl2sql.max_rows"
-                  :min="100"
-                  :max="10000"
-                  :step="100"
-                  style="width: 100%"
-                />
-              </el-form-item>
+                <el-form-item label="SQL 실행 타임아웃 (초)">
+                  <el-input-number
+                    v-model="formData.nl2sql.timeout_seconds"
+                    :min="5"
+                    :max="120"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">SQL 쿼리 실행의 최대 대기 시간</div>
+                </el-form-item>
 
-              <el-form-item label="읽기 전용 모드">
-                <el-switch v-model="formData.nl2sql.read_only_mode" />
-                <span class="switch-label">{{ formData.nl2sql.read_only_mode ? '활성화' : '비활성화' }}</span>
-                <div class="form-help">SELECT 쿼리만 허용 (보안상 권장)</div>
-              </el-form-item>
+                <el-form-item label="최대 반환 행 수">
+                  <el-input-number
+                    v-model="formData.nl2sql.max_rows"
+                    :min="100"
+                    :max="10000"
+                    :step="100"
+                    style="width: 100%"
+                  />
+                  <div class="form-help">쿼리 결과의 최대 행 수 제한</div>
+                </el-form-item>
+
+                <el-form-item label="읽기 전용 모드">
+                  <el-switch v-model="formData.nl2sql.read_only_mode" />
+                  <span class="switch-label">{{ formData.nl2sql.read_only_mode ? '활성화' : '비활성화' }}</span>
+                  <div class="form-help">SELECT 쿼리만 허용 (보안상 권장)</div>
+                </el-form-item>
+              </div>
+
+              <el-divider />
+
+              <!-- 섹션 2: 스키마 검색 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Grid /></el-icon>
+                  스키마 검색 설정
+                </h4>
+                <p class="section-desc">질문에 필요한 테이블만 선택적으로 로드하여 토큰 사용량을 최적화합니다.</p>
+
+                <el-form-item label="스키마 검색 활성화">
+                  <el-switch v-model="formData.nl2sql.schema_retrieval_enabled" />
+                  <span class="switch-label">{{ formData.nl2sql.schema_retrieval_enabled ? '활성화' : '비활성화' }}</span>
+                  <div class="form-help">비활성화 시 전체 스키마를 로드합니다</div>
+                </el-form-item>
+
+                <template v-if="formData.nl2sql.schema_retrieval_enabled">
+                  <el-form-item label="테이블 선택 신뢰도 임계값">
+                    <el-slider
+                      v-model="formData.nl2sql.schema_retrieval_confidence_threshold"
+                      :min="0.1"
+                      :max="1.0"
+                      :step="0.05"
+                      show-input
+                    />
+                    <div class="form-help">이 값 이상의 신뢰도를 가진 테이블만 선택 (0.1-1.0)</div>
+                  </el-form-item>
+
+                  <el-form-item label="스키마 선택용 LLM 모델">
+                    <el-select
+                      v-model="formData.nl2sql.schema_retrieval_model"
+                      style="width: 100%"
+                      filterable
+                      allow-create
+                      :loading="llmModelsLoading"
+                      placeholder="경량 모델 권장 (예: gpt-4.1-mini)"
+                    >
+                      <el-option
+                        v-for="model in schemaRetrievalModels"
+                        :key="model.code_value"
+                        :label="model.code_name"
+                        :value="model.code_value"
+                      />
+                    </el-select>
+                    <div class="form-help">테이블 선택에 사용할 경량 LLM (빠른 응답, gpt-4.1-mini/nano 권장)</div>
+                  </el-form-item>
+                </template>
+              </div>
+
+              <el-divider />
+
+              <!-- 섹션 3: Few-shot 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><DocumentCopy /></el-icon>
+                  Few-shot 예제 설정
+                </h4>
+                <p class="section-desc">유사한 질문-SQL 예제를 검색하여 SQL 생성 품질을 향상시킵니다.</p>
+
+                <el-form-item label="Few-shot 예제 검색 활성화">
+                  <el-switch v-model="formData.nl2sql.fewshot_enabled" />
+                  <span class="switch-label">{{ formData.nl2sql.fewshot_enabled ? '활성화' : '비활성화' }}</span>
+                  <div class="form-help">유사한 질문-SQL 예제를 자동으로 검색하여 프롬프트에 포함</div>
+                </el-form-item>
+
+                <template v-if="formData.nl2sql.fewshot_enabled">
+                  <el-form-item label="검색 예제 수 (Top-K)">
+                    <el-input-number
+                      v-model="formData.nl2sql.fewshot_top_k"
+                      :min="1"
+                      :max="10"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">프롬프트에 포함할 유사 예제 수 (권장: 3-5)</div>
+                  </el-form-item>
+
+                  <el-form-item label="유사도 임계값">
+                    <el-slider
+                      v-model="formData.nl2sql.fewshot_similarity_threshold"
+                      :min="0.1"
+                      :max="0.9"
+                      :step="0.05"
+                      show-input
+                    />
+                    <div class="form-help">이 값 이상의 유사도를 가진 예제만 사용 (0.1-0.9)</div>
+                  </el-form-item>
+                </template>
+              </div>
+
+              <el-divider />
+
+              <!-- 섹션 4: 재시도 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><RefreshRight /></el-icon>
+                  재시도 설정
+                </h4>
+                <p class="section-desc">SQL 실행 오류 시 자동으로 재시도하여 성공률을 높입니다.</p>
+
+                <el-form-item label="SQL 재시도 기능 활성화">
+                  <el-switch v-model="formData.nl2sql.retry_enabled" />
+                  <span class="switch-label">{{ formData.nl2sql.retry_enabled ? '활성화' : '비활성화' }}</span>
+                  <div class="form-help">검증 오류 발생 시 Few-shot 예제를 강화하여 재시도</div>
+                </el-form-item>
+
+                <template v-if="formData.nl2sql.retry_enabled">
+                  <el-form-item label="최대 재시도 횟수">
+                    <el-input-number
+                      v-model="formData.nl2sql.max_retries"
+                      :min="1"
+                      :max="5"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">오류 발생 시 재시도할 최대 횟수 (권장: 2)</div>
+                  </el-form-item>
+                </template>
+              </div>
             </el-form>
 
             <!-- 외부 비즈니스 데이터베이스 연결 설정 -->
@@ -834,7 +967,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -894,9 +1027,21 @@ const formData = reactive({
     max_context_length: 4000
   },
   nl2sql: {
+    // 기본 실행 설정
     timeout_seconds: 30,
     max_rows: 1000,
-    read_only_mode: true
+    read_only_mode: true,
+    // 스키마 검색 설정
+    schema_retrieval_enabled: true,
+    schema_retrieval_confidence_threshold: 0.7,
+    schema_retrieval_model: 'gpt-4.1-mini',
+    // Few-shot 설정
+    fewshot_enabled: true,
+    fewshot_top_k: 3,
+    fewshot_similarity_threshold: 0.3,
+    // 재시도 설정
+    retry_enabled: true,
+    max_retries: 2
   },
   external_database: {
     enabled: true,
@@ -1122,6 +1267,16 @@ const reasoningEffortOptions = [
   { value: 'medium', label: 'Medium (중간 추론, 권장)' },
   { value: 'high', label: 'High (높은 추론)' }
 ]
+
+// NL2SQL 스키마 선택용 경량 LLM 모델 목록 (OpenAI 모델 중 경량 모델만 필터링)
+const schemaRetrievalModels = computed(() => {
+  // 경량 모델 패턴: gpt-4o, gpt-4.1-mini, gpt-4.1-nano, gpt-4o-mini 등
+  const lightweightPatterns = ['gpt-4o', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o-mini', 'gpt-3.5']
+  return llmModelsOpenAI.value.filter(model => {
+    const value = model.code_value?.toLowerCase() || ''
+    return lightweightPatterns.some(pattern => value.includes(pattern.toLowerCase()))
+  })
+})
 
 // 코드 마스터에서 LLM 제공자 목록 로드
 const loadLLMProviders = async () => {

@@ -64,9 +64,21 @@ class SettingsConfig:
             "max_context_length": ("4000", "int", "최대 컨텍스트 길이", False),
         },
         "nl2sql": {
+            # 기본 실행 설정
             "timeout_seconds": ("30", "int", "SQL 실행 타임아웃 (초)", False),
             "max_rows": ("1000", "int", "최대 반환 행 수", False),
             "read_only_mode": ("true", "bool", "읽기 전용 모드", False),
+            # 스키마 검색 설정
+            "schema_retrieval_enabled": ("true", "bool", "스키마 선택 기능 활성화", False),
+            "schema_retrieval_confidence_threshold": ("0.7", "float", "테이블 선택 신뢰도 임계값", False),
+            "schema_retrieval_model": ("gpt-4.1-mini", "string", "테이블 선택용 경량 LLM 모델", False),
+            # Few-shot 설정
+            "fewshot_enabled": ("true", "bool", "Few-shot 예제 검색 활성화", False),
+            "fewshot_top_k": ("3", "int", "Few-shot 예제 검색 개수", False),
+            "fewshot_similarity_threshold": ("0.3", "float", "Few-shot 유사도 임계값", False),
+            # 재시도 설정
+            "retry_enabled": ("true", "bool", "SQL 재시도 기능 활성화", False),
+            "max_retries": ("2", "int", "최대 재시도 횟수", False),
         },
         "chunking": {
             "default_chunk_size": ("1000", "int", "기본 청크 크기 (문자)", False),
@@ -276,11 +288,11 @@ class SettingsConfig:
         value_type = setting.get('value_type', 'string')
 
         try:
-            if value_type == 'int':
+            if value_type in ('int', 'integer'):
                 return int(value)
             elif value_type == 'float':
                 return float(value)
-            elif value_type == 'bool':
+            elif value_type in ('bool', 'boolean'):
                 return value.lower() in ('true', '1', 'yes')
             else:
                 return value

@@ -66,7 +66,7 @@ def _get_lightweight_llm():
     필요시 경량 LLM을 사용할 수 있음.(현재는 동일 LLM을 사용하도록 처리함.)
     """
     settings_config = _get_settings_config()
-    model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4o-mini")
+    model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4.1-mini")
     return LLMConfigManager.create_llm(temperature=0, model=model)
 
 
@@ -684,7 +684,6 @@ def should_execute(state: Dict[str, Any]) -> str:
     request_id = state.get("request_id", "unknown")
     validated = state.get("validated", False)
     retry_count = state.get("retry_count", 0)
-    max_retries = state.get("max_retries", 2)
     validation_error = state.get("validation_error", "")
 
     # 검증 성공
@@ -692,9 +691,10 @@ def should_execute(state: Dict[str, Any]) -> str:
         log_step(request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → EXECUTE")
         return "execute"
 
-    # 설정에서 재시도 활성화 여부 확인
+    # 설정에서 재시도 활성화 여부 및 최대 재시도 횟수 확인
     settings_config = _get_settings_config()
     retry_enabled = settings_config.get_value("nl2sql", "retry_enabled", True)
+    max_retries = settings_config.get_value("nl2sql", "max_retries", 2)
 
     # 재시도 가능 여부 확인
     if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
