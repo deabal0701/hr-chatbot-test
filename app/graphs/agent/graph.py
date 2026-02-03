@@ -32,7 +32,7 @@ from app.graphs.agent.nodes.tools_node import tools_node
 from app.graphs.agent.nodes.answer_node import answer_node
 from app.graphs.agent.middleware.chain import MiddlewareChain
 from app.graphs.agent.middleware.pii import PIIMiddleware
-from app.models.agent import AgentResponse, AgentConfig, AgentStep
+from app.models.agent import AgentResponse, AgentConfig, AgentStep, AgentSQLResult
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text
 
@@ -301,10 +301,18 @@ class InsightAgentGraph:
 
                     # 다음 메시지에서 결과 찾기
                     observation = ""
+                    sql_result = None
+
                     for j in range(i + 1, len(messages)):
                         if isinstance(messages[j], ToolMessage):
                             if messages[j].tool_call_id == tool_id:
-                                observation = truncate_text(messages[j].content, 500)
+                                raw_content = messages[j].content
+                                observation = truncate_text(raw_content, 500)
+
+                                # SQL Tool인 경우 sql_result 추출 (관리자 UI 표시용)
+                                if tool_name == "query_database_tool":
+                                    sql_result = self._extract_sql_result(raw_content)
+
                                 break
 
                     steps.append(AgentStep(
@@ -313,12 +321,43 @@ class InsightAgentGraph:
                         action=tool_name,
                         action_input=tool_args,
                         observation=observation,
-                        sql_result=None,
+                        sql_result=sql_result,
                     ))
 
             i += 1
 
         return steps
+
+    def _extract_sql_result(self, content: str) -> AgentSQLResult | None:
+        """
+        ToolMessage content에서 SQL 결과 추출
+
+        query_database_tool의 JSON 응답에서 sql_result를 파싱합니다.
+
+        Args:
+            content: ToolMessage의 raw content (JSON 문자열)
+
+        Returns:
+            AgentSQLResult 또는 None
+        """
+        import json
+
+        try:
+            data = json.loads(content)
+            sql_result = data.get("sql_result")
+
+            if sql_result:
+                return AgentSQLResult(
+                    sql=sql_result.get("sql", ""),
+                    columns=sql_result.get("columns", []),
+                    rows=sql_result.get("rows", [])[:100],  # 최대 100행
+                    row_count=sql_result.get("row_count", 0),
+                    execution_time_ms=sql_result.get("execution_time_ms"),
+                )
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+
+        return None
 
 
 # 싱글톤 인스턴스
