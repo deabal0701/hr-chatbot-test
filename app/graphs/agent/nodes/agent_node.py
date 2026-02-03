@@ -125,26 +125,26 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def should_continue(state: Dict[str, Any]) -> Literal["tools", "end"]:
+def should_continue(state: Dict[str, Any]) -> Literal["tools", "answer"]:
     """
     조건부 분기 함수
 
     마지막 메시지를 확인하여:
     - tool_calls가 있으면 "tools" → tools_node로 이동
-    - 없으면 "end" → 종료
+    - 없으면 "answer" → answer_node로 이동 (최종 답변 생성)
 
     Args:
         state: AgentState
 
     Returns:
-        "tools" 또는 "end"
+        "tools" 또는 "answer"
     """
     request_id = state.get("request_id", "unknown")
     messages = state.get("messages", [])
 
     if not messages:
-        log_step(request_id, "AGENT", "X", "BRANCH", "메시지 없음 → END")
-        return "end"
+        log_step(request_id, "AGENT", "X", "BRANCH", "메시지 없음 → ANSWER")
+        return "answer"
 
     last_message = messages[-1]
 
@@ -156,5 +156,5 @@ def should_continue(state: Dict[str, Any]) -> Literal["tools", "end"]:
             log_step(request_id, "AGENT", "X", "BRANCH", "Tool 호출 있음 → TOOLS")
             return "tools"
 
-    log_step(request_id, "AGENT", "X", "BRANCH", "Tool 호출 없음 → END")
-    return "end"
+    log_step(request_id, "AGENT", "X", "BRANCH", "Tool 호출 없음 → ANSWER")
+    return "answer"

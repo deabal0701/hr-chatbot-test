@@ -8,11 +8,12 @@ LLM이 자율적으로 Tool을 선택하고 실행하며, 결과를 관찰한 �
 그래프 흐름:
     START → agent_node → should_continue?
                             ├─ "tools" → tools_node → agent_node (loop)
-                            └─ "end" → END
+                            └─ "answer" → answer_node → END
 
 노드:
-- agent_node: LLM Think/Action (Tool 선택 또는 최종 답변)
+- agent_node: LLM Think/Action (Tool 선택 또는 추론)
 - tools_node: Tool 실행 및 결과 반환
+- answer_node: 최종 답변 생성 (NL2SQL 응답 프롬프트 사용)
 """
 
 import time
@@ -28,6 +29,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from app.graphs.agent.state import AgentState, create_initial_state
 from app.graphs.agent.nodes.agent_node import agent_node, should_continue
 from app.graphs.agent.nodes.tools_node import tools_node
+from app.graphs.agent.nodes.answer_node import answer_node
 from app.graphs.agent.middleware.chain import MiddlewareChain
 from app.graphs.agent.middleware.pii import PIIMiddleware
 from app.models.agent import AgentResponse, AgentConfig, AgentStep
@@ -87,8 +89,8 @@ class InsightAgentGraph:
 
         흐름:
             START → agent_node → should_continue?
-                                    ├─ "tools" → tools_node → agent_node
-                                    └─ "end" → END
+                                    ├─ "tools" → tools_node → agent_node (loop)
+                                    └─ "answer" → answer_node → END
 
         Returns:
             컴파일된 StateGraph
@@ -98,24 +100,28 @@ class InsightAgentGraph:
         # ===== 노드 등록 =====
         workflow.add_node("agent", agent_node)
         workflow.add_node("tools", tools_node)
+        workflow.add_node("answer", answer_node)
 
         # ===== 흐름 정의 =====
 
         # Entry Point: agent 노드
         workflow.set_entry_point("agent")
 
-        # 조건부 분기: agent → tools 또는 END
+        # 조건부 분기: agent → tools 또는 answer
         workflow.add_conditional_edges(
             "agent",
             should_continue,
             {
                 "tools": "tools",
-                "end": END,
+                "answer": "answer",
             }
         )
 
         # tools → agent (루프)
         workflow.add_edge("tools", "agent")
+
+        # answer → END
+        workflow.add_edge("answer", END)
 
         return workflow.compile(checkpointer=self.checkpointer)
 
