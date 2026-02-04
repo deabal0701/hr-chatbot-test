@@ -5,6 +5,7 @@
 | 날짜 | 버전 | 변경내용 | 작성자 |
 |------|------|----------|--------|
 | 2025.12.03 | 1.0 | 최초 작성 | |
+| 2026.02.04 | 1.1 | 현행화: 코드 구조 변경, State 필드 업데이트, 노드 구성 현행화, 향후계획 추가 | |
 
 ---
 
@@ -18,10 +19,10 @@
 
 - **RAG(Retrieval Augmented Generation)와 NL2SQL(Natural Language to SQL) 기술 결합**
   - 사용자 질의에 최적화된 답변 제공
-  
+
 - **AI Agent(ReAct 패턴) 기반 자율적 도구 선택**
   - 복잡한 멀티스텝 질문을 단일 요청으로 처리
-  
+
 - **세션 기반 멀티턴 대화 지원**
   - 이전 맥락을 유지하며 연속적인 질의응답 가능
 
@@ -69,27 +70,27 @@
 - **Web Server:** Nginx 1.3
 
 #### Backend
-- **Language:** Python 3.12+
-- **API Framework:** FastAPI 0.109.0+
+- **Language:** Python 3.13 (Conda 환경: `penv3.13-nlq`)
+- **API Framework:** FastAPI 0.115.0+
 - **ASGI Server:** UVICORN 0.27.0+
-- **AI Framework:** LangChain 1.2+ / LangGraph
-- **Runtime:** OpenJDK 17+
+- **AI Framework:** LangChain 1.2+ / LangGraph 1.0.5+
 - **OS:** Windows / Linux
-- **기타 라이브러리:** pydantic 등
+- **기타 라이브러리:** pydantic 2.7.4+, sqlparse 등
 
 #### Database
 - **RDBMS Options:**
   - PostgreSQL 16+
   - Oracle 21+
-  
+
 - **Vector Database:**
   - PGVector (PostgreSQL Extension)
-  - Qdrant
-  - 기타 VectorDB
 
 #### LLM
-- **Model:** ChatGPT-4
-- **Embedding:** Text-Embedding-large
+- **Providers:** OpenAI, Anthropic
+- **Models:**
+  - OpenAI: gpt-4o, gpt-4o-mini
+  - Anthropic: claude-3-5-sonnet-20241022
+- **Embedding:** text-embedding-3-small (1536 dimensions)
 
 ---
 
@@ -100,7 +101,7 @@
 ```
 ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
 │  CHAT UI    │      │   APP서버   │      │  DATABASE   │      │     LLM     │
-│  (Vue.js)   │      │ (LangGraph) │      │  (업무DB)   │      │  (ChatGPT)  │
+│  (Vue.js)   │      │ (LangGraph) │      │  (업무DB)   │      │(OpenAI/Ant.)|
 └─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘
        │                     │                     │                     │
        │  ① User Question    │                     │                     │
@@ -140,11 +141,12 @@
 - 질문/세션 정보를 FastAPI(LangGraph) 백엔드로 전송
 
 **③ APP서버 → TABLE Schema**
+- 테이블 카탈로그 조회 (경량 LLM으로 필요 테이블만 선택)
 - 테이블/컬럼 구조 및 메타데이터 조회
 - SQL 생성에 필요한 스키마 정보 수집
 
 **④ APP서버 → LLM (SQL생성) [첫 번째 LLM 호출]**
-- 질문 + 스키마를 프롬프트로 전송
+- 질문 + 스키마 + Few-shot 예제를 프롬프트로 전송
 - SELECT SQL 생성
 
 **⑤ APP서버 ↔ DATABASE**
@@ -163,7 +165,19 @@
 
 ## 4. NL2SQL Graph 상세 설계
 
-### 4.1 Graph 상태(State) 정의
+### 4.1 코드 구조
+
+NL2SQL 관련 코드는 다음 디렉토리 구조로 구성됩니다:
+
+```
+app/graphs/nl2sql/
+├── __init__.py
+├── graph.py      # NL2SQLGraph 클래스 (그래프 빌드 및 실행)
+├── nodes.py      # 노드 함수들 (schema_retrieval_node, sql_generate_node 등)
+└── state.py      # NL2SQLState TypedDict 및 create_initial_state 함수
+```
+
+### 4.2 Graph 상태(State) 정의
 
 #### 기본 필드
 
@@ -200,7 +214,7 @@
 |--------|------|------|
 | sql_prompt | str | 완성된 System Prompt |
 | user_prompt | str | User Prompt |
-| prompt_metadata | Dict | 프롬프트 메타데이터 |
+| prompt_metadata | Dict | 프롬프트 메타데이터 (db_type, sql_dialect, has_error_context 등) |
 
 #### 재시도 관련 필드
 
@@ -214,22 +228,23 @@
 
 ---
 
-### 4.2 노드 구성 및 역할
+### 4.3 노드 구성 및 역할
 
 | 노드명 | 역할 | LLM 호출 | 입력 | 출력 |
 |--------|------|:--------:|------|------|
-| **schema_retrieval** | 질문 분석하여 필요한 테이블 스키마만 로드 | ✅ (경량) | question | schema_description, selected_tables |
-| **fewshot_retrieval** | Vector Store에서 유사한 쿼리 예제 검색 | ❌ | question | fewshot_context, fewshot_examples |
-| **prompt_build** | 스키마 + Few-shot + DB 가이드라인 조합 | ❌ | schema, fewshot | sql_prompt, user_prompt |
-| **sql_generate** | 자연어 → SQL 변환 (LLM 호출만) | ✅ (1차) | sql_prompt, user_prompt | generated_sql |
-| **validate_sql** | SQL 보안 검증 | ❌ | generated_sql | validated, validation_error |
-| **execute_sql** | SQL 실행 | ❌ | generated_sql | sql_result |
-| **generate_answer** | 결과 → 자연어 요약 | ✅ (2차) | question, sql, result | answer |
+| **schema_retrieval** | 질문 분석하여 필요한 테이블 스키마만 로드 (토큰 최적화) | ✅ (경량) | question | schema_description, selected_tables, schema_retrieval_confidence |
+| **fewshot_retrieval** | Vector Store에서 유사한 쿼리 예제 검색 | ❌ | question, enhanced_fewshot | fewshot_context, fewshot_examples, fewshot_count |
+| **prompt_build** | 스키마 + Few-shot + DB 가이드라인 + 이전 오류 컨텍스트 조합 | ❌ | schema_description, fewshot_context, previous_error | sql_prompt, user_prompt, prompt_metadata |
+| **sql_generate** | 자연어 → SQL 변환 (LLM 호출만, 단일 책임) | ✅ (1차) | sql_prompt, user_prompt | generated_sql, metadata |
+| **validate_sql** | SQL 보안 검증 (금지 키워드, 화이트리스트, SELECT 강제) | ❌ | generated_sql | validated, validation_error |
+| **execute_sql** | SQL 실행 (타임아웃, LIMIT 자동 적용) | ❌ | generated_sql | sql_result, metadata |
+| **generate_answer** | 결과 → 자연어 요약 | ✅ (2차) | question, generated_sql, sql_result | answer |
 | **handle_error** | 에러 메시지 생성 | ❌ | validation_error | answer |
+| **prepare_retry** | 재시도 상태 업데이트 (retry_count 증가, enhanced_fewshot 활성화) | ❌ | retry_count, validation_error, generated_sql | retry_count, previous_sql, previous_error, enhanced_fewshot |
 
 ---
 
-### 4.3 Graph 실행 흐름도
+### 4.4 Graph 실행 흐름도
 
 ```
 schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
@@ -239,31 +254,34 @@ schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → val
                                                     ↓             ↓             ↓
                                                 "execute"      "retry"       "error"
                                                     ↓             ↓             ↓
-                                               execute_sql   fewshot_retrieval  handle_error → END
-                                                    ↓          (enhanced)
-                                    should_continue_after_execute (분기②)
+                                               execute_sql   prepare_retry  handle_error → END
+                                                    ↓             ↓
+                                    should_continue_after_execute   fewshot_retrieval
+                                    (분기②)                         (enhanced mode)
                                     ┌─────────────┼─────────────┐
                                     ↓             ↓             ↓
                                  "answer"      "retry"       "error"
                                     ↓             ↓             ↓
-                             generate_answer  fewshot_retrieval  handle_error → END
-                                    ↓          (enhanced)
-                                   END
+                             generate_answer  prepare_retry  handle_error → END
+                                    ↓             ↓
+                                   END     fewshot_retrieval
+                                           (enhanced mode)
 ```
 
 **노드별 역할:**
-- **schema_retrieval**: 경량 LLM으로 질문에 필요한 테이블만 선별 (토큰 최적화)
-- **fewshot_retrieval**: Vector Store에서 유사한 질문-SQL 예제 검색
-- **prompt_build**: 스키마 + Few-shot + 이전 오류 컨텍스트를 조합하여 프롬프트 생성
+- **schema_retrieval**: 테이블 카탈로그에서 경량 LLM으로 필요 테이블 선별 후 스키마 로드 (토큰 최적화)
+- **fewshot_retrieval**: Vector Store에서 유사한 질문-SQL 예제 검색 (usage_type='rag_action', doc_type='query_example')
+- **prompt_build**: 스키마 + Few-shot + 이전 오류 컨텍스트를 조합하여 프롬프트 생성 (단일 책임)
 - **sql_generate**: 준비된 프롬프트로 LLM 호출 (단일 책임)
-- **validate_sql**: SQL 보안 검증 (금지 키워드, 화이트리스트)
-- **execute_sql**: 검증된 SQL 실행
+- **validate_sql**: SQL 보안 검증 (금지 키워드, 테이블 화이트리스트, SELECT 강제)
+- **prepare_retry**: 재시도 시 상태 업데이트 (retry_count 증가, enhanced_fewshot=True)
+- **execute_sql**: 검증된 SQL 실행 (타임아웃/LIMIT 자동 적용)
 - **generate_answer**: 실행 결과를 자연어 답변으로 변환
 - **handle_error**: 최종 실패 시 오류 안내 메시지 생성
 
 ---
 
-### 4.4 조건부 분기 로직
+### 4.5 조건부 분기 로직
 
 #### 분기① should_execute (검증 후)
 
@@ -271,8 +289,11 @@ schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → val
 def should_execute(state) -> str:
     if state["validated"]:
         return "execute"   # → execute_sql
+
+    # 설정에서 재시도 활성화 여부 확인
     if retry_enabled and retry_count < max_retries and is_retryable_error:
-        return "retry"     # → fewshot_retrieval (enhanced mode)
+        return "retry"     # → prepare_retry → fewshot_retrieval (enhanced mode)
+
     return "error"         # → handle_error
 ```
 
@@ -282,8 +303,11 @@ def should_execute(state) -> str:
 def should_continue_after_execute(state) -> str:
     if state["sql_result"] is not None:
         return "answer"    # → generate_answer
+
+    # 실행 오류 시 재시도 가능 여부 확인
     if retry_enabled and retry_count < max_retries and is_retryable_error:
-        return "retry"     # → fewshot_retrieval (enhanced mode)
+        return "retry"     # → prepare_retry → fewshot_retrieval (enhanced mode)
+
     return "error"         # → handle_error
 ```
 
@@ -292,18 +316,19 @@ def should_continue_after_execute(state) -> str:
 | 분기점 | 조건 | 결과 | 다음 노드 |
 |--------|------|------|-----------|
 | ① should_execute | validated=True | execute | execute_sql |
-| ① should_execute | 재시도 가능 + retry_count < max | retry | fewshot_retrieval |
+| ① should_execute | 재시도 가능 + retry_count < max | retry | prepare_retry → fewshot_retrieval |
 | ① should_execute | 재시도 불가 또는 max 초과 | error | handle_error |
 | ② should_continue_after_execute | sql_result 존재 | answer | generate_answer |
-| ② should_continue_after_execute | 재시도 가능 + retry_count < max | retry | fewshot_retrieval |
+| ② should_continue_after_execute | 재시도 가능 + retry_count < max | retry | prepare_retry → fewshot_retrieval |
 | ② should_continue_after_execute | 재시도 불가 또는 max 초과 | error | handle_error |
 
 #### 재시도 가능 오류 패턴
 
-- column, table, syntax, ambiguous, unknown, invalid
-- ORA-00904 (Oracle: invalid identifier)
+- column, table, syntax, ambiguous, unknown, invalid, not found, does not exist
+- ORA-00904 (Oracle: invalid identifier - 컬럼 오류)
 - ORA-00942 (Oracle: table or view does not exist)
 - ORA-00936 (Oracle: missing expression)
+- ORA-01747 (Oracle: invalid column specification)
 - 컬럼, 테이블, 존재하지, 찾을 수 없
 
 ---
@@ -326,7 +351,13 @@ def should_continue_after_execute(state) -> str:
                         └─ 악성 프롬프트 차단
 ```
 
-### 5.2 처리 방식: Redact vs Mask
+### 5.2 현재 구현 상태
+
+> **⚠️ 현재 Input Guardrails(PII 감지/마스킹)는 껍데기 상태로, 실제 로직이 구현되지 않았습니다.**
+>
+> 관련 파일: `app/graphs/agent/middleware/pii.py`
+
+### 5.3 처리 방식: Redact vs Mask (향후 구현 예정)
 
 민감정보 유형과 상황에 따라 두 가지 처리 방식을 구분하여 적용:
 
@@ -339,7 +370,7 @@ def should_continue_after_execute(state) -> str:
 - **Redact**: 해당 정보가 질문에 포함되면 안 되는 경우 (보안 키워드)
 - **Mask**: 정보 자체는 질문 맥락에 필요하나 원본 노출이 불필요한 경우
 
-### 5.3 마스킹 대상 (PII 패턴)
+### 5.4 마스킹 대상 (PII 패턴) - 향후 구현 예정
 
 | 유형 | 패턴 예시 | 처리 방식 | 결과 |
 |------|----------|:---------:|------|
@@ -349,20 +380,20 @@ def should_continue_after_execute(state) -> str:
 | 휴대폰 | 010-1234-5678 | Mask | [휴대폰_MASKED] |
 | 이메일 | user@example.com | Mask | [이메일_MASKED] |
 
-### 5.4 금지 키워드 (Redact 대상)
+### 5.5 금지 키워드 (Redact 대상) - 향후 구현 예정
 
 ```
 password, 패스워드, 비밀번호, 비번, PIN, secret
 ```
 - 해당 키워드 포함 시 경고 로그 기록 및 질문 거부
 
-### 5.5 설정 위치
+### 5.6 설정 위치
 
 | 항목 | 위치 |
 |------|------|
-| PII 패턴 (Mask) | `tb_app_settings` 테이블 (category='input_guard') |
-| 금지 키워드 (Redact) | `tb_app_settings` 테이블 (category='input_guard') |
-| 구현 파일 | `app/services/input_guard.py` |
+| PII 패턴 (Mask) | `tb_app_settings` 테이블 (category='input_guard') - 향후 구현 예정 |
+| 금지 키워드 (Redact) | `tb_app_settings` 테이블 (category='input_guard') - 향후 구현 예정 |
+| 구현 파일 | `app/graphs/agent/middleware/pii.py` (현재 껍데기) |
 
 ---
 
@@ -386,21 +417,41 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 ### 6.3 테이블 화이트리스트
 
 ```
-허용 테이블: employee, department, job_history, performance_review, salary
+허용 테이블: 동적으로 external_db_manager.get_allowed_tables()에서 가져옴
 ```
 - 설정 위치: `tb_app_settings` 테이블 (external_database.allowed_tables)
 - 미등록 테이블 접근 시 검증 실패
+- 3자 이하 식별자는 서브쿼리/테이블 별칭으로 간주하여 무시
 
-### 6.4 보안 계층화 (Defense in Depth)
+### 6.4 CTE(Common Table Expression) 처리
+
+SQL에서 CTE로 정의된 임시 테이블 이름은 화이트리스트 검증에서 자동으로 제외됩니다:
+
+```sql
+-- 예시: emp_scores, dept_summary는 CTE 이름으로 제외
+WITH emp_scores AS (
+    SELECT emp_id, score FROM employee
+), dept_summary AS (
+    SELECT dept_id, AVG(score) FROM emp_scores GROUP BY dept_id
+)
+SELECT * FROM dept_summary
+```
+
+### 6.5 보안 계층화 (Defense in Depth)
 
 | 계층 | 방어 수단 | 설명 |
 |:----:|-----------|------|
-| 1 | 키워드 필터링 | 정규식 기반 금지 키워드 검사 |
+| 1 | 키워드 필터링 | 정규식 기반 금지 키워드 검사 (단어 경계 고려) |
 | 2 | SQL 파싱 | sqlparse로 문법 검증 |
 | 3 | SELECT 강제 | read_only_mode로 SELECT만 허용 |
 | 4 | 테이블 제한 | 화이트리스트 기반 접근 제어 |
-| 5 | 타임아웃 | 30초 statement_timeout |
-| 6 | 행 제한 | LIMIT 1000 자동 추가 |
+| 5 | 타임아웃 | DB 어댑터별 타임아웃 설정 |
+| 6 | 행 제한 | DB 타입에 따른 LIMIT 자동 추가 (PostgreSQL: LIMIT, Oracle: FETCH FIRST) |
+
+### 6.6 구현 파일
+
+- **SQL 검증/실행**: `app/core/database/sql_executor.py`
+- **DB 어댑터**: `app/core/database/adapters/` (postgresql.py, oracle.py)
 
 ---
 
@@ -421,7 +472,7 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 
 ---
 
-### 7.2 스키마 관리 아키텍처 (PPT 1장)
+### 7.2 스키마 관리 아키텍처
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -429,14 +480,14 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   PostgreSQL    │────→│  Schema Loader  │────→│   LLM Prompt    │
-│ information_    │     │  (메타데이터    │     │  (스키마 설명   │
-│    schema       │     │   JSON 변환)    │     │   마크다운)     │
+│ Table Catalog   │────→│  Schema Loader  │────→│   LLM Prompt    │
+│ (tb_table_      │     │  (메타데이터    │     │  (스키마 설명   │
+│  catalog)       │     │   JSON 변환)    │     │   마크다운)     │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
         │                       │                       │
         ▼                       ▼                       ▼
-   DB 스키마 조회         메모리 캐싱              프롬프트에 포함
-   (테이블/컬럼/관계)     (성능 최적화)           (SQL 생성 컨텍스트)
+   테이블 요약 정보         선택적 스키마 로드        프롬프트에 포함
+   (경량 LLM 입력용)        (필요 테이블만)         (SQL 생성 컨텍스트)
 
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -448,14 +499,16 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 
 | 항목 | 설명 |
 |------|------|
-| **데이터 소스** | PostgreSQL `information_schema` 실시간 조회 |
-| **저장 위치** | 메모리 캐시 (성능 최적화) |
+| **테이블 카탈로그** | `tb_table_catalog` 테이블에서 테이블명/설명/컬럼 조회 |
+| **경량 LLM 선택** | `schema_retrieval_node`에서 경량 LLM으로 필요 테이블만 선별 |
+| **스키마 로드** | `schema_loader.generate_schema_description(tables=[...])` |
 | **테이블 필터링** | `allowed_tables` 화이트리스트 (보안) |
 | **민감정보 처리** | salary.base_salary → `'***'` 마스킹 |
+| **FK 관계 자동 포함** | 선택된 테이블의 관련 FK 테이블 자동 포함 |
 
 ---
 
-### 7.3 메타데이터 구조 및 활용 (PPT 2장)
+### 7.3 메타데이터 구조 및 활용
 
 **수집 메타데이터 항목**
 
@@ -549,9 +602,9 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 
 | 구분 | 내용 |
 |------|------|
-| **역할** | PostgreSQL 전문가 |
-| **System** | "사용자의 자연어 질문을 PostgreSQL SQL 쿼리로 변환해주세요." + {스키마 정보} |
-| **User** | "질문: {question}\n\nSQL만 출력하세요 (설명 없이)." |
+| **역할** | SQL 전문가 (DB 타입에 따라 PostgreSQL/Oracle) |
+| **System** | Base 프롬프트 + {스키마 정보} + {Few-shot 예제} + {이전 오류 컨텍스트} |
+| **User** | "질문: {question}\n\n위 질문에 대한 {sql_dialect} SELECT 쿼리를 생성해주세요.\nSQL만 출력하세요 (설명 없이)." |
 | **Temperature** | 0 (결정적 생성) |
 
 ### 8.2 답변 생성 프롬프트
@@ -560,13 +613,13 @@ password, 패스워드, 비밀번호, 비번, PIN, secret
 |------|------|
 | **역할** | 데이터 분석 전문가 |
 | **System** | "SQL 쿼리 결과를 사용자가 이해하기 쉽게 자연어로 요약해주세요." |
-| **User** | "질문: {question}\n실행된 SQL: {sql}\n조회 결과: {rows}" |
+| **User** | "질문: {question}\n실행된 SQL: {sql}\n조회 결과 ({row_count}개 행):\n컬럼: {columns}\n실제 데이터: {rows}\n{totals_info}" |
 | **Temperature** | 0 (일관성 있는 답변) |
 
 ### 8.3 프롬프트 관리
 
 - **저장 위치**: `tb_app_settings` 테이블 (category='prompt')
-- **캐시**: 5분 TTL
+- **구현 파일**: `app/core/llm/prompt_service.py`
 - **우선순위**: DB → 코드 기본값
 
 ---
@@ -584,9 +637,11 @@ Exception
 │
 └── SQLExecutionError     # 실행 실패
     - DB 연결 오류
-    - 타임아웃 (30초 초과)
+    - 타임아웃 초과
     - 런타임 에러
 ```
+
+**구현 위치**: `app/core/database/sql_executor.py`
 
 ### 9.2 에러 응답 형식
 
@@ -621,12 +676,19 @@ SQL 생성 또는 실행 중 오류가 발생했습니다.
 
 | 설정명 | 기본값 | 설명 |
 |--------|:------:|------|
-| sql_timeout_seconds | 30 | SQL 실행 타임아웃 (초) |
-| sql_max_rows | 1000 | 최대 반환 행 수 |
-| read_only_mode | True | SELECT만 허용 |
-| allow_ddl | False | DDL 허용 여부 |
-| llm_model | gpt-4o | LLM 모델명 |
-| llm_temperature | 0 | SQL 생성 온도 |
+| nl2sql.timeout_seconds | 30 | SQL 실행 타임아웃 (초) |
+| nl2sql.max_rows | 1000 | 최대 반환 행 수 |
+| nl2sql.read_only_mode | True | SELECT만 허용 |
+| nl2sql.retry_enabled | True | 재시도 기능 활성화 |
+| nl2sql.max_retries | 2 | 최대 재시도 횟수 |
+| nl2sql.schema_retrieval_enabled | True | 스키마 선택적 로드 활성화 |
+| nl2sql.schema_retrieval_confidence_threshold | 0.7 | 테이블 선택 신뢰도 임계값 |
+| nl2sql.schema_retrieval_model | gpt-4.1-nano | 테이블 선택용 경량 LLM |
+| nl2sql.fewshot_enabled | True | Few-shot 예제 검색 활성화 |
+| nl2sql.fewshot_top_k | 3 | Few-shot 예제 검색 개수 |
+| nl2sql.fewshot_similarity_threshold | 0.3 | Few-shot 유사도 임계값 |
+| llm.model | gpt-4o | LLM 모델명 |
+| llm.temperature | 0 | SQL 생성 온도 |
 
 ### 10.2 설정 우선순위
 
@@ -639,3 +701,84 @@ SQL 생성 또는 실행 중 오류가 발생했습니다.
 ```
 
 **실시간 반영**: DB 설정 변경 시 서버 재시작 없이 즉시 적용
+
+---
+
+## 11. 향후계획
+
+### 11.1 Input Guardrails 구현 (우선순위: 높음)
+
+현재 껍데기 상태인 PII 감지/마스킹 로직을 실제 구현해야 합니다.
+
+**구현 항목:**
+- [ ] PII 패턴 정규식 정의 (주민번호, 카드번호, 계좌번호, 휴대폰, 이메일)
+- [ ] 입력에서 PII 감지 및 경고 로깅
+- [ ] 출력에서 PII 마스킹 적용
+- [ ] 금지 키워드 감지 및 요청 차단
+- [ ] `tb_app_settings` 테이블에 설정값 추가
+
+**관련 파일:** `app/graphs/agent/middleware/pii.py`
+
+### 11.2 멀티턴 대화 지원 (우선순위: 중간)
+
+NL2SQL 모드에서도 이전 질문/답변 맥락을 유지하는 기능이 필요합니다.
+
+**구현 항목:**
+- [ ] 세션 기반 대화 히스토리 관리
+- [ ] 이전 SQL/결과를 참조한 후속 질문 처리
+- [ ] "이전 결과에서 ..." 형태의 질문 지원
+
+### 11.3 SQL 최적화 힌트 제공 (우선순위: 낮음)
+
+생성된 SQL의 성능 최적화를 위한 힌트를 제공합니다.
+
+**구현 항목:**
+- [ ] 인덱스 활용 여부 분석
+- [ ] 쿼리 실행 계획 분석 (EXPLAIN)
+- [ ] 성능 개선 제안 자동 생성
+
+### 11.4 쿼리 결과 시각화 (우선순위: 낮음)
+
+SQL 실행 결과를 차트/그래프로 시각화하는 기능입니다.
+
+**구현 항목:**
+- [ ] 숫자 데이터 자동 차트 생성
+- [ ] 시계열 데이터 트렌드 그래프
+- [ ] 그룹별 비교 차트
+
+### 11.5 SQL 히스토리 및 즐겨찾기 (우선순위: 낮음)
+
+자주 사용하는 쿼리를 저장하고 재사용하는 기능입니다.
+
+**구현 항목:**
+- [ ] 실행된 SQL 히스토리 저장
+- [ ] 즐겨찾기 쿼리 등록/관리
+- [ ] 히스토리에서 쿼리 재실행
+
+### 11.6 추가 DB 지원 (우선순위: 낮음)
+
+MySQL, SQL Server 등 추가 데이터베이스 지원이 필요합니다.
+
+**구현 항목:**
+- [ ] MySQL 어댑터 구현
+- [ ] SQL Server 어댑터 구현
+- [ ] DB별 SQL 방언 프롬프트 추가
+
+---
+
+## 부록: 관련 파일 목록
+
+| 분류 | 파일 경로 | 설명 |
+|------|----------|------|
+| **Graph** | `app/graphs/nl2sql/graph.py` | NL2SQLGraph 클래스 |
+| **Nodes** | `app/graphs/nl2sql/nodes.py` | 노드 함수들 |
+| **State** | `app/graphs/nl2sql/state.py` | NL2SQLState 정의 |
+| **Service** | `app/api/services/nl2sql_service.py` | NL2SQL 서비스 계층 |
+| **SQL 실행** | `app/core/database/sql_executor.py` | SQL 검증/실행 |
+| **DB 어댑터** | `app/core/database/adapters/` | PostgreSQL/Oracle 어댑터 |
+| **스키마 로더** | `app/core/database/schema_loader.py` | 스키마 로드 |
+| **테이블 카탈로그** | `app/core/database/table_catalog.py` | 테이블 카탈로그 서비스 |
+| **프롬프트** | `app/core/llm/prompt_service.py` | 프롬프트 템플릿 |
+| **LLM 설정** | `app/core/llm/llm_config.py` | LLM 설정 관리 |
+| **PII 미들웨어** | `app/graphs/agent/middleware/pii.py` | PII 감지/마스킹 (미구현) |
+| **Vector Store** | `app/core/vector/vector_store.py` | Few-shot 예제 검색 |
