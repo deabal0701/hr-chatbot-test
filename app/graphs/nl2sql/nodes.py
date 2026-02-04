@@ -559,12 +559,6 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "metadata": {**prompt_metadata, "error": str(e)},
         }
 
-
-
-
-
-
-
 def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     SQL 검증 노드
