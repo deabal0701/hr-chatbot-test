@@ -74,8 +74,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
         tool_id = tool_call.get("id", "")
         tool_args = tool_call.get("args", {})
 
-        log_step(request_id, "TOOLS", tool_name, "CALL",
-                 f"Tool 호출 | args={truncate_text(str(tool_args), 100)}")
+        log_step(request_id, "TOOLS", tool_name, "CALL", "Tool 호출", args=truncate_text(str(tool_args), 100))
 
         try:
             # Tool 함수 조회
@@ -122,8 +121,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
                     "result": truncate_text(result, 500),
                 })
 
-            log_step(request_id, "TOOLS", tool_name, "RESULT",
-                     f"Tool 결과 | length={len(str(result))}")
+            log_step(request_id, "TOOLS", tool_name, "RESULT", "Tool 결과", length=len(str(result)))
 
             tool_messages.append(ToolMessage(
                 content=str(result),
@@ -140,8 +138,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
                 name=tool_name,
             ))
 
-    log_step(request_id, "TOOLS", "X", "COMPLETE",
-             f"Tool 실행 완료 | executed={len(tool_messages)}")
+    log_step(request_id, "TOOLS", "X", "COMPLETE", "Tool 실행 완료", executed=len(tool_messages))
 
     return {
         "messages": tool_messages,

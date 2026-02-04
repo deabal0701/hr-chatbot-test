@@ -1,6 +1,7 @@
 import logging
 import sys
 import os
+import inspect
 from logging.handlers import RotatingFileHandler
 from typing import Any, Dict
 from pythonjsonlogger import jsonlogger
@@ -85,6 +86,7 @@ def log_step(request_id: str, module: str, step: str, stage: str, message: str, 
     통합 로깅 함수
 
     모든 그래프(AGENT, RAG, NL2SQL) 및 API에서 사용하는 단일 로깅 함수.
+    호출 위치(파일명:라인)를 자동으로 포함합니다.
 
     Args:
         request_id: 요청 고유 ID (8자리)
@@ -97,34 +99,31 @@ def log_step(request_id: str, module: str, step: str, stage: str, message: str, 
                   특수 키: content - 여러 줄 내용을 별도 줄에 출력
 
     출력 형식:
-        [request_id] [MODULE-step] [STAGE] message | key1=value1 | key2=value2
-        content가 있는 경우:
-        [request_id] [MODULE-step] [STAGE] message | key1=value1
-        <content 내용>
+        [request_id] [MODULE-step] [STAGE] [file:line] message | key1=value1 | key2=value2
 
     Example:
         >>> log_step("abc123", "AGENT", "0", "INIT", "Agent 실행 시작", max_iter=10, model="gpt-4o")
-        [abc123] [AGENT-0] [INIT] Agent 실행 시작 | max_iter=10 | model=gpt-4o
-
-        >>> log_step("abc123", "NL2SQL", "1", "GENERATE", "SQL 생성 완료", level="DEBUG", sql="SELECT ...")
-        [abc123] [NL2SQL-1] [GENERATE] SQL 생성 완료 | sql=SELECT ...
-
-        >>> log_step("abc123", "AGENT", "1", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content="긴 응답 내용...")
-        [abc123] [AGENT-1] [LLM-OUTPUT] LLM 응답
-        긴 응답 내용...
+        [abc123] [AGENT-0] [INIT] [agent_graph.py:50] Agent 실행 시작 | max_iter=10 | model=gpt-4o
     """
+    # 호출 위치 추출 (caller의 파일명과 라인 번호)
+    frame = inspect.currentframe()
+    caller_frame = frame.f_back if frame else None
+    if caller_frame:
+        filename = os.path.basename(caller_frame.f_code.co_filename)
+        lineno = caller_frame.f_lineno
+        location = f"[{filename}:{lineno}]"
+    else:
+        location = "[unknown]"
+
     # content 키는 별도 처리 (여러 줄 내용)
     content = kwargs.pop("content", None)
 
     # 추가 정보를 key=value 형태로 포맷팅 (값을 자르지 않음)
-    extra_parts = []
-    for key, value in kwargs.items():
-        extra_parts.append(f"{key}={value}")
-
+    extra_parts = [f"{k}={v}" for k, v in kwargs.items()]
     extra_info = " | ".join(extra_parts) if extra_parts else ""
 
-    # 로그 메시지 구성
-    log_message = f"[{request_id}] [{module}-{step}] [{stage}] {message}"
+    # 로그 메시지 구성: [request_id] [MODULE-step] [STAGE] [file:line] message
+    log_message = f"[{request_id}] [{module}-{step}] [{stage}] {location} {message}"
     if extra_info:
         log_message += f" | {extra_info}"
 

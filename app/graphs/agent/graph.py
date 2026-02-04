@@ -170,9 +170,7 @@ class InsightAgentGraph:
 
         start_time = time.time()
 
-        log_step(request_id, "AGENT", "0", "INIT",
-                 f"ReAct Agent 실행 시작 | question={truncate_text(question, 50)}",
-                 session_id=session_id)
+        log_step(request_id, "AGENT", "0", "INIT", "ReAct Agent 실행 시작", question=truncate_text(question, 50), session_id=session_id)
 
         # 2. 미들웨어 입력 처리
         middleware_input = {
@@ -220,9 +218,7 @@ class InsightAgentGraph:
             processed_output = await self.middleware.process_output(middleware_output)
 
             # 8. 응답 구성
-            log_step(request_id, "AGENT", "END", "COMPLETE",
-                     f"ReAct Agent 완료 | iterations={result.get('iteration_count', 0)}, "
-                     f"tools={result.get('tools_used', [])}, time={execution_time_ms}ms")
+            log_step(request_id, "AGENT", "END", "COMPLETE", "ReAct Agent 완료", iterations=result.get('iteration_count', 0), tools=result.get('tools_used', []), time_ms=execution_time_ms)
 
             return AgentResponse(
                 answer=processed_output.get("answer", final_answer),
@@ -243,8 +239,7 @@ class InsightAgentGraph:
 
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
-            log_step(request_id, "AGENT", "END", "ERROR",
-                     f"ReAct Agent 실패: {e}", level="ERROR")
+            log_step(request_id, "AGENT", "END", "ERROR", "ReAct Agent 실패", level="ERROR", error=str(e))
 
             return AgentResponse(
                 answer=f"Agent 실행 중 오류가 발생했습니다: {str(e)}",

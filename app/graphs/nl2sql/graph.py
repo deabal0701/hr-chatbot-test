@@ -197,28 +197,19 @@ class NL2SQLGraph:
             checkpoint = self.checkpointer.get(config)
 
             # 디버그: checkpoint 구조 확인
-            log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
-                    f"checkpoint 조회 | session_id={session_id}, checkpoint_exists={checkpoint is not None}",
-                    level="DEBUG")
+            log_step(request_id, "NL2SQL", "0", "CHECKPOINT", "checkpoint 조회", level="DEBUG", session_id=session_id, exists=checkpoint is not None)
 
             if checkpoint:
-                log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
-                        f"checkpoint keys: {list(checkpoint.keys()) if checkpoint else 'None'}",
-                        level="DEBUG")
+                log_step(request_id, "NL2SQL", "0", "CHECKPOINT", "checkpoint keys", level="DEBUG", keys=list(checkpoint.keys()) if checkpoint else None)
 
                 if "channel_values" in checkpoint:
                     channel_values = checkpoint["channel_values"]
-                    log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
-                            f"channel_values keys: {list(channel_values.keys()) if channel_values else 'None'}",
-                            level="DEBUG")
+                    log_step(request_id, "NL2SQL", "0", "CHECKPOINT", "channel_values keys", level="DEBUG", keys=list(channel_values.keys()) if channel_values else None)
 
                     existing_history = channel_values.get("conversation_history", [])
-                    log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
-                            f"existing_history 로드 완료 | count={len(existing_history)}",
-                            level="DEBUG")
+                    log_step(request_id, "NL2SQL", "0", "CHECKPOINT", "existing_history 로드 완료", level="DEBUG", count=len(existing_history))
         except Exception as e:
-            log_step(request_id, "NL2SQL", "0", "INIT",
-                    f"checkpoint 조회 실패: {e}", level="WARNING")
+            log_step(request_id, "NL2SQL", "0", "INIT", "checkpoint 조회 실패", level="WARNING", error=str(e))
 
         # 초기 상태 생성
         initial_state = create_initial_state(
@@ -292,9 +283,7 @@ class NL2SQLGraph:
 
         initial_state = self._prepare_initial_state(inputs, session_id)
 
-        log_step(request_id, "NL2SQL", "0", "INIT",
-                f"NL2SQL 그래프 실행 시작 (멀티턴)",
-                question=inputs["question"], session_id=session_id)
+        log_step(request_id, "NL2SQL", "0", "INIT", "NL2SQL 그래프 실행 시작 (멀티턴)", question=inputs["question"], session_id=session_id)
 
         # 그래프 실행 (thread_id로 세션 관리, run_name으로 LangSmith에 질문 표시)
         config: RunnableConfig = {
@@ -305,12 +294,7 @@ class NL2SQLGraph:
 
         response_time_ms = int((time.time() - start_time) * 1000)
 
-        log_step(request_id, "NL2SQL", "5", "COMPLETE",
-                f"NL2SQL 그래프 실행 완료",
-                has_sql=bool(result.get("generated_sql", "")),
-                answer_length=len(result.get("answer", "")),
-                session_id=session_id,
-                current_turn=result.get("current_turn", 1))
+        log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result.get("generated_sql", "")), answer_length=len(result.get("answer", "")), session_id=session_id, current_turn=result.get("current_turn", 1))
 
         return self._build_response(result, session_id, response_time_ms)
 

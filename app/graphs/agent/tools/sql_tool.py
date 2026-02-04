@@ -207,13 +207,11 @@ Examples:
 
         # 1. Schema Retrieval
         state.update(schema_retrieval_node(state))
-        log_step("SYSTEM", "TOOL", self.name, "SCHEMA",
-                 f"테이블 선택 완료 | tables={state.get('selected_tables', [])}")
+        log_step("SYSTEM", "TOOL", self.name, "SCHEMA", "테이블 선택 완료", tables=state.get('selected_tables', []))
 
         # 2. Few-shot Retrieval
         state.update(fewshot_retrieval_node(state))
-        log_step("SYSTEM", "TOOL", self.name, "FEWSHOT",
-                 f"Few-shot 검색 완료 | count={state.get('fewshot_count', 0)}")
+        log_step("SYSTEM", "TOOL", self.name, "FEWSHOT", "Few-shot 검색 완료", count=state.get('fewshot_count', 0))
 
         # 3. Prompt Build
         state.update(prompt_build_node(state))
@@ -258,8 +256,7 @@ Examples:
         else:
             formatted_result = self._format_multiple_results(result)
 
-        log_step("SYSTEM", "TOOL", self.name, "COMPLETE",
-                 f"SQL 도구 완료 | rows={result.row_count}, time={result.execution_time_ms}ms")
+        log_step("SYSTEM", "TOOL", self.name, "COMPLETE", "SQL 도구 완료", rows=result.row_count, time_ms=result.execution_time_ms)
 
         return ToolResult(
             success=True,
