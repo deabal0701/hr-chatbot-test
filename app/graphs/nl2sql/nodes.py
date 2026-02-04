@@ -1146,56 +1146,45 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # LLM 호출
     llm = _get_llm()
 
-    system_prompt = """당신은 NL2SQL 시스템의 의도 분석기입니다.
-사용자의 후속 질문을 분석하여 다음을 결정합니다:
+    system_prompt = """당신은 NL2SQL 의도 분석기입니다.
 
-1. **의도 분석**: 새로운 SQL 쿼리가 필요한지, 이전 결과에서 답변 가능한지 판단
-2. **질문 재작성**: 대명사/생략된 정보를 이전 컨텍스트로 보완하여 완전한 질문으로 재작성
-
-## 응답 형식 (반드시 JSON으로)
+## 응답 형식 (JSON)
 ```json
 {
     "query_type": "sql_needed" 또는 "answer_from_history",
-    "rewritten_question": "완전한 독립 질문",
+    "rewritten_question": "완전한 질문 형태 (답변 아님!)",
     "reasoning": "판단 이유"
 }
 ```
 
-## 판단 기준
+## 핵심 규칙
 
-### query_type = "answer_from_history" (이전 결과에서 답변 가능)
-- ★★★ 핵심: 질문의 대상(사람 이름, 부서명 등)이 "이전 SQL 결과 데이터"에 **정확히 일치**해야 함
-- ★★★ 이름 주의: "안제상"과 "인재상"은 다른 사람! 비슷해 보여도 글자가 다르면 다른 사람임
-- "그 중에서...", "그 사람이...", "누가...", "몇 명이..." 등 이전 결과 데이터 참조
-- 이전 결과의 특정 행/값에 대한 질문 (해당 데이터가 결과에 **정확히** 있는 경우만)
+**sql_needed 선택 (새 SQL 필요):**
+- "상세", "자세히", "디테일" 요청 → 무조건 sql_needed
+- 이전 결과 컬럼에 없는 정보 요청 → sql_needed
+- "왜", "이유", "원인" 질문 → sql_needed
 
-### query_type = "sql_needed" (새 SQL 필요) ★★★ 의심되면 반드시 이쪽 선택
-- ★★★ 질문의 대상(사람 이름, 부서명)이 이전 결과 데이터에 **정확히 없으면 무조건 sql_needed**
-- ★★★ 예: 이전에 "안제상"을 조회했는데 "인재상"을 물으면 → sql_needed (다른 사람!)
-- 새로운 조건 추가 (연도, 부서, 지역 등)
-- 새로운 집계/계산 필요
-- 다른 테이블 조회 필요
-- 이전 결과 데이터에 없는 컬럼/정보 요청 (예: 이전 결과가 부서/인원수인데 "직급 분포" 요청)
-- "왜", "이유", "원인", "어떻게" 등 상세 설명이 필요한 질문
-- 특정 대상의 상세 정보 조회 (예: "LA지점 직원 목록", "GS관리자 직급 분포")
-- 이전 SQL 결과 데이터가 "없음"이거나 비어있는 경우
+**answer_from_history 선택 (이전 결과로 답변):**
+- 요청 정보가 이전 결과 컬럼에 100% 존재
+- 단순 정렬/필터만 필요 (예: "1등은?", "가장 높은 사람?")
 
-## 질문 재작성 규칙
-- 대명사("그", "그것", "그들")를 구체적인 명사로 대체
-- 생략된 조건(연도, 부서 등)을 이전 컨텍스트에서 추출하여 포함
-- 완전한 독립 질문으로 작성 (이전 대화 없이도 이해 가능해야 함)
+## ★ 자기 검증 (필수!) ★
+reasoning 작성 후, 아래 단어가 포함되어 있으면 **반드시 sql_needed**:
+- "새 SQL", "SQL 필요", "추가 컬럼", "조회 불가", "없음", "부족"
 
-예시:
-- "그 중에서 가장 나이 많은 사람은?" → query_type: "answer_from_history" (★ 단, 데이터에 나이 컬럼이 있는 경우만)
-- "1등은 누구야?" → query_type: "answer_from_history" (데이터에서 1위 추출)
-- "33명인 부서는?" → query_type: "answer_from_history" (데이터에 부서, 인원수가 있는 경우)
-- "부서별로 다시 보여줘" → query_type: "sql_needed", rewritten_question: "2017년 입사자를 부서별로 보여줘"
-- "개발부만 보여줘" → query_type: "sql_needed", rewritten_question: "2017년 개발부 입사자를 보여줘"
-- "LA지점이 140명인 이유는?" → query_type: "sql_needed", rewritten_question: "LA지점 재직 직원 목록을 보여줘"
-- "왜 그런거야?" → query_type: "sql_needed" (이유를 묻는 질문은 상세 조회 필요)
-- ★ "GS관리자의 직급 분포는?" → query_type: "sql_needed" (이전 데이터에 직급 컬럼 없음)
-- ★★★ 이전에 "안제상" 조회 후 "인재상은?" → query_type: "sql_needed" (다른 사람! 이름이 비슷해도 다름)
+## 예시
+
+| 질문 | 이전 결과 컬럼 | query_type |
+|------|---------------|------------|
+| "상세 정보 보여줘" | [emp_id, name, score] | sql_needed |
+| "1등은 누구?" | [emp_id, name, score] | answer_from_history |
+| "부서는?" | [emp_id, name, score] | sql_needed (부서 컬럼 없음) |
 """
+
+    # 이전 결과 데이터의 컬럼 목록 추출 (LLM이 판단하기 쉽도록)
+    available_columns = []
+    if sql_result_summary and len(sql_result_summary) > 0:
+        available_columns = list(sql_result_summary[0].keys())
 
     user_prompt = f"""## 이전 대화 이력
 {history_text}
@@ -1204,9 +1193,16 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
 {question}
 
 ## 이전 SQL 결과 데이터 (최대 10행)
+**★ 사용 가능한 컬럼 목록**: {available_columns if available_columns else "없음"}
+**★ 이 컬럼들로만 답변 가능! 다른 정보는 새 SQL 필요!**
+
+데이터:
 {json.dumps(sql_result_summary, ensure_ascii=False, indent=2) if sql_result_summary else "없음"}
 
-위 컨텍스트를 바탕으로 의도를 분석하고 질문을 재작성하세요."""
+위 컨텍스트를 바탕으로:
+1. 현재 질문에 필요한 정보가 "사용 가능한 컬럼 목록"에 있는지 확인
+2. 없으면 → sql_needed, 있으면 → answer_from_history
+3. 질문을 재작성하세요."""
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -1237,7 +1233,7 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
                 rewritten_question=truncate_text(rewritten_question, 50),
                 reasoning=truncate_text(reasoning, 50))
 
-        # ★ 안전 검사: answer_from_history인데 sql_result_summary가 비어있으면 sql_needed로 변경
+        # ★ 안전 검사 1: answer_from_history인데 sql_result_summary가 비어있으면 sql_needed로 변경
         if query_type == "answer_from_history" and not sql_result_summary:
             log_step(request_id, "NL2SQL", "0.2c", "FALLBACK",
                     "answer_from_history → sql_needed (sql_result_summary 비어있음)", level="WARNING")
