@@ -14,9 +14,18 @@ from typing import Any, Dict
 import time
 
 from langgraph.graph import END, StateGraph
+from langchain_core.runnables import RunnableConfig
 
 from app.models.search import SearchResponse
 from app.utils.logger import setup_logger, log_step
+
+# LangSmith traceable (조건부 import)
+try:
+    from langsmith import traceable
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    LANGSMITH_AVAILABLE = False
+    traceable = None
 
 # State import (로컬 모듈)
 from app.graphs.rag.state import RAGState, create_initial_state
@@ -74,6 +83,20 @@ class RAGGraph:
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
         """그래프 비동기 실행"""
+        # LangSmith 트레이싱: question을 Input으로 표시
+        if LANGSMITH_AVAILABLE and traceable:
+            return await self._traced_ainvoke(inputs)
+        return await self._run_graph(inputs)
+
+    async def _traced_ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
+        """LangSmith 트레이싱이 적용된 실행"""
+        @traceable(name="RAG")  # type: ignore
+        async def traced_run(question: str) -> SearchResponse:  # noqa: ARG001
+            return await self._run_graph(inputs)
+        return await traced_run(inputs["question"])
+
+    async def _run_graph(self, inputs: Dict[str, Any]) -> SearchResponse:
+        """실제 그래프 실행 로직"""
         start_time = time.time()
 
         initial_state = self._prepare_initial_state(inputs)
@@ -81,7 +104,9 @@ class RAGGraph:
 
         log_step(request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작", question=inputs["question"], top_k=initial_state["top_k"])
 
-        result = await self.graph.ainvoke(initial_state)
+        # 그래프 실행 (run_name으로 LangSmith에 질문 표시)
+        config: RunnableConfig = {"run_name": inputs["question"]}
+        result = await self.graph.ainvoke(initial_state, config=config)
         response_time_ms = int((time.time() - start_time) * 1000)
         log_step(request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료", docs_found=len(result["retrieved_docs"]), answer_length=len(result["answer"]))
 

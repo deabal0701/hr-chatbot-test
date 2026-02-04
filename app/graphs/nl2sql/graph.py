@@ -40,6 +40,14 @@ from langchain_core.runnables import RunnableConfig
 from app.models.search import SearchResponse
 from app.utils.logger import setup_logger, log_step
 
+# LangSmith traceable (조건부 import)
+try:
+    from langsmith import traceable
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    LANGSMITH_AVAILABLE = False
+    traceable = None
+
 # State import (로컬 모듈)
 from app.graphs.nl2sql.state import NL2SQLState, create_initial_state
 
@@ -259,6 +267,20 @@ class NL2SQLGraph:
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
         """그래프 비동기 실행 (멀티턴 대화 지원)"""
+        # LangSmith 트레이싱: question을 Input으로 표시
+        if LANGSMITH_AVAILABLE and traceable:
+            return await self._traced_ainvoke(inputs)
+        return await self._run_graph(inputs)
+
+    async def _traced_ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
+        """LangSmith 트레이싱이 적용된 실행"""
+        @traceable(name="NL2SQL")  # type: ignore
+        async def traced_run(question: str) -> SearchResponse:  # noqa: ARG001
+            return await self._run_graph(inputs)
+        return await traced_run(inputs["question"])
+
+    async def _run_graph(self, inputs: Dict[str, Any]) -> SearchResponse:
+        """실제 그래프 실행 로직"""
         start_time = time.time()
 
         # 세션 ID 처리 (없으면 자동 생성)
@@ -274,8 +296,11 @@ class NL2SQLGraph:
                 f"NL2SQL 그래프 실행 시작 (멀티턴)",
                 question=inputs["question"], session_id=session_id)
 
-        # 그래프 실행 (thread_id로 세션 관리)
-        config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+        # 그래프 실행 (thread_id로 세션 관리, run_name으로 LangSmith에 질문 표시)
+        config: RunnableConfig = {
+            "configurable": {"thread_id": session_id},
+            "run_name": inputs["question"],  # LangGraph 트레이스 Name 컬럼에 표시
+        }
         result = await self.graph.ainvoke(initial_state, config=config)
 
         response_time_ms = int((time.time() - start_time) * 1000)

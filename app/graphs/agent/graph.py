@@ -36,6 +36,14 @@ from app.models.agent import AgentResponse, AgentConfig, AgentStep, AgentSQLResu
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text
 
+# LangSmith traceable (조건부 import)
+try:
+    from langsmith import traceable
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    LANGSMITH_AVAILABLE = False
+    traceable = None
+
 logger = setup_logger(__name__)
 
 
@@ -139,6 +147,20 @@ class InsightAgentGraph:
         Returns:
             AgentResponse
         """
+        # LangSmith 트레이싱: question을 Input으로 표시
+        if LANGSMITH_AVAILABLE and traceable:
+            return await self._traced_ainvoke(inputs)
+        return await self._run_graph(inputs)
+
+    async def _traced_ainvoke(self, inputs: Dict[str, Any]) -> AgentResponse:
+        """LangSmith 트레이싱이 적용된 실행"""
+        @traceable(name="Agent")  # type: ignore
+        async def traced_run(question: str) -> AgentResponse:  # noqa: ARG001
+            return await self._run_graph(inputs)
+        return await traced_run(inputs["question"])
+
+    async def _run_graph(self, inputs: Dict[str, Any]) -> AgentResponse:
+        """실제 그래프 실행 로직"""
         # 1. 입력 준비
         request_id = inputs.get("request_id", str(uuid.uuid4())[:8])
         question = inputs["question"]
@@ -174,8 +196,11 @@ class InsightAgentGraph:
         initial_state["messages"] = [HumanMessage(content=question)]
 
         try:
-            # 4. 그래프 실행
-            graph_config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+            # 4. 그래프 실행 (run_name으로 LangSmith에 질문 표시)
+            graph_config: RunnableConfig = {
+                "configurable": {"thread_id": session_id},
+                "run_name": question,  # LangGraph 트레이스 Name 컬럼에 표시
+            }
             result = await self.graph.ainvoke(initial_state, config=graph_config)
 
             # 5. 실행 시간 계산
