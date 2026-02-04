@@ -509,6 +509,35 @@
                   </el-form-item>
                 </template>
               </div>
+
+              <el-divider />
+
+              <!-- 섹션 5: 멀티턴 대화 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><ChatDotRound /></el-icon>
+                  멀티턴 대화 설정
+                </h4>
+                <p class="section-desc">NL2SQL에서 이전 대화 컨텍스트를 활용하여 후속 질문을 처리합니다.</p>
+
+                <el-form-item label="멀티턴 대화 활성화">
+                  <el-switch v-model="formData.nl2sql.multiturn_enabled" />
+                  <span class="switch-label">{{ formData.nl2sql.multiturn_enabled ? '활성화' : '비활성화' }}</span>
+                  <div class="form-help">활성화 시 이전 질문/SQL/답변을 컨텍스트로 전달합니다</div>
+                </el-form-item>
+
+                <template v-if="formData.nl2sql.multiturn_enabled">
+                  <el-form-item label="최대 대화 턴 수">
+                    <el-input-number
+                      v-model="formData.nl2sql.multiturn_max_turns"
+                      :min="1"
+                      :max="20"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">유지할 최대 대화 이력 수 (1-20, 권장: 5). 초과 시 오래된 이력 삭제</div>
+                  </el-form-item>
+                </template>
+              </div>
             </el-form>
 
             <!-- 외부 비즈니스 데이터베이스 연결 설정 -->
@@ -965,7 +994,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -1039,7 +1068,10 @@ const formData = reactive({
     fewshot_similarity_threshold: 0.3,
     // 재시도 설정
     retry_enabled: true,
-    max_retries: 2
+    max_retries: 2,
+    // 멀티턴 대화 설정
+    multiturn_enabled: true,
+    multiturn_max_turns: 5
   },
   external_database: {
     enabled: true,

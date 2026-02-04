@@ -327,10 +327,30 @@ class OracleAdapter(DatabaseAdapter):
     # ==========================================================================
 
     def row_to_dict(self, row: Any, columns: List[str]) -> Dict[str, Any]:
-        """행 데이터를 딕셔너리로 변환 (Oracle은 튜플 반환)"""
+        """행 데이터를 딕셔너리로 변환 (Oracle은 튜플 반환)
+
+        datetime 객체는 ISO 문자열로 변환하여 JSON 직렬화 가능하게 합니다.
+        """
+        from datetime import datetime, date, time
+        from decimal import Decimal
+
         if isinstance(row, dict):
-            return row
-        return dict(zip(columns, row))
+            result = row.copy()
+        else:
+            result = dict(zip(columns, row))
+
+        # datetime, date, time, Decimal 등 JSON 직렬화 불가능한 타입 변환
+        for key, value in result.items():
+            if isinstance(value, datetime):
+                result[key] = value.isoformat()
+            elif isinstance(value, date):
+                result[key] = value.isoformat()
+            elif isinstance(value, time):
+                result[key] = value.isoformat()
+            elif isinstance(value, Decimal):
+                result[key] = float(value)
+
+        return result
 
     def get_column_names(self, cursor: Any) -> List[str]:
         """커서에서 컬럼명 추출"""

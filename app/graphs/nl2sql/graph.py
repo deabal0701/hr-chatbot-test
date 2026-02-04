@@ -3,30 +3,39 @@ NL2SQL 검색 그래프 (LangGraph)
 
 위치: app/graphs/nl2sql/graph.py
 
-그래프 흐름:
-    schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                                                            ├─ execute → execute_sql → should_continue_after_execute
-                                                                            │                            ├─ answer → generate_answer → END
-                                                                            │                            ├─ retry → prepare_retry → fewshot_retrieval (enhanced)
-                                                                            │                            └─ error → handle_error → END
-                                                                            ├─ retry → prepare_retry → fewshot_retrieval (enhanced)
-                                                                            └─ error → handle_error → END
+그래프 흐름 (멀티턴 대화 + 의도 분석 지원):
+    load_history → intent_rewrite → should_route_after_intent
+                                     ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                     │                                                                                      ├─ execute → execute_sql → should_continue_after_execute
+                                     │                                                                                      │                            ├─ answer → generate_answer → save_history → END
+                                     │                                                                                      │                            ├─ retry → prepare_retry → fewshot_retrieval
+                                     │                                                                                      │                            └─ error → handle_error → END
+                                     │                                                                                      ├─ retry → prepare_retry → fewshot_retrieval
+                                     │                                                                                      └─ error → handle_error → END
+                                     └─ answer_from_history → answer_from_history_node → save_history → END
 
 노드:
+- load_history: 이전 대화 이력 로드 (멀티턴)
+- intent_rewrite: 의도 분석 + 질문 재작성 (멀티턴 핵심 노드)
+- answer_from_history: 이전 SQL 결과에서 답변 생성 (SQL 실행 없이)
 - schema_retrieval: 질문 분석하여 필요한 테이블 스키마만 로드
 - fewshot_retrieval: Few-shot 예제 검색
-- prompt_build: 스키마 + Few-shot + DB 가이드라인 조합
+- prompt_build: 스키마 + Few-shot + 이전 대화 이력 + DB 가이드라인 조합
 - sql_generate: LLM 호출만 수행
 - validate_sql: SQL 안전성 및 유효성 검증
 - execute_sql: SQL 실행
 - generate_answer: 결과를 자연어 답변으로 변환
+- save_history: 현재 대화를 이력에 저장 (멀티턴, sql_result_summary 포함)
 - handle_error: 오류 처리
 - prepare_retry: 재시도 상태 업데이트 (retry_count 증가)
 """
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 import time
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.runnables import RunnableConfig
 
 from app.models.search import SearchResponse
 from app.utils.logger import setup_logger, log_step
@@ -47,6 +56,12 @@ from app.graphs.nl2sql.nodes import (
     prepare_retry_node,
     should_execute,
     should_continue_after_execute,
+    load_history_node,
+    save_history_node,
+    # 의도 분석 + 질문 재작성 노드
+    intent_rewrite_node,
+    answer_from_history_node,
+    should_route_after_intent,
 )
 
 logger = setup_logger(__name__)
@@ -61,26 +76,36 @@ class NL2SQLGraph:
     - 쿼리 오류 시 재시도 기능
     - DB 타입 자동 감지 (PostgreSQL, Oracle)
     - Admin UI 프롬프트 설정 반영
+    - 멀티턴 대화 지원 (InMemorySaver)
     """
 
     def __init__(self):
+        # Checkpointer (멀티턴 대화)
+        self.checkpointer = InMemorySaver()
         self.graph = self._build_graph()
 
-    def _build_graph(self) -> StateGraph:
+        log_step("SYSTEM", "NL2SQL", "INIT", "SETUP", "NL2SQLGraph 초기화 완료 (멀티턴 지원)", level="DEBUG")
+
+    def _build_graph(self) -> CompiledStateGraph:
         """그래프 구성
 
-        흐름:
-        schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                                                                ├─ execute → execute_sql → should_continue_after_execute
-                                                                                │                            ├─ answer → generate_answer → END
-                                                                                │                            ├─ retry → prepare_retry → fewshot_retrieval
-                                                                                │                            └─ error → handle_error → END
-                                                                                ├─ retry → prepare_retry → fewshot_retrieval
-                                                                                └─ error → handle_error → END
+        흐름 (멀티턴 대화 + 의도 분석 지원):
+        load_history → intent_rewrite → should_route_after_intent
+                                         ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                         │                                                                                       ├─ execute → execute_sql → should_continue_after_execute
+                                         │                                                                                       │                            ├─ answer → generate_answer → save_history → END
+                                         │                                                                                       │                            ├─ retry → prepare_retry → fewshot_retrieval
+                                         │                                                                                       │                            └─ error → handle_error → END
+                                         │                                                                                       ├─ retry → prepare_retry → fewshot_retrieval
+                                         │                                                                                       └─ error → handle_error → END
+                                         └─ answer_from_history → answer_from_history_node → save_history → END
         """
         workflow = StateGraph(NL2SQLState)
 
-        # 노드 등록
+        # 노드 등록 (멀티턴 노드 + 의도 분석 노드 포함)
+        workflow.add_node("load_history", load_history_node)
+        workflow.add_node("intent_rewrite", intent_rewrite_node)  # 의도 분석 + 질문 재작성
+        workflow.add_node("answer_from_history", answer_from_history_node)  # 이전 결과에서 답변
         workflow.add_node("schema_retrieval", schema_retrieval_node)
         workflow.add_node("fewshot_retrieval", fewshot_retrieval_node)
         workflow.add_node("prompt_build", prompt_build_node)
@@ -88,11 +113,28 @@ class NL2SQLGraph:
         workflow.add_node("validate_sql", validate_sql_node)
         workflow.add_node("execute_sql", execute_sql_node)
         workflow.add_node("generate_answer", generate_answer_node)
+        workflow.add_node("save_history", save_history_node)
         workflow.add_node("handle_error", handle_error_node)
         workflow.add_node("prepare_retry", prepare_retry_node)
 
-        # 순차 실행 흐름 정의
-        workflow.set_entry_point("schema_retrieval")
+        # 순차 실행 흐름 정의 (load_history로 시작)
+        workflow.set_entry_point("load_history")
+        workflow.add_edge("load_history", "intent_rewrite")
+
+        # 조건부 분기 0: 의도 분석 후 (SQL 필요 vs 이전 결과에서 답변)
+        workflow.add_conditional_edges(
+            "intent_rewrite",
+            should_route_after_intent,
+            {
+                "sql_needed": "schema_retrieval",  # SQL 실행 필요 → 기존 흐름
+                "answer_from_history": "answer_from_history"  # 이전 결과에서 답변 가능
+            }
+        )
+
+        # answer_from_history → save_history → END
+        workflow.add_edge("answer_from_history", "save_history")
+
+        # SQL 실행 흐름 (기존)
         workflow.add_edge("schema_retrieval", "fewshot_retrieval")
         workflow.add_edge("fewshot_retrieval", "prompt_build")
         workflow.add_edge("prompt_build", "sql_generate")
@@ -123,48 +165,178 @@ class NL2SQLGraph:
         # prepare_retry → fewshot_retrieval
         workflow.add_edge("prepare_retry", "fewshot_retrieval")
 
-        workflow.add_edge("generate_answer", END)
+        # generate_answer → save_history → END (멀티턴)
+        workflow.add_edge("generate_answer", "save_history")
+        workflow.add_edge("save_history", END)
         workflow.add_edge("handle_error", END)
 
-        return workflow.compile()
+        return workflow.compile(checkpointer=self.checkpointer)
 
-    def _prepare_initial_state(self, inputs: Dict[str, Any]) -> NL2SQLState:
-        """초기 상태 준비"""
-        return create_initial_state(
+    def _prepare_initial_state(self, inputs: Dict[str, Any], session_id: str) -> NL2SQLState:
+        """초기 상태 준비 (멀티턴 대화 지원)
+
+        checkpoint에서 이전 conversation_history를 로드하여 멀티턴 대화 유지
+        """
+        # 설정에서 max_turns 로드
+        from app.core.config.settings_config import settings_config
+        max_turns = settings_config.get_value("nl2sql", "multiturn_max_turns", 5)
+
+        # checkpoint에서 이전 conversation_history 로드
+        existing_history = []
+        request_id = inputs.get("request_id", "unknown")
+        try:
+            config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+            checkpoint = self.checkpointer.get(config)
+
+            # 디버그: checkpoint 구조 확인
+            log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
+                    f"checkpoint 조회 | session_id={session_id}, checkpoint_exists={checkpoint is not None}",
+                    level="DEBUG")
+
+            if checkpoint:
+                log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
+                        f"checkpoint keys: {list(checkpoint.keys()) if checkpoint else 'None'}",
+                        level="DEBUG")
+
+                if "channel_values" in checkpoint:
+                    channel_values = checkpoint["channel_values"]
+                    log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
+                            f"channel_values keys: {list(channel_values.keys()) if channel_values else 'None'}",
+                            level="DEBUG")
+
+                    existing_history = channel_values.get("conversation_history", [])
+                    log_step(request_id, "NL2SQL", "0", "CHECKPOINT",
+                            f"existing_history 로드 완료 | count={len(existing_history)}",
+                            level="DEBUG")
+        except Exception as e:
+            log_step(request_id, "NL2SQL", "0", "INIT",
+                    f"checkpoint 조회 실패: {e}", level="WARNING")
+
+        # 초기 상태 생성
+        initial_state = create_initial_state(
             question=inputs["question"],
             request_id=inputs.get("request_id", "unknown"),
             max_retries=inputs.get("max_retries", 2),
+            session_id=session_id,
+            max_turns=max_turns,
         )
 
-    def _build_response(self, result: NL2SQLState, response_time_ms: int = 0) -> SearchResponse:
-        """실행 결과를 SearchResponse로 변환"""
+        # 기존 conversation_history 복원
+        initial_state["conversation_history"] = existing_history
+
+        return initial_state
+
+    def _build_response(self, result: Dict[str, Any], session_id: str, response_time_ms: int = 0) -> SearchResponse:
+        """실행 결과를 SearchResponse로 변환 (멀티턴 지원)"""
+        answer = result.get("answer", "")
+        history_truncated = result.get("history_truncated", False)
+        max_turns = result.get("max_turns", 5)
+        current_turn = result.get("current_turn", 1)
+
+        # 세션 한도 도달 여부 (현재 턴 >= max_turns이면 다음 질문 시 이력 잘림)
+        session_limit_reached = current_turn >= max_turns
+
+        # 메타데이터에 멀티턴 정보 추가
+        metadata = result.get("metadata", {})
+        metadata.update({
+            "current_turn": current_turn,
+            "max_turns": max_turns,
+            "history_truncated": history_truncated,
+            "session_limit_reached": session_limit_reached,  # 프론트엔드에서 버튼 표시용
+        })
+
         return SearchResponse(
-            query=result["question"],
-            answer=result["answer"],
+            query=result.get("question", ""),
+            answer=answer,
             query_type="nl2sql",
             response_time_ms=response_time_ms,
-            sql=result["generated_sql"],
+            sql=result.get("generated_sql", ""),
             sql_result=result.get("sql_result"),
             sources=None,
-            metadata=result["metadata"]
+            session_id=session_id,
+            metadata=metadata
         )
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
-        """그래프 비동기 실행"""
+        """그래프 비동기 실행 (멀티턴 대화 지원)"""
         start_time = time.time()
 
-        initial_state = self._prepare_initial_state(inputs)
-        request_id = initial_state["request_id"]
+        # 세션 ID 처리 (없으면 자동 생성)
+        request_id = inputs.get("request_id", "unknown")
+        session_id = inputs.get("session_id")
+        if not session_id:
+            session_id = f"nl2sql-{request_id}"
+            inputs["session_id"] = session_id
 
-        log_step(request_id, "NL2SQL", "0", "INIT", "NL2SQL 그래프 실행 시작", question=inputs["question"])
+        initial_state = self._prepare_initial_state(inputs, session_id)
 
-        result = await self.graph.ainvoke(initial_state)
+        log_step(request_id, "NL2SQL", "0", "INIT",
+                f"NL2SQL 그래프 실행 시작 (멀티턴)",
+                question=inputs["question"], session_id=session_id)
+
+        # 그래프 실행 (thread_id로 세션 관리)
+        config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+        result = await self.graph.ainvoke(initial_state, config=config)
 
         response_time_ms = int((time.time() - start_time) * 1000)
 
-        log_step(request_id, "NL2SQL", "5", "COMPLETE", "NL2SQL 그래프 실행 완료", has_sql=bool(result["generated_sql"]), answer_length=len(result["answer"]))
+        log_step(request_id, "NL2SQL", "5", "COMPLETE",
+                f"NL2SQL 그래프 실행 완료",
+                has_sql=bool(result.get("generated_sql", "")),
+                answer_length=len(result.get("answer", "")),
+                session_id=session_id,
+                current_turn=result.get("current_turn", 1))
 
-        return self._build_response(result, response_time_ms)
+        return self._build_response(result, session_id, response_time_ms)
+
+    # =========================================================================
+    # 세션 관리 메서드 (멀티턴 대화)
+    # =========================================================================
+
+    def get_sessions(self) -> List[str]:
+        """활성 세션 목록 조회"""
+        try:
+            if hasattr(self.checkpointer, 'storage'):
+                # InMemorySaver의 storage에서 thread_id 추출
+                sessions = set()
+                for key in self.checkpointer.storage.keys():
+                    if isinstance(key, tuple) and len(key) >= 1:
+                        thread_id = key[0]
+                        if isinstance(thread_id, str) and thread_id.startswith("nl2sql-"):
+                            sessions.add(thread_id)
+                return sorted(list(sessions))
+        except Exception as e:
+            logger.error(f"세션 목록 조회 실패: {e}")
+        return []
+
+    def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
+        """세션 대화 이력 조회"""
+        try:
+            config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+            checkpoint = self.checkpointer.get(config)
+            if checkpoint and "channel_values" in checkpoint:
+                state = checkpoint["channel_values"]
+                return state.get("conversation_history", [])
+        except Exception as e:
+            logger.error(f"세션 이력 조회 실패: {session_id} - {e}")
+        return []
+
+    def delete_session(self, session_id: str) -> Dict[str, Any]:
+        """세션 삭제"""
+        try:
+            if hasattr(self.checkpointer, 'storage'):
+                # storage에서 해당 session_id 관련 항목 삭제
+                keys_to_delete = [
+                    key for key in self.checkpointer.storage.keys()
+                    if isinstance(key, tuple) and len(key) >= 1 and key[0] == session_id
+                ]
+                for key in keys_to_delete:
+                    del self.checkpointer.storage[key]
+                return {"success": True, "deleted_keys": len(keys_to_delete)}
+        except Exception as e:
+            logger.error(f"세션 삭제 실패: {session_id} - {e}")
+            return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Unknown error"}
 
 
 # 싱글톤 인스턴스

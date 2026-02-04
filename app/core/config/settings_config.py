@@ -79,6 +79,9 @@ class SettingsConfig:
             # 재시도 설정
             "retry_enabled": ("true", "bool", "SQL 재시도 기능 활성화", False),
             "max_retries": ("2", "int", "최대 재시도 횟수", False),
+            # 멀티턴 대화 설정
+            "multiturn_enabled": ("true", "bool", "멀티턴 대화 활성화", False),
+            "multiturn_max_turns": ("5", "int", "최대 대화 턴 수 (1-20, 기본 5)", False),
         },
         "chunking": {
             "default_chunk_size": ("1000", "int", "기본 청크 크기 (문자)", False),

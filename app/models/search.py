@@ -27,6 +27,7 @@ class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, description="검색 질의")
     mode: str = Field(default="auto", description="검색 모드 (auto/rag/nl2sql)")
     filters: Optional[SearchFilters] = Field(default_factory=SearchFilters)
+    session_id: Optional[str] = Field(None, description="세션 ID (멀티턴 대화용, 없으면 자동 생성)")
 
     model_config = {
         "json_schema_extra": {
@@ -38,7 +39,8 @@ class SearchRequest(BaseModel):
                     "to_date": "2024-12-31",
                     "department": "개발",
                     "location": "서울"
-                }
+                },
+                "session_id": "nl2sql-abc123"
             }
         }
     }
@@ -64,6 +66,9 @@ class SearchResponse(BaseModel):
     # ========== RAG 전용 (rag일 때만 값 존재) ==========
     sources: Optional[List[DocumentSource]] = Field(None, description="참고 문서 목록")
 
+    # ========== 멀티턴 대화 ==========
+    session_id: Optional[str] = Field(None, description="세션 ID (멀티턴 대화용)")
+
     # ========== 메타데이터 ==========
     metadata: Dict[str, Any] = Field(default_factory=dict, description="추가 메타데이터")
 
@@ -82,7 +87,8 @@ class SearchResponse(BaseModel):
                     "execution_time_ms": 45
                 },
                 "sources": None,
-                "metadata": {"model": "gpt-4o"}
+                "session_id": "nl2sql-abc123",
+                "metadata": {"model": "gpt-4o", "current_turn": 1, "max_turns": 5}
             }
         }
     }

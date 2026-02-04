@@ -44,11 +44,26 @@ class NL2SQLState(TypedDict):
     previous_error: str                  # 이전 오류 메시지
     enhanced_fewshot: bool               # 강화된 Few-shot 모드 플래그
 
+    # ===== 멀티턴 대화 필드 =====
+    session_id: str                      # 세션 ID
+    conversation_history: List[Dict]     # 이전 대화 이력 [{question, sql, answer, timestamp, sql_result_summary}, ...]
+    current_turn: int                    # 현재 턴 번호
+    max_turns: int                       # 최대 턴 수 (설정에서 로드)
+    history_truncated: bool              # 이력 잘림 여부 (max_turns 초과 시 True)
+
+    # ===== 의도 분석 + 질문 재작성 필드 =====
+    query_type: str                      # 질의 유형: "sql_needed" | "answer_from_history"
+    rewritten_question: str              # 재작성된 질문 (완전한 독립 질문)
+    intent_reasoning: str                # 의도 분석 이유
+    sql_result_summary: List[Dict]       # 이전 SQL 결과 요약 (최대 10행)
+
 
 def create_initial_state(
     question: str,
     request_id: str = "unknown",
     max_retries: int = 2,
+    session_id: str = "",
+    max_turns: int = 5,
 ) -> NL2SQLState:
     """
     초기 상태 생성
@@ -57,6 +72,8 @@ def create_initial_state(
         question: 사용자 질문
         request_id: 요청 ID
         max_retries: 최대 재시도 횟수
+        session_id: 세션 ID (멀티턴 대화용)
+        max_turns: 최대 대화 턴 수
 
     Returns:
         초기화된 NL2SQLState
@@ -93,4 +110,17 @@ def create_initial_state(
         previous_sql="",
         previous_error="",
         enhanced_fewshot=False,
+
+        # 멀티턴 대화 필드
+        session_id=session_id,
+        conversation_history=[],
+        current_turn=1,
+        max_turns=max_turns,
+        history_truncated=False,
+
+        # 의도 분석 + 질문 재작성 필드
+        query_type="sql_needed",         # 기본값: SQL 실행 필요
+        rewritten_question="",           # 빈 문자열 = 재작성 필요 없음
+        intent_reasoning="",             # 의도 분석 이유
+        sql_result_summary=[],           # 이전 SQL 결과 요약
     )

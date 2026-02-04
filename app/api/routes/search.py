@@ -2,9 +2,11 @@
 
 위치: app/api/routes/search.py
 - 통합 검색 엔드포인트 (RAG/NL2SQL)
+- NL2SQL 멀티턴 대화 세션 관리
 - 비즈니스 로직은 서비스 계층에 위임
 """
 import uuid
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -45,7 +47,11 @@ async def search(request: SearchRequest):
 
         # STEP 3: 서비스 호출
         if query_type == "nl2sql":
-            response = await nl2sql_service.search(query=request.query, request_id=request_id)
+            response = await nl2sql_service.search(
+                query=request.query,
+                session_id=request.session_id,  # 멀티턴 대화 지원
+                request_id=request_id
+            )
         else:  # rag
             response = await rag_service.search(query=request.query, filters=request.filters, request_id=request_id)
 
@@ -96,3 +102,78 @@ def _classify_query_intent(query: str) -> str:
         return "nl2sql"
     else:
         return "rag"
+
+
+# =============================================================================
+# NL2SQL 세션 관리 API (멀티턴 대화)
+# =============================================================================
+
+
+@router.get("/nl2sql/sessions", response_model=List[str])
+async def get_nl2sql_sessions():
+    """
+    NL2SQL 활성 세션 목록 조회
+
+    Returns:
+        List[str]: 세션 ID 목록
+    """
+    try:
+        sessions = nl2sql_service.get_sessions()
+        return sessions
+    except Exception as e:
+        logger.error(f"세션 목록 조회 실패: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"세션 목록 조회 실패: {str(e)}"
+        )
+
+
+@router.get("/nl2sql/sessions/{session_id}/history", response_model=List[Dict[str, Any]])
+async def get_nl2sql_session_history(session_id: str):
+    """
+    NL2SQL 세션 대화 이력 조회
+
+    Args:
+        session_id: 세션 ID
+
+    Returns:
+        List[Dict]: 대화 이력 [{question, sql, answer, timestamp}, ...]
+    """
+    try:
+        history = nl2sql_service.get_session_history(session_id)
+        return history
+    except Exception as e:
+        logger.error(f"세션 이력 조회 실패: {session_id} - {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"세션 이력 조회 실패: {str(e)}"
+        )
+
+
+@router.delete("/nl2sql/sessions/{session_id}", response_model=Dict[str, Any])
+async def delete_nl2sql_session(session_id: str):
+    """
+    NL2SQL 세션 삭제
+
+    Args:
+        session_id: 세션 ID
+
+    Returns:
+        Dict: 삭제 결과 {success, deleted_keys or error}
+    """
+    try:
+        result = nl2sql_service.delete_session(session_id)
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get("error", "세션 삭제 실패")
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"세션 삭제 실패: {session_id} - {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"세션 삭제 실패: {str(e)}"
+        )

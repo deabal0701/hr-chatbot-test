@@ -124,10 +124,17 @@ export default {
           })
         } else {
           // 기존 모드 (auto/rag/nl2sql)
+          // nl2sql 모드에서도 멀티턴 대화 지원을 위해 sessionId 전달
           response = await searchApi.search({
             query,
-            mode: state.searchMode
+            mode: state.searchMode,
+            sessionId: state.sessionId  // 멀티턴 대화용 (첫 요청 시 null)
           })
+
+          // 서버가 생성한 session_id 저장 (멀티턴 대화용)
+          if (response.session_id && response.session_id !== state.sessionId) {
+            commit('SET_SESSION_ID', response.session_id)
+          }
 
           // AI 응답 메시지 추가 (통합 SearchResponse 구조)
           commit('ADD_MESSAGE', {
@@ -141,7 +148,8 @@ export default {
             sources: response.sources,
             // 공통 필드
             responseTimeMs: response.response_time_ms,
-            metadata: response.metadata
+            metadata: response.metadata,
+            sessionId: response.session_id  // 세션 ID 저장
           })
         }
       } catch (error) {
@@ -160,10 +168,11 @@ export default {
     },
 
     setMode({ commit, state }, mode) {
+      const previousMode = state.searchMode
       commit('SET_MODE', mode)
 
-      // 모드 변경 시 세션 ID 초기화 (Agent 모드가 아닌 경우)
-      if (mode !== 'agent' && state.sessionId) {
+      // 모드 변경 시 세션 ID 초기화 (다른 모드로 전환 시)
+      if (previousMode !== mode && state.sessionId) {
         commit('SET_SESSION_ID', null)
       }
     },

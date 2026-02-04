@@ -20,6 +20,10 @@ export default {
     if (params.top_k) {
       payload.top_k = params.top_k
     }
+    // session_id 전달 (멀티턴 대화 지원)
+    if (params.sessionId) {
+      payload.session_id = params.sessionId
+    }
     return apiClient.post('/api/v1/search', payload)
   },
 

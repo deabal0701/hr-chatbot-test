@@ -131,8 +131,12 @@
         <!-- 메타 정보 -->
         <div class="message-footer">
           <div class="meta-left">
-            <span class="mode-badge" v-if="message.mode">
-              {{ getModeLabel(message.mode) }}
+            <span class="mode-badge" v-if="message.queryType">
+              {{ getModeLabel(message.queryType) }}
+            </span>
+            <!-- 멀티턴 인디케이터 (NL2SQL 모드) -->
+            <span class="turn-badge" v-if="turnInfo">
+              {{ turnInfo }}
             </span>
             <span class="timestamp">{{ formatTime(message.timestamp) }}</span>
           </div>
@@ -220,6 +224,21 @@ const formattedContent = computed(() => {
     console.log('[UserChatMessage formattedContent] Formatted text:', text.substring(0, 100))
   }
   return text
+})
+
+// 멀티턴 인디케이터 (NL2SQL 모드에서만 표시)
+const turnInfo = computed(() => {
+  const metadata = props.message.metadata
+  if (!metadata) return null
+
+  const currentTurn = metadata.current_turn
+  const maxTurns = metadata.max_turns
+
+  // NL2SQL 모드이고 멀티턴 정보가 있을 때만 표시
+  if (currentTurn && maxTurns && props.message.queryType === 'nl2sql') {
+    return `${currentTurn}/${maxTurns}`
+  }
+  return null
 })
 
 const truncateText = (text, length) => {
@@ -716,6 +735,20 @@ const copyContent = async () => {
     letter-spacing: 0.05em;
   }
 
+  .turn-badge {
+    background-color: transparent;
+    color: var(--text-color-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.7;
+
+    &::before {
+      content: '•';
+      margin-right: 6px;
+      opacity: 0.5;
+    }
+  }
+
   .timestamp {
     font-size: 12px;
     color: var(--text-color-secondary);
@@ -963,6 +996,10 @@ const copyContent = async () => {
     .mode-badge {
       font-size: 10px;
       padding: 2px 6px;
+    }
+
+    .turn-badge {
+      font-size: 10px;
     }
 
     .timestamp {

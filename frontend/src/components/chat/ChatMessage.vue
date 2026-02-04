@@ -14,6 +14,10 @@
         <el-tag size="small" :type="queryTypeTag.type" effect="plain">
           {{ queryTypeTag.label }}
         </el-tag>
+        <!-- 멀티턴 인디케이터 -->
+        <span v-if="turnInfo" class="turn-indicator">
+          {{ turnInfo }}
+        </span>
         <span v-if="message.responseTimeMs" class="response-time">
           {{ message.responseTimeMs }}ms
         </span>
@@ -193,6 +197,21 @@ const queryTypeTag = computed(() => {
   }
 })
 
+// 멀티턴 인디케이터 (NL2SQL 모드에서만 표시)
+const turnInfo = computed(() => {
+  const metadata = props.message.metadata
+  if (!metadata) return null
+
+  const currentTurn = metadata.current_turn
+  const maxTurns = metadata.max_turns
+
+  // NL2SQL 모드이고 멀티턴 정보가 있을 때만 표시
+  if (currentTurn && maxTurns && props.message.queryType === 'nl2sql') {
+    return `턴 ${currentTurn}/${maxTurns}`
+  }
+  return null
+})
+
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
@@ -260,6 +279,15 @@ const formatTime = (timestamp) => {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-color-lighter);
+
+  .turn-indicator {
+    font-size: 12px;
+    color: var(--color-primary);
+    font-weight: 500;
+    padding: 2px 8px;
+    background-color: rgba(var(--color-primary-rgb), 0.1);
+    border-radius: 4px;
+  }
 
   .response-time {
     font-size: 12px;
