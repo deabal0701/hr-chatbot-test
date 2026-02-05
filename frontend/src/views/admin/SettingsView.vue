@@ -119,7 +119,10 @@
         <!-- LLM 설정 -->
         <el-tab-pane label="LLM" name="llm">
           <div class="settings-section">
-            <h3>LLM 모델 설정</h3>
+            <h3>
+              LLM 모델 설정
+              <el-tag size="small" type="success" style="margin-left: 8px;">즉시 적용</el-tag>
+            </h3>
             <el-form label-position="top" class="settings-form">
               <el-form-item label="LLM 제공자">
                 <el-select
@@ -399,6 +402,7 @@
                 <h4 class="section-title">
                   <el-icon><Grid /></el-icon>
                   스키마 검색 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
                 </h4>
                 <p class="section-desc">질문에 필요한 테이블만 선택적으로 로드하여 토큰 사용량을 최적화합니다.</p>
 
@@ -448,6 +452,7 @@
                 <h4 class="section-title">
                   <el-icon><DocumentCopy /></el-icon>
                   Few-shot 예제 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
                 </h4>
                 <p class="section-desc">유사한 질문-SQL 예제를 검색하여 SQL 생성 품질을 향상시킵니다.</p>
 
@@ -488,6 +493,7 @@
                 <h4 class="section-title">
                   <el-icon><RefreshRight /></el-icon>
                   재시도 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
                 </h4>
                 <p class="section-desc">SQL 실행 오류 시 자동으로 재시도하여 성공률을 높입니다.</p>
 
@@ -517,6 +523,7 @@
                 <h4 class="section-title">
                   <el-icon><ChatDotRound /></el-icon>
                   멀티턴 대화 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
                 </h4>
                 <p class="section-desc">NL2SQL에서 이전 대화 컨텍스트를 활용하여 후속 질문을 처리합니다.</p>
 
@@ -676,7 +683,6 @@
           </div>
         </el-tab-pane>
 
-        <!-- Agent 설정 - 추후 사용 예정
         <el-tab-pane label="Agent" name="agent">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
@@ -738,12 +744,14 @@
             </el-form>
           </div>
         </el-tab-pane>
-        -->
 
         <!-- 프롬프트 설정 -->
         <el-tab-pane label="프롬프트" name="prompt">
           <div class="settings-section">
-            <h3>시스템 프롬프트 관리</h3>
+            <h3>
+              시스템 프롬프트 관리
+              <el-tag size="small" type="success" style="margin-left: 8px;">즉시 적용</el-tag>
+            </h3>
             <p class="section-desc">
               LLM과의 상호작용에 사용되는 시스템 프롬프트를 관리합니다.
               프롬프트 변경 시 모든 변경 이력이 자동으로 저장되며, 언제든지 이전 버전으로 원복할 수 있습니다.
@@ -1657,10 +1665,17 @@ onMounted(async () => {
     padding: 20px 0;
 
     h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin: 0 0 20px;
       font-size: 16px;
       font-weight: 500;
       color: var(--text-color-primary);
+
+      .el-tag {
+        margin-left: auto;
+      }
     }
 
     .section-desc {
