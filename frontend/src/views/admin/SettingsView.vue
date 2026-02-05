@@ -750,7 +750,7 @@
           <div class="settings-section">
             <h3>
               시스템 프롬프트 관리
-              <el-tag size="small" type="success" style="margin-left: 8px;">즉시 적용</el-tag>
+              <el-tag size="small" type="success">즉시 적용</el-tag>
             </h3>
             <p class="section-desc">
               LLM과의 상호작용에 사용되는 시스템 프롬프트를 관리합니다.
