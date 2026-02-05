@@ -1041,10 +1041,10 @@ def save_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
         log_step(request_id, "NL2SQL", "5.1", "HISTORY", "멀티턴 비활성화 - 이력 저장 스킵")
         return {}
 
-    # SQL 결과 요약 추출 (최대 10행)
+    # SQL 결과 요약 추출 (최대 100행)
     sql_result_summary = []
     if sql_result and hasattr(sql_result, 'rows') and sql_result.rows:
-        max_summary_rows = 10
+        max_summary_rows = 100
         sql_result_summary = sql_result.rows[:max_summary_rows]
 
     # 현재 턴을 이력에 추가 (sql_result_summary 포함)
