@@ -1070,54 +1070,40 @@ def save_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    의도 분석 + 질문 재작성 노드
+    질문 재작성 노드
 
-    멀티턴 대화에서 현재 질문의 의도를 분석하고,
-    필요시 이전 컨텍스트를 포함한 완전한 질문으로 재작성합니다.
+    멀티턴 대화에서 이전 컨텍스트를 포함한 완전한 질문으로 재작성합니다.
+    항상 SQL 생성 흐름을 타므로, 이전 대화를 기반으로 정확한 질문을 만듭니다.
 
     처리 흐름:
-    1. 대화 이력 확인 (없으면 바로 통과)
-    2. LLM 호출하여 의도 분석 + 질문 재작성
-    3. query_type 결정:
-       - "sql_needed": 새로운 SQL 실행 필요
-       - "answer_from_history": 이전 결과에서 답변 가능
+    1. 대화 이력 확인 (없으면 원본 질문 그대로 사용)
+    2. LLM 호출하여 이전 컨텍스트를 포함한 완전한 질문 재작성
+
+    예시:
+    - 이전: "2024년 입사자는 몇 명?" → 후속: "그 중 개발부서는?"
+    - 재작성: "2024년 입사자 중 개발부서 직원은 몇 명인가?"
 
     Args:
         state: NL2SQLState
 
     Returns:
         업데이트된 state:
-        - query_type: str
-        - rewritten_question: str
-        - intent_reasoning: str
-        - sql_result_summary: List[Dict]
+        - rewritten_question: str (완전한 질문)
+        - intent_reasoning: str (재작성 이유)
     """
-    import json
-
     request_id = state.get("request_id", "unknown")
     question = state.get("question", "")
     conversation_history = state.get("conversation_history", [])
 
-    log_step(request_id, "NL2SQL", "0.2", "INTENT-REWRITE", "의도 분석 시작", question=truncate_text(question, 40), history_count=len(conversation_history))
+    log_step(request_id, "NL2SQL", "0.2", "REWRITE", "질문 재작성 시작", question=truncate_text(question, 40), history_count=len(conversation_history))
 
-    # 대화 이력이 없으면 그대로 통과
+    # 대화 이력이 없으면 원본 질문 그대로 사용
     if not conversation_history:
-        log_step(request_id, "NL2SQL", "0.2", "INTENT-REWRITE", "대화 이력 없음 → SQL 실행 필요")
+        log_step(request_id, "NL2SQL", "0.2", "REWRITE", "대화 이력 없음 → 원본 질문 사용")
         return {
-            "query_type": "sql_needed",
             "rewritten_question": question,
-            "intent_reasoning": "첫 번째 질문이므로 SQL 실행 필요",
-            "sql_result_summary": [],
+            "intent_reasoning": "첫 번째 질문",
         }
-
-    # 이전 SQL 결과 요약 추출 (가장 최근 데이터가 있는 턴에서)
-    # ★ 마지막 턴이 answer_from_history인 경우 sql_result_summary가 비어있을 수 있음
-    #    → 역순으로 탐색하여 데이터가 있는 턴 찾기
-    sql_result_summary = []
-    for turn in reversed(conversation_history):
-        if turn.get("sql_result_summary"):
-            sql_result_summary = turn["sql_result_summary"]
-            break
 
     # 대화 이력 포맷팅
     history_text = _format_conversation_history_for_intent(conversation_history)
@@ -1125,46 +1111,31 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # LLM 호출
     llm = _get_llm()
 
-    system_prompt = """당신은 NL2SQL 의도 분석기입니다.
+    system_prompt = """당신은 NL2SQL 질문 재작성기입니다.
 
-## 질문: "새로운 SQL 실행이 필요한가?"
+## 역할
+이전 대화 컨텍스트를 기반으로 현재 질문을 **완전하고 독립적인 질문**으로 재작성합니다.
 
 ## 응답 형식 (JSON)
 ```json
 {
-    "query_type": "sql_needed" 또는 "sql_not_needed",
-    "rewritten_question": "완전한 질문 형태 (답변 아님!)",
-    "reasoning": "판단 이유"
+    "rewritten_question": "완전한 질문 (이전 컨텍스트 포함)",
+    "reasoning": "재작성 이유"
 }
 ```
 
-## ★ 핵심 판단 기준 ★
-
-**sql_needed (새 SQL 실행 필요):**
-- 이전 결과 컬럼에 **없는** 정보를 요청
-- "상세", "자세히", "디테일" 요청
-- "왜", "이유", "원인" 질문
-- 새로운 테이블/컬럼 조회 필요
-- 명확하게 확신이 들지 않는 경우
-
-**sql_not_needed (기존 데이터로 답변 가능):**
-- 요청 정보가 이전 결과 컬럼에 **100% 존재**
-
+## 재작성 규칙
+1. **대명사/지시어 해소**: "그 중", "거기서", "해당", "이전" 등을 구체적인 조건으로 변환
+2. **조건 계승**: 이전 질문의 WHERE 조건을 포함 (후속 질문은 이전 결과 집합 기반)
+3. **독립적 질문**: 재작성된 질문만으로 SQL 생성이 가능해야 함
 
 ## 예시
-
-| 질문 | 이전 결과 컬럼 | query_type | 이유 |
-|------|---------------|------------|------|
-| "상세 정보 보여줘" | [emp_id, name] | sql_needed | 상세=추가 컬럼 필요 |
-| "1등은 누구?" | [emp_id, name, score] | sql_not_needed | score로 정렬 가능 |
-| "부서는?" | [emp_id, name, score] | sql_needed | 부서 컬럼 없음 |
-| "상벌내역 보여줘" | [emp_id, name] | sql_needed | 상벌 컬럼 없음 |
+| 이전 질문 | 후속 질문 | 재작성된 질문 |
+|----------|----------|-------------|
+| 2024년 입사자 수는? | 그 중 개발부서는? | 2024년 입사자 중 개발부서 직원은 몇 명인가? |
+| 급여 상위 10명은? | 그들의 부서는? | 급여 상위 10명의 부서 정보를 조회해줘 |
+| IT부서 직원 목록 | 평균 연봉은? | IT부서 직원들의 평균 연봉은? |
 """
-
-    # 이전 결과 데이터의 컬럼 목록 추출 (LLM이 판단하기 쉽도록)
-    available_columns = []
-    if sql_result_summary and len(sql_result_summary) > 0:
-        available_columns = list(sql_result_summary[0].keys())
 
     user_prompt = f"""## 이전 대화 이력
 {history_text}
@@ -1172,29 +1143,17 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
 ## 현재 질문
 {question}
 
-## 이전 SQL 결과 데이터 (최대 10행)
-**★ 사용 가능한 컬럼 목록**: {available_columns if available_columns else "없음"}
-**★ 이 컬럼들로만 답변 가능! 다른 정보는 새 SQL 필요!**
-
-데이터:
-{json.dumps(sql_result_summary, ensure_ascii=False, indent=2) if sql_result_summary else "없음"}
-
-위 컨텍스트를 바탕으로:
-1. 현재 질문에 필요한 정보가 "사용 가능한 컬럼 목록"에 있는지 확인
-2. 없으면 → sql_needed, 있으면 → sql_not_needed
-3. 질문을 재작성하세요."""
+위 컨텍스트를 바탕으로 현재 질문을 완전한 형태로 재작성하세요."""
 
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt)
     ]
 
-    log_step(request_id, "NL2SQL", "0.2a", "LLM-INPUT", "LLM 호출 (의도 분석)",
-            history_text_length=len(history_text))
+    log_step(request_id, "NL2SQL", "0.2a", "LLM-INPUT", "LLM 호출 (질문 재작성)", history_turns=len(conversation_history))
 
     try:
         response = llm.invoke(messages)
-        # response.content가 리스트일 수 있음 (멀티모달 응답)
         content = response.content
         if isinstance(content, list):
             response_text = "".join(str(c) for c in content).strip()
@@ -1204,33 +1163,26 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # JSON 파싱
         result = _parse_intent_response(response_text)
 
-        query_type = result.get("query_type", "sql_needed")
         rewritten_question = result.get("rewritten_question", question)
         reasoning = result.get("reasoning", "")
 
-        log_step(request_id, "NL2SQL", "0.2b", "LLM-OUTPUT", "의도 분석 완료", query_type=query_type, rewritten_question=truncate_text(rewritten_question, 50), reasoning=truncate_text(reasoning, 50))
+        # 재작성된 질문이 비어있으면 원본 사용
+        if not rewritten_question or rewritten_question.strip() == "":
+            rewritten_question = question
+            reasoning = "재작성 결과 비어있어 원본 사용"
 
-        # ★ 안전 검사 1: sql_not_needed인데 sql_result_summary가 비어있으면 sql_needed로 변경
-        if query_type == "sql_not_needed" and not sql_result_summary:
-            log_step(request_id, "NL2SQL", "0.2c", "FALLBACK", "sql_not_needed → sql_needed (sql_result_summary 비어있음)", level="WARNING")
-            query_type = "sql_needed"
-            reasoning += " (이전 결과 데이터 없어 SQL 실행으로 전환)"
+        log_step(request_id, "NL2SQL", "0.2b", "LLM-OUTPUT", "질문 재작성 완료", rewritten=truncate_text(rewritten_question, 60), reasoning=truncate_text(reasoning, 50))
 
         return {
-            "query_type": query_type,
             "rewritten_question": rewritten_question,
             "intent_reasoning": reasoning,
-            "sql_result_summary": sql_result_summary,
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "0.2", "ERROR", "의도 분석 실패 → SQL 실행으로 fallback", level="WARNING", error=str(e))
-        # 실패 시 기본값 (SQL 실행)
+        log_step(request_id, "NL2SQL", "0.2", "ERROR", "질문 재작성 실패 → 원본 질문 사용", level="WARNING", error=str(e))
         return {
-            "query_type": "sql_needed",
             "rewritten_question": question,
-            "intent_reasoning": f"의도 분석 실패: {e}",
-            "sql_result_summary": sql_result_summary,
+            "intent_reasoning": f"재작성 실패: {e}",
         }
 
 
@@ -1274,112 +1226,3 @@ def _parse_intent_response(response_text: str) -> Dict[str, Any]:
         }
 
 
-def answer_from_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    이전 결과에서 답변 생성 노드
-
-    이전 SQL 결과 데이터를 기반으로 후속 질문에 답변합니다.
-    새로운 SQL 실행 없이 기존 데이터에서 답변을 추출합니다.
-
-    Args:
-        state: NL2SQLState
-
-    Returns:
-        업데이트된 state:
-        - answer: str
-        - generated_sql: str (빈 문자열 - SQL 미실행)
-    """
-    import json
-
-    request_id = state.get("request_id", "unknown")
-    question = state.get("question", "")
-    rewritten_question = state.get("rewritten_question", question)
-    sql_result_summary = state.get("sql_result_summary", [])
-    conversation_history = state.get("conversation_history", [])
-
-    log_step(request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "이전 결과에서 답변 생성 시작", data_rows=len(sql_result_summary))
-
-    # 이전 결과가 없으면 안내 메시지
-    if not sql_result_summary:
-        log_step(request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "이전 결과 데이터 없음", level="WARNING")
-        return {
-            "answer": "이전 조회 결과 데이터가 없어 답변할 수 없습니다. 질문을 다시 해주세요.",
-            "generated_sql": "",
-        }
-
-    # LLM 호출
-    llm = _get_llm()
-
-    # 이전 대화 컨텍스트 포맷팅
-    history_text = _format_conversation_history_for_intent(conversation_history)
-
-    system_prompt = """당신은 데이터 분석 전문가입니다.
-이전에 조회한 SQL 결과 데이터를 바탕으로 사용자의 후속 질문에 답변합니다.
-
-## 규칙
-- 주어진 데이터에서만 답변을 추출하세요
-- 데이터에 없는 정보는 "데이터에 없습니다"라고 답변
-- 간결하고 정확하게 답변
-- 필요시 데이터를 표나 리스트로 정리
-"""
-
-    user_prompt = f"""## 이전 대화 이력
-{history_text}
-
-## 이전 SQL 결과 데이터
-{json.dumps(sql_result_summary, ensure_ascii=False, indent=2)}
-
-## 현재 질문
-{question}
-
-## 재작성된 질문 (참고용)
-{rewritten_question}
-
-위 데이터를 바탕으로 질문에 답변하세요."""
-
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt)
-    ]
-
-    try:
-        response = llm.invoke(messages)
-        answer = response.content
-
-        log_step(request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "답변 생성 완료", answer_length=len(answer))
-
-        return {
-            "answer": answer,
-            "generated_sql": "",  # SQL 미실행
-        }
-
-    except Exception as e:
-        log_step(request_id, "NL2SQL", "4h", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
-        return {
-            "answer": f"답변 생성 중 오류가 발생했습니다: {e}",
-            "generated_sql": "",
-        }
-
-
-def should_route_after_intent(state: Dict[str, Any]) -> str:
-    """
-    의도 분석 후 조건부 분기 함수
-
-    query_type에 따라 다음 노드를 결정합니다.
-
-    Args:
-        state: NL2SQLState
-
-    Returns:
-        "sql_needed" - SQL 실행 필요 → schema_retrieval
-        "sql_not_needed" - 이전 결과에서 답변 → answer_from_history_node
-    """
-    request_id = state.get("request_id", "unknown")
-    query_type = state.get("query_type", "sql_needed")
-
-    if query_type == "sql_not_needed":
-        log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NOT_NEEDED (이전 결과에서 답변)")
-        return "sql_not_needed"
-    else:
-        log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NEEDED (SQL 실행 필요)")
-        return "sql_needed"
