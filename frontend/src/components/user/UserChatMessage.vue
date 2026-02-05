@@ -155,6 +155,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
 const props = defineProps({
   message: {
@@ -167,8 +168,11 @@ const showSources = ref(false)
 const showSql = ref(false)
 const showAgentSteps = ref(false)
 
-// 디버깅: 메시지 내용 확인 (개발 환경에서만)
+// 전역 테이블 복사 함수 등록
 onMounted(() => {
+  registerTableCopyFunction()
+
+  // 디버깅: 메시지 내용 확인 (개발 환경에서만)
   if (import.meta.env.DEV && props.message.role === 'assistant') {
     console.log('[UserChatMessage Mounted]', props.message)
     console.log('[UserChatMessage Content]', props.message.content)
@@ -184,46 +188,9 @@ watch(() => props.message.content, (newVal) => {
   }
 }, { immediate: true })
 
-// 마크다운 간단 처리
+// 마크다운 처리 (모듈 사용)
 const formattedContent = computed(() => {
-  // 디버깅 로그 (개발 환경에서만)
-  if (import.meta.env.DEV) {
-    console.log('[UserChatMessage formattedContent] Computing...', props.message.content)
-    console.log('[UserChatMessage formattedContent] Content type:', typeof props.message.content)
-    console.log('[UserChatMessage formattedContent] Content length:', props.message.content?.length)
-  }
-  
-  if (!props.message.content) {
-    if (import.meta.env.DEV) {
-      console.warn('[UserChatMessage formattedContent] Content is empty!')
-    }
-    return '<span style="color: #999;">내용이 없습니다.</span>'
-  }
-  
-  // 빈 문자열 체크
-  if (props.message.content.trim() === '') {
-    if (import.meta.env.DEV) {
-      console.warn('[UserChatMessage formattedContent] Content is empty string!')
-    }
-    return '<span style="color: #999;">답변이 비어있습니다.</span>'
-  }
-
-  let text = props.message.content
-    // 코드 블록
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="$1">$2</code></pre>')
-    // 인라인 코드
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // 볼드
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    // 이탤릭
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    // 줄바꿈
-    .replace(/\n/g, '<br>')
-  
-  if (import.meta.env.DEV) {
-    console.log('[UserChatMessage formattedContent] Formatted text:', text.substring(0, 100))
-  }
-  return text
+  return formatMarkdownToHtml(props.message.content)
 })
 
 // 멀티턴 인디케이터 (NL2SQL 모드에서만 표시)
@@ -414,6 +381,94 @@ const copyContent = async () => {
       font-size: 14px;
       color: var(--text-color-regular);
       font-weight: 500;
+    }
+
+    // 마크다운 테이블 스타일
+    :deep(.md-table-wrapper) {
+      position: relative;
+      margin: 20px 0;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-color-card);
+    }
+
+    :deep(.md-table-scroll) {
+      overflow-x: auto;
+    }
+
+    :deep(.copy-table-btn) {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      background-color: var(--bg-color-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-color-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 1;
+
+      &:hover {
+        background-color: var(--bg-color-hover);
+        color: var(--text-color-primary);
+        border-color: var(--color-primary);
+      }
+
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    :deep(.md-table) {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+
+      th, td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+      }
+
+      th {
+        background-color: var(--bg-color-hover);
+        font-weight: 600;
+        color: var(--text-color-primary);
+      }
+
+      td {
+        color: var(--text-color-regular);
+      }
+
+      tbody tr:hover {
+        background-color: var(--bg-color-hover);
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+    }
+
+    // 마크다운 헤더 스타일
+    :deep(.md-h2), :deep(.md-h3) {
+      display: block;
+      margin: 20px 0 12px;
+      font-size: 16px;
+    }
+
+    // 마크다운 리스트 스타일
+    :deep(.md-list-item) {
+      display: block;
+      padding-left: 8px;
+      margin: 4px 0;
     }
 
     :deep(strong) {

@@ -93,12 +93,13 @@
     <footer class="chat-footer">
       <div class="input-container">
         <div class="input-wrapper">
-          <!-- 프롬프트 가이드 버튼 -->
+          <!-- 프롬프트 가이드 버튼 - 추후 사용 예정
           <el-tooltip content="프롬프트 작성 가이드" placement="top">
             <button class="guide-btn" @click="showGuideModal = true">
               <el-icon><QuestionFilled /></el-icon>
             </button>
           </el-tooltip>
+          -->
 
           <!-- 모드 선택 드롭다운 -->
           <el-dropdown trigger="click" popper-class="dark-dropdown-popper" @command="handleModeChange">
@@ -185,12 +186,13 @@
       </div>
     </footer>
 
-    <!-- 프롬프트 가이드 모달 -->
+    <!-- 프롬프트 가이드 모달 - 추후 사용 예정
     <PromptGuideModal
       v-model="showGuideModal"
       :mode="searchMode"
       @use-example="handleUseExample"
     />
+    -->
   </div>
 </template>
 

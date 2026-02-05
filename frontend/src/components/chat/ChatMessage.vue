@@ -7,7 +7,7 @@
 
     <!-- AI 응답 -->
     <div v-else class="message-bubble assistant" :class="{ error: message.isError }">
-      <div class="message-content">{{ message.content }}</div>
+      <div class="message-content" v-html="formattedContent"></div>
 
       <!-- 메타 정보 -->
       <div v-if="!message.isError" class="message-meta">
@@ -35,10 +35,10 @@
             </div>
             <el-table
               v-if="message.sqlResult.rows.length > 0"
-              :data="message.sqlResult.rows.slice(0, 10)"
+              :data="message.sqlResult.rows.slice(0, 1000)"
               size="small"
               border
-              max-height="300"
+              max-height="500"
             >
               <el-table-column
                 v-for="col in message.sqlResult.columns"
@@ -48,8 +48,8 @@
                 min-width="100"
               />
             </el-table>
-            <div v-if="message.sqlResult.row_count > 10" class="more-rows">
-              ... 외 {{ message.sqlResult.row_count - 10 }}개 행
+            <div v-if="message.sqlResult.row_count > 1000" class="more-rows">
+              ... 외 {{ message.sqlResult.row_count - 1000 }}개 행
             </div>
           </el-collapse-item>
         </el-collapse>
@@ -120,10 +120,10 @@
                             </span>
                           </div>
                           <el-table
-                            :data="step.sql_result.rows.slice(0, 10)"
+                            :data="step.sql_result.rows.slice(0, 1000)"
                             size="small"
                             border
-                            max-height="300"
+                            max-height="500"
                           >
                             <el-table-column
                               v-for="col in step.sql_result.columns"
@@ -133,8 +133,8 @@
                               min-width="100"
                             />
                           </el-table>
-                          <div v-if="step.sql_result.row_count > 10" class="more-rows">
-                            ... 외 {{ step.sql_result.row_count - 10 }}개 행
+                          <div v-if="step.sql_result.row_count > 1000" class="more-rows">
+                            ... 외 {{ step.sql_result.row_count - 1000 }}개 행
                           </div>
                         </div>
                         <div v-else class="no-results">
@@ -162,6 +162,7 @@
 import { computed, onMounted, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import SourceCard from './SourceCard.vue'
+import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
 const props = defineProps({
   message: {
@@ -170,8 +171,10 @@ const props = defineProps({
   }
 })
 
-// 디버깅: 메시지 내용 확인
+// 전역 테이블 복사 함수 등록 및 디버깅
 onMounted(() => {
+  registerTableCopyFunction()
+
   if (props.message.role === 'assistant') {
     console.log('[ChatMessage Mounted]', props.message)
     console.log('[ChatMessage Content]', props.message.content)
@@ -183,6 +186,11 @@ onMounted(() => {
 watch(() => props.message.content, (newVal) => {
   console.log('[ChatMessage Content Changed]', newVal)
 }, { immediate: true })
+
+// 마크다운 처리 (모듈 사용)
+const formattedContent = computed(() => {
+  return formatMarkdownToHtml(props.message.content)
+})
 
 const queryTypeTag = computed(() => {
   switch (props.message.queryType) {
@@ -270,6 +278,120 @@ const formatTime = (timestamp) => {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
+
+  // 마크다운 테이블 스타일
+  :deep(.md-table-wrapper) {
+    position: relative;
+    margin: 16px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color-card);
+  }
+
+  :deep(.md-table-scroll) {
+    overflow-x: auto;
+  }
+
+  :deep(.copy-table-btn) {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background-color: var(--bg-color-card);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 1;
+
+    &:hover {
+      background-color: var(--bg-color-hover);
+      color: var(--text-color-primary);
+      border-color: var(--color-primary);
+    }
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  :deep(.md-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    th {
+      background-color: var(--bg-color-hover);
+      font-weight: 600;
+      color: var(--text-color-primary);
+    }
+
+    td {
+      color: var(--text-color-regular);
+    }
+
+    tbody tr:hover {
+      background-color: var(--bg-color-hover);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+  }
+
+  // 마크다운 헤더 스타일
+  :deep(.md-h2), :deep(.md-h3) {
+    display: block;
+    margin: 16px 0 10px;
+    font-size: 15px;
+  }
+
+  // 마크다운 리스트 스타일
+  :deep(.md-list-item) {
+    display: block;
+    padding-left: 6px;
+    margin: 3px 0;
+  }
+
+  :deep(code) {
+    background-color: var(--bg-color-code);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+  }
+
+  :deep(pre) {
+    background-color: var(--bg-color-code);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 12px 0;
+
+    code {
+      background: none;
+      padding: 0;
+    }
+  }
+
+  :deep(strong) {
+    font-weight: 600;
+    color: var(--text-color-primary);
+  }
 }
 
 .message-meta {

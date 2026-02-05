@@ -676,7 +676,7 @@
           </div>
         </el-tab-pane>
 
-        <!-- Agent 설정 -->
+        <!-- Agent 설정 - 추후 사용 예정
         <el-tab-pane label="Agent" name="agent">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
@@ -738,6 +738,7 @@
             </el-form>
           </div>
         </el-tab-pane>
+        -->
 
         <!-- 프롬프트 설정 -->
         <el-tab-pane label="프롬프트" name="prompt">

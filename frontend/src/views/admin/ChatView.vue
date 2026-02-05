@@ -49,7 +49,7 @@
 
     <!-- 우측: 설정 및 정보 -->
     <div class="chat-sidebar">
-      <!-- 프롬프트 가이드 -->
+      <!-- 프롬프트 가이드 - 추후 사용 예정
       <div class="sidebar-section content-card">
         <h4>프롬프트 가이드</h4>
         <el-button
@@ -61,6 +61,7 @@
           작성 가이드 보기
         </el-button>
       </div>
+      -->
 
       <!-- 검색 모드 선택 -->
       <div class="sidebar-section content-card">
@@ -74,7 +75,9 @@
           <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
             <el-radio-button value="rag">RAG</el-radio-button>
             <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
+            <!-- Agent 버튼 - 추후 사용 예정
             <el-radio-button value="agent">Agent</el-radio-button>
+            -->
           </el-radio-group>
         </div>
         <p class="mode-description">
