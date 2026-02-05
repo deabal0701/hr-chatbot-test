@@ -161,7 +161,11 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=user_prompt)
         ]
 
-        log_step(request_id, "NL2SQL", "0.5a", "LLM-INPUT", "경량 LLM 호출 (테이블 선택)")
+        log_step(request_id, "NL2SQL", "0.5a", "=======> LLM", "경량 LLM 호출 (테이블 선택)")
+
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(request_id, "NL2SQL", "0.5a", "=======> LLM", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt.format(table_summary=table_summary))
+            log_step(request_id, "NL2SQL", "0.5a", "=======> LLM", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
         response = llm.invoke(messages)
 
@@ -172,7 +176,10 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         else:
             response_text = str(content).strip()
 
-        log_step(request_id, "NL2SQL", "0.5b", "LLM-OUTPUT", "LLM 응답 수신", response_length=len(response_text))
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(request_id, "NL2SQL", "0.5b", "<======= LLM", "LLM_RESPONSE", level="DEBUG", content=response_text)
+
+        log_step(request_id, "NL2SQL", "0.5b", "<======= LLM", "LLM 응답 수신", response_length=len(response_text))
 
         # 3. JSON 파싱
         import json
@@ -540,11 +547,11 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         settings_config = _get_settings_config()
         llm_model = settings_config.get_value("llm", "model", settings.llm_model)
 
-        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_len=len(sql_prompt), user_len=len(user_prompt))
+        log_step(request_id, "NL2SQL", "1a", "=======> LLM", "LLM 호출 시작", model=llm_model, system_len=len(sql_prompt), user_len=len(user_prompt))
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=sql_prompt)
-            log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+            log_step(request_id, "NL2SQL", "1a", "=======> LLM", "SYSTEM_PROMPT", level="DEBUG", content=sql_prompt)
+            log_step(request_id, "NL2SQL", "1a", "=======> LLM", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
         # LLM 호출
         response = llm.invoke(messages)
@@ -557,7 +564,7 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
             response_text = str(content).strip()
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response_text)
+            log_step(request_id, "NL2SQL", "1b", "<======= LLM", "LLM_RESPONSE", level="DEBUG", content=response_text)
 
         # 마크다운 코드 블록 제거
         sql = strip_markdown_code_block(response_text, language="sql")
@@ -569,7 +576,7 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "sql_length": len(sql),
         }
 
-        log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
+        log_step(request_id, "NL2SQL", "1b", "<======= LLM", "SQL 생성 완료", sql_length=len(sql))
 
         if logger.isEnabledFor(logging.DEBUG):
             log_step(request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
@@ -891,26 +898,26 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     llm = _get_llm()
 
-    log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
+    log_step(request_id, "NL2SQL", "4a", "=======> LLM", "LLM 호출 시작 (답변 생성)",
             system_prompt_length=len(system_prompt),
             user_prompt_length=len(user_prompt),
             data_rows=len(rows_summary))
 
     if logger.isEnabledFor(logging.DEBUG):
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
+        log_step(request_id, "NL2SQL", "4a", "=======> LLM", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+        log_step(request_id, "NL2SQL", "4a", "=======> LLM", "USER_PROMPT", level="DEBUG", content=user_prompt)
+        log_step(request_id, "NL2SQL", "4a", "=======> LLM", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
 
     try:
         response = llm.invoke(messages)
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
+            log_step(request_id, "NL2SQL", "4b", "<======= LLM", "LLM_RESPONSE", level="DEBUG", content=response.content)
 
         answer = response.content
 
         state["answer"] = answer
-        log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료", answer_length=len(answer))
+        log_step(request_id, "NL2SQL", "4b", "<======= LLM", "답변 생성 완료", answer_length=len(answer))
 
         if logger.isEnabledFor(logging.DEBUG):
             log_step(request_id, "NL2SQL", "4b", "ANSWER", "생성된 답변", level="DEBUG", content=answer)
@@ -1070,14 +1077,15 @@ def save_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    질문 재작성 노드
+    질문 재작성 노드 (스키마 인지)
 
     멀티턴 대화에서 이전 컨텍스트를 포함한 완전한 질문으로 재작성합니다.
-    항상 SQL 생성 흐름을 타므로, 이전 대화를 기반으로 정확한 질문을 만듭니다.
+    테이블 카탈로그를 참조하여 정확한 테이블/컬럼 용어를 사용합니다.
 
     처리 흐름:
     1. 대화 이력 확인 (없으면 원본 질문 그대로 사용)
-    2. LLM 호출하여 이전 컨텍스트를 포함한 완전한 질문 재작성
+    2. 테이블 카탈로그 조회 (스키마 인지 재작성용)
+    3. LLM 호출하여 이전 컨텍스트를 포함한 완전한 질문 재작성
 
     예시:
     - 이전: "2024년 입사자는 몇 명?" → 후속: "그 중 개발부서는?"
@@ -1105,29 +1113,47 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "intent_reasoning": "첫 번째 질문",
         }
 
+    # 테이블 카탈로그 조회 (스키마 인지 재작성용)
+    try:
+        catalog_service = _get_table_catalog_service()
+        table_summary = catalog_service.get_table_summary_for_llm()
+        log_step(request_id, "NL2SQL", "0.2", "REWRITE", "테이블 카탈로그 로드 완료", summary_len=len(table_summary))
+    except Exception as e:
+        log_step(request_id, "NL2SQL", "0.2", "REWRITE", "테이블 카탈로그 로드 실패 → 스키마 없이 진행", level="WARNING", error=str(e))
+        table_summary = ""
+
     # 대화 이력 포맷팅
     history_text = _format_conversation_history_for_intent(conversation_history)
 
     # LLM 호출
     llm = _get_llm()
 
-    system_prompt = """당신은 NL2SQL 질문 재작성기입니다.
+    # 테이블 카탈로그 섹션 (있는 경우만 추가)
+    table_section = ""
+    if table_summary:
+        table_section = f"""
+## 테이블 참조 (질문 재작성 시 정확한 용어 사용)
+{table_summary}
+"""
+
+    system_prompt = f"""당신은 NL2SQL 질문 재작성기입니다.
 
 ## 역할
 이전 대화 컨텍스트를 기반으로 현재 질문을 **완전하고 독립적인 질문**으로 재작성합니다.
-
+{table_section}
 ## 응답 형식 (JSON)
 ```json
-{
+{{
     "rewritten_question": "완전한 질문 (이전 컨텍스트 포함)",
     "reasoning": "재작성 이유"
-}
+}}
 ```
 
 ## 재작성 규칙
 1. **대명사/지시어 해소**: "그 중", "거기서", "해당", "이전" 등을 구체적인 조건으로 변환
 2. **조건 계승**: 이전 질문의 WHERE 조건을 포함 (후속 질문은 이전 결과 집합 기반)
 3. **독립적 질문**: 재작성된 질문만으로 SQL 생성이 가능해야 함
+4. **정확한 용어 사용**: 테이블/컬럼 정보를 참고하여 비즈니스 용어를 정확하게 표현
 
 ## 예시
 | 이전 질문 | 후속 질문 | 재작성된 질문 |
@@ -1150,7 +1176,11 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
         HumanMessage(content=user_prompt)
     ]
 
-    log_step(request_id, "NL2SQL", "0.2a", "LLM-INPUT", "LLM 호출 (질문 재작성)", history_turns=len(conversation_history))
+    log_step(request_id, "NL2SQL", "0.2a", "=======> LLM", "LLM 호출 (질문 재작성)", history_turns=len(conversation_history), has_schema=bool(table_summary))
+
+    if logger.isEnabledFor(logging.DEBUG):
+        log_step(request_id, "NL2SQL", "0.2a", "=======> LLM", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+        log_step(request_id, "NL2SQL", "0.2a", "=======> LLM", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
     try:
         response = llm.invoke(messages)
@@ -1159,6 +1189,9 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
             response_text = "".join(str(c) for c in content).strip()
         else:
             response_text = str(content).strip()
+
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(request_id, "NL2SQL", "0.2b", "<======= LLM", "LLM_RESPONSE", level="DEBUG", content=response_text)
 
         # JSON 파싱
         result = _parse_intent_response(response_text)
