@@ -212,6 +212,34 @@ TABLE_CATALOG: Dict[str, Dict[str, Any]] = {
         "relation": "1:N",
         "related_tables": ["v_ai_employee"],
     },
+    "v_ai_dtm_yy_rest": {
+        "description": "연차 발생/사용 정보 (연차관리)",
+        "columns": [
+            "LEAVE_ACCRUAL_ID (PK, 발생연차관리ID)",
+            "EMP_ID (FK)",
+            "REFERENCE_YEAR ★기준년도 (연차 적용 연도)",
+            "LEAVE_TYPE_CODE (연차구분코드)",
+            "ACCRUAL_DATE (발생일자)",
+            "LEAVE_GRANT_RULE_CODE (연차부여기준코드)",
+            "USABLE_START_DATE (사용가능시작일)",
+            "USABLE_END_DATE (사용가능종료일)",
+            "ACCRUED_LEAVE_DAYS ★발생연차일수",
+            "ADDITIONAL_LEAVE_DAYS ★추가연차일수",
+            "COMPENSATED_LEAVE_DAYS (보상연차)",
+            "COMPENSATION_MONTH (보상적용월)",
+            "COMPENSATED_LEAVE_DAYS_2 (보상연차2)",
+            "COMPENSATION_MONTH_2 (보상적용월2)",
+            "RETIREMENT_LEAVE_DAYS (퇴직연차)",
+            "RETIREMENT_COMPENSATION_MONTH (퇴직보상적용월)",
+            "USED_LEAVE_DAYS_PAST ★사용연차(과거)",
+            "CARRIED_OVER_LEAVE_DAYS (이월연차/차년추가연차)",
+            "REMARKS (비고)",
+        ],
+        "keywords": ["연차", "휴가", "발생연차", "사용연차", "추가연차", "이월", "보상연차", "퇴직연차"],
+        "join_key": "EMPLOYEE_ID",
+        "relation": "1:N",
+        "related_tables": ["v_ai_employee"],
+    },
 }
 
 # 테이블 관계 정보
@@ -219,7 +247,7 @@ TABLE_RELATIONS = {
     "1:N": [
         "v_ai_address", "v_ai_career", "v_ai_education", "v_ai_family",
         "v_ai_language", "v_ai_license", "v_ai_reward", "v_ai_training",
-        "v_ai_feedback", "v_ai_pay_report"
+        "v_ai_feedback", "v_ai_pay_report", "v_ai_dtm_yy_rest"
     ],
     "1:1": ["v_ai_military"],
 }

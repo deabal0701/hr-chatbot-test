@@ -121,7 +121,7 @@
           <div class="settings-section">
             <h3>
               LLM 모델 설정
-              <el-tag size="small" type="success" style="margin-left: 8px;">즉시 적용</el-tag>
+              <el-tag size="small" type="success">즉시 적용</el-tag>
             </h3>
             <el-form label-position="top" class="settings-form">
               <el-form-item label="LLM 제공자">
