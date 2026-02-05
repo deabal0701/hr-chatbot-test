@@ -12,12 +12,12 @@ NL2SQL 검색 그래프 (LangGraph)
                                      │                                                                                      │                            └─ error → handle_error → END
                                      │                                                                                      ├─ retry → prepare_retry → fewshot_retrieval
                                      │                                                                                      └─ error → handle_error → END
-                                     └─ answer_from_history → answer_from_history_node → save_history → END
+                                     └─ sql_not_needed → answer_from_history_node → save_history → END
 
 노드:
 - load_history: 이전 대화 이력 로드 (멀티턴)
 - intent_rewrite: 의도 분석 + 질문 재작성 (멀티턴 핵심 노드)
-- answer_from_history: 이전 SQL 결과에서 답변 생성 (SQL 실행 없이)
+- sql_not_needed: 이전 SQL 결과에서 답변 생성 (SQL 실행 없이)
 - schema_retrieval: 질문 분석하여 필요한 테이블 스키마만 로드
 - fewshot_retrieval: Few-shot 예제 검색
 - prompt_build: 스키마 + Few-shot + 이전 대화 이력 + DB 가이드라인 조합
@@ -106,14 +106,14 @@ class NL2SQLGraph:
                                          │                                                                                       │                            └─ error → handle_error → END
                                          │                                                                                       ├─ retry → prepare_retry → fewshot_retrieval
                                          │                                                                                       └─ error → handle_error → END
-                                         └─ answer_from_history → answer_from_history_node → save_history → END
+                                         └─ sql_not_needed → answer_from_history_node → save_history → END
         """
         workflow = StateGraph(NL2SQLState)
 
         # 노드 등록 (멀티턴 노드 + 의도 분석 노드 포함)
         workflow.add_node("load_history", load_history_node)
         workflow.add_node("intent_rewrite", intent_rewrite_node)  # 의도 분석 + 질문 재작성
-        workflow.add_node("answer_from_history", answer_from_history_node)  # 이전 결과에서 답변
+        workflow.add_node("sql_not_needed", answer_from_history_node)  # 이전 결과에서 답변 (SQL 불필요)
         workflow.add_node("schema_retrieval", schema_retrieval_node)
         workflow.add_node("fewshot_retrieval", fewshot_retrieval_node)
         workflow.add_node("prompt_build", prompt_build_node)
@@ -129,18 +129,18 @@ class NL2SQLGraph:
         workflow.set_entry_point("load_history")
         workflow.add_edge("load_history", "intent_rewrite")
 
-        # 조건부 분기 0: 의도 분석 후 (SQL 필요 vs 이전 결과에서 답변)
+        # 조건부 분기 0: 의도 분석 후 (SQL 필요 vs SQL 불필요)
         workflow.add_conditional_edges(
             "intent_rewrite",
             should_route_after_intent,
             {
                 "sql_needed": "schema_retrieval",  # SQL 실행 필요 → 기존 흐름
-                "answer_from_history": "answer_from_history"  # 이전 결과에서 답변 가능
+                "sql_not_needed": "sql_not_needed"  # 이전 결과에서 답변 가능
             }
         )
 
-        # answer_from_history → save_history → END
-        workflow.add_edge("answer_from_history", "save_history")
+        # sql_not_needed → save_history → END
+        workflow.add_edge("sql_not_needed", "save_history")
 
         # SQL 실행 흐름 (기존)
         workflow.add_edge("schema_retrieval", "fewshot_retrieval")

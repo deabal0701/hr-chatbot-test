@@ -52,7 +52,7 @@ class NL2SQLState(TypedDict):
     history_truncated: bool              # 이력 잘림 여부 (max_turns 초과 시 True)
 
     # ===== 의도 분석 + 질문 재작성 필드 =====
-    query_type: str                      # 질의 유형: "sql_needed" | "answer_from_history"
+    query_type: str                      # 질의 유형: "sql_needed" | "sql_not_needed"
     rewritten_question: str              # 재작성된 질문 (완전한 독립 질문)
     intent_reasoning: str                # 의도 분석 이유
     sql_result_summary: List[Dict]       # 이전 SQL 결과 요약 (최대 10행)

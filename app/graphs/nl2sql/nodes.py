@@ -992,8 +992,10 @@ def load_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
     history_truncated = False
     if len(conversation_history) >= max_turns:
         # 최근 (max_turns - 1)개만 유지 (현재 턴 포함하여 max_turns개)
+        # ★ max_turns=1이면 이력 없이 시작 (현재 턴만 허용)
         original_count = len(conversation_history)
-        conversation_history = conversation_history[-(max_turns - 1):]
+        keep_count = max(0, max_turns - 1)
+        conversation_history = conversation_history[-keep_count:] if keep_count > 0 else []
         history_truncated = True
         log_step(request_id, "NL2SQL", "0.1", "HISTORY", "이력 잘림", original=original_count, current=len(conversation_history), max_turns=max_turns)
 
@@ -1125,37 +1127,38 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     system_prompt = """당신은 NL2SQL 의도 분석기입니다.
 
+## 질문: "새로운 SQL 실행이 필요한가?"
+
 ## 응답 형식 (JSON)
 ```json
 {
-    "query_type": "sql_needed" 또는 "answer_from_history",
+    "query_type": "sql_needed" 또는 "sql_not_needed",
     "rewritten_question": "완전한 질문 형태 (답변 아님!)",
     "reasoning": "판단 이유"
 }
 ```
 
-## 핵심 규칙
+## ★ 핵심 판단 기준 ★
 
-**sql_needed 선택 (새 SQL 필요):**
-- "상세", "자세히", "디테일" 요청 → 무조건 sql_needed
-- 이전 결과 컬럼에 없는 정보 요청 → sql_needed
-- "왜", "이유", "원인" 질문 → sql_needed
+**sql_needed (새 SQL 실행 필요):**
+- 이전 결과 컬럼에 **없는** 정보를 요청
+- "상세", "자세히", "디테일" 요청
+- "왜", "이유", "원인" 질문
+- 새로운 테이블/컬럼 조회 필요
+- 명확하게 확신이 들지 않는 경우
 
-**answer_from_history 선택 (이전 결과로 답변):**
-- 요청 정보가 이전 결과 컬럼에 100% 존재
-- 단순 정렬/필터만 필요 (예: "1등은?", "가장 높은 사람?")
+**sql_not_needed (기존 데이터로 답변 가능):**
+- 요청 정보가 이전 결과 컬럼에 **100% 존재**
 
-## ★ 자기 검증 (필수!) ★
-reasoning 작성 후, 아래 단어가 포함되어 있으면 **반드시 sql_needed**:
-- "새 SQL", "SQL 필요", "추가 컬럼", "조회 불가", "없음", "부족"
 
 ## 예시
 
-| 질문 | 이전 결과 컬럼 | query_type |
-|------|---------------|------------|
-| "상세 정보 보여줘" | [emp_id, name, score] | sql_needed |
-| "1등은 누구?" | [emp_id, name, score] | answer_from_history |
-| "부서는?" | [emp_id, name, score] | sql_needed (부서 컬럼 없음) |
+| 질문 | 이전 결과 컬럼 | query_type | 이유 |
+|------|---------------|------------|------|
+| "상세 정보 보여줘" | [emp_id, name] | sql_needed | 상세=추가 컬럼 필요 |
+| "1등은 누구?" | [emp_id, name, score] | sql_not_needed | score로 정렬 가능 |
+| "부서는?" | [emp_id, name, score] | sql_needed | 부서 컬럼 없음 |
+| "상벌내역 보여줘" | [emp_id, name] | sql_needed | 상벌 컬럼 없음 |
 """
 
     # 이전 결과 데이터의 컬럼 목록 추출 (LLM이 판단하기 쉽도록)
@@ -1178,7 +1181,7 @@ reasoning 작성 후, 아래 단어가 포함되어 있으면 **반드시 sql_ne
 
 위 컨텍스트를 바탕으로:
 1. 현재 질문에 필요한 정보가 "사용 가능한 컬럼 목록"에 있는지 확인
-2. 없으면 → sql_needed, 있으면 → answer_from_history
+2. 없으면 → sql_needed, 있으면 → sql_not_needed
 3. 질문을 재작성하세요."""
 
     messages = [
@@ -1207,9 +1210,9 @@ reasoning 작성 후, 아래 단어가 포함되어 있으면 **반드시 sql_ne
 
         log_step(request_id, "NL2SQL", "0.2b", "LLM-OUTPUT", "의도 분석 완료", query_type=query_type, rewritten_question=truncate_text(rewritten_question, 50), reasoning=truncate_text(reasoning, 50))
 
-        # ★ 안전 검사 1: answer_from_history인데 sql_result_summary가 비어있으면 sql_needed로 변경
-        if query_type == "answer_from_history" and not sql_result_summary:
-            log_step(request_id, "NL2SQL", "0.2c", "FALLBACK", "answer_from_history → sql_needed (sql_result_summary 비어있음)", level="WARNING")
+        # ★ 안전 검사 1: sql_not_needed인데 sql_result_summary가 비어있으면 sql_needed로 변경
+        if query_type == "sql_not_needed" and not sql_result_summary:
+            log_step(request_id, "NL2SQL", "0.2c", "FALLBACK", "sql_not_needed → sql_needed (sql_result_summary 비어있음)", level="WARNING")
             query_type = "sql_needed"
             reasoning += " (이전 결과 데이터 없어 SQL 실행으로 전환)"
 
@@ -1369,14 +1372,14 @@ def should_route_after_intent(state: Dict[str, Any]) -> str:
 
     Returns:
         "sql_needed" - SQL 실행 필요 → schema_retrieval
-        "answer_from_history" - 이전 결과에서 답변 → answer_from_history_node
+        "sql_not_needed" - 이전 결과에서 답변 → answer_from_history_node
     """
     request_id = state.get("request_id", "unknown")
     query_type = state.get("query_type", "sql_needed")
 
-    if query_type == "answer_from_history":
-        log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → ANSWER_FROM_HISTORY (이전 결과에서 답변)")
-        return "answer_from_history"
+    if query_type == "sql_not_needed":
+        log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NOT_NEEDED (이전 결과에서 답변)")
+        return "sql_not_needed"
     else:
         log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NEEDED (SQL 실행 필요)")
         return "sql_needed"
