@@ -74,7 +74,7 @@
           <button class="agent-toggle" @click="showAgentSteps = !showAgentSteps">
             <div class="toggle-left">
               <el-icon><CoffeeCup /></el-icon>
-              <span>에이전트 사고 과정 ({{ message.agentResult.totalIterations }}단계)</span>
+              <span>에이전트 사고 과정 ({{ message.agentResult.steps.length }}단계)</span>
             </div>
             <el-icon class="toggle-icon" :class="{ expanded: showAgentSteps }">
               <ArrowDown />

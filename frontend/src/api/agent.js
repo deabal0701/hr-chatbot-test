@@ -1,10 +1,12 @@
 /**
  * Agent API 클라이언트
+ *
+ * apiClient 사용으로 success_response 래퍼 자동 처리
+ * - 성공: data 필드만 반환
+ * - 실패: 에러 throw (code, message 포함)
  */
 
-import axios from 'axios'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+import apiClient from './index'
 
 /**
  * Agent 검색
@@ -17,22 +19,17 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || ''
  * 첫 요청 시 sessionId를 생략하면 서버가 생성하여 응답에 포함합니다.
  */
 export const agentSearch = async ({ question, sessionId = null }) => {
-  try {
-    const requestBody = {
-      question,
-      session_id: sessionId
-    }
-
-    const response = await axios.post(`${API_BASE_URL}/api/v1/agent/search`, requestBody)
-
-    if (import.meta.env.DEV) {
-      console.log('[Agent API Response]', response.data)
-    }
-    return response.data
-  } catch (error) {
-    console.error('Agent search error:', error)
-    throw error
+  const requestBody = {
+    question,
+    session_id: sessionId
   }
+
+  const response = await apiClient.post('/api/v1/agent/search', requestBody)
+
+  if (import.meta.env.DEV) {
+    console.log('[Agent API Response]', response)
+  }
+  return response
 }
 
 /**
@@ -40,13 +37,7 @@ export const agentSearch = async ({ question, sessionId = null }) => {
  * @returns {Promise<string[]>}
  */
 export const listSessions = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/api/v1/agent/sessions`)
-    return response.data
-  } catch (error) {
-    console.error('List sessions error:', error)
-    throw error
-  }
+  return apiClient.get('/api/v1/agent/sessions')
 }
 
 /**
@@ -55,15 +46,7 @@ export const listSessions = async () => {
  * @returns {Promise}
  */
 export const getSessionMemory = async (sessionId) => {
-  try {
-    const response = await axios.get(
-      `${API_BASE_URL}/api/v1/agent/sessions/${sessionId}/memory`
-    )
-    return response.data
-  } catch (error) {
-    console.error('Get session memory error:', error)
-    throw error
-  }
+  return apiClient.get(`/api/v1/agent/sessions/${sessionId}/memory`)
 }
 
 /**
@@ -72,15 +55,7 @@ export const getSessionMemory = async (sessionId) => {
  * @returns {Promise}
  */
 export const deleteSession = async (sessionId) => {
-  try {
-    const response = await axios.delete(
-      `${API_BASE_URL}/api/v1/agent/sessions/${sessionId}`
-    )
-    return response.data
-  } catch (error) {
-    console.error('Delete session error:', error)
-    throw error
-  }
+  return apiClient.delete(`/api/v1/agent/sessions/${sessionId}`)
 }
 
 /**
@@ -89,15 +64,7 @@ export const deleteSession = async (sessionId) => {
  * @returns {Promise}
  */
 export const getSessionMetrics = async (sessionId) => {
-  try {
-    const response = await axios.get(
-      `${API_BASE_URL}/api/v1/agent/sessions/${sessionId}/metrics`
-    )
-    return response.data
-  } catch (error) {
-    console.error('Get session metrics error:', error)
-    throw error
-  }
+  return apiClient.get(`/api/v1/agent/sessions/${sessionId}/metrics`)
 }
 
 /**
@@ -105,13 +72,7 @@ export const getSessionMetrics = async (sessionId) => {
  * @returns {Promise}
  */
 export const listTools = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/api/v1/agent/tools`)
-    return response.data
-  } catch (error) {
-    console.error('List tools error:', error)
-    throw error
-  }
+  return apiClient.get('/api/v1/agent/tools')
 }
 
 export default {

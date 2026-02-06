@@ -94,9 +94,10 @@ export default {
         if (state.searchMode === 'agent') {
           // 첫 요청: sessionId null → 서버가 생성
           // 멀티턴: 서버 응답에서 받은 sessionId 재사용
+          // apiClient 인터셉터가 success_response에서 data 자동 추출
           response = await agentApi.agentSearch({
             question: query,
-            sessionId: state.sessionId  // 첫 요청 시 null, 이후 서버 응답값 사용
+            sessionId: state.sessionId
           })
 
           // 서버가 생성한 session_id 저장 (멀티턴 대화용)
@@ -124,11 +125,11 @@ export default {
           })
         } else {
           // 기존 모드 (auto/rag/nl2sql)
-          // nl2sql 모드에서도 멀티턴 대화 지원을 위해 sessionId 전달
+          // apiClient 인터셉터가 success_response에서 data 자동 추출
           response = await searchApi.search({
             query,
             mode: state.searchMode,
-            sessionId: state.sessionId  // 멀티턴 대화용 (첫 요청 시 null)
+            sessionId: state.sessionId
           })
 
           // 서버가 생성한 session_id 저장 (멀티턴 대화용)
@@ -149,7 +150,7 @@ export default {
             // 공통 필드
             responseTimeMs: response.response_time_ms,
             metadata: response.metadata,
-            sessionId: response.session_id  // 세션 ID 저장
+            sessionId: response.session_id
           })
         }
       } catch (error) {

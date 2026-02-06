@@ -307,12 +307,15 @@ class InsightAgentGraph:
         messages = result.get("messages", [])
         step_number = 0
 
+        logger.debug(f"[EXTRACT_STEPS] messages 수: {len(messages)}")
+
         i = 0
         while i < len(messages):
             msg = messages[i]
 
             # AIMessage with tool_calls
             if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                logger.debug(f"[EXTRACT_STEPS] AIMessage[{i}] tool_calls 수: {len(msg.tool_calls)}")
                 for tool_call in msg.tool_calls:
                     step_number += 1
                     tool_name = tool_call.get("name", "unknown")
@@ -343,9 +346,11 @@ class InsightAgentGraph:
                         observation=observation,
                         sql_result=sql_result,
                     ))
+                    logger.debug(f"[EXTRACT_STEPS] step 추가: {step_number}. {tool_name}")
 
             i += 1
 
+        logger.debug(f"[EXTRACT_STEPS] 총 steps 수: {len(steps)}")
         return steps
 
     def _extract_sql_result(self, content: str) -> AgentSQLResult | None:
