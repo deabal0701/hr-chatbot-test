@@ -52,32 +52,51 @@ MUREUM 시스템에 사용자 인증 및 권한 관리 기능을 추가하여, �
 
 ```
 ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-│  tb_tenant  │       │   tb_user    │       │   tb_role    │
+│  tb_tenant   │       │   tb_user    │       │   tb_role    │
 ├──────────────┤       ├──────────────┤       ├──────────────┤
-│ tenant_id   │◄──┐   │ user_id      │   ┌──►│ role_id      │
-│ tenant_code │   │   │ username     │   │   │ role_code    │
-│ tenant_name │   └───│ tenant_id   │   │   │ role_name    │
-│ is_active    │       │ password_hash│   │   │ scope_type   │
-└──────────────┘       │ is_superuser │   │   │ is_system    │
-                       └──────────────┘   │   └──────────────┘
-                              │           │          │
-                              │           │          │
-                              ▼           │          ▼
-                       ┌──────────────────┴───┐  ┌──────────────────┐
-                       │   tb_user_role       │  │ tb_role_permission│
-                       ├─────────────────────-┤  ├──────────────────┤
-                       │ user_id              │  │ role_id          │
-                       │ role_id              │  │ permission_id    │
-                       │ tenant_id           │  └──────────────────┘
-                       └──────────────────────┘           │
-                                                          ▼
-                                                  ┌──────────────────┐
-                                                  │  tb_permission   │
-                                                  ├──────────────────┤
-                                                  │ permission_id    │
-                                                  │ permission_code  │
-                                                  │ category         │
-                                                  └──────────────────┘
+│ tenant_id(PK)│◄──┐   │ user_id(PK)  │◄──┐   │ role_id(PK)  │◄──┐
+│ tenant_code  │   │   │ username     │   │   │ role_code    │   │
+│ tenant_name  │   ├───│ tenant_id(FK)│   │   │ role_name    │   │
+│ is_active    │   │   │ password_hash│   │   │ scope_type   │   │
+│ metadata     │   │   │ is_superuser │   │   │ is_system    │   │
+└──────────────┘   │   └──────────────┘   │   └──────────────┘   │
+       ▲           │          ▲           │          ▲           │
+       │           │          │           │          │           │
+       │           │   ┌──────┴───────────┴───┐      │           │
+       │           │   │   tb_user_role       │      │           │
+       │           │   ├──────────────────────┤      │           │
+       │           │   │ user_id(PK,FK)───────┘      │           │
+       │           │   │ role_id(PK,FK)──────────────┘           │
+       │           └───│ tenant_id(PK,FK)                        │
+       │               │ granted_by(FK)                          │
+       │               └──────────────────────┘                  │
+       │                                                         │
+       │               ┌──────────────────┐                      │
+       │               │tb_role_permission│                      │
+       │               ├──────────────────┤                      │
+       │               │ role_id(PK,FK)───┼──────────────────────┘
+       │               │ permission_id(FK)│
+       │               └────────┬─────────┘
+       │                        │
+       │                        ▼
+       │               ┌──────────────────┐
+       │               │  tb_permission   │
+       │               ├──────────────────┤
+       │               │ permission_id(PK)│
+       │               │ permission_code  │
+       │               │ category         │
+       │               └──────────────────┘
+       │
+       │               ┌──────────────────┐
+       │               │  tb_data_filter  │
+       │               ├──────────────────┤
+       └───────────────│ role_id(FK)      │───► tb_role
+                       │ target_table     │
+                       │ filter_column    │
+                       │ filter_type      │
+                       └──────────────────┘
+
+※ 화살표 방향: FK가 있는 테이블 → PK가 있는 테이블 (자식 → 부모)
 ```
 
 ### 2.2 테이블 명세
