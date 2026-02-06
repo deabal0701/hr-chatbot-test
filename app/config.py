@@ -37,9 +37,11 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development", description="애플리케이션 환경")
     app_host: str = Field(default="0.0.0.0", description="애플리케이션 호스트")
     app_port: int = Field(default=19090, description="애플리케이션 포트")
+    context_path: str = Field(default="", description="API Context Path (예: /mureum)")
     log_level: str = Field(default="INFO", description="로그 레벨")
     log_format: str = Field(default="text", description="로그 포맷 (text: 텍스트, json: JSON)")
     log_file: Optional[str] = Field(default=None, description="로그 파일 경로 (None이면 파일 출력 안함)")
+    log_backup_count: int = Field(default=30, description="로그 파일 보관 일수")
 
     # CORS
     cors_origins: str = Field(
@@ -58,15 +60,10 @@ class Settings(BaseSettings):
     rag_similarity_threshold: float = Field(default=0.7, description="RAG 유사도 임계값")
     max_context_length: int = Field(default=4000, description="최대 컨텍스트 길이")
 
-    # NL2SQL Settings
+    # NL2SQL Settings (DB에서 동적 관리, fallback 용도)
     sql_timeout_seconds: int = Field(default=30, description="SQL 실행 타임아웃(초)")
     sql_max_rows: int = Field(default=1000, description="SQL 최대 반환 행 수")
-    allow_ddl: bool = Field(default=False, description="DDL 허용 여부")
     read_only_mode: bool = Field(default=True, description="읽기 전용 모드")
-
-    # Monitoring
-    enable_metrics: bool = Field(default=True, description="메트릭 활성화")
-    enable_audit_log: bool = Field(default=True, description="감사 로그 활성화")
 
     # LangSmith (Optional)
     langchain_tracing_v2: Optional[bool] = Field(default=None, description="LangSmith 트레이싱 활성화")
