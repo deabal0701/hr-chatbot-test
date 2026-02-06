@@ -118,8 +118,10 @@ export default {
           total: response.total
         })
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '문서 목록 조회 실패'
-        commit('SET_ERROR', errorMessage)
+        // 새 에러 형식: error.code, error.message 사용
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '문서 목록 조회 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
       } finally {
         commit('SET_LOADING', false)
       }
@@ -135,8 +137,9 @@ export default {
         commit('SET_CURRENT_DOCUMENT', response)
         return response
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '문서 조회 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '문서 조회 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       } finally {
         commit('SET_LOADING', false)
@@ -153,8 +156,9 @@ export default {
         await dispatch('fetchDocuments')
         return response
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '문서 저장 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '문서 저장 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       } finally {
         commit('SET_SAVING', false)
@@ -171,8 +175,9 @@ export default {
         await dispatch('fetchDocuments')
         return response
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '문서 수정 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '문서 수정 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       } finally {
         commit('SET_SAVING', false)
@@ -188,8 +193,9 @@ export default {
         await documentApi.delete(docId)
         await dispatch('fetchDocuments')
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '문서 삭제 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '문서 삭제 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       } finally {
         commit('SET_LOADING', false)
@@ -208,8 +214,9 @@ export default {
         commit('CLEAR_SELECTED')
         await dispatch('fetchDocuments')
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '일괄 삭제 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '일괄 삭제 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       } finally {
         commit('SET_LOADING', false)
@@ -230,8 +237,9 @@ export default {
         await dispatch('fetchDocuments')
         return response
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '임베딩 실행 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '임베딩 실행 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       } finally {
         commit('SET_LOADING', false)
@@ -248,8 +256,9 @@ export default {
         })
         return response
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '청킹 미리보기 실패'
-        commit('SET_ERROR', errorMessage)
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '청킹 미리보기 실패'
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
         throw error
       }
     },

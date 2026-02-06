@@ -488,8 +488,8 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       await loadCodes()
     } catch (error) {
-      const errorMsg = error.response?.data?.detail || '작업 실패'
-      ElMessage.error(errorMsg)
+      // 새 에러 형식: error.message 사용
+      ElMessage.error(error.message || '작업 실패')
       console.error(error)
     } finally {
       isSaving.value = false
@@ -520,9 +520,7 @@ const handleDelete = async (row) => {
     await loadCodes()
   } catch (error) {
     if (error === 'cancel') return
-
-    const errorMsg = error.response?.data?.detail || '삭제 실패'
-    ElMessage.error(errorMsg)
+    ElMessage.error(error.message || '삭제 실패')
     console.error(error)
   }
 }
@@ -619,8 +617,8 @@ const handleCategorySubmit = async () => {
       await loadCategories()
       await loadCodeGroups() // 콤보박스 갱신
     } catch (error) {
-      const errorMsg = error.response?.data?.detail || '작업 실패'
-      ElMessage.error(errorMsg)
+      // 새 에러 형식: error.message 사용
+      ElMessage.error(error.message || '작업 실패')
       console.error(error)
     } finally {
       isSavingCategory.value = false
@@ -648,8 +646,7 @@ const handleDeleteCategory = async (row) => {
     await loadCodeGroups() // 콤보박스 갱신
   } catch (error) {
     if (error === 'cancel') return
-    const errorMsg = error.response?.data?.detail || '삭제 실패'
-    ElMessage.error(errorMsg)
+    ElMessage.error(error.message || '삭제 실패')
     console.error(error)
   }
 }

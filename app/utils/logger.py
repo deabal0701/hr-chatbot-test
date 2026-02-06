@@ -2,7 +2,7 @@ import logging
 import sys
 import os
 import inspect
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict
 from pythonjsonlogger import jsonlogger
 from app.config import settings
@@ -58,13 +58,16 @@ def setup_logger(name: str) -> logging.Logger:
             if log_dir and not os.path.exists(log_dir):
                 os.makedirs(log_dir, exist_ok=True)
 
-            # RotatingFileHandler: 10MB, 최대 5개 백업
-            file_handler = RotatingFileHandler(
+            # TimedRotatingFileHandler: 매일 자정에 로테이트
+            backup_count = getattr(settings, 'log_backup_count', 30)
+            file_handler = TimedRotatingFileHandler(
                 log_file,
-                maxBytes=10*1024*1024,  # 10MB
-                backupCount=5,
+                when='midnight',
+                interval=1,
+                backupCount=backup_count,
                 encoding='utf-8'
             )
+            file_handler.suffix = "%Y-%m-%d"  # app.log.2024-01-15 형식
             file_handler.setLevel(getattr(logging, settings.log_level))
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)

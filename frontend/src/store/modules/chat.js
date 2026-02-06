@@ -153,14 +153,18 @@ export default {
           })
         }
       } catch (error) {
-        const errorMessage = error.response?.data?.detail || error.message || '검색 중 오류가 발생했습니다.'
-        commit('SET_ERROR', errorMessage)
+        // 새 에러 형식: error.code, error.message 사용
+        const errorCode = error.code || 'UNKNOWN_ERROR'
+        const errorMessage = error.message || '검색 중 오류가 발생했습니다.'
+
+        commit('SET_ERROR', { code: errorCode, message: errorMessage })
 
         // 에러 메시지도 대화에 추가
         commit('ADD_MESSAGE', {
           role: 'assistant',
-          content: `죄송합니다. 오류가 발생했습니다: ${errorMessage}`,
-          isError: true
+          content: `죄송합니다. ${errorMessage}`,
+          isError: true,
+          errorCode: errorCode
         })
       } finally {
         commit('SET_LOADING', false)

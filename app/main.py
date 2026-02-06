@@ -9,6 +9,7 @@ from app.api.routes import settings as settings_router
 from app.config import settings
 from app.core.database.connection import db_manager
 from app.core.database.external import external_db_manager
+from app.core.errors import register_exception_handlers
 from app.middleware import LoggingMiddleware
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
@@ -53,7 +54,8 @@ app = FastAPI(
     title="MUREUM API",
     description="기업용 지식 베이스 기반 AI 어시스턴트 API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path=settings.context_path
 )
 
 # CORS 설정 (환경변수 CORS_ORIGINS로 제어, 기본값: "*")
@@ -181,18 +183,8 @@ async def api_info():
     }
 
 
-# 예외 처리
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """전역 예외 처리"""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal Server Error",
-            "detail": str(exc) if settings.is_development else "An error occurred"
-        }
-    )
+# 전역 예외 핸들러 등록 (통일된 API 응답 형식)
+register_exception_handlers(app)
 
 
 if __name__ == "__main__":

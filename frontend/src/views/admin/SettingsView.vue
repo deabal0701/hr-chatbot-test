@@ -1477,10 +1477,10 @@ const testExternalConnection = async () => {
       ElMessage.error(response.message || '연결 실패')
     }
   } catch (error) {
-    console.error('연결 테스트 실패 (catch):', error)
-    console.error('에러 상세:', error.response?.data || error.message)
+    // 새 에러 형식: error.code, error.message 사용
+    console.error('연결 테스트 실패:', error.code, error.message)
 
-    const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || '연결 테스트 중 오류 발생'
+    const errorMsg = error.message || '연결 테스트 중 오류 발생'
     externalConnectionStatus.value = { success: false, message: errorMsg }
     ElMessage.error(`연결 테스트 실패: ${errorMsg}`)
   } finally {
