@@ -100,9 +100,9 @@
 
         <el-table-column prop="title" label="제목" min-width="200">
           <template #default="{ row }">
-            <el-link type="primary" @click="showDetail(row)">
+            <span class="title-link" :title="row.title" @click="showDetail(row)">
               {{ row.title }}
-            </el-link>
+            </span>
           </template>
         </el-table-column>
 
@@ -405,6 +405,19 @@ const formatDate = (dateStr) => {
       font-size: 14px;
       color: var(--text-color-regular);
       font-weight: 500;
+    }
+  }
+
+  .title-link {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--el-color-primary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--el-color-primary-light-3);
     }
   }
 

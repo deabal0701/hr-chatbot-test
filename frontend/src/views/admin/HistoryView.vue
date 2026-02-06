@@ -151,11 +151,15 @@
       >
         <el-table-column prop="id" label="ID" width="70" />
 
+        <el-table-column prop="question" label="질문" min-width="200">
+          <template #default="{ row }">
+            <span class="title-link" :title="row.question">{{ row.question }}</span>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="request_id" label="요청ID" width="100">
           <template #default="{ row }">
-            <el-tooltip :content="row.request_id" placement="top">
-              <span class="request-id">{{ row.request_id }}</span>
-            </el-tooltip>
+            <span class="request-id" :title="row.request_id">{{ row.request_id }}</span>
           </template>
         </el-table-column>
 
@@ -173,14 +177,6 @@
               {{ row.user_name || row.user_id }}
             </span>
             <span v-else class="text-muted">익명</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="question" label="질문" min-width="200">
-          <template #default="{ row }">
-            <el-tooltip :content="row.question" placement="top" :show-after="500">
-              <span class="question-text">{{ truncateText(row.question, 50) }}</span>
-            </el-tooltip>
           </template>
         </el-table-column>
 
@@ -631,8 +627,17 @@ onMounted(() => {
     font-size: 12px;
   }
 
-  .question-text {
-    color: var(--text-color-primary);
+  .title-link {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--el-color-primary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--el-color-primary-light-3);
+    }
   }
 
   .text-muted {
