@@ -26,15 +26,10 @@ RAG_TOP_K=10
 RAG_SIMILARITY_THRESHOLD=0.7
 MAX_CONTEXT_LENGTH=4000
 
-# NL2SQL Settings
+# NL2SQL Settings (DB에서 동적 관리, fallback 용도)
 SQL_TIMEOUT_SECONDS=30
 SQL_MAX_ROWS=1000
-ALLOW_DDL=false
 READ_ONLY_MODE=true
-
-# Monitoring
-ENABLE_METRICS=true
-ENABLE_AUDIT_LOG=true
 
 # create user chatuser with password 'chatuser123!';
 # create database hr_chatbot with encoding='utf-8' owner chatuser;
