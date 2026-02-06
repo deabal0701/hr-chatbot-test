@@ -76,8 +76,11 @@ class DatabaseManager:
 
     @staticmethod
     def _configure_connection(conn: psycopg.Connection):
-        """각 connection에 pgvector 등록"""
+        """각 connection에 pgvector 등록 및 타임존 설정"""
         register_vector(conn)
+        # 세션 타임존을 한국시간으로 설정
+        conn.execute("SET timezone = 'Asia/Seoul'")
+        conn.commit()
 
     def close(self):
         """커넥션 풀 종료"""

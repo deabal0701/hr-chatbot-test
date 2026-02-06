@@ -4,13 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import documents, search, agent, codes
+from app.api.routes import documents, search, agent, codes, history
 from app.api.routes import settings as settings_router
 from app.config import settings
+from app.api.services.history_service import history_service
 from app.core.database.connection import db_manager
 from app.core.database.external import external_db_manager
 from app.core.errors import register_exception_handlers
-from app.middleware import LoggingMiddleware
+from app.middleware import LoggingMiddleware, HistoryMiddleware
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
 
     # 종료
     logger.info("MUREUM 종료 중...")
+    history_service.stop_worker()  # 이력 저장 워커 종료
     db_manager.close()
     external_db_manager.close()
     logger.info("데이터베이스 연결 풀 종료 완료")
@@ -65,8 +67,10 @@ cors_origins = (
 )
 
 # Middleware 등록 (역순 실행: 나중에 추가한 것이 먼저 실행)
-# 실행 순서: LoggingMiddleware → CORSMiddleware → Handler
-app.add_middleware(LoggingMiddleware)  # 요청/응답 로깅 (가장 바깥)
+# 요청 실행 순서: LoggingMiddleware → HistoryMiddleware → CORSMiddleware → Handler
+# 응답 실행 순서: Handler → CORSMiddleware → HistoryMiddleware → LoggingMiddleware
+app.add_middleware(HistoryMiddleware)  # 이력 저장 (LoggingMiddleware 다음 실행)
+app.add_middleware(LoggingMiddleware)  # 요청/응답 로깅 + request_id 생성 (가장 먼저 실행)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -82,6 +86,7 @@ app.include_router(documents.router)
 app.include_router(settings_router.router)
 app.include_router(codes.router, prefix="/api/admin/v1")  # 코드 관리 라우터 (Phase A)
 app.include_router(agent.router)  # AI Agent 라우터
+app.include_router(history.router)  # API 요청 이력 라우터
 
 
 # 기본 엔드포인트
@@ -178,6 +183,15 @@ async def api_info():
                 "PUT /api/admin/v1/codes/{code_id}": "코드 수정",
                 "DELETE /api/admin/v1/codes/{code_id}": "코드 삭제",
                 "POST /api/admin/v1/codes/{code_group}/reorder": "코드 순서 변경"
+            },
+            "history": {
+                "GET /api/v1/history": "이력 목록 조회 (필터링)",
+                "GET /api/v1/history/statistics": "통계 조회",
+                "GET /api/v1/history/users/{user_id}": "사용자별 요약 (내 이력)",
+                "GET /api/v1/history/users/{user_id}/history": "사용자별 이력 상세",
+                "GET /api/v1/history/sessions/{session_id}": "세션별 이력",
+                "GET /api/v1/history/{request_id}": "단일 요청 상세",
+                "DELETE /api/v1/history/cleanup": "오래된 이력 정리"
             }
         }
     }

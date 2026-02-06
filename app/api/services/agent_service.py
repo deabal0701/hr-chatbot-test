@@ -51,6 +51,7 @@ class AgentService:
         result = await agent_graph.ainvoke(inputs)
         log_step(logger, request_id, "SERVICE", "AGENT", "END", "Agent 서비스 완료", iterations=result.total_iterations, tools_count=len(result.tools_used), success=result.success)
 
+        # 이력 저장은 HistoryMiddleware에서 처리
         return result
 
     def _resolve_config(self, request_config: Optional[AgentConfig], request_id: str) -> AgentConfig:

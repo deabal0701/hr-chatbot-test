@@ -12,8 +12,10 @@ Usage:
 
 from app.middleware.base import BaseMiddleware
 from app.middleware.logging import LoggingMiddleware
+from app.middleware.history import HistoryMiddleware
 
 __all__ = [
     "BaseMiddleware",
     "LoggingMiddleware",
+    "HistoryMiddleware",
 ]

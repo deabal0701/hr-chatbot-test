@@ -42,6 +42,7 @@ class RAGService:
 
         log_step(logger, request_id, "SERVICE", "RAG", "END", "RAG 서비스 완료", sources_count=len(response.sources) if response.sources else 0, answer_length=len(response.answer))
 
+        # 이력 저장은 HistoryMiddleware에서 처리
         return response
 
 

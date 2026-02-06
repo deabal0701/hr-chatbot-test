@@ -46,6 +46,7 @@ class NL2SQLService:
 
         log_step(logger, request_id, "SERVICE", "NL2SQL", "END", "NL2SQL 서비스 완료", sql_generated=bool(response.sql), answer_length=len(response.answer), session_id=response.session_id)
 
+        # 이력 저장은 HistoryMiddleware에서 처리
         return response
 
     def _prepare_inputs(
