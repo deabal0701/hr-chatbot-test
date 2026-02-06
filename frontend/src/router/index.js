@@ -77,7 +77,7 @@ const routes = [
         path: 'history',
         name: 'AdminHistory',
         component: () => import('@/views/admin/HistoryView.vue'),
-        meta: { title: 'API 이력' }
+        meta: { title: '검색 이력' }
       },
       {
         path: 'history/:requestId',

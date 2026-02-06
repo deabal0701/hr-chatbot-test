@@ -850,14 +850,25 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     rows_summary = result.rows[:max_rows] if len(result.rows) > max_rows else result.rows
     is_truncated = len(result.rows) > max_rows
 
+    # ID 컬럼은 합계 계산에서 제외 (emp_id, id, _id로 끝나는 컬럼 등)
+    id_column_patterns = ("_id", "id", "seq", "no", "num", "idx")
+
     numeric_totals: dict[str, float] = {}
     for col in result.columns:
+        # ID 성격의 컬럼은 제외
+        col_lower = col.lower()
+        if col_lower == "id" or col_lower.endswith(id_column_patterns):
+            continue
+
         try:
             total = 0.0
             has_numeric = False
             for row in result.rows:
                 val = row.get(col)
-                if val is not None and isinstance(val, (int, float)):
+                # None, null 값은 건너뜀
+                if val is None:
+                    continue
+                if isinstance(val, (int, float)):
                     total += float(val)
                     has_numeric = True
             if has_numeric:

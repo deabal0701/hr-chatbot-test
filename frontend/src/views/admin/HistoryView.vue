@@ -3,16 +3,16 @@
     <!-- 헤더 영역 -->
     <div class="page-header">
       <div>
-        <h2>API 이력 관리</h2>
-        <p class="subtitle">API 요청 이력을 조회하고 분석합니다.</p>
+        <h2>검색 이력</h2>
+        <p class="subtitle">검색 요청 이력을 조회하고 분석합니다.</p>
       </div>
       <el-button type="danger" plain :icon="Delete" @click="showCleanupDialog">
         이력 정리
       </el-button>
     </div>
 
-    <!-- 통계 카드 -->
-    <el-row :gutter="20" class="stats-row">
+    <!-- 통계 카드 (숨김 처리) -->
+    <el-row v-if="showStats" :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
           <div class="stat-icon" style="background-color: #ecf5ff">
@@ -197,7 +197,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="requested_at" label="요청시간" width="160">
+        <el-table-column prop="requested_at" label="요청시간" width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.requested_at) }}
           </template>
@@ -298,6 +298,9 @@ const filters = reactive({
   to_date: null
 })
 const dateRange = ref(null)
+
+// 통계 카드 표시 여부
+const showStats = ref(false)
 
 // 정리 다이얼로그
 const cleanupDialogVisible = ref(false)
@@ -485,14 +488,13 @@ const formatResponseTime = (ms) => {
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
-  return date.toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${year}.${month}.${day} ${hour}:${minute}:${second}`
 }
 
 const truncateText = (text, maxLength) => {
@@ -519,19 +521,6 @@ onMounted(() => {
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 20px;
-
-    h2 {
-      margin: 0 0 8px;
-      font-size: 24px;
-      font-weight: 600;
-      color: var(--text-color-primary);
-    }
-
-    .subtitle {
-      margin: 0;
-      color: var(--text-color-secondary);
-      font-size: 14px;
-    }
   }
 
   .stats-row {
