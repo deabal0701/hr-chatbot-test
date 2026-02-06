@@ -103,7 +103,7 @@ Examples:
 
         cache_key = question.lower().strip()
         if cache_key in self._query_cache:
-            log_step("SYSTEM", "TOOL", self.name, "CACHE", "캐시 히트", level="DEBUG")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "CACHE", "캐시 히트", level="DEBUG")
             kwargs["_cached_result"] = self._query_cache[cache_key]
 
         return kwargs
@@ -141,7 +141,7 @@ Examples:
             )
 
         try:
-            log_step("SYSTEM", "TOOL", self.name, "START", f"SQL 도구 실행 | question={truncate_text(question, 50)}")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "START", f"SQL 도구 실행 | question={truncate_text(question, 50)}")
 
             # NL2SQL 노드 패턴 활용 여부 확인
             settings_config = _get_settings_config()
@@ -155,7 +155,7 @@ Examples:
                 return self._execute_legacy(question)
 
         except Exception as e:
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"SQL 도구 실행 실패: {e}", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", f"SQL 도구 실행 실패: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Database query failed: {str(e)}",
@@ -203,15 +203,15 @@ Examples:
             "previous_error": "",
         }
 
-        log_step("SYSTEM", "TOOL", self.name, "SCHEMA", "Schema Retrieval 시작")
+        log_step(logger, "SYSTEM", "TOOL", self.name, "SCHEMA", "Schema Retrieval 시작")
 
         # 1. Schema Retrieval
         state.update(schema_retrieval_node(state))
-        log_step("SYSTEM", "TOOL", self.name, "SCHEMA", "테이블 선택 완료", tables=state.get('selected_tables', []))
+        log_step(logger, "SYSTEM", "TOOL", self.name, "SCHEMA", "테이블 선택 완료", tables=state.get('selected_tables', []))
 
         # 2. Few-shot Retrieval
         state.update(fewshot_retrieval_node(state))
-        log_step("SYSTEM", "TOOL", self.name, "FEWSHOT", "Few-shot 검색 완료", count=state.get('fewshot_count', 0))
+        log_step(logger, "SYSTEM", "TOOL", self.name, "FEWSHOT", "Few-shot 검색 완료", count=state.get('fewshot_count', 0))
 
         # 3. Prompt Build
         state.update(prompt_build_node(state))
@@ -232,7 +232,7 @@ Examples:
                 }
             )
 
-        log_step("SYSTEM", "TOOL", self.name, "SQL", f"SQL 생성 완료 | length={len(sql)}")
+        log_step(logger, "SYSTEM", "TOOL", self.name, "SQL", f"SQL 생성 완료 | length={len(sql)}")
 
         # 5. SQL 실행
         try:
@@ -256,7 +256,7 @@ Examples:
         else:
             formatted_result = self._format_multiple_results(result)
 
-        log_step("SYSTEM", "TOOL", self.name, "COMPLETE", "SQL 도구 완료", rows=result.row_count, time_ms=result.execution_time_ms)
+        log_step(logger, "SYSTEM", "TOOL", self.name, "COMPLETE", "SQL 도구 완료", rows=result.row_count, time_ms=result.execution_time_ms)
 
         return ToolResult(
             success=True,

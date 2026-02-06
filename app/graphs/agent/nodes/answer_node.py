@@ -39,13 +39,13 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     question = state.get("question", "")
     messages = state.get("messages", [])
 
-    log_step(request_id, "AGENT", "ANSWER", "START", "최종 답변 생성 시작")
+    log_step(logger, request_id, "AGENT", "ANSWER", "START", "최종 답변 생성 시작")
 
     # Tool 결과 수집
     tool_results = _extract_tool_results(messages)
 
     if not tool_results:
-        log_step(request_id, "AGENT", "ANSWER", "WARN", "Tool 결과 없음 - 기존 답변 유지", level="WARNING")
+        log_step(logger, request_id, "AGENT", "ANSWER", "WARN", "Tool 결과 없음 - 기존 답변 유지", level="WARNING")
         # Tool 결과가 없으면 마지막 AIMessage 내용을 그대로 사용
         return _use_last_ai_message(state, messages)
 
@@ -61,7 +61,7 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 위 정보를 바탕으로 사용자 질문에 대한 최종 답변을 작성하세요."""
 
-    log_step(request_id, "AGENT", "ANSWER", "LLM-INPUT", "LLM 호출", system_len=len(system_prompt), user_len=len(user_prompt))
+    log_step(logger, request_id, "AGENT", "ANSWER", "LLM-INPUT", "LLM 호출", system_len=len(system_prompt), user_len=len(user_prompt))
 
     try:
         # LLM 호출 (temperature=0.1로 약간의 창의성 허용)
@@ -76,7 +76,7 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(answer, list):
             answer = " ".join(str(item) for item in answer)
 
-        log_step(request_id, "AGENT", "ANSWER", "COMPLETE", "최종 답변 생성 완료", length=len(answer))
+        log_step(logger, request_id, "AGENT", "ANSWER", "COMPLETE", "최종 답변 생성 완료", length=len(answer))
 
         return {
             "messages": [AIMessage(content=answer)],
@@ -84,7 +84,7 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(request_id, "AGENT", "ANSWER", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
+        log_step(logger, request_id, "AGENT", "ANSWER", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
         # 오류 시 Tool 결과를 그대로 반환
         fallback_answer = f"수집된 정보:\n{tool_results}"
         return {

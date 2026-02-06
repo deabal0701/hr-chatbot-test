@@ -44,22 +44,22 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
     tools_used = list(state.get("tools_used", []))
 
     if not messages:
-        log_step(request_id, "TOOLS", "X", "ERROR", "메시지 없음", level="ERROR")
+        log_step(logger, request_id, "TOOLS", "X", "ERROR", "메시지 없음", level="ERROR")
         return {"messages": []}
 
     last_message = messages[-1]
 
     # AIMessage가 아니거나 tool_calls가 없으면 패스
     if not isinstance(last_message, AIMessage):
-        log_step(request_id, "TOOLS", "X", "WARN", "마지막 메시지가 AIMessage가 아님", level="WARNING")
+        log_step(logger, request_id, "TOOLS", "X", "WARN", "마지막 메시지가 AIMessage가 아님", level="WARNING")
         return {"messages": []}
 
     tool_calls = getattr(last_message, 'tool_calls', None)
     if not tool_calls:
-        log_step(request_id, "TOOLS", "X", "WARN", "tool_calls 없음", level="WARNING")
+        log_step(logger, request_id, "TOOLS", "X", "WARN", "tool_calls 없음", level="WARNING")
         return {"messages": []}
 
-    log_step(request_id, "TOOLS", "X", "EXECUTE", f"Tool 실행 시작 | count={len(tool_calls)}")
+    log_step(logger, request_id, "TOOLS", "X", "EXECUTE", f"Tool 실행 시작 | count={len(tool_calls)}")
 
     # Tool 실행 결과 저장
     tool_messages = []
@@ -74,7 +74,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
         tool_id = tool_call.get("id", "")
         tool_args = tool_call.get("args", {})
 
-        log_step(request_id, "TOOLS", tool_name, "CALL", "Tool 호출", args=truncate_text(str(tool_args), 100))
+        log_step(logger, request_id, "TOOLS", tool_name, "CALL", "Tool 호출", args=truncate_text(str(tool_args), 100))
 
         try:
             # Tool 함수 조회
@@ -82,7 +82,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
             if tool_func is None:
                 error_msg = f"Unknown tool: {tool_name}"
-                log_step(request_id, "TOOLS", tool_name, "ERROR", error_msg, level="ERROR")
+                log_step(logger, request_id, "TOOLS", tool_name, "ERROR", error_msg, level="ERROR")
                 tool_messages.append(ToolMessage(
                     content=error_msg,
                     tool_call_id=tool_id,
@@ -121,7 +121,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
                     "result": truncate_text(result, 500),
                 })
 
-            log_step(request_id, "TOOLS", tool_name, "RESULT", "Tool 결과", length=len(str(result)))
+            log_step(logger, request_id, "TOOLS", tool_name, "RESULT", "Tool 결과", length=len(str(result)))
 
             tool_messages.append(ToolMessage(
                 content=str(result),
@@ -131,14 +131,14 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
         except Exception as e:
             error_msg = f"Tool execution error: {str(e)}"
-            log_step(request_id, "TOOLS", tool_name, "ERROR", error_msg, level="ERROR")
+            log_step(logger, request_id, "TOOLS", tool_name, "ERROR", error_msg, level="ERROR")
             tool_messages.append(ToolMessage(
                 content=error_msg,
                 tool_call_id=tool_id,
                 name=tool_name,
             ))
 
-    log_step(request_id, "TOOLS", "X", "COMPLETE", "Tool 실행 완료", executed=len(tool_messages))
+    log_step(logger, request_id, "TOOLS", "X", "COMPLETE", "Tool 실행 완료", executed=len(tool_messages))
 
     return {
         "messages": tool_messages,

@@ -106,13 +106,13 @@ Examples:
 
         # top_k 제한
         if top_k > 20:
-            log_step("SYSTEM", "TOOL", self.name, "WARN", f"top_k 초과, 20으로 제한", level="WARNING", original_top_k=top_k)
+            log_step(logger, "SYSTEM", "TOOL", self.name, "WARN", f"top_k 초과, 20으로 제한", level="WARNING", original_top_k=top_k)
             kwargs["top_k"] = 20
 
         # 캐시 체크
         cache_key = f"{question.lower().strip()}:{top_k}"
         if cache_key in self._search_cache:
-            log_step("SYSTEM", "TOOL", self.name, "CACHE", f"캐시 히트", level="DEBUG", cache_key=truncate_text(cache_key, 50))
+            log_step(logger, "SYSTEM", "TOOL", self.name, "CACHE", f"캐시 히트", level="DEBUG", cache_key=truncate_text(cache_key, 50))
             kwargs["_cached_result"] = self._search_cache[cache_key]
 
         return kwargs
@@ -207,7 +207,7 @@ Examples:
             ) # type: ignore
 
         except Exception as e:
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"문서 검색 실패: {e}", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", f"문서 검색 실패: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Document search failed: {str(e)}",

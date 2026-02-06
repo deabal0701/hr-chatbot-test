@@ -35,10 +35,10 @@ class AgentService:
         Returns:
             AgentResponse: Agent 응답 (답변, 실행 단계, 메타데이터)
         """
-        log_step(request_id, "SERVICE", "AGENT", "START", "Agent 서비스 시작", question=truncate_text(question, 50))
+        log_step(logger, request_id, "SERVICE", "AGENT", "START", "Agent 서비스 시작", question=truncate_text(question, 50))
 
         # 세션 ID 자동 생성
-        if not session_id: 
+        if not session_id:
             session_id = f"session-{request_id}"
 
         # 설정 로딩 (시스템 설정 → 요청 설정 → 기본값)
@@ -49,7 +49,7 @@ class AgentService:
 
         # Agent 그래프 실행
         result = await agent_graph.ainvoke(inputs)
-        log_step(request_id, "SERVICE", "AGENT", "END", "Agent 서비스 완료", iterations=result.total_iterations, tools_count=len(result.tools_used), success=result.success)
+        log_step(logger, request_id, "SERVICE", "AGENT", "END", "Agent 서비스 완료", iterations=result.total_iterations, tools_count=len(result.tools_used), success=result.success)
 
         return result
 

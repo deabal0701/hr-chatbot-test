@@ -77,11 +77,16 @@ def setup_logger(name: str) -> logging.Logger:
     return logger
 
 
-# 기본 로거
-logger = setup_logger("chatbot_mureum")
-
-
-def log_step(request_id: str, module: str, step: str, stage: str, message: str, level: str = "INFO", **kwargs):
+def log_step(
+    logger: logging.Logger,
+    request_id: str,
+    module: str,
+    step: str,
+    stage: str,
+    message: str,
+    level: str = "INFO",
+    **kwargs
+):
     """
     통합 로깅 함수
 
@@ -89,6 +94,7 @@ def log_step(request_id: str, module: str, step: str, stage: str, message: str, 
     호출 위치(파일명:라인)를 자동으로 포함합니다.
 
     Args:
+        logger: 로거 인스턴스 (setup_logger(__name__)로 생성)
         request_id: 요청 고유 ID (8자리)
         module: 모듈명 (AGENT, RAG, NL2SQL, API 등)
         step: 단계 번호 또는 식별자 (0, 1, 2, INIT, END, ERR 등)
@@ -102,7 +108,8 @@ def log_step(request_id: str, module: str, step: str, stage: str, message: str, 
         [request_id] [MODULE-step] [STAGE] [file:line] message | key1=value1 | key2=value2
 
     Example:
-        >>> log_step("abc123", "AGENT", "0", "INIT", "Agent 실행 시작", max_iter=10, model="gpt-4o")
+        >>> logger = setup_logger(__name__)
+        >>> log_step(logger, "abc123", "AGENT", "0", "INIT", "Agent 실행 시작", max_iter=10, model="gpt-4o")
         [abc123] [AGENT-0] [INIT] [agent_graph.py:50] Agent 실행 시작 | max_iter=10 | model=gpt-4o
     """
     # 호출 위치 추출 (caller의 파일명과 라인 번호)

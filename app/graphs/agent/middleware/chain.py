@@ -7,7 +7,9 @@ Middleware Chain
 from typing import Any, Dict, List
 
 from app.graphs.agent.middleware.base import Middleware
-from app.utils.logger import log_step
+from app.utils.logger import setup_logger, log_step
+
+logger = setup_logger(__name__)
 
 
 class MiddlewareChain:
@@ -86,9 +88,9 @@ class MiddlewareChain:
             mw_name = type(mw).__name__
             try:
                 data = await mw.process_input(data)
-                log_step(request_id, "MIDDLEWARE", mw_name, "INPUT", "입력 처리 완료", level="DEBUG")
+                log_step(logger, request_id, "MIDDLEWARE", mw_name, "INPUT", "입력 처리 완료", level="DEBUG")
             except Exception as e:
-                log_step(request_id, "MIDDLEWARE", mw_name, "INPUT", f"입력 처리 실패: {e}", level="ERROR")
+                log_step(logger, request_id, "MIDDLEWARE", mw_name, "INPUT", f"입력 처리 실패: {e}", level="ERROR")
                 # 미들웨어 실패 시 데이터 그대로 전달 (fail-safe)
 
         return data
@@ -110,9 +112,9 @@ class MiddlewareChain:
             mw_name = type(mw).__name__
             try:
                 data = await mw.process_output(data)
-                log_step(request_id, "MIDDLEWARE", mw_name, "OUTPUT", "출력 처리 완료", level="DEBUG")
+                log_step(logger, request_id, "MIDDLEWARE", mw_name, "OUTPUT", "출력 처리 완료", level="DEBUG")
             except Exception as e:
-                log_step(request_id, "MIDDLEWARE", mw_name, "OUTPUT", f"출력 처리 실패: {e}", level="ERROR")
+                log_step(logger, request_id, "MIDDLEWARE", mw_name, "OUTPUT", f"출력 처리 실패: {e}", level="ERROR")
                 # 미들웨어 실패 시 데이터 그대로 전달 (fail-safe)
 
         return data

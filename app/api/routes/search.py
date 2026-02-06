@@ -8,7 +8,7 @@
 import uuid
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 
 from app.api.services.rag_service import rag_service
 from app.api.services.nl2sql_service import nl2sql_service
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1", tags=["search"])
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest):
+async def search(search_request: SearchRequest, request: Request):
     """
     통합 검색 엔드포인트
 
@@ -29,34 +29,35 @@ async def search(request: SearchRequest):
     - mode='rag': RAG 검색 (문서 기반)
     - mode='nl2sql': NL2SQL 검색 (데이터베이스 쿼리)
     """
-    request_id = str(uuid.uuid4())[:8]
+    # Middleware에서 생성된 request_id 사용 (없으면 새로 생성)
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
 
     logger.info(f"[{request_id}] ========== 검색 요청 처리 시작 ==========")
 
     try:
         # STEP 1: 사용자 요청 수신
-        log_step(request_id, "API", "1", "REQUEST", "사용자 요청 수신", query=request.query, mode=request.mode)
+        log_step(logger, request_id, "API", "1", "REQUEST", "사용자 요청 수신", query=search_request.query, mode=search_request.mode)
 
         # STEP 2: 모드 결정
-        if request.mode == "auto":
-            query_type = _classify_query_intent(request.query)
-            log_step(request_id, "API", "2", "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
+        if search_request.mode == "auto":
+            query_type = _classify_query_intent(search_request.query)
+            log_step(logger, request_id, "API", "2", "CLASSIFY", f"자동 분류 완료 → {query_type.upper()}", original_mode="auto", detected_type=query_type)
         else:
-            query_type = request.mode
-            log_step(request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
+            query_type = search_request.mode
+            log_step(logger, request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
         # STEP 3: 서비스 호출
         if query_type == "nl2sql":
             response = await nl2sql_service.search(
-                query=request.query,
-                session_id=request.session_id,  # 멀티턴 대화 지원
+                query=search_request.query,
+                session_id=search_request.session_id,  # 멀티턴 대화 지원
                 request_id=request_id
             )
         else:  # rag
-            response = await rag_service.search(query=request.query, filters=request.filters, request_id=request_id)
+            response = await rag_service.search(query=search_request.query, filters=search_request.filters, request_id=request_id)
 
         # STEP 4: 응답 완료
-        log_step(request_id, "API", "4", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
+        log_step(logger, request_id, "API", "4", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
         logger.info(f"[{request_id}] ========== 검색 요청 처리 완료 ==========")
 
         return response

@@ -36,7 +36,7 @@ class NL2SQLService:
         Returns:
             SearchResponse: 검색 결과 (SQL, 실행 결과, 답변, session_id 포함)
         """
-        log_step(request_id, "SERVICE", "NL2SQL", "START", "NL2SQL 서비스 시작", query=truncate_text(query, 50), session_id=session_id or "auto")
+        log_step(logger, request_id, "SERVICE", "NL2SQL", "START", "NL2SQL 서비스 시작", query=truncate_text(query, 50), session_id=session_id or "auto")
 
         # 입력 데이터 구성
         inputs = self._prepare_inputs(query, session_id, request_id)
@@ -44,7 +44,7 @@ class NL2SQLService:
         # NL2SQL 그래프 실행
         response = await nl2sql_graph.ainvoke(inputs)
 
-        log_step(request_id, "SERVICE", "NL2SQL", "END", "NL2SQL 서비스 완료", sql_generated=bool(response.sql), answer_length=len(response.answer), session_id=response.session_id)
+        log_step(logger, request_id, "SERVICE", "NL2SQL", "END", "NL2SQL 서비스 완료", sql_generated=bool(response.sql), answer_length=len(response.answer), session_id=response.session_id)
 
         return response
 

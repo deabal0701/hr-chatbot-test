@@ -576,3 +576,4 @@ from langgraph.graph import END, StateGraph
 - 로그파일 : ./logs/app.log 
 - log_step출력: log_step는 로그이니 다른비즈니스 로직과 분리하여 한줄에 출력하라.
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
+- __init__에는 가능한 파일만 생성하고 import모듈등은 구현하지 말라.

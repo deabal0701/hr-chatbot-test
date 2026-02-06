@@ -51,6 +51,9 @@ class LoggingMiddleware(BaseMiddleware):
         "audio/",
     }
 
+    # 요청 시작/종료 구분 표시
+    REQUEST_SEPARATOR = "=" * 60
+
     async def process_request(self, request: Request, call_next) -> Response:
         """
         요청/응답 로깅 처리
@@ -62,6 +65,11 @@ class LoggingMiddleware(BaseMiddleware):
         """
         request_id = str(uuid.uuid4())[:8]
         start_time = time.time()
+
+        # ===== 요청 시작 표시 =====
+        logger.info(f"[{request_id}] {self.REQUEST_SEPARATOR}")
+        logger.info(f"[{request_id}] >>> HTTP 요청 시작 | {request.method} {request.url.path}")
+        logger.info(f"[{request_id}] {self.REQUEST_SEPARATOR}")
 
         # ===== 전처리 (Before Filter) =====
         await self._log_request(request, request_id)
@@ -93,6 +101,11 @@ class LoggingMiddleware(BaseMiddleware):
             body_for_log = response_body_bytes.decode("utf-8", errors="ignore")[:self.MAX_BODY_LOG_SIZE]
 
         self._log_response(request, response, request_id, process_time, body_for_log)
+
+        # ===== 요청 종료 표시 =====
+        logger.info(f"[{request_id}] {self.REQUEST_SEPARATOR}")
+        logger.info(f"[{request_id}] <<< HTTP 요청 완료 | {request.method} {request.url.path} | status={response.status_code} | {process_time:.4f}s")
+        logger.info(f"[{request_id}] {self.REQUEST_SEPARATOR}")
 
         # 새 Response 생성 (body_iterator는 한번만 읽을 수 있으므로)
         return Response(
@@ -245,6 +258,12 @@ class LoggingMiddleware(BaseMiddleware):
                 # 바디 미리보기 (DEBUG 레벨)
                 if body_preview:
                     logger.debug(f"[{request_id}] [HTTP-RES-STREAM-BODY] {body_preview}{truncated}")
+
+                # ===== 요청 종료 표시 (Streaming) =====
+                separator = "=" * 60
+                logger.info(f"[{request_id}] {separator}")
+                logger.info(f"[{request_id}] <<< HTTP 요청 완료 (Stream) | {request.method} {request.url.path} | status={response.status_code} | {total_time:.4f}s")
+                logger.info(f"[{request_id}] {separator}")
 
         return StreamingResponse(
             content=logging_iterator(),

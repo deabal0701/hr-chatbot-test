@@ -114,7 +114,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
     question = rewritten_question if rewritten_question else original_question
     request_id = state.get("request_id", "unknown")
 
-    log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "스키마 검색 시작", question=truncate_text(question, 40), is_rewritten=bool(rewritten_question))
+    log_step(logger, request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "스키마 검색 시작", question=truncate_text(question, 40), is_rewritten=bool(rewritten_question))
 
     # 설정 조회
     settings_config = _get_settings_config()
@@ -123,7 +123,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # 비활성화된 경우 전체 스키마 사용
     if not enabled:
-        log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "스키마 검색 비활성화 → 전체 스키마 사용")
+        log_step(logger, request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "스키마 검색 비활성화 → 전체 스키마 사용")
         schema_loader = _get_schema_loader()
         return {
             "selected_tables": [],
@@ -161,7 +161,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=user_prompt)
         ]
 
-        log_step(request_id, "NL2SQL", "0.5a", "LLM-INPUT", "경량 LLM 호출 (테이블 선택)")
+        log_step(logger, request_id, "NL2SQL", "0.5a", "LLM-INPUT", "경량 LLM 호출 (테이블 선택)")
 
         response = llm.invoke(messages)
 
@@ -172,7 +172,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         else:
             response_text = str(content).strip()
 
-        log_step(request_id, "NL2SQL", "0.5b", "LLM-OUTPUT", "LLM 응답 수신", response_length=len(response_text))
+        log_step(logger, request_id, "NL2SQL", "0.5b", "LLM-OUTPUT", "LLM 응답 수신", response_length=len(response_text))
 
         # 3. JSON 파싱
         import json
@@ -193,7 +193,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             # LLM 응답의 불필요한 줄바꿈/공백 정리
             reasoning = " ".join(result.get("reasoning", "").split())
         except json.JSONDecodeError as e:
-            log_step(request_id, "NL2SQL", "0.5", "WARN", f"JSON 파싱 실패: {e} → 전체 스키마 사용")
+            log_step(logger, request_id, "NL2SQL", "0.5", "WARN", f"JSON 파싱 실패: {e} → 전체 스키마 사용")
             schema_loader = _get_schema_loader()
             return {
                 "selected_tables": [],
@@ -204,13 +204,13 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # 4. FK 관계 테이블 자동 포함
         all_tables = catalog_service.get_related_tables(selected_tables)
 
-        log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "테이블 선택 완료", tables=list(all_tables), confidence=confidence, reasoning=truncate_text(reasoning, 50))
+        log_step(logger, request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "테이블 선택 완료", tables=list(all_tables), confidence=confidence, reasoning=truncate_text(reasoning, 50))
 
         # 5. 신뢰도 체크 (낮으면 전체 스키마)
         schema_loader = _get_schema_loader()
 
         if confidence < confidence_threshold:
-            log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "신뢰도 낮음 → 전체 스키마 사용", confidence=confidence, threshold=confidence_threshold)
+            log_step(logger, request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "신뢰도 낮음 → 전체 스키마 사용", confidence=confidence, threshold=confidence_threshold)
             return {
                 "selected_tables": [],
                 "schema_retrieval_confidence": confidence,
@@ -220,7 +220,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # 6. 선택된 테이블 스키마만 로드
         schema_description = schema_loader.generate_schema_description(tables=list(all_tables))
 
-        log_step(request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "선택적 스키마 로드 완료", table_count=len(all_tables), schema_length=len(schema_description))
+        log_step(logger, request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "선택적 스키마 로드 완료", table_count=len(all_tables), schema_length=len(schema_description))
 
         return {
             "selected_tables": list(all_tables),
@@ -229,7 +229,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "0.5", "ERROR", f"스키마 검색 실패: {e} → 전체 스키마 사용", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "0.5", "ERROR", f"스키마 검색 실패: {e} → 전체 스키마 사용", level="ERROR")
         schema_loader = _get_schema_loader()
         return {
             "selected_tables": [],
@@ -271,7 +271,7 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
     request_id = state.get("request_id", "unknown")
     enhanced_fewshot = state.get("enhanced_fewshot", False)
 
-    log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 검색 시작", question=truncate_text(question, 40), enhanced=enhanced_fewshot, is_rewritten=bool(rewritten_question))
+    log_step(logger, request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 검색 시작", question=truncate_text(question, 40), enhanced=enhanced_fewshot, is_rewritten=bool(rewritten_question))
 
     # 설정 조회
     settings_config = _get_settings_config()
@@ -281,7 +281,7 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # 비활성화된 경우
     if not enabled:
-        log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 비활성화")
+        log_step(logger, request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 비활성화")
         return {
             "fewshot_context": "",
             "fewshot_examples": [],
@@ -304,7 +304,7 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         if not example_docs:
-            log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 예제 없음")
+            log_step(logger, request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 예제 없음")
             return {
                 "fewshot_context": "",
                 "fewshot_examples": [],
@@ -332,7 +332,7 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
         fewshot_context = "\n".join(fewshot_lines)
 
-        log_step(request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 검색 완료", count=len(example_docs), enhanced=enhanced_fewshot)
+        log_step(logger, request_id, "NL2SQL", "0.6", "FEWSHOT", "Few-shot 검색 완료", count=len(example_docs), enhanced=enhanced_fewshot)
 
         return {
             "fewshot_context": fewshot_context,
@@ -341,7 +341,7 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "0.6", "ERROR", f"Few-shot 검색 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "0.6", "ERROR", f"Few-shot 검색 실패: {e}", level="ERROR")
         return {
             "fewshot_context": "",
             "fewshot_examples": [],
@@ -388,7 +388,7 @@ def prompt_build_node(state: Dict[str, Any]) -> Dict[str, Any]:
     previous_error = state.get("previous_error", "")
     retry_count = state.get("retry_count", 0)
 
-    log_step(request_id, "NL2SQL", "0.7", "PROMPT", "프롬프트 조립 시작", schema_len=len(schema_description), fewshot_len=len(fewshot_context), is_rewritten=bool(rewritten_question))
+    log_step(logger, request_id, "NL2SQL", "0.7", "PROMPT", "프롬프트 조립 시작", schema_len=len(schema_description), fewshot_len=len(fewshot_context), is_rewritten=bool(rewritten_question))
 
     try:
         # DB 타입 및 SQL 방언 확인
@@ -430,7 +430,7 @@ def prompt_build_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 """
             prompt_parts.append(history_context)
-            log_step(request_id, "NL2SQL", "0.7", "PROMPT", "이전 대화 이력 추가", turns=len(conversation_history))
+            log_step(logger, request_id, "NL2SQL", "0.7", "PROMPT", "이전 대화 이력 추가", turns=len(conversation_history))
 
         # 재시도 시 이전 오류 컨텍스트 추가
         if retry_count > 0 and previous_error:
@@ -467,7 +467,7 @@ SQL만 출력하세요 (설명 없이)."""
             "history_turns": len(conversation_history),
         }
 
-        log_step(request_id, "NL2SQL", "0.7", "PROMPT", "프롬프트 조립 완료", total_len=len(sql_prompt), db=db_type, retry=retry_count)
+        log_step(logger, request_id, "NL2SQL", "0.7", "PROMPT", "프롬프트 조립 완료", total_len=len(sql_prompt), db=db_type, retry=retry_count)
 
         return {
             "sql_prompt": sql_prompt,
@@ -476,7 +476,7 @@ SQL만 출력하세요 (설명 없이)."""
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "0.7", "ERROR", f"프롬프트 조립 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "0.7", "ERROR", f"프롬프트 조립 실패: {e}", level="ERROR")
         return {
             "sql_prompt": "",
             "user_prompt": question,
@@ -513,11 +513,11 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     user_prompt = state.get("user_prompt", "")
     prompt_metadata = state.get("prompt_metadata", {})
 
-    log_step(request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작 (LLM 호출)")
+    log_step(logger, request_id, "NL2SQL", "1", "GENERATE", "SQL 생성 시작 (LLM 호출)")
 
     # 프롬프트 존재 확인
     if not sql_prompt or not user_prompt:
-        log_step(request_id, "NL2SQL", "1", "ERROR", "프롬프트 없음 - prompt_build_node 실패", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "1", "ERROR", "프롬프트 없음 - prompt_build_node 실패", level="ERROR")
         return {
             "generated_sql": "",
             "validated": False,
@@ -540,11 +540,11 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         settings_config = _get_settings_config()
         llm_model = settings_config.get_value("llm", "model", settings.llm_model)
 
-        log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_len=len(sql_prompt), user_len=len(user_prompt))
+        log_step(logger, request_id, "NL2SQL", "1a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_len=len(sql_prompt), user_len=len(user_prompt))
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=sql_prompt)
-            log_step(request_id, "NL2SQL", "1a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+            log_step(logger, request_id, "NL2SQL", "1a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=sql_prompt)
+            log_step(logger, request_id, "NL2SQL", "1a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
         # LLM 호출
         response = llm.invoke(messages)
@@ -557,7 +557,7 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
             response_text = str(content).strip()
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response_text)
+            log_step(logger, request_id, "NL2SQL", "1b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response_text)
 
         # 마크다운 코드 블록 제거
         sql = strip_markdown_code_block(response_text, language="sql")
@@ -569,10 +569,10 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "sql_length": len(sql),
         }
 
-        log_step(request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
+        log_step(logger, request_id, "NL2SQL", "1b", "LLM-OUTPUT", "SQL 생성 완료", sql_length=len(sql))
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
+            log_step(logger, request_id, "NL2SQL", "1b", "SQL", "생성된 SQL", level="DEBUG", content=sql)
 
         return {
             "generated_sql": sql,
@@ -580,7 +580,7 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "1", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
         return {
             "generated_sql": "",
             "validated": False,
@@ -604,12 +604,12 @@ def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
     request_id = state.get("request_id", "unknown")
 
     if not sql:
-        log_step(request_id, "NL2SQL", "2", "VALIDATE", "검증 실패 - SQL 없음")
+        log_step(logger, request_id, "NL2SQL", "2", "VALIDATE", "검증 실패 - SQL 없음")
         state["validated"] = False
         state["validation_error"] = "생성된 SQL이 없습니다"
         return state
 
-    log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 시작")
+    log_step(logger, request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 시작")
 
     try:
         is_valid, error_msg = sql_executor.validate_sql(sql)
@@ -617,16 +617,16 @@ def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
         if is_valid:
             state["validated"] = True
             state["validation_error"] = ""
-            log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 성공")
+            log_step(logger, request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 성공")
         else:
             state["validated"] = False
             state["validation_error"] = error_msg
-            log_step(request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 실패", error=error_msg)
+            log_step(logger, request_id, "NL2SQL", "2", "VALIDATE", "SQL 검증 실패", error=error_msg)
 
     except Exception as e:
         state["validated"] = False
         state["validation_error"] = str(e)
-        log_step(request_id, "NL2SQL", "2", "ERROR", f"SQL 검증 중 오류: {e}", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "2", "ERROR", f"SQL 검증 중 오류: {e}", level="ERROR")
 
     return state
 
@@ -653,7 +653,7 @@ def should_execute(state: Dict[str, Any]) -> str:
 
     # 검증 성공
     if validated:
-        log_step(request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → EXECUTE")
+        log_step(logger, request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → EXECUTE")
         return "execute"
 
     # 설정에서 재시도 활성화 여부 및 최대 재시도 횟수 확인
@@ -663,12 +663,12 @@ def should_execute(state: Dict[str, Any]) -> str:
 
     # 재시도 가능 여부 확인
     if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
-        log_step(request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → RETRY", attempt=retry_count + 1, max_retries=max_retries)
+        log_step(logger, request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → RETRY", attempt=retry_count + 1, max_retries=max_retries)
         # 상태 업데이트는 prepare_retry_node에서 수행
         return "retry"
 
     # 최종 실패
-    log_step(request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → ERROR", retry_count=retry_count, max_retries=max_retries)
+    log_step(logger, request_id, "NL2SQL", "2x", "BRANCH", "분기 결정 → ERROR", retry_count=retry_count, max_retries=max_retries)
     return "error"
 
 
@@ -733,7 +733,7 @@ def prepare_retry_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     new_retry_count = retry_count + 1
 
-    log_step(request_id, "NL2SQL", "2r", "PREPARE-RETRY", "재시도 준비", prev_retry=retry_count, new_retry=new_retry_count)
+    log_step(logger, request_id, "NL2SQL", "2r", "PREPARE-RETRY", "재시도 준비", prev_retry=retry_count, new_retry=new_retry_count)
 
     return {
         "retry_count": new_retry_count,
@@ -761,7 +761,7 @@ def execute_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
     sql = state["generated_sql"]
     request_id = state.get("request_id", "unknown")
 
-    log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 시작")
+    log_step(logger, request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 시작")
 
     try:
         result = sql_executor.execute_sql(sql, validate=False)
@@ -769,10 +769,10 @@ def execute_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["metadata"]["execution_time_ms"] = result.execution_time_ms
         state["metadata"]["row_count"] = result.row_count
 
-        log_step(request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
+        log_step(logger, request_id, "NL2SQL", "3", "EXECUTE", "SQL 실행 완료", row_count=result.row_count, execution_time_ms=result.execution_time_ms)
 
     except (SQLExecutionError, SQLValidationError) as e:
-        log_step(request_id, "NL2SQL", "3", "ERROR", f"SQL 실행 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "3", "ERROR", f"SQL 실행 실패: {e}", level="ERROR")
         state["validation_error"] = str(e)
         state["validated"] = False
 
@@ -801,7 +801,7 @@ def should_continue_after_execute(state: Dict[str, Any]) -> str:
 
     # 실행 성공 (결과가 있음)
     if sql_result is not None:
-        log_step(request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → ANSWER (실행 성공)")
+        log_step(logger, request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → ANSWER (실행 성공)")
         return "answer"
 
     # 실행 실패 - 재시도 가능 여부 확인
@@ -811,12 +811,12 @@ def should_continue_after_execute(state: Dict[str, Any]) -> str:
 
     # 재시도 가능 여부 확인
     if retry_enabled and retry_count < max_retries and _is_retryable_error(validation_error):
-        log_step(request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → RETRY (실행 오류)", attempt=retry_count + 1, max_retries=max_retries)
+        log_step(logger, request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → RETRY (실행 오류)", attempt=retry_count + 1, max_retries=max_retries)
         # 상태 업데이트는 prepare_retry_node에서 수행
         return "retry"
 
     # 최종 실패
-    log_step(request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → ERROR (실행 실패)", retry_count=retry_count, max_retries=max_retries)
+    log_step(logger, request_id, "NL2SQL", "3x", "BRANCH", "분기 결정 → ERROR (실행 실패)", retry_count=retry_count, max_retries=max_retries)
     return "error"
 
 
@@ -838,11 +838,11 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     request_id = state.get("request_id", "unknown")
 
     if not result or result.row_count == 0:
-        log_step(request_id, "NL2SQL", "4", "ANSWER", "결과 없음 - 기본 응답 반환")
+        log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "결과 없음 - 기본 응답 반환")
         state["answer"] = "조회된 결과가 없습니다."
         return state
 
-    log_step(request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작", row_count=result.row_count)
+    log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작", row_count=result.row_count)
 
     system_prompt = prompt_service.get_nl2sql_answer_prompt()
 
@@ -891,32 +891,32 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     llm = _get_llm()
 
-    log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
+    log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "LLM 호출 시작 (답변 생성)",
             system_prompt_length=len(system_prompt),
             user_prompt_length=len(user_prompt),
             data_rows=len(rows_summary))
 
     if logger.isEnabledFor(logging.DEBUG):
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
-        log_step(request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
+        log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+        log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+        log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
 
     try:
         response = llm.invoke(messages)
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
+            log_step(logger, request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
 
         answer = response.content
 
         state["answer"] = answer
-        log_step(request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료", answer_length=len(answer))
+        log_step(logger, request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료", answer_length=len(answer))
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "NL2SQL", "4b", "ANSWER", "생성된 답변", level="DEBUG", content=answer)
+            log_step(logger, request_id, "NL2SQL", "4b", "ANSWER", "생성된 답변", level="DEBUG", content=answer)
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "4", "ERROR", f"답변 생성 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "NL2SQL", "4", "ERROR", f"답변 생성 실패: {e}", level="ERROR")
         state["answer"] = f"조회 결과: {result.row_count}개 행이 발견되었습니다."
 
     return state
@@ -947,7 +947,7 @@ def handle_error_node(state: Dict[str, Any]) -> Dict[str, Any]:
 3. 질문을 더 구체적으로 작성
 """
 
-    log_step(request_id, "NL2SQL", "ERR", "ERROR", "오류 처리 완료", error=error_msg)
+    log_step(logger, request_id, "NL2SQL", "ERR", "ERROR", "오류 처리 완료", error=error_msg)
     return state
 
 
@@ -980,7 +980,7 @@ def load_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # 멀티턴 비활성화 시 이력 초기화
     if not multiturn_enabled:
-        log_step(request_id, "NL2SQL", "0.1", "HISTORY", "멀티턴 비활성화 - 이력 초기화")
+        log_step(logger, request_id, "NL2SQL", "0.1", "HISTORY", "멀티턴 비활성화 - 이력 초기화")
         return {
             "conversation_history": [],
             "current_turn": 1,
@@ -997,11 +997,11 @@ def load_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
         keep_count = max(0, max_turns - 1)
         conversation_history = conversation_history[-keep_count:] if keep_count > 0 else []
         history_truncated = True
-        log_step(request_id, "NL2SQL", "0.1", "HISTORY", "이력 잘림", original=original_count, current=len(conversation_history), max_turns=max_turns)
+        log_step(logger, request_id, "NL2SQL", "0.1", "HISTORY", "이력 잘림", original=original_count, current=len(conversation_history), max_turns=max_turns)
 
     current_turn = len(conversation_history) + 1
 
-    log_step(request_id, "NL2SQL", "0.1", "HISTORY", "이력 로드 완료", session=session_id, turn=current_turn, max_turns=max_turns, history_count=len(conversation_history))
+    log_step(logger, request_id, "NL2SQL", "0.1", "HISTORY", "이력 로드 완료", session=session_id, turn=current_turn, max_turns=max_turns, history_count=len(conversation_history))
 
     return {
         "conversation_history": conversation_history,
@@ -1038,7 +1038,7 @@ def save_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
     multiturn_enabled = settings_config.get_value("nl2sql", "multiturn_enabled", True)
 
     if not multiturn_enabled:
-        log_step(request_id, "NL2SQL", "5.1", "HISTORY", "멀티턴 비활성화 - 이력 저장 스킵")
+        log_step(logger, request_id, "NL2SQL", "5.1", "HISTORY", "멀티턴 비활성화 - 이력 저장 스킵")
         return {}
 
     # SQL 결과 요약 추출 (최대 100행)
@@ -1056,7 +1056,7 @@ def save_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
         "sql_result_summary": sql_result_summary,  # 후속 질문 답변용
     })
 
-    log_step(request_id, "NL2SQL", "5.1", "HISTORY", "이력 저장 완료", total_turns=len(conversation_history), result_rows=len(sql_result_summary))
+    log_step(logger, request_id, "NL2SQL", "5.1", "HISTORY", "이력 저장 완료", total_turns=len(conversation_history), result_rows=len(sql_result_summary))
 
     return {
         "conversation_history": conversation_history,
@@ -1098,11 +1098,11 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
     question = state.get("question", "")
     conversation_history = state.get("conversation_history", [])
 
-    log_step(request_id, "NL2SQL", "0.2", "INTENT-REWRITE", "의도 분석 시작", question=truncate_text(question, 40), history_count=len(conversation_history))
+    log_step(logger, request_id, "NL2SQL", "0.2", "INTENT-REWRITE", "의도 분석 시작", question=truncate_text(question, 40), history_count=len(conversation_history))
 
     # 대화 이력이 없으면 그대로 통과
     if not conversation_history:
-        log_step(request_id, "NL2SQL", "0.2", "INTENT-REWRITE", "대화 이력 없음 → SQL 실행 필요")
+        log_step(logger, request_id, "NL2SQL", "0.2", "INTENT-REWRITE", "대화 이력 없음 → SQL 실행 필요")
         return {
             "query_type": "sql_needed",
             "rewritten_question": question,
@@ -1189,7 +1189,7 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
         HumanMessage(content=user_prompt)
     ]
 
-    log_step(request_id, "NL2SQL", "0.2a", "LLM-INPUT", "LLM 호출 (의도 분석)",
+    log_step(logger, request_id, "NL2SQL", "0.2a", "LLM-INPUT", "LLM 호출 (의도 분석)",
             history_text_length=len(history_text))
 
     try:
@@ -1208,11 +1208,11 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
         rewritten_question = result.get("rewritten_question", question)
         reasoning = result.get("reasoning", "")
 
-        log_step(request_id, "NL2SQL", "0.2b", "LLM-OUTPUT", "의도 분석 완료", query_type=query_type, rewritten_question=truncate_text(rewritten_question, 50), reasoning=truncate_text(reasoning, 50))
+        log_step(logger, request_id, "NL2SQL", "0.2b", "LLM-OUTPUT", "의도 분석 완료", query_type=query_type, rewritten_question=truncate_text(rewritten_question, 50), reasoning=truncate_text(reasoning, 50))
 
         # ★ 안전 검사 1: sql_not_needed인데 sql_result_summary가 비어있으면 sql_needed로 변경
         if query_type == "sql_not_needed" and not sql_result_summary:
-            log_step(request_id, "NL2SQL", "0.2c", "FALLBACK", "sql_not_needed → sql_needed (sql_result_summary 비어있음)", level="WARNING")
+            log_step(logger, request_id, "NL2SQL", "0.2c", "FALLBACK", "sql_not_needed → sql_needed (sql_result_summary 비어있음)", level="WARNING")
             query_type = "sql_needed"
             reasoning += " (이전 결과 데이터 없어 SQL 실행으로 전환)"
 
@@ -1224,7 +1224,7 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "0.2", "ERROR", "의도 분석 실패 → SQL 실행으로 fallback", level="WARNING", error=str(e))
+        log_step(logger, request_id, "NL2SQL", "0.2", "ERROR", "의도 분석 실패 → SQL 실행으로 fallback", level="WARNING", error=str(e))
         # 실패 시 기본값 (SQL 실행)
         return {
             "query_type": "sql_needed",
@@ -1297,11 +1297,11 @@ def answer_from_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
     sql_result_summary = state.get("sql_result_summary", [])
     conversation_history = state.get("conversation_history", [])
 
-    log_step(request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "이전 결과에서 답변 생성 시작", data_rows=len(sql_result_summary))
+    log_step(logger, request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "이전 결과에서 답변 생성 시작", data_rows=len(sql_result_summary))
 
     # 이전 결과가 없으면 안내 메시지
     if not sql_result_summary:
-        log_step(request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "이전 결과 데이터 없음", level="WARNING")
+        log_step(logger, request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "이전 결과 데이터 없음", level="WARNING")
         return {
             "answer": "이전 조회 결과 데이터가 없어 답변할 수 없습니다. 질문을 다시 해주세요.",
             "generated_sql": "",
@@ -1346,7 +1346,7 @@ def answer_from_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
         response = llm.invoke(messages)
         answer = response.content
 
-        log_step(request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "답변 생성 완료", answer_length=len(answer))
+        log_step(logger, request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "답변 생성 완료", answer_length=len(answer))
 
         return {
             "answer": answer,
@@ -1354,7 +1354,7 @@ def answer_from_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(request_id, "NL2SQL", "4h", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
+        log_step(logger, request_id, "NL2SQL", "4h", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
         return {
             "answer": f"답변 생성 중 오류가 발생했습니다: {e}",
             "generated_sql": "",
@@ -1378,8 +1378,8 @@ def should_route_after_intent(state: Dict[str, Any]) -> str:
     query_type = state.get("query_type", "sql_needed")
 
     if query_type == "sql_not_needed":
-        log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NOT_NEEDED (이전 결과에서 답변)")
+        log_step(logger, request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NOT_NEEDED (이전 결과에서 답변)")
         return "sql_not_needed"
     else:
-        log_step(request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NEEDED (SQL 실행 필요)")
+        log_step(logger, request_id, "NL2SQL", "0.2x", "BRANCH", "분기 결정 → SQL_NEEDED (SQL 실행 필요)")
         return "sql_needed"

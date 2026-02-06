@@ -12,7 +12,9 @@ TODO: 실제 PII 감지/마스킹 로직 구현
 from typing import Any, Dict
 
 from app.graphs.agent.middleware.base import Middleware
-from app.utils.logger import log_step
+from app.utils.logger import setup_logger, log_step
+
+logger = setup_logger(__name__)
 
 
 class PIIMiddleware(Middleware):
@@ -50,14 +52,14 @@ class PIIMiddleware(Middleware):
             처리된 요청 데이터
         """
         request_id = data.get("request_id", "unknown")
-        log_step(request_id, "MIDDLEWARE", "PII", "INPUT", "PII 감지 (미구현 - 패스스루)", level="DEBUG")
+        log_step(logger, request_id, "MIDDLEWARE", "PII", "INPUT", "PII 감지 (미구현 - 패스스루)", level="DEBUG")
 
         # TODO: 실제 구현
         # question = data.get("question", "")
         # detected = self._detect_pii(question)
         # if detected:
         #     data["_pii_detected"] = detected
-        #     log_step(request_id, "MIDDLEWARE", "PII", "DETECT",
+        #     log_step(logger, request_id, "MIDDLEWARE", "PII", "DETECT",
         #             f"PII 감지: {list(detected.keys())}", level="WARNING")
 
         return data
@@ -78,7 +80,7 @@ class PIIMiddleware(Middleware):
             처리된 응답 데이터
         """
         request_id = data.get("request_id", "unknown")
-        log_step(request_id, "MIDDLEWARE", "PII", "OUTPUT", "PII 마스킹 (미구현 - 패스스루)", level="DEBUG")
+        log_step(logger, request_id, "MIDDLEWARE", "PII", "OUTPUT", "PII 마스킹 (미구현 - 패스스루)", level="DEBUG")
 
         # TODO: 실제 구현
         # answer = data.get("answer", "")
@@ -86,7 +88,7 @@ class PIIMiddleware(Middleware):
         # if count > 0:
         #     data["answer"] = masked
         #     data["_pii_masked_count"] = count
-        #     log_step(request_id, "MIDDLEWARE", "PII", "MASK",
+        #     log_step(logger, request_id, "MIDDLEWARE", "PII", "MASK",
         #             f"PII 마스킹 적용: {count}건")
 
         return data

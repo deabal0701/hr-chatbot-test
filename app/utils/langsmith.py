@@ -18,7 +18,9 @@ LangSmith는 LangChain 애플리케이션의 디버깅, 모니터링, 평가를 
 import os
 
 from app.config import settings
-from app.utils.logger import logger
+from app.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 
 def setup_langsmith() -> bool:

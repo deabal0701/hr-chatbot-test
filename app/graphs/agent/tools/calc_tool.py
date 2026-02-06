@@ -112,7 +112,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             # 공백 제거 및 정리
             expression = expression.strip()
 
-            log_step("SYSTEM", "TOOL", self.name, "EXECUTE", f"수식 평가: {expression}", level="DEBUG")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "EXECUTE", f"수식 평가: {expression}", level="DEBUG")
 
             # AST 파싱
             tree = ast.parse(expression, mode='eval')
@@ -134,7 +134,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except SyntaxError as e:
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"구문 오류: {e}", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", f"구문 오류: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Invalid mathematical expression: {str(e)}",
@@ -142,7 +142,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except ValueError as e:
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"값 오류: {e}", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", f"값 오류: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Calculation error: {str(e)}",
@@ -150,7 +150,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except ZeroDivisionError:
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", "0으로 나누기 오류", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", "0으로 나누기 오류", level="ERROR")
             return ToolResult(
                 success=False,
                 error="Division by zero",
@@ -158,7 +158,7 @@ Safety: Only supports whitelisted operations (no eval(), no exec())
             ) # type: ignore
 
         except Exception as e:
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"예상치 못한 오류: {e}", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", f"예상치 못한 오류: {e}", level="ERROR")
             return ToolResult(
                 success=False,
                 error=f"Calculation failed: {str(e)}",

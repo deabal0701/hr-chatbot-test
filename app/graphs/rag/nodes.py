@@ -69,7 +69,7 @@ def _build_context(documents: List[DocumentSource]) -> str:
 
         current_length = sum(len(p) for p in context_parts)
         if current_length > max_context_length:
-            log_step("SYSTEM", "RAG", "CTX", "WARN", "컨텍스트 길이 초과", level="WARNING", current=current_length, max=max_context_length)
+            log_step(logger, "SYSTEM", "RAG", "CTX", "WARN", "컨텍스트 길이 초과", level="WARNING", current=current_length, max=max_context_length)
             break
 
     return "\n".join(context_parts)
@@ -97,7 +97,7 @@ def retrieve_documents_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     filters = SearchFilters(**filters_dict) if filters_dict else None
 
-    log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 시작", question=question, top_k=top_k, similarity_threshold=similarity_threshold, has_filters=bool(filters_dict))
+    log_step(logger, request_id, "RAG", "1", "RETRIEVE", "벡터 검색 시작", question=question, top_k=top_k, similarity_threshold=similarity_threshold, has_filters=bool(filters_dict))
 
     documents = vector_store.search_similar_documents(
         query=question,
@@ -114,9 +114,9 @@ def retrieve_documents_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     if documents:
         doc_summaries = [f"{d.title}(유사도:{d.similarity_score:.2f})" for d in documents[:3]]
-        log_step(request_id, "RAG", "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견", top_docs=", ".join(doc_summaries))
+        log_step(logger, request_id, "RAG", "1", "RETRIEVE", f"벡터 검색 완료 - {len(documents)}개 문서 발견", top_docs=", ".join(doc_summaries))
     else:
-        log_step(request_id, "RAG", "1", "RETRIEVE", "벡터 검색 완료 - 관련 문서 없음")
+        log_step(logger, request_id, "RAG", "1", "RETRIEVE", "벡터 검색 완료 - 관련 문서 없음")
 
     return state
 
@@ -138,13 +138,13 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     request_id = state.get("request_id", "unknown")
 
     if not documents:
-        log_step(request_id, "RAG", "2", "GENERATE", "문서 없음 - 기본 응답 반환")
+        log_step(logger, request_id, "RAG", "2", "GENERATE", "문서 없음 - 기본 응답 반환")
         state["answer"] = "관련 문서를 찾을 수 없습니다. 다른 질문을 시도해주세요."
         return state
 
-    log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 시작", doc_count=len(documents))
+    log_step(logger, request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 시작", doc_count=len(documents))
     context = _build_context(documents)
-    log_step(request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 완료", context_length=len(context))
+    log_step(logger, request_id, "RAG", "2a", "CONTEXT", "컨텍스트 구성 완료", context_length=len(context))
 
     system_prompt = prompt_service.get_rag_system_prompt()
 
@@ -164,11 +164,11 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     settings_config = _get_settings_config()
     llm_model = settings_config.get_value("llm", "model", settings.llm_model)
 
-    log_step(request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
+    log_step(logger, request_id, "RAG", "2b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
 
     if logger.isEnabledFor(logging.DEBUG):
-        log_step(request_id, "RAG", "2b", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
-        log_step(request_id, "RAG", "2b", "LLM-INPUT", "CONTEXT", level="DEBUG", content=context)
+        log_step(logger, request_id, "RAG", "2b", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+        log_step(logger, request_id, "RAG", "2b", "LLM-INPUT", "CONTEXT", level="DEBUG", content=context)
 
     try:
         response = llm.invoke(messages)
@@ -178,13 +178,13 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["metadata"]["llm_model"] = llm_model
         state["metadata"]["context_length"] = len(context)
 
-        log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료", answer_length=len(answer))
+        log_step(logger, request_id, "RAG", "2b", "LLM-OUTPUT", "LLM 답변 생성 완료", answer_length=len(answer))
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(request_id, "RAG", "2b", "LLM-OUTPUT", "ANSWER", level="DEBUG", content=answer)
+            log_step(logger, request_id, "RAG", "2b", "LLM-OUTPUT", "ANSWER", level="DEBUG", content=answer)
 
     except Exception as e:
-        log_step(request_id, "RAG", "2b", "ERROR", f"LLM 호출 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "RAG", "2b", "ERROR", f"LLM 호출 실패: {e}", level="ERROR")
         state["answer"] = f"답변 생성 중 오류가 발생했습니다: {str(e)}"
 
     return state

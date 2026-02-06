@@ -30,7 +30,7 @@ class RAGService:
         Returns:
             SearchResponse: 검색 결과
         """
-        log_step(request_id, "SERVICE", "RAG", "START", "RAG 서비스 시작", query=truncate_text(query, 50))
+        log_step(logger, request_id, "SERVICE", "RAG", "START", "RAG 서비스 시작", query=truncate_text(query, 50))
 
         inputs = {
             "question": query,
@@ -40,7 +40,7 @@ class RAGService:
 
         response = await rag_graph.ainvoke(inputs)
 
-        log_step(request_id, "SERVICE", "RAG", "END", "RAG 서비스 완료", sources_count=len(response.sources) if response.sources else 0, answer_length=len(response.answer))
+        log_step(logger, request_id, "SERVICE", "RAG", "END", "RAG 서비스 완료", sources_count=len(response.sources) if response.sources else 0, answer_length=len(response.answer))
 
         return response
 

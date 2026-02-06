@@ -92,7 +92,7 @@ class SQLGeneratorService:
         if refresh or self._schema_cache is None:
             schema_loader = _get_schema_loader()
             self._schema_cache = schema_loader.generate_schema_description()
-            log_step("SYSTEM", "SQL-GEN", "SCHEMA", "CACHE", "스키마 캐시 갱신 완료")
+            log_step(logger, "SYSTEM", "SQL-GEN", "SCHEMA", "CACHE", "스키마 캐시 갱신 완료")
 
         return self._schema_cache
 
@@ -150,7 +150,7 @@ class SQLGeneratorService:
             # 1. 스키마 로드 (전달받은 스키마 우선 사용)
             if schema_description:
                 # schema_retrieval_node에서 전달받은 스키마 사용
-                log_step(request_id, "SQL-GEN", "0", "SCHEMA", "선택적 스키마 사용", schema_length=len(schema_description))
+                log_step(logger, request_id, "SQL-GEN", "0", "SCHEMA", "선택적 스키마 사용", schema_length=len(schema_description))
             else:
                 # 전체 스키마 로드 (기존 동작)
                 schema_description = self.get_schema_description()
@@ -162,7 +162,7 @@ class SQLGeneratorService:
             metadata["db_type"] = db_type
             metadata["sql_dialect"] = sql_dialect
 
-            log_step(request_id, "SQL-GEN", "1", "INIT", f"SQL 생성 시작", db_type=db_type, sql_dialect=sql_dialect)
+            log_step(logger, request_id, "SQL-GEN", "1", "INIT", f"SQL 생성 시작", db_type=db_type, sql_dialect=sql_dialect)
 
             # 3. 프롬프트 구성 (DB에서 동적 로드)
             prompt_service = _get_prompt_service()
@@ -188,33 +188,33 @@ SQL만 출력하세요 (설명 없이)."""
             metadata["llm_model"] = llm_model
 
             # LLM 입력 로그
-            log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_len=len(system_prompt), user_len=len(user_prompt))
+            log_step(logger, request_id, "SQL-GEN", "2a", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_len=len(system_prompt), user_len=len(user_prompt))
             # DEBUG: 상세 로깅 (전문 출력)
             if logger.isEnabledFor(logging.DEBUG):
                 llm_model_name = getattr(llm, 'model_name', getattr(llm, 'model', 'unknown'))
                 llm_temp = getattr(llm, 'temperature', 'unknown')
-                log_step(request_id, "SQL-GEN", "2a", "LLM-INFO", f"{type(llm).__name__}(model={llm_model_name}, temp={llm_temp})", level="DEBUG")
-                log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
-                log_step(request_id, "SQL-GEN", "2a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
+                log_step(logger, request_id, "SQL-GEN", "2a", "LLM-INFO", f"{type(llm).__name__}(model={llm_model_name}, temp={llm_temp})", level="DEBUG")
+                log_step(logger, request_id, "SQL-GEN", "2a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+                log_step(logger, request_id, "SQL-GEN", "2a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
             # LLM 호출
             response = llm.invoke(messages)
 
             # LLM 출력 로그 (DEBUG 레벨, 전문 출력)
             if logger.isEnabledFor(logging.DEBUG):
-                log_step(request_id, "SQL-GEN", "2b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response.content)
+                log_step(logger, request_id, "SQL-GEN", "2b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response.content)
 
             # 5. 마크다운 제거
             sql = strip_markdown_code_block(response.content, language="sql")
 
-            log_step(request_id, "SQL-GEN", "3", "COMPLETE", "SQL 생성 완료", sql_length=len(sql))
+            log_step(logger, request_id, "SQL-GEN", "3", "COMPLETE", "SQL 생성 완료", sql_length=len(sql))
             if logger.isEnabledFor(logging.DEBUG):
-                log_step(request_id, "SQL-GEN", "3", "SQL", "생성된 SQL", level="DEBUG", content=sql)
+                log_step(logger, request_id, "SQL-GEN", "3", "SQL", "생성된 SQL", level="DEBUG", content=sql)
 
             return sql, metadata
 
         except Exception as e:
-            log_step(request_id, "SQL-GEN", "ERR", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
+            log_step(logger, request_id, "SQL-GEN", "ERR", "ERROR", f"SQL 생성 실패: {e}", level="ERROR")
             metadata["error"] = str(e)
             return "", metadata
 

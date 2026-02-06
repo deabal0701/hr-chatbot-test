@@ -67,7 +67,7 @@ class ToolValidator:
             dangerous_patterns = ["--", "/*", "*/", "xp_", "sp_"]
             for pattern in dangerous_patterns:
                 if pattern in question.lower():
-                    log_step("SYSTEM", "TOOL", tool_name, "VALIDATE", f"Suspicious pattern detected: {pattern}", level="WARNING")
+                    log_step(logger, "SYSTEM", "TOOL", tool_name, "VALIDATE", f"Suspicious pattern detected: {pattern}", level="WARNING")
 
         return True, None
 
@@ -228,7 +228,7 @@ class BaseTool(ABC):
                 **kwargs
             )
             if not valid:
-                log_step("SYSTEM", "TOOL", self.name, "VALIDATE", f"Input validation failed: {error_msg}", level="WARNING")
+                log_step(logger, "SYSTEM", "TOOL", self.name, "VALIDATE", f"Input validation failed: {error_msg}", level="WARNING")
                 return ToolResult(
                     success=False,
                     error=f"Input validation failed: {error_msg}",
@@ -239,13 +239,13 @@ class BaseTool(ABC):
             kwargs = self.before_execute(**kwargs)
 
             # 4. 실제 실행
-            log_step("SYSTEM", "TOOL", self.name, "EXECUTE", "도구 실행 시작", level="DEBUG", params=list(kwargs.keys()))
+            log_step(logger, "SYSTEM", "TOOL", self.name, "EXECUTE", "도구 실행 시작", level="DEBUG", params=list(kwargs.keys()))
             result = self._execute(**kwargs)
 
             # 5. 출력 검증
             valid, error_msg = self.validator.validate_output(self.name, result)
             if not valid:
-                log_step("SYSTEM", "TOOL", self.name, "VALIDATE", f"Output validation failed: {error_msg}", level="WARNING")
+                log_step(logger, "SYSTEM", "TOOL", self.name, "VALIDATE", f"Output validation failed: {error_msg}", level="WARNING")
                 result.success = False
                 result.error = error_msg
 
@@ -259,12 +259,12 @@ class BaseTool(ABC):
             # 7. 메트릭 기록
             ToolMetrics.record(self.name, execution_time_ms, result.success, result.error)
 
-            log_step("SYSTEM", "TOOL", self.name, "COMPLETE", "도구 실행 완료", level="DEBUG", success=result.success, time_ms=execution_time_ms)
+            log_step(logger, "SYSTEM", "TOOL", self.name, "COMPLETE", "도구 실행 완료", level="DEBUG", success=result.success, time_ms=execution_time_ms)
             return result
 
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
-            log_step("SYSTEM", "TOOL", self.name, "ERROR", f"도구 실행 실패: {e}", level="ERROR")
+            log_step(logger, "SYSTEM", "TOOL", self.name, "ERROR", f"도구 실행 실패: {e}", level="ERROR")
 
             # 메트릭 기록
             ToolMetrics.record(self.name, execution_time_ms, False, str(e))
