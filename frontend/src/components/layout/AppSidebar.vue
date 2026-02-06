@@ -42,6 +42,11 @@
         <el-icon><Grid /></el-icon>
         <template #title>코드 관리</template>
       </el-menu-item>
+
+      <el-menu-item index="/admin/history">
+        <el-icon><Histogram /></el-icon>
+        <template #title>검색 이력(Tracing)</template>
+      </el-menu-item>
     </el-menu>
 
     <!-- 하단 정보 -->
@@ -61,7 +66,8 @@ import {
   ChatDotSquare,
   Document,
   Setting,
-  Grid
+  Grid,
+  Histogram
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

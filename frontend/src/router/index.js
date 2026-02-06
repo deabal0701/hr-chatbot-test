@@ -72,6 +72,18 @@ const routes = [
         name: 'AdminCodes',
         component: () => import('@/views/admin/CodesView.vue'),
         meta: { title: '코드 관리' }
+      },
+      {
+        path: 'history',
+        name: 'AdminHistory',
+        component: () => import('@/views/admin/HistoryView.vue'),
+        meta: { title: 'API 이력' }
+      },
+      {
+        path: 'history/:requestId',
+        name: 'AdminHistoryDetail',
+        component: () => import('@/views/admin/HistoryDetailView.vue'),
+        meta: { title: '요청 상세' }
       }
     ]
   },
