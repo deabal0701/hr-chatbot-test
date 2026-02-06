@@ -9,6 +9,7 @@ from app.api.routes import settings as settings_router
 from app.config import settings
 from app.core.database.connection import db_manager
 from app.core.database.external import external_db_manager
+from app.middleware import LoggingMiddleware
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 
@@ -60,6 +61,10 @@ cors_origins = (
     ["*"] if settings.cors_origins == "*"
     else [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 )
+
+# Middleware 등록 (역순 실행: 나중에 추가한 것이 먼저 실행)
+# 실행 순서: LoggingMiddleware → CORSMiddleware → Handler
+app.add_middleware(LoggingMiddleware)  # 요청/응답 로깅 (가장 바깥)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
