@@ -447,6 +447,47 @@
 
               <el-divider />
 
+              <!-- 섹션 2.5: 테이블 카탈로그 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><List /></el-icon>
+                  테이블 카탈로그
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                </h4>
+                <p class="section-desc">
+                  NL2SQL에서 사용할 테이블 메타데이터를 JSON으로 정의합니다.
+                </p>
+
+                <el-form-item>
+                  <div style="width: 100%">
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                      <el-button size="small" @click="formatTableCatalog">
+                        JSON 포맷팅
+                      </el-button>
+                      <el-button size="small" @click="validateTableCatalog">
+                        유효성 검증
+                      </el-button>
+                      <el-button size="small" type="info" @click="tableCatalogGuideVisible = true">
+                        작성 가이드
+                      </el-button>
+                    </div>
+                    <el-input
+                      v-model="formData.nl2sql.table_catalog"
+                      type="textarea"
+                      :rows="15"
+                      placeholder='비워두면 기본 카탈로그 사용'
+                      style="font-family: 'Consolas', 'Monaco', monospace; font-size: 12px;"
+                      @blur="validateTableCatalog"
+                    />
+                    <div v-if="tableCatalogError" class="form-help" style="color: var(--el-color-danger);">
+                      {{ tableCatalogError }}
+                    </div>
+                  </div>
+                </el-form-item>
+              </div>
+
+              <el-divider />
+
               <!-- 섹션 3: Few-shot 설정 -->
               <div class="setting-section">
                 <h4 class="section-title">
@@ -993,6 +1034,42 @@
     </div>
 
     <!-- 프롬프트 프리뷰 다이얼로그 -->
+    <!-- 테이블 카탈로그 작성 가이드 다이얼로그 -->
+    <el-dialog
+      v-model="tableCatalogGuideVisible"
+      title="테이블 카탈로그 작성 가이드"
+      width="850px"
+    >
+      <div style="max-height: 500px; overflow-y: auto;">
+        <h4>JSON 구조</h4>
+        <p>최상위는 <code>테이블명: 메타데이터</code> 형태의 객체입니다.</p>
+
+        <el-table :data="catalogGuideFields" border size="small" style="margin: 12px 0;">
+          <el-table-column prop="field" label="필드" width="140" />
+          <el-table-column prop="type" label="타입" width="100" />
+          <el-table-column prop="required" label="필수" width="60" align="center" />
+          <el-table-column prop="desc" label="설명" min-width="250" />
+        </el-table>
+
+        <h4>예제 (1개 테이블)</h4>
+        <pre style="background: var(--el-fill-color-light); padding: 12px; border-radius: 4px; font-size: 12px; overflow-x: auto;">{{ catalogGuideExample }}</pre>
+
+        <h4>작성 규칙</h4>
+        <ul style="padding-left: 20px; line-height: 2;">
+          <li><strong>description</strong>: LLM이 테이블 선택 시 참고하는 설명입니다. 간결하게 작성하세요.</li>
+          <li><strong>columns</strong>: <code>컬럼명 (설명)</code> 형식. ★ 표시는 자주 사용되는 핵심 컬럼입니다.</li>
+          <li><strong>keywords</strong>: 사용자 질문에서 이 테이블과 매칭되는 키워드입니다.</li>
+          <li><strong>join_key</strong>: 메인 테이블과 조인할 때 사용하는 FK 컬럼입니다.</li>
+          <li><strong>relation</strong>: 메인 테이블과의 관계 (1:N, 1:1, 또는 메인 테이블은 "1 (메인)").</li>
+          <li><strong>related_tables</strong>: FK로 연결된 테이블 목록. 자동으로 함께 로드됩니다.</li>
+          <li><strong>is_primary</strong>: 메인 테이블에만 <code>true</code>로 설정합니다.</li>
+        </ul>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="tableCatalogGuideVisible = false">닫기</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog
       v-model="promptPreviewVisible"
       :title="promptPreviewData.title"
@@ -1048,7 +1125,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock, List } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -1060,6 +1137,47 @@ const showAnthropicApiKey = ref(false)
 const showGoogleApiKey = ref(false)
 const testingConnection = ref(false)
 const externalConnectionStatus = ref(null)
+const tableCatalogError = ref('')
+const tableCatalogGuideVisible = ref(false)
+
+// 테이블 카탈로그 가이드 데이터
+const catalogGuideFields = [
+  { field: 'description', type: 'string', required: 'O', desc: '테이블 설명 (LLM 테이블 선택 시 참고)' },
+  { field: 'columns', type: 'string[]', required: 'O', desc: '컬럼 목록 ("컬럼명 (설명)" 형식)' },
+  { field: 'keywords', type: 'string[]', required: '', desc: '사용자 질문 매칭용 키워드' },
+  { field: 'join_key', type: 'string', required: '', desc: '메인 테이블과 조인할 FK (기본: EMP_ID)' },
+  { field: 'relation', type: 'string', required: '', desc: '관계 유형 (1:N, 1:1, 1 (메인))' },
+  { field: 'related_tables', type: 'string[]', required: '', desc: 'FK로 연결된 테이블 목록' },
+  { field: 'is_primary', type: 'boolean', required: '', desc: '메인 테이블 여부 (true/false)' },
+]
+
+const catalogGuideExample = `{
+  "employee": {
+    "description": "직원 기본정보 (메인 테이블)",
+    "columns": [
+      "EMP_ID (PK, 조인키)",
+      "EMP_NAME (이름)",
+      "DEPARTMENT (부서)",
+      "HIRE_DATE ★입사일"
+    ],
+    "keywords": ["직원", "사원", "입사", "부서"],
+    "is_primary": true,
+    "join_key": "EMP_ID",
+    "relation": "1 (메인)"
+  },
+  "salary": {
+    "description": "급여 정보",
+    "columns": [
+      "EMP_ID (FK)",
+      "PAY_AMOUNT ★지급액",
+      "PAY_MONTH (급여월)"
+    ],
+    "keywords": ["급여", "월급", "연봉"],
+    "join_key": "EMP_ID",
+    "relation": "1:N",
+    "related_tables": ["employee"]
+  }
+}`
 
 // 원본 API 키 저장 (reveal용)
 const originalApiKeys = reactive({
@@ -1125,7 +1243,9 @@ const formData = reactive({
     max_retries: 2,
     // 멀티턴 대화 설정
     multiturn_enabled: true,
-    multiturn_max_turns: 5
+    multiturn_max_turns: 5,
+    // 테이블 카탈로그
+    table_catalog: ''
   },
   pii: {
     enabled: true,
@@ -1225,6 +1345,12 @@ const parseValue = (value, valueType) => {
       return parseFloat(value)
     case 'bool':
       return value === 'true' || value === true
+    case 'json':
+      // JSON은 문자열 그대로 유지 (textarea에서 편집)
+      if (typeof value === 'string' && value) {
+        try { return JSON.stringify(JSON.parse(value), null, 2) } catch { return value }
+      }
+      return value || ''
     default:
       return value
   }
@@ -1238,8 +1364,76 @@ const stringifyValue = (value) => {
   return String(value)
 }
 
+// 테이블 카탈로그 JSON 포맷팅
+const formatTableCatalog = () => {
+  const raw = formData.nl2sql.table_catalog
+  if (!raw || !raw.trim()) {
+    tableCatalogError.value = ''
+    return
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    formData.nl2sql.table_catalog = JSON.stringify(parsed, null, 2)
+    tableCatalogError.value = ''
+    ElMessage.success('JSON 포맷팅 완료')
+  } catch (e) {
+    tableCatalogError.value = `JSON 파싱 오류: ${e.message}`
+  }
+}
+
+// 테이블 카탈로그 JSON 유효성 검증
+const validateTableCatalog = () => {
+  const raw = formData.nl2sql.table_catalog
+  if (!raw || !raw.trim()) {
+    tableCatalogError.value = ''
+    return true
+  }
+  try {
+    const parsed = JSON.parse(raw)
+
+    // 객체인지 확인
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      tableCatalogError.value = '최상위는 JSON 객체여야 합니다 (배열 불가)'
+      return false
+    }
+
+    // 각 테이블 항목의 필수 필드 검증
+    const errors = []
+    for (const [tableName, info] of Object.entries(parsed)) {
+      if (!info || typeof info !== 'object') {
+        errors.push(`${tableName}: 객체가 아닙니다`)
+        continue
+      }
+      if (!info.description) errors.push(`${tableName}: description 필드 누락`)
+      if (!info.columns || !Array.isArray(info.columns)) errors.push(`${tableName}: columns 배열 누락`)
+    }
+
+    if (errors.length > 0) {
+      tableCatalogError.value = errors.join(', ')
+      return false
+    }
+
+    tableCatalogError.value = ''
+    ElMessage.success(`유효성 검증 통과 (${Object.keys(parsed).length}개 테이블)`)
+    return true
+  } catch (e) {
+    tableCatalogError.value = `JSON 파싱 오류: ${e.message}`
+    return false
+  }
+}
+
+
+
 // 설정 저장
 const saveSettings = async () => {
+  // NL2SQL 탭 저장 시 테이블 카탈로그 JSON 유효성 검증
+  if (activeTab.value === 'nl2sql' && formData.nl2sql.table_catalog) {
+    if (!validateTableCatalog()) {
+      ElMessage.error('테이블 카탈로그 JSON이 유효하지 않습니다. 수정 후 다시 저장하세요.')
+      return
+    }
+  }
+
   isSaving.value = true
   try {
     const category = activeTab.value

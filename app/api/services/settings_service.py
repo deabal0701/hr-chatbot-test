@@ -209,6 +209,15 @@ class SettingsService:
             except Exception as reload_err:
                 logger.warning(f"PII 서비스 갱신 실패 (무시): {reload_err}")
 
+        # nl2sql 카테고리인 경우 table_catalog_service refresh (테이블 카탈로그 즉시 반영)
+        if category == 'nl2sql' and success_count > 0:
+            try:
+                from app.core.database.table_catalog import table_catalog_service
+                table_catalog_service.refresh()
+                logger.info("테이블 카탈로그 설정 갱신 완료")
+            except Exception as reload_err:
+                logger.warning(f"테이블 카탈로그 갱신 실패 (무시): {reload_err}")
+
         return success_count, failed_keys
 
     def _update_setting_without_reload(self, category: str, key: str, value: str, changed_by: str = 'admin', change_reason: Optional[str] = None) -> bool:

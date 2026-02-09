@@ -11,9 +11,9 @@ DB 설정 → 환경변수 → 기본값 순서로 fallback.
 
 Note: CRUD 작업은 app/api/services/settings_service.py에서 처리
 """
+import json
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
-from unittest import result
 
 from app.config import settings as env_settings
 from app.utils.logger import setup_logger
@@ -82,6 +82,8 @@ class SettingsConfig:
             # 멀티턴 대화 설정
             "multiturn_enabled": ("true", "bool", "멀티턴 대화 활성화", False),
             "multiturn_max_turns": ("5", "int", "최대 대화 턴 수 (1-20, 기본 5)", False),
+            # 테이블 카탈로그
+            "table_catalog": ("", "json", "NL2SQL 테이블 카탈로그 (JSON, 업체별 스키마 정의)", False),
         },
         "pii": {
             "enabled": ("true", "bool", "PII 감지/마스킹 활성화", False),
@@ -301,9 +303,11 @@ class SettingsConfig:
                 return float(value)
             elif value_type in ('bool', 'boolean'):
                 return value.lower() in ('true', '1', 'yes')
+            elif value_type == 'json':
+                return json.loads(value) if value else default
             else:
                 return value
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, json.JSONDecodeError):
             return default
 
     def get_category_settings(self, category: str) -> List[Dict[str, Any]]:

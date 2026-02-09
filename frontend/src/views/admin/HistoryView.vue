@@ -146,14 +146,12 @@
         v-loading="isLoading"
         :data="historyList"
         style="width: 100%"
-        @row-click="goToDetail"
-        row-class-name="clickable-row"
       >
         <el-table-column prop="id" label="ID" width="70" />
 
         <el-table-column prop="question" label="질문" min-width="200">
           <template #default="{ row }">
-            <span class="title-link" :title="row.question">{{ row.question }}</span>
+            <span class="title-link" :title="row.question" @click="goToDetail(row)">{{ row.question }}</span>
           </template>
         </el-table-column>
 
@@ -570,14 +568,6 @@ onMounted(() => {
       .flex-1 {
         flex: 1;
       }
-    }
-  }
-
-  .clickable-row {
-    cursor: pointer;
-
-    &:hover {
-      background-color: var(--bg-color-hover) !important;
     }
   }
 
