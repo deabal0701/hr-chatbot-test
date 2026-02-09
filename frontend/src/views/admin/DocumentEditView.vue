@@ -553,30 +553,22 @@ const formatNumber = (num) => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .document-edit-view {
   height: 100%;
   display: flex;
   flex-direction: column;
 
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+    @include mx.page-header($align: center);
 
     .header-left {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-
-      h2 {
-        margin: 0;
-      }
+      @include mx.page-header-left;
     }
 
     .header-right {
-      display: flex;
-      gap: 8px;
+      @include mx.page-header-right;
     }
   }
 
@@ -587,10 +579,7 @@ const formatNumber = (num) => {
 
   .meta-section {
     h3 {
-      margin: 0 0 20px;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-color-primary);
+      @include mx.section-title;
     }
 
     h4 {
@@ -601,9 +590,7 @@ const formatNumber = (num) => {
     }
 
     .form-tip {
-      font-size: 12px;
-      color: var(--text-color-secondary);
-      margin-top: 4px;
+      @include mx.form-help;
     }
 
     .metadata-section {
@@ -645,17 +632,7 @@ const formatNumber = (num) => {
     flex-direction: column;
 
     .content-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-
-      h3 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-color-primary);
-      }
+      @include mx.content-header;
 
       .char-count {
         font-size: 14px;

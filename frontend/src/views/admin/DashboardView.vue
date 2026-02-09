@@ -231,9 +231,11 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .dashboard-view {
   .stats-row {
-    margin-bottom: 20px;
+    @include mx.stats-row;
 
     .el-col {
       margin-bottom: 20px;
@@ -241,38 +243,7 @@ onMounted(() => {
   }
 
   .stat-card {
-    display: flex;
-    align-items: center;
-    padding: 20px;
-    background-color: var(--bg-color-card);
-    border-radius: 6px;
-    box-shadow: var(--box-shadow);
-    transition: var(--theme-transition);
-
-    .stat-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 16px;
-    }
-
-    .stat-content {
-      .stat-value {
-        font-size: 28px;
-        font-weight: 600;
-        color: var(--text-color-primary);
-        line-height: 1.2;
-      }
-
-      .stat-label {
-        font-size: 14px;
-        color: var(--text-color-secondary);
-        margin-top: 4px;
-      }
-    }
+    @include mx.stat-card;
   }
 
   .card-title {
@@ -283,14 +254,7 @@ onMounted(() => {
   }
 
   .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-
-    .card-title {
-      margin: 0;
-    }
+    @include mx.content-header;
   }
 
   .quick-actions {

@@ -231,6 +231,8 @@ const formatTime = (timestamp) => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .chat-message {
   margin-bottom: 20px;
 
@@ -279,119 +281,14 @@ const formatTime = (timestamp) => {
   word-break: break-word;
   line-height: 1.6;
 
-  // 마크다운 테이블 스타일
-  :deep(.md-table-wrapper) {
-    position: relative;
-    margin: 16px 0;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-color-card);
-  }
-
-  :deep(.md-table-scroll) {
-    overflow-x: auto;
-  }
-
-  :deep(.copy-table-btn) {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    background-color: var(--bg-color-card);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    color: var(--text-color-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-    z-index: 1;
-
-    &:hover {
-      background-color: var(--bg-color-hover);
-      color: var(--text-color-primary);
-      border-color: var(--color-primary);
-    }
-
-    svg {
-      width: 14px;
-      height: 14px;
-    }
-  }
-
-  :deep(.md-table) {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-
-    th, td {
-      padding: 10px 14px;
-      text-align: left;
-      border-bottom: 1px solid var(--border-color);
-      white-space: nowrap;
-    }
-
-    th {
-      background-color: var(--bg-color-hover);
-      font-weight: 600;
-      color: var(--text-color-primary);
-    }
-
-    td {
-      color: var(--text-color-regular);
-    }
-
-    tbody tr:hover {
-      background-color: var(--bg-color-hover);
-    }
-
-    tbody tr:last-child td {
-      border-bottom: none;
-    }
-  }
-
-  // 마크다운 헤더 스타일
-  :deep(.md-h2), :deep(.md-h3) {
-    display: block;
-    margin: 16px 0 10px;
-    font-size: 15px;
-  }
-
-  // 마크다운 리스트 스타일
-  :deep(.md-list-item) {
-    display: block;
-    padding-left: 6px;
-    margin: 3px 0;
-  }
-
-  :deep(code) {
-    background-color: var(--bg-color-code);
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-  }
-
-  :deep(pre) {
-    background-color: var(--bg-color-code);
-    padding: 12px;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin: 12px 0;
-
-    code {
-      background: none;
-      padding: 0;
-    }
-  }
-
-  :deep(strong) {
-    font-weight: 600;
-    color: var(--text-color-primary);
-  }
+  // 마크다운 테이블/코드/헤더/리스트 (mixin)
+  @include mx.md-table-styles;
+  @include mx.copy-table-btn;
+  @include mx.md-header-styles;
+  @include mx.md-list-styles;
+  @include mx.inline-code-styles;
+  @include mx.code-block-styles;
+  @include mx.strong-styles;
 }
 
 .message-meta {

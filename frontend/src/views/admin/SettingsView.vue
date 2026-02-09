@@ -1653,29 +1653,18 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .settings-view {
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
+    @include mx.page-header;
   }
 
   .settings-section {
-    padding: 20px 0;
+    @include mx.settings-section;
 
-    h3 {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0 0 20px;
-      font-size: 16px;
-      font-weight: 500;
-      color: var(--text-color-primary);
-
-      .el-tag {
-        margin-left: auto;
-      }
+    h3 .el-tag {
+      margin-left: auto;
     }
 
     .section-desc {
@@ -1816,12 +1805,7 @@ onMounted(async () => {
   }
 
   .settings-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-color-light);
-    margin-top: 20px;
+    @include mx.settings-actions;
   }
 
   .cursor-pointer {

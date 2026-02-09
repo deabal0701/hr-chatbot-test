@@ -511,40 +511,22 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .history-view {
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
+    @include mx.page-header;
   }
 
   .stats-row {
-    margin-bottom: 20px;
-
-    .el-col {
-      margin-bottom: 16px;
-    }
+    @include mx.stats-row;
   }
 
   .stat-card {
-    display: flex;
-    align-items: center;
-    padding: 20px;
-    background-color: var(--bg-color-card);
-    border-radius: 6px;
-    box-shadow: var(--box-shadow);
-    transition: var(--theme-transition);
+    @include mx.stat-card;
 
+    // HistoryView 고유: 타입별 현황 아이콘
     .stat-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 16px;
-
       &.request-type-stats {
         flex-direction: column;
         gap: 4px;
@@ -575,38 +557,15 @@ onMounted(() => {
         }
       }
     }
-
-    .stat-content {
-      .stat-value {
-        font-size: 28px;
-        font-weight: 600;
-        color: var(--text-color-primary);
-        line-height: 1.2;
-      }
-
-      .stat-label {
-        font-size: 14px;
-        color: var(--text-color-secondary);
-        margin-top: 4px;
-      }
-    }
   }
 
   .content-card {
-    background-color: var(--bg-color-card);
-    border-radius: 6px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: var(--box-shadow);
-    transition: var(--theme-transition);
+    @include mx.content-card;
   }
 
   .filter-section {
     .filter-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: center;
+      @include mx.filter-row;
 
       .flex-1 {
         flex: 1;
@@ -628,16 +587,7 @@ onMounted(() => {
   }
 
   .title-link {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--el-color-primary);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--el-color-primary-light-3);
-    }
+    @include mx.title-link;
   }
 
   .text-muted {
@@ -645,9 +595,7 @@ onMounted(() => {
   }
 
   .pagination-wrapper {
-    display: flex;
-    justify-content: flex-start;
-    margin-top: 20px;
+    @include mx.pagination-wrapper;
   }
 }
 </style>

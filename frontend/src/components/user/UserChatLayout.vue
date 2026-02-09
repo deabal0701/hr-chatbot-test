@@ -222,6 +222,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .user-chat-layout {
   display: flex;
   height: 100vh;
@@ -377,15 +379,7 @@ onUnmounted(() => {
 }
 
 // Sidebar transition
-.sidebar-slide-enter-active,
-.sidebar-slide-leave-active {
-  transition: transform 0.3s ease;
-}
-
-.sidebar-slide-enter-from,
-.sidebar-slide-leave-to {
-  transform: translateX(-100%);
-}
+@include mx.sidebar-slide-transition;
 
 // Mobile responsive
 @media (max-width: 768px) {

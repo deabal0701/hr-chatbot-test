@@ -1,0 +1,37 @@
+// =============================================
+// 기본 스타일 리셋 + 스크롤바
+// =============================================
+@use '../../fonts/fonts' as fonts;
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: fonts.$font-family-sans;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-color-page);
+  color: var(--text-color-primary);
+  transition: var(--theme-transition);
+}
+
+// 스크롤바 스타일
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}

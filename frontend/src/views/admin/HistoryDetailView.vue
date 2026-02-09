@@ -376,24 +376,20 @@ const formatJson = (data) => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .history-detail-view {
   height: 100%;
   display: flex;
   flex-direction: column;
 
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+    @include mx.page-header($align: center);
 
     .header-left {
-      display: flex;
-      align-items: center;
-      gap: 16px;
+      @include mx.page-header-left;
 
       h2 {
-        margin: 0;
         font-size: 24px;
         font-weight: 600;
         color: var(--text-color-primary);
@@ -402,11 +398,8 @@ const formatJson = (data) => {
   }
 
   .content-card {
-    background-color: var(--bg-color-card);
-    border-radius: 6px;
+    @include mx.content-card;
     padding: 24px;
-    box-shadow: var(--box-shadow);
-    transition: var(--theme-transition);
   }
 
   .detail-container {
@@ -466,16 +459,11 @@ const formatJson = (data) => {
     }
 
     .content-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      @include mx.content-header;
       margin-bottom: 12px;
 
       h3 {
-        margin: 0;
         font-size: 15px;
-        font-weight: 600;
-        color: var(--text-color-primary);
       }
     }
 
@@ -502,49 +490,15 @@ const formatJson = (data) => {
       }
     }
 
-    // 실행 추적 토글 섹션
+    // 실행 추적 토글 섹션 (mixin)
     .trace-section {
-      margin-top: 24px;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      overflow: hidden;
-      background-color: var(--bg-color-card);
+      @include mx.toggle-section-container($margin-top: 24px, $border-radius: 8px);
 
       .trace-toggle {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 16px;
-        background: none;
-        border: none;
-        color: var(--text-color-secondary);
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
+        @include mx.toggle-button($padding: 14px 16px);
 
-        &:hover {
-          background-color: var(--bg-color-hover);
-          color: var(--text-color-primary);
-        }
-
-        .toggle-left {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-
-          .el-icon {
-            font-size: 18px;
-            color: var(--color-primary);
-          }
-        }
-
-        .toggle-icon {
-          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          &.expanded {
-            transform: rotate(180deg);
-          }
+        .toggle-left .el-icon {
+          color: var(--color-primary);
         }
       }
 

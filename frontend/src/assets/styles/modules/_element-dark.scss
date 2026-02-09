@@ -1,0 +1,180 @@
+// =============================================
+// Element Plus 다크모드 오버라이드
+// =============================================
+
+[data-theme="dark"] {
+  .el-card {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+  }
+
+  .el-table {
+    background-color: var(--bg-color-card);
+    color: var(--text-color-primary);
+
+    th.el-table__cell {
+      background-color: var(--table-header-bg);
+      color: var(--text-color-primary);
+    }
+
+    tr {
+      background-color: var(--bg-color-card);
+
+      &:hover > td.el-table__cell {
+        background-color: var(--table-row-hover-bg);
+      }
+    }
+
+    td.el-table__cell {
+      border-color: var(--table-border-color);
+    }
+
+    .el-table__inner-wrapper::before {
+      background-color: var(--table-border-color);
+    }
+  }
+
+  .el-input__wrapper {
+    background-color: var(--bg-color-input);
+    box-shadow: 0 0 0 1px var(--border-color) inset;
+
+    &:hover {
+      box-shadow: 0 0 0 1px var(--border-color-light) inset;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1px var(--color-primary) inset;
+    }
+  }
+
+  .el-input__inner {
+    color: var(--text-color-primary);
+
+    &::placeholder {
+      color: var(--text-color-placeholder);
+    }
+  }
+
+  .el-textarea__inner {
+    background-color: var(--bg-color-input);
+    color: var(--text-color-primary);
+    box-shadow: 0 0 0 1px var(--border-color) inset;
+
+    &::placeholder {
+      color: var(--text-color-placeholder);
+    }
+  }
+
+  .el-select {
+    .el-select__wrapper {
+      background-color: var(--bg-color-input);
+      box-shadow: 0 0 0 1px var(--border-color) inset;
+    }
+  }
+
+  .el-button--default {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+    color: var(--text-color-primary);
+
+    &:hover {
+      background-color: var(--bg-color-hover);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+  }
+
+  .el-dialog {
+    background-color: var(--bg-color-card);
+
+    .el-dialog__header {
+      border-bottom-color: var(--border-color);
+    }
+
+    .el-dialog__title {
+      color: var(--text-color-primary);
+    }
+
+    .el-dialog__body {
+      color: var(--text-color-primary);
+    }
+  }
+
+  .el-descriptions {
+    .el-descriptions__label {
+      color: var(--description-label-color);
+      background-color: var(--bg-color-hover);
+    }
+
+    .el-descriptions__content {
+      color: var(--description-content-color);
+      background-color: var(--bg-color-card);
+    }
+
+    .el-descriptions__cell {
+      border-color: var(--border-color);
+    }
+  }
+
+  .el-collapse-item__header {
+    background-color: var(--bg-color-card);
+    color: var(--text-color-primary);
+    border-color: var(--border-color);
+  }
+
+  .el-collapse-item__wrap {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+  }
+
+  .el-collapse-item__content {
+    color: var(--text-color-primary);
+  }
+
+  .el-form-item__label {
+    color: var(--text-color-primary);
+  }
+
+  .el-divider {
+    border-color: var(--border-color);
+  }
+
+  .el-pagination {
+    button, .el-pager li {
+      background-color: var(--bg-color-card);
+      color: var(--text-color-primary);
+
+      &:hover {
+        color: var(--color-primary);
+      }
+
+      &.is-active {
+        background-color: var(--color-primary);
+        color: #fff;
+      }
+    }
+  }
+
+  .el-message-box {
+    background-color: var(--bg-color-card);
+
+    .el-message-box__title {
+      color: var(--text-color-primary);
+    }
+
+    .el-message-box__message {
+      color: var(--text-color-primary);
+    }
+  }
+
+  .el-radio-button__inner {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+    color: var(--text-color-primary);
+  }
+
+  .el-radio-button__original-radio:checked + .el-radio-button__inner {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+}

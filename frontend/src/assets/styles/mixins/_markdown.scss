@@ -1,0 +1,152 @@
+// =============================================
+// 마크다운 렌더링 관련 Mixin
+// ChatMessage.vue, UserChatMessage.vue 공통
+// =============================================
+
+// 마크다운 테이블 스타일
+// $font-size: 테이블 폰트 크기
+// $cell-padding: th/td 패딩
+// $margin: 테이블 래퍼 상하 마진
+// $border-radius: 래퍼 border-radius
+@mixin md-table-styles($font-size: 13px, $cell-padding: 10px 14px, $margin: 16px, $border-radius: 8px) {
+  :deep(.md-table-wrapper) {
+    position: relative;
+    margin: $margin 0;
+    border-radius: $border-radius;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color-card);
+  }
+
+  :deep(.md-table-scroll) {
+    overflow-x: auto;
+  }
+
+  :deep(.md-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: $font-size;
+
+    th, td {
+      padding: $cell-padding;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    th {
+      background-color: var(--bg-color-hover);
+      font-weight: 600;
+      color: var(--text-color-primary);
+    }
+
+    td {
+      color: var(--text-color-regular);
+    }
+
+    tbody tr:hover {
+      background-color: var(--bg-color-hover);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+  }
+}
+
+// 테이블 복사 버튼
+// $size: 버튼 크기
+// $offset: top/right 위치
+// $icon-size: SVG 아이콘 크기
+// $border-radius: 버튼 border-radius
+@mixin copy-table-btn($size: 28px, $offset: 6px, $icon-size: 14px, $border-radius: 4px) {
+  :deep(.copy-table-btn) {
+    position: absolute;
+    top: $offset;
+    right: $offset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: $size;
+    height: $size;
+    padding: 0;
+    background-color: var(--bg-color-card);
+    border: 1px solid var(--border-color);
+    border-radius: $border-radius;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 1;
+
+    &:hover {
+      background-color: var(--bg-color-hover);
+      color: var(--text-color-primary);
+      border-color: var(--color-primary);
+    }
+
+    svg {
+      width: $icon-size;
+      height: $icon-size;
+    }
+  }
+}
+
+// 마크다운 헤더 스타일
+// $margin: 상하 마진
+// $font-size: 폰트 크기
+@mixin md-header-styles($margin-top: 16px, $margin-bottom: 10px, $font-size: 15px) {
+  :deep(.md-h2), :deep(.md-h3) {
+    display: block;
+    margin: $margin-top 0 $margin-bottom;
+    font-size: $font-size;
+  }
+}
+
+// 마크다운 리스트 스타일
+@mixin md-list-styles($padding-left: 6px, $margin: 3px) {
+  :deep(.md-list-item) {
+    display: block;
+    padding-left: $padding-left;
+    margin: $margin 0;
+  }
+}
+
+// 인라인 코드 스타일
+// $font-size: 코드 폰트 크기
+// $padding: 패딩
+// $border-radius: border-radius
+// $font-family: 폰트 패밀리
+@mixin inline-code-styles($font-size: 12px, $padding: 2px 5px, $border-radius: 4px, $font-family: ('Courier New', monospace)) {
+  :deep(code) {
+    background-color: var(--bg-color-code);
+    padding: $padding;
+    border-radius: $border-radius;
+    font-family: $font-family;
+    font-size: $font-size;
+  }
+}
+
+// 코드 블록 (pre) 스타일
+// $padding: 패딩
+// $border-radius: border-radius
+@mixin code-block-styles($padding: 12px, $border-radius: 6px) {
+  :deep(pre) {
+    background-color: var(--bg-color-code);
+    padding: $padding;
+    border-radius: $border-radius;
+    overflow-x: auto;
+    margin: 12px 0;
+
+    code {
+      background: none;
+      padding: 0;
+    }
+  }
+}
+
+// strong 태그 스타일
+@mixin strong-styles {
+  :deep(strong) {
+    font-weight: 600;
+    color: var(--text-color-primary);
+  }
+}

@@ -1,0 +1,60 @@
+// =============================================
+// 애니메이션 관련 Mixin
+// =============================================
+
+// 회전 애니메이션 (로딩 아이콘)
+@mixin rotating-animation {
+  .is-loading {
+    animation: rotating 1s linear infinite;
+  }
+
+  @keyframes rotating {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+}
+
+// 페이드인 애니메이션
+@mixin fade-in-animation($duration: 0.4s) {
+  animation: fadeIn $duration ease-out;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+// 타이핑 도트 애니메이션
+@mixin typing-animation {
+  @keyframes typing {
+    0%, 80%, 100% {
+      transform: scale(0.6);
+      opacity: 0.5;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+// 사이드바 슬라이드 트랜지션
+@mixin sidebar-slide-transition {
+  .sidebar-slide-enter-active,
+  .sidebar-slide-leave-active {
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-slide-enter-from,
+  .sidebar-slide-leave-to {
+    transform: translateX(-100%);
+  }
+}
+
+// 토글 아이콘 회전
+@mixin toggle-icon-rotate {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  &.expanded {
+    transform: rotate(180deg);
+  }
+}

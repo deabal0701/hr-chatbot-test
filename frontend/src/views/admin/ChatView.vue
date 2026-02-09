@@ -218,6 +218,8 @@ watch(messages, async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .chat-view {
   display: flex;
   gap: 20px;
@@ -271,18 +273,7 @@ watch(messages, async () => {
   padding: 16px;
   color: var(--text-color-secondary);
 
-  .is-loading {
-    animation: rotating 1s linear infinite;
-  }
-}
-
-@keyframes rotating {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  @include mx.rotating-animation;
 }
 
 .chat-input-area {

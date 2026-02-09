@@ -1,0 +1,91 @@
+// =============================================
+// 채팅 관련 Mixin
+// =============================================
+
+// 토글 섹션 컨테이너 (Sources, SQL, Agent 접기/펼치기)
+@mixin toggle-section-container($margin-top: 24px, $border-radius: 12px) {
+  margin-top: $margin-top;
+  border: 1px solid var(--border-color);
+  border-radius: $border-radius;
+  overflow: hidden;
+  background-color: var(--bg-color-card);
+}
+
+// 토글 버튼 (접기/펼치기 트리거)
+@mixin toggle-button($padding: 12px 16px, $font-size: 14px) {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $padding;
+  background: none;
+  border: none;
+  color: var(--text-color-secondary);
+  font-size: $font-size;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: var(--bg-color-hover);
+    color: var(--text-color-primary);
+  }
+
+  .toggle-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .el-icon {
+      font-size: 18px;
+      color: var(--text-color-secondary);
+    }
+  }
+
+  .toggle-icon {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    &.expanded {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+// SQL 코드 블록 스타일
+@mixin sql-code-block {
+  background-color: var(--bg-color-code);
+  padding: 12px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+  color: var(--text-color-primary);
+  transition: var(--theme-transition);
+}
+
+// 결과 요약 텍스트
+@mixin result-summary {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+// 더보기 텍스트
+@mixin more-rows {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  text-align: center;
+}
+
+// 모드 배지 (Agent, NL2SQL, RAG)
+@mixin mode-badge {
+  background-color: var(--bg-color-hover);
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

@@ -1,0 +1,43 @@
+// =============================================
+// 폼 관련 Mixin
+// =============================================
+
+// 폼 도움말 텍스트
+@mixin form-help {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-top: 4px;
+}
+
+// 빈 상태 (Empty state)
+@mixin empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-color-secondary);
+  font-size: 14px;
+}
+
+// 설정 섹션 (SettingsView)
+@mixin settings-section {
+  padding: 20px 0;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 20px;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-color-primary);
+  }
+}
+
+// 설정 액션 (저장/취소 버튼)
+@mixin settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color-light);
+  margin-top: 20px;
+}

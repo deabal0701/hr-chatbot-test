@@ -382,30 +382,22 @@ const formatDateTime = (dateStr) => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .document-detail-view {
   height: 100%;
   display: flex;
   flex-direction: column;
 
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+    @include mx.page-header($align: center);
 
     .header-left {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-
-      h2 {
-        margin: 0;
-      }
+      @include mx.page-header-left;
     }
 
     .header-right {
-      display: flex;
-      gap: 8px;
+      @include mx.page-header-right;
     }
   }
 
@@ -416,10 +408,7 @@ const formatDateTime = (dateStr) => {
 
   .meta-section {
     h3 {
-      margin: 0 0 20px;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-color-primary);
+      @include mx.section-title;
     }
 
     .action-section {
@@ -433,17 +422,7 @@ const formatDateTime = (dateStr) => {
     flex-direction: column;
 
     .content-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-
-      h3 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-color-primary);
-      }
+      @include mx.content-header;
     }
 
     .chunk-navigation {

@@ -271,14 +271,11 @@ const copyContent = async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .chat-message {
   margin-bottom: 32px;
-  animation: fadeIn 0.4s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  @include mx.fade-in-animation;
 }
 
 .message-row {
@@ -383,93 +380,11 @@ const copyContent = async () => {
       font-weight: 500;
     }
 
-    // 마크다운 테이블 스타일
-    :deep(.md-table-wrapper) {
-      position: relative;
-      margin: 20px 0;
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      background-color: var(--bg-color-card);
-    }
-
-    :deep(.md-table-scroll) {
-      overflow-x: auto;
-    }
-
-    :deep(.copy-table-btn) {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      padding: 0;
-      background-color: var(--bg-color-card);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      color: var(--text-color-secondary);
-      cursor: pointer;
-      transition: all 0.2s;
-      z-index: 1;
-
-      &:hover {
-        background-color: var(--bg-color-hover);
-        color: var(--text-color-primary);
-        border-color: var(--color-primary);
-      }
-
-      svg {
-        width: 16px;
-        height: 16px;
-      }
-    }
-
-    :deep(.md-table) {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-
-      th, td {
-        padding: 12px 16px;
-        text-align: left;
-        border-bottom: 1px solid var(--border-color);
-        white-space: nowrap;
-      }
-
-      th {
-        background-color: var(--bg-color-hover);
-        font-weight: 600;
-        color: var(--text-color-primary);
-      }
-
-      td {
-        color: var(--text-color-regular);
-      }
-
-      tbody tr:hover {
-        background-color: var(--bg-color-hover);
-      }
-
-      tbody tr:last-child td {
-        border-bottom: none;
-      }
-    }
-
-    // 마크다운 헤더 스타일
-    :deep(.md-h2), :deep(.md-h3) {
-      display: block;
-      margin: 20px 0 12px;
-      font-size: 16px;
-    }
-
-    // 마크다운 리스트 스타일
-    :deep(.md-list-item) {
-      display: block;
-      padding-left: 8px;
-      margin: 4px 0;
-    }
+    // 마크다운 테이블/코드/헤더/리스트 (mixin - User 사이즈)
+    @include mx.md-table-styles($font-size: 14px, $cell-padding: 12px 16px, $margin: 20px, $border-radius: 12px);
+    @include mx.copy-table-btn($size: 32px, $offset: 8px, $icon-size: 16px, $border-radius: 6px);
+    @include mx.md-header-styles($margin-top: 20px, $margin-bottom: 12px, $font-size: 16px);
+    @include mx.md-list-styles($padding-left: 8px, $margin: 4px);
 
     :deep(strong) {
       font-weight: 700;
@@ -484,51 +399,13 @@ const copyContent = async () => {
   }
 }
 
-// 공통 토글 섹션 (Sources, SQL, Agent)
+// 공통 토글 섹션 (Sources, SQL, Agent) - mixin
 .sources-section, .sql-section, .agent-section {
-  margin-top: 24px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  overflow: hidden;
-  background-color: var(--bg-color-card);
+  @include mx.toggle-section-container;
 }
 
 .sources-toggle, .sql-toggle, .agent-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: none;
-  border: none;
-  color: var(--text-color-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background-color: var(--bg-color-hover);
-    color: var(--text-color-primary);
-  }
-
-  .toggle-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    .el-icon {
-      font-size: 18px;
-      color: var(--text-color-secondary);
-    }
-  }
-
-  .toggle-icon {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    &.expanded {
-      transform: rotate(180deg);
-    }
-  }
+  @include mx.toggle-button;
 }
 
 // 소스 리스트
@@ -780,14 +657,7 @@ const copyContent = async () => {
   }
 
   .mode-badge {
-    background-color: var(--bg-color-hover);
-    color: var(--text-color-secondary);
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    @include mx.mode-badge;
   }
 
   .turn-badge {

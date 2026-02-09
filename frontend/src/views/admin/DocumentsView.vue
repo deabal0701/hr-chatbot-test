@@ -383,12 +383,11 @@ const formatDate = (dateStr) => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .documents-view {
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
+    @include mx.page-header;
   }
 
   .filter-section {
@@ -396,10 +395,7 @@ const formatDate = (dateStr) => {
   }
 
   .filter-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    @include mx.filter-row;
 
     .selected-info {
       font-size: 14px;
@@ -409,22 +405,11 @@ const formatDate = (dateStr) => {
   }
 
   .title-link {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--el-color-primary);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--el-color-primary-light-3);
-    }
+    @include mx.title-link;
   }
 
   .pagination-wrapper {
-    display: flex;
-    justify-content: flex-start;
-    margin-top: 20px;
+    @include mx.pagination-wrapper;
   }
 }
 </style>

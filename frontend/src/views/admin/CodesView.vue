@@ -662,12 +662,11 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .codes-view {
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
+    @include mx.page-header;
   }
 
   .group-selector {
@@ -677,16 +676,11 @@ onMounted(async () => {
   }
 
   .empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--text-color-secondary);
-    font-size: 14px;
+    @include mx.empty-state;
   }
 
   .form-help {
-    font-size: 12px;
-    color: var(--text-color-secondary);
-    margin-top: 4px;
+    @include mx.form-help;
   }
 
   .metadata-viewer {

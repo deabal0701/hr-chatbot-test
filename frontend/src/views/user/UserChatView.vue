@@ -325,6 +325,8 @@ watch(messages, async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '../../assets/styles/mixins' as mx;
+
 .user-chat-view {
   display: flex;
   flex-direction: column;
@@ -604,16 +606,7 @@ watch(messages, async () => {
   }
 }
 
-@keyframes typing {
-  0%, 80%, 100% {
-    transform: scale(0.6);
-    opacity: 0.5;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
+@include mx.typing-animation;
 
 // 푸터 (입력 영역)
 .chat-footer {
