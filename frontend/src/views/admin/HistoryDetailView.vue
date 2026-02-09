@@ -8,6 +8,9 @@
         </el-button>
         <h2>요청 상세</h2>
       </div>
+      <el-button type="danger" plain :icon="Delete" @click="handleDelete" :loading="isDeleting">
+        이력 삭제
+      </el-button>
     </div>
 
     <!-- 내용 -->
@@ -265,8 +268,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ArrowLeft, ArrowDown, CopyDocument, DataLine } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, ArrowDown, CopyDocument, DataLine, Delete } from '@element-plus/icons-vue'
 import historyApi from '@/api/history'
 
 const router = useRouter()
@@ -274,6 +277,7 @@ const route = useRoute()
 
 const historyItem = ref(null)
 const isLoading = ref(false)
+const isDeleting = ref(false)
 const showRawJson = ref(false)
 const showTrace = ref(false)
 
@@ -298,6 +302,29 @@ onMounted(async () => {
 // 목록으로 돌아가기
 const goBack = () => {
   router.push({ name: 'AdminHistory' })
+}
+
+// 이력 삭제
+const handleDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '이 검색 이력을 삭제하시겠습니까? 삭제된 이력은 복구할 수 없습니다.',
+      '이력 삭제 확인',
+      { type: 'warning', confirmButtonText: '삭제', cancelButtonText: '취소' }
+    )
+
+    isDeleting.value = true
+    await historyApi.delete(requestId.value)
+    ElMessage.success('이력이 삭제되었습니다.')
+    router.push({ name: 'AdminHistory' })
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to delete history:', error)
+      ElMessage.error('이력 삭제에 실패했습니다.')
+    }
+  } finally {
+    isDeleting.value = false
+  }
 }
 
 // 세션 히스토리 보기

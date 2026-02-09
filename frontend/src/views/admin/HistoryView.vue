@@ -196,6 +196,18 @@
             {{ formatDateTime(row.requested_at) }}
           </template>
         </el-table-column>
+
+        <el-table-column label="작업" width="70" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              type="danger"
+              text
+              :icon="Delete"
+              size="small"
+              @click.stop="handleDeleteRow(row)"
+            />
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 페이지네이션 -->
@@ -409,6 +421,27 @@ const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
   loadData()
+}
+
+// 개별 이력 삭제
+const handleDeleteRow = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      '이 검색 이력을 삭제하시겠습니까? 삭제된 이력은 복구할 수 없습니다.',
+      '이력 삭제 확인',
+      { type: 'warning', confirmButtonText: '삭제', cancelButtonText: '취소' }
+    )
+
+    await historyApi.delete(row.request_id)
+    ElMessage.success('이력이 삭제되었습니다.')
+    loadData()
+    loadStatistics()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to delete history:', error)
+      ElMessage.error('이력 삭제에 실패했습니다.')
+    }
+  }
 }
 
 // 상세 페이지로 이동

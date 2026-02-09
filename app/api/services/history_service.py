@@ -558,6 +558,25 @@ class HistoryService:
             logger.error(f"[HISTORY] User summary failed: {e}")
             return {"user_id": user_id, "total_requests": 0, "recent_requests": []}
 
+    def delete_by_request_id(self, request_id: str) -> bool:
+        """단일 요청 이력 삭제
+
+        Args:
+            request_id: 삭제할 요청 ID
+
+        Returns:
+            삭제 성공 여부
+        """
+        try:
+            with db_manager.get_cursor(commit=True) as cur:
+                cur.execute("DELETE FROM tb_api_history WHERE request_id = %s", (request_id,))
+                deleted = cur.rowcount > 0
+                log_step(logger, "system", "HISTORY", "DELETE", "COMPLETE", f"Record deleted | request_id={request_id}, success={deleted}")
+                return deleted
+        except Exception as e:
+            logger.error(f"[HISTORY] Delete failed: {e}")
+            return False
+
     def cleanup_old_records(self, days: int = 90, tenant_id: Optional[str] = None) -> int:
         """
         오래된 이력 정리

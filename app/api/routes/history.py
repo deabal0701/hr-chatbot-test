@@ -234,3 +234,29 @@ async def cleanup_old_records(
     except Exception as e:
         logger.error(f"[HISTORY] Cleanup failed: {e}")
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
+
+
+@router.delete("/{request_id}")
+async def delete_history(request_id: str):
+    """
+    단일 요청 이력 삭제
+
+    request_id로 특정 요청의 이력을 삭제합니다.
+    """
+    try:
+        deleted = history_service.delete_by_request_id(request_id)
+        if not deleted:
+            raise APIException(
+                error_code=ErrorCode.NOT_FOUND,
+                message=f"Request {request_id} not found"
+            )
+        return success_response({
+            "message": f"Request {request_id} deleted",
+            "request_id": request_id,
+        })
+
+    except APIException:
+        raise
+    except Exception as e:
+        logger.error(f"[HISTORY] Delete failed: {e}")
+        raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))

@@ -54,6 +54,14 @@ export default {
   },
 
   /**
+   * 단일 이력 삭제
+   * @param {string} requestId - 요청 ID
+   */
+  delete(requestId) {
+    return apiClient.delete(`/api/v1/history/${requestId}`)
+  },
+
+  /**
    * 오래된 이력 정리 (관리자용)
    * @param {number} days - 보관 기간 (일)
    * @param {string} tenantId - 테넌트 ID (선택)
