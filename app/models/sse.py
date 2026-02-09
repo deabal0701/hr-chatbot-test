@@ -48,32 +48,10 @@ class ErrorEvent(SSEEvent):
     detail: Optional[str] = Field(None, description="에러 상세")
 
 
-# Agent 노드 표시 레이블
-AGENT_NODE_LABELS = {
-    "agent": {"start": "AI 추론 중...", "complete": "AI 추론 완료"},
-    "tools": {"start": "도구 실행 중...", "complete": "도구 실행 완료"},
-    "answer": {"start": "답변 생성 중...", "complete": "답변 생성 완료"},
-}
+# ============================================================
+# 스테이지 그룹핑 (Stage Grouping)
+# ============================================================
 
-# NL2SQL 노드 표시 레이블(전체 노드를 모두 표시하는 경우)
-NL2SQL_NODE_LABELS = {
-    "load_history": {"start": "대화 이력 로드 중...", "complete": "대화 이력 로드 완료"},
-    "intent_rewrite": {"start": "질문 분석 중...", "complete": "질문 분석 완료"},
-    "sql_not_needed": {"start": "이전 결과에서 답변 생성 중...", "complete": "이전 결과에서 답변 생성 완료"},
-    "schema_retrieval": {"start": "스키마 검색 중...", "complete": "스키마 검색 완료"},
-    "fewshot_retrieval": {"start": "유사 질문 검색 중...", "complete": "유사 질문 검색 완료"},
-    "prompt_build": {"start": "프롬프트 구성 중...", "complete": "프롬프트 구성 완료"},
-    "sql_generate": {"start": "SQL 생성 중...", "complete": "SQL 생성 완료"},
-    "validate_sql": {"start": "SQL 검증 중...", "complete": "SQL 검증 완료"},
-    "execute_sql": {"start": "SQL 실행 중...", "complete": "SQL 실행 완료"},
-    "pii_filter": {"start": "개인정보 필터링 중...", "complete": "개인정보 필터링 완료"},
-    "generate_answer": {"start": "답변 생성 중...", "complete": "답변 생성 완료"},
-    "save_history": {"start": "이력 저장 중...", "complete": "이력 저장 완료"},
-    "handle_error": {"start": "오류 처리 중...", "complete": "오류 처리 완료"},
-    "prepare_retry": {"start": "재시도 준비 중...", "complete": "재시도 준비 완료"},
-}
-
-# NL2SQL 노드 표시 레이블(스테이지별 표시하는 경우)
 # NL2SQL: 노드 → 스테이지 번호 매핑
 NL2SQL_NODE_STAGE = {
     "load_history": 1,       # 1단계: 질문 분석
