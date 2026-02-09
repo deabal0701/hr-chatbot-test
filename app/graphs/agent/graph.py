@@ -16,9 +16,10 @@ LLM이 자율적으로 Tool을 선택하고 실행하며, 결과를 관찰한 �
 - answer_node: 최종 답변 생성 (NL2SQL 응답 프롬프트 사용)
 """
 
+import asyncio
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, AsyncGenerator, Dict
 
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -158,6 +159,130 @@ class InsightAgentGraph:
         async def traced_run(question: str) -> AgentResponse:  # noqa: ARG001
             return await self._run_graph(inputs)
         return await traced_run(inputs["question"])
+
+    async def astream_events(self, inputs: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """
+        Agent SSE 스트리밍 실행
+
+        ainvoke()와 동일한 전처리/후처리를 수행하되,
+        그래프 실행은 astream()을 사용하여 노드별 이벤트를 yield합니다.
+        최종 complete 이벤트에 AgentResponse를 포함합니다.
+
+        Args:
+            inputs: 요청 데이터 (question, session_id, request_id, config)
+
+        Yields:
+            SSE 포맷 문자열
+        """
+        from app.core.sse.stream_manager import format_sse, get_node_label, get_entry_node, get_next_node, extract_node_detail
+        from app.models.sse import NodeStartEvent, NodeCompleteEvent, CompleteEvent, ErrorEvent
+
+        request_id = inputs.get("request_id", str(uuid.uuid4())[:8])
+        question = inputs["question"]
+        session_id = inputs.get("session_id", f"session-{request_id}")
+        config = inputs.get("config", AgentConfig())
+        max_iterations = inputs.get("max_iterations", config.max_iterations or 10)
+        start_time = time.time()
+
+        log_step(logger, request_id, "AGENT", "0", "INIT", "ReAct Agent SSE 스트리밍 시작", question=truncate_text(question, 50))
+
+        # 미들웨어 입력 처리
+        middleware_input = {"question": question, "session_id": session_id, "request_id": request_id, "config": config}
+        processed_input = await self.middleware.process_input(middleware_input)
+
+        # 초기 상태 생성
+        initial_state = create_initial_state(
+            question=processed_input["question"],
+            session_id=processed_input["session_id"],
+            request_id=processed_input["request_id"],
+            config=processed_input.get("config", config),
+            max_iterations=max_iterations,
+        )
+        initial_state["messages"] = [HumanMessage(content=question)]
+
+        try:
+            graph_config: RunnableConfig = {
+                "configurable": {"thread_id": session_id},
+                "run_name": question,
+            }
+
+            # 엔트리 포인트 node_start 이벤트 전송
+            step_count = 0
+            entry_node = get_entry_node("agent")
+            if entry_node:
+                start_label = get_node_label(entry_node, "start", "agent")
+                start_event = NodeStartEvent(node=entry_node, message=start_label, step=1)
+                yield format_sse("node_start", start_event.model_dump())
+                await asyncio.sleep(0)
+
+            # astream으로 노드별 이벤트 스트리밍
+            async for chunk in self.graph.astream(initial_state, config=graph_config):
+                for node_name, state_update in chunk.items():
+                    if node_name.startswith("__"):
+                        continue
+
+                    step_count += 1
+                    # 노드 완료 이벤트
+                    label = get_node_label(node_name, "complete", "agent")
+                    detail = extract_node_detail(node_name, state_update, "agent")
+                    event = NodeCompleteEvent(node=node_name, message=label, step=step_count, detail=detail)
+                    log_step(logger, request_id, "AGENT", str(step_count), "SSE", f"노드 완료: {node_name}")
+                    yield format_sse("node_complete", event.model_dump())
+                    await asyncio.sleep(0)
+
+                    # 다음 노드 시작 이벤트 (확정적 엣지인 경우)
+                    next_node = get_next_node(node_name, "agent")
+                    if next_node:
+                        next_label = get_node_label(next_node, "start", "agent")
+                        next_event = NodeStartEvent(node=next_node, message=next_label, step=step_count + 1)
+                        yield format_sse("node_start", next_event.model_dump())
+                        await asyncio.sleep(0)
+
+            # 최종 상태를 checkpointer에서 가져오기 (add_messages reducer 안전 처리)
+            final_checkpoint = await self.graph.aget_state(graph_config)
+            result = final_checkpoint.values
+
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            final_answer = self._extract_final_answer(result)
+
+            # 미들웨어 출력 처리
+            middleware_output = {
+                "request_id": request_id,
+                "answer": final_answer,
+                "generated_sql": result.get("generated_sql", ""),
+                "sql_result": result.get("sql_result"),
+                "rag_sources": result.get("rag_sources", []),
+            }
+            processed_output = await self.middleware.process_output(middleware_output)
+
+            response = AgentResponse(
+                answer=processed_output.get("answer", final_answer),
+                steps=self._extract_steps(result),
+                total_iterations=result.get("iteration_count", 0),
+                tools_used=result.get("tools_used", []),
+                success=True,
+                error=None,
+                metadata={
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "execution_time_ms": execution_time_ms,
+                    "generated_sql": result.get("generated_sql", ""),
+                    "sql_result": result.get("sql_result"),
+                },
+                session_id=session_id,
+            )
+
+            log_step(logger, request_id, "AGENT", "END", "COMPLETE", "ReAct Agent SSE 완료", iterations=result.get('iteration_count', 0), time_ms=execution_time_ms)
+
+            complete_event = CompleteEvent(data=response.model_dump())
+            yield format_sse("complete", complete_event.model_dump())
+
+        except Exception as e:
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            log_step(logger, request_id, "AGENT", "END", "ERROR", "ReAct Agent SSE 실패", level="ERROR", error=str(e))
+
+            error_event = ErrorEvent(code="AGENT_FAILED", message=f"Agent 실행 중 오류: {str(e)}", detail=str(e))
+            yield format_sse("error", error_event.model_dump())
 
     async def _run_graph(self, inputs: Dict[str, Any]) -> AgentResponse:
         """실제 그래프 실행 로직"""

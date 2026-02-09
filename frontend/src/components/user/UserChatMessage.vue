@@ -17,6 +17,26 @@
         </div>
       </div>
       <div class="message-content assistant-message">
+        <!-- 스트리밍 진행 중 표시 -->
+        <template v-if="message.isStreaming">
+          <div class="streaming-indicator">
+            <div class="stream-steps" v-if="message.streamProgress && message.streamProgress.length > 0">
+              <div class="stream-step" v-for="(p, idx) in message.streamProgress" :key="idx">
+                <span class="step-check-icon">&#10003;</span>
+                <span class="step-label">{{ p.message }}</span>
+              </div>
+            </div>
+            <div class="streaming-current">
+              <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span class="streaming-text">{{ message.currentStep || '처리 중...' }}</span>
+            </div>
+          </div>
+        </template>
+        <template v-else>
         <div class="answer-text" v-html="formattedContent" />
 
         <!-- 소스 정보 :  임시로 주석처리함.-->
@@ -127,6 +147,7 @@
             </div>
           </div>
         </div>
+        </template>
 
         <!-- 메타 정보 -->
         <div class="message-footer">
@@ -396,6 +417,79 @@ const copyContent = async () => {
       padding-left: 24px;
       li { margin-bottom: 8px; }
     }
+  }
+}
+
+// 스트리밍 진행 표시
+.streaming-indicator {
+  padding: 8px 0;
+
+  .stream-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .stream-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-color-regular);
+    @include mx.fade-in-animation(0.3s);
+
+    .step-check-icon {
+      color: var(--color-success, #67c23a);
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-label {
+      color: var(--text-color-secondary);
+      font-size: 13px;
+    }
+  }
+
+  .streaming-current {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .typing-dots {
+      display: flex;
+      gap: 4px;
+
+      span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: var(--text-color-secondary);
+        animation: streaming-typing 1.4s infinite ease-in-out both;
+
+        &:nth-child(1) { animation-delay: -0.32s; }
+        &:nth-child(2) { animation-delay: -0.16s; }
+        &:nth-child(3) { animation-delay: 0s; }
+      }
+    }
+
+    .streaming-text {
+      font-size: 13px;
+      color: var(--text-color-secondary);
+      font-weight: 500;
+    }
+  }
+}
+
+@keyframes streaming-typing {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
@@ -905,6 +999,25 @@ const copyContent = async () => {
 
       .value {
         font-size: 12px;
+      }
+    }
+  }
+
+  // 스트리밍 진행 표시
+  .streaming-indicator {
+    .stream-step {
+      font-size: 13px;
+
+      .step-check-icon { font-size: 13px; }
+      .step-label { font-size: 12px; }
+    }
+
+    .streaming-current {
+      .streaming-text { font-size: 12px; }
+
+      .typing-dots span {
+        width: 5px;
+        height: 5px;
       }
     }
   }

@@ -70,7 +70,7 @@
           />
 
           <!-- 로딩 인디케이터 -->
-          <div v-if="isLoading" class="loading-indicator">
+          <div v-if="isLoading && !isStreaming" class="loading-indicator">
             <div class="assistant-avatar-small">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 8V4m0 0L9 7m3-3l3 3M9 15v4m0 0l-3-3m3 3l3-3M5 12H1m0 0l3-3m-3 3l3 3M23 12h-4m0 0l-3-3m3 3l3 3" />
@@ -235,6 +235,7 @@ const showGuideModal = ref(false)
 
 const messages = computed(() => store.state.chat.messages)
 const isLoading = computed(() => store.state.chat.isLoading)
+const isStreaming = computed(() => store.state.chat.isStreaming)
 const searchMode = computed(() => store.state.chat.searchMode)
 
 const modeLabel = computed(() => {

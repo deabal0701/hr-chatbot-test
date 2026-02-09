@@ -8,7 +8,7 @@
 변경 이력:
 - 2024-xx: agent_graph → graphs/agent/graph.py로 이전 (Multi-Pipeline 구조)
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 # 새로운 Agent Graph (Multi-Pipeline)
 from app.graphs.agent.graph import agent_graph
@@ -53,6 +53,31 @@ class AgentService:
 
         # 이력 저장은 HistoryMiddleware에서 처리
         return result
+
+    async def search_stream(self, question: str, session_id: Optional[str] = None, request_id: str = "unknown") -> AsyncGenerator[str, None]:
+        """
+        Agent SSE 스트리밍 검색
+
+        Args:
+            question: 사용자 질문
+            session_id: 세션 ID (멀티턴 대화용)
+            request_id: 요청 추적 ID
+
+        Yields:
+            SSE 포맷 문자열
+        """
+        log_step(logger, request_id, "SERVICE", "AGENT", "START", "Agent SSE 서비스 시작", question=truncate_text(question, 50))
+
+        if not session_id:
+            session_id = f"session-{request_id}"
+
+        resolved_config = self._resolve_config(None, request_id)
+        inputs = self._prepare_inputs(question, session_id, resolved_config, request_id)
+
+        async for event in agent_graph.astream_events(inputs):
+            yield event
+
+        log_step(logger, request_id, "SERVICE", "AGENT", "END", "Agent SSE 서비스 완료")
 
     def _resolve_config(self, request_config: Optional[AgentConfig], request_id: str) -> AgentConfig:
         """

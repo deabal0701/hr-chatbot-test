@@ -7,6 +7,7 @@
  */
 
 import apiClient from './index'
+import { streamSSE } from './sse'
 
 /**
  * Agent 검색
@@ -75,8 +76,25 @@ export const listTools = async () => {
   return apiClient.get('/api/v1/agent/tools')
 }
 
+/**
+ * Agent SSE 스트리밍 검색
+ * @param {Object} params
+ * @param {string} params.question - 질문
+ * @param {string} params.sessionId - 세션 ID
+ * @param {Object} callbacks - SSE 이벤트 콜백
+ * @returns {AbortController} - 스트림 취소용 컨트롤러
+ */
+export const agentSearchStream = ({ question, sessionId = null }, callbacks) => {
+  return streamSSE(
+    '/api/v1/agent/search/stream',
+    { question, session_id: sessionId },
+    callbacks
+  )
+}
+
 export default {
   agentSearch,
+  agentSearchStream,
   listSessions,
   getSessionMemory,
   deleteSession,

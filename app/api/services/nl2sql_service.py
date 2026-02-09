@@ -5,7 +5,7 @@
 - Route와 Graph 사이의 서비스 계층
 - 멀티턴 대화 세션 관리
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 # 새 위치: app/graphs/nl2sql/
 from app.graphs.nl2sql.graph import nl2sql_graph
@@ -48,6 +48,27 @@ class NL2SQLService:
 
         # 이력 저장은 HistoryMiddleware에서 처리
         return response
+
+    async def search_stream(self, query: str, session_id: Optional[str] = None, request_id: str = "unknown") -> AsyncGenerator[str, None]:
+        """
+        NL2SQL SSE 스트리밍 검색
+
+        Args:
+            query: 사용자 질문
+            session_id: 세션 ID (멀티턴 대화용)
+            request_id: 요청 추적 ID
+
+        Yields:
+            SSE 포맷 문자열
+        """
+        log_step(logger, request_id, "SERVICE", "NL2SQL", "START", "NL2SQL SSE 서비스 시작", query=truncate_text(query, 50))
+
+        inputs = self._prepare_inputs(query, session_id, request_id)
+
+        async for event in nl2sql_graph.astream_events(inputs):
+            yield event
+
+        log_step(logger, request_id, "SERVICE", "NL2SQL", "END", "NL2SQL SSE 서비스 완료")
 
     def _prepare_inputs(
         self,

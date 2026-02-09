@@ -34,7 +34,9 @@ class HistoryMiddleware(BaseMiddleware):
     # 이력을 저장할 엔드포인트 패턴
     HISTORY_ENDPOINTS = {
         "/api/v1/agent/search": "agent",
+        "/api/v1/agent/search/stream": "agent",
         "/api/v1/search": "auto",  # RAG 또는 NL2SQL (응답에서 판단)
+        "/api/v1/search/stream": "nl2sql",
     }
 
     # 제외할 경로 (BaseMiddleware 기본값 + 추가)
@@ -78,9 +80,22 @@ class HistoryMiddleware(BaseMiddleware):
         # 실제 요청 처리
         response = await call_next(request)
 
-        # Streaming 응답은 이력 저장 스킵 (복잡성 증가)
+        # SSE Streaming 응답: 래핑하여 complete 이벤트에서 이력 저장
         if self._is_streaming_response(response):
-            return response
+            return self._wrap_streaming_response(
+                response=response,
+                path=path,
+                request_id=request_id,
+                question=question,
+                session_id_from_request=session_id_from_request,
+                start_time=start_time,
+                requested_at=requested_at,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                user_name=user_name,
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
 
         # 응답 바디 읽기
         response_body_bytes = await self._consume_response_body(response)
@@ -355,3 +370,142 @@ class HistoryMiddleware(BaseMiddleware):
             requested_at=requested_at,
             completed_at=completed_at,
         )
+
+    # =========================================================================
+    # SSE Streaming 이력 저장
+    # =========================================================================
+
+    def _wrap_streaming_response(
+        self,
+        response: StreamingResponse,
+        path: str,
+        request_id: str,
+        question: str,
+        session_id_from_request: Optional[str],
+        start_time: float,
+        requested_at: datetime,
+        tenant_id: Optional[str],
+        user_id: Optional[str],
+        user_name: Optional[str],
+        client_ip: Optional[str],
+        user_agent: Optional[str],  # noqa: ARG002 - 향후 확장용
+    ) -> StreamingResponse:
+        """SSE 스트리밍 응답을 래핑하여 complete 이벤트에서 이력 저장
+
+        원본 SSE 청크를 클라이언트에 그대로 전달하면서,
+        complete/error 이벤트를 캡처하여 스트림 종료 후 이력을 저장합니다.
+        """
+        original_body_iterator = response.body_iterator
+        middleware = self
+
+        async def wrapped_iterator():
+            complete_data = None
+            error_data = None
+
+            async for chunk in original_body_iterator:
+                yield chunk
+
+                # SSE 이벤트 파싱 (complete/error 캡처)
+                chunk_str = chunk.decode("utf-8") if isinstance(chunk, bytes) else str(chunk)
+                event_type, event_data = middleware._parse_sse_event(chunk_str)
+
+                if event_type == "complete":
+                    complete_data = event_data
+                elif event_type == "error":
+                    error_data = event_data
+
+            # 스트림 종료 후 이력 저장
+            completed_at = datetime.now()
+            response_time_ms = int((time.time() - start_time) * 1000)
+
+            try:
+                if complete_data:
+                    middleware._save_stream_history(
+                        path=path, request_id=request_id, question=question,
+                        session_id_from_request=session_id_from_request,
+                        response_data=complete_data.get("data", {}),
+                        response_time_ms=response_time_ms, success=True, error_message=None,
+                        tenant_id=tenant_id, user_id=user_id, user_name=user_name,
+                        client_ip=client_ip, requested_at=requested_at, completed_at=completed_at,
+                    )
+                elif error_data:
+                    middleware._save_stream_history(
+                        path=path, request_id=request_id, question=question,
+                        session_id_from_request=session_id_from_request,
+                        response_data={},
+                        response_time_ms=response_time_ms, success=False,
+                        error_message=error_data.get("message", "SSE stream error"),
+                        tenant_id=tenant_id, user_id=user_id, user_name=user_name,
+                        client_ip=client_ip, requested_at=requested_at, completed_at=completed_at,
+                    )
+            except Exception as e:
+                logger.error(f"[{request_id}] [HISTORY] SSE 이력 저장 실패: {e}")
+
+        return StreamingResponse(
+            wrapped_iterator(),
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
+
+    def _parse_sse_event(self, chunk: str) -> Tuple[Optional[str], Optional[Dict]]:
+        """SSE 이벤트 파싱 (event type과 data 추출)
+
+        SSE 형식: "event: {type}\\ndata: {json}\\n\\n"
+        complete/error 이벤트만 캡처하여 반환합니다.
+        """
+        event_type = None
+        event_data = None
+
+        for line in chunk.strip().split("\n"):
+            if line.startswith("event: "):
+                event_type = line[7:].strip()
+            elif line.startswith("data: "):
+                try:
+                    event_data = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    pass
+
+        # complete/error 이벤트만 반환 (node_start, node_complete는 무시)
+        if event_type not in ("complete", "error"):
+            return None, None
+
+        return event_type, event_data
+
+    def _save_stream_history(
+        self,
+        path: str,
+        request_id: str,
+        question: str,
+        session_id_from_request: Optional[str],
+        response_data: Dict[str, Any],
+        response_time_ms: int,
+        success: bool,
+        error_message: Optional[str],
+        tenant_id: Optional[str],
+        user_id: Optional[str],
+        user_name: Optional[str],
+        client_ip: Optional[str],
+        requested_at: datetime,
+        completed_at: datetime,
+    ) -> None:
+        """SSE 스트림 complete 이벤트 데이터로 이력 저장"""
+        request_type = self.HISTORY_ENDPOINTS.get(path, "unknown")
+
+        answer = response_data.get("answer", "")
+        session_id = response_data.get("session_id") or session_id_from_request
+
+        if request_type == "agent":
+            self._save_agent_history(
+                request_id, question, answer, response_data, session_id,
+                200 if success else 500, response_time_ms, success, error_message,
+                tenant_id, user_id, user_name, client_ip, requested_at, completed_at,
+            )
+        elif request_type == "nl2sql":
+            self._save_nl2sql_history(
+                request_id, question, answer, response_data, session_id,
+                200 if success else 500, response_time_ms, success, error_message,
+                tenant_id, user_id, user_name, client_ip, requested_at, completed_at,
+            )
+        else:
+            logger.warning(f"[{request_id}] [HISTORY] SSE 이력 저장: 알 수 없는 request_type={request_type}")

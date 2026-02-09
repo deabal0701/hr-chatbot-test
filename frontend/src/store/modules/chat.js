@@ -13,7 +13,11 @@ export default {
     sessionId: null, // Agent 멀티턴 대화용 세션 ID (서버에서 생성)
     // 채팅 히스토리 (하드코딩 샘플 - 향후 API 연동)
     chatHistory: [],
-    activeChatId: null // 현재 선택된 채팅 ID
+    activeChatId: null, // 현재 선택된 채팅 ID
+    // SSE 스트리밍 상태
+    isStreaming: false,
+    streamProgress: [],
+    streamController: null
   }),
 
   mutations: {
@@ -65,6 +69,19 @@ export default {
       state.activeChatId = null
       state.sessionId = null
       state.error = null
+    },
+    // SSE 스트리밍 mutations
+    SET_STREAMING(state, streaming) {
+      state.isStreaming = streaming
+    },
+    ADD_STREAM_PROGRESS(state, progress) {
+      state.streamProgress.push(progress)
+    },
+    CLEAR_STREAM_PROGRESS(state) {
+      state.streamProgress = []
+    },
+    SET_STREAM_CONTROLLER(state, controller) {
+      state.streamController = controller
     }
   },
 
@@ -77,7 +94,13 @@ export default {
   },
 
   actions: {
-    async sendMessage({ commit, state }, query) {
+    async sendMessage({ commit, state, dispatch }, query) {
+      // Agent와 NL2SQL 모드는 SSE 스트리밍 사용
+      if (state.searchMode === 'agent' || state.searchMode === 'nl2sql') {
+        return dispatch('sendMessageStream', query)
+      }
+
+      // RAG 모드: 기존 방식 유지
       commit('SET_LOADING', true)
       commit('CLEAR_ERROR')
 
@@ -90,69 +113,31 @@ export default {
       try {
         let response
 
-        // Agent 모드인 경우
-        if (state.searchMode === 'agent') {
-          // 첫 요청: sessionId null → 서버가 생성
-          // 멀티턴: 서버 응답에서 받은 sessionId 재사용
-          // apiClient 인터셉터가 success_response에서 data 자동 추출
-          response = await agentApi.agentSearch({
-            question: query,
-            sessionId: state.sessionId
-          })
+        // 기존 모드 (auto/rag)
+        // apiClient 인터셉터가 success_response에서 data 자동 추출
+        response = await searchApi.search({
+          query,
+          mode: state.searchMode,
+          sessionId: state.sessionId
+        })
 
-          // 서버가 생성한 session_id 저장 (멀티턴 대화용)
-          if (response.session_id && response.session_id !== state.sessionId) {
-            commit('SET_SESSION_ID', response.session_id)
-          }
-
-          if (import.meta.env.DEV) {
-            console.log('[Agent Response]', response)
-          }
-
-          // Agent 응답 메시지 추가
-          commit('ADD_MESSAGE', {
-            role: 'assistant',
-            content: response.answer || '답변을 생성하지 못했습니다.',
-            queryType: 'agent',
-            agentResult: {
-              steps: response.steps || [],
-              totalIterations: response.total_iterations || 0,
-              toolsUsed: response.tools_used || [],
-              success: response.success,
-              sessionId: response.session_id
-            },
-            metadata: response.metadata || {}
-          })
-        } else {
-          // 기존 모드 (auto/rag/nl2sql)
-          // apiClient 인터셉터가 success_response에서 data 자동 추출
-          response = await searchApi.search({
-            query,
-            mode: state.searchMode,
-            sessionId: state.sessionId
-          })
-
-          // 서버가 생성한 session_id 저장 (멀티턴 대화용)
-          if (response.session_id && response.session_id !== state.sessionId) {
-            commit('SET_SESSION_ID', response.session_id)
-          }
-
-          // AI 응답 메시지 추가 (통합 SearchResponse 구조)
-          commit('ADD_MESSAGE', {
-            role: 'assistant',
-            content: response.answer,
-            queryType: response.query_type,
-            // NL2SQL 전용 필드
-            sql: response.sql,
-            sqlResult: response.sql_result,
-            // RAG 전용 필드
-            sources: response.sources,
-            // 공통 필드
-            responseTimeMs: response.response_time_ms,
-            metadata: response.metadata,
-            sessionId: response.session_id
-          })
+        // 서버가 생성한 session_id 저장 (멀티턴 대화용)
+        if (response.session_id && response.session_id !== state.sessionId) {
+          commit('SET_SESSION_ID', response.session_id)
         }
+
+        // AI 응답 메시지 추가 (통합 SearchResponse 구조)
+        commit('ADD_MESSAGE', {
+          role: 'assistant',
+          content: response.answer,
+          queryType: response.query_type,
+          // RAG 전용 필드
+          sources: response.sources,
+          // 공통 필드
+          responseTimeMs: response.response_time_ms,
+          metadata: response.metadata,
+          sessionId: response.session_id
+        })
       } catch (error) {
         // 새 에러 형식: error.code, error.message 사용
         const errorCode = error.code || 'UNKNOWN_ERROR'
@@ -169,6 +154,133 @@ export default {
         })
       } finally {
         commit('SET_LOADING', false)
+      }
+    },
+
+    async sendMessageStream({ commit, state }, query) {
+      commit('SET_LOADING', true)
+      commit('SET_STREAMING', true)
+      commit('CLEAR_STREAM_PROGRESS')
+      commit('CLEAR_ERROR')
+
+      // 사용자 메시지 추가
+      commit('ADD_MESSAGE', {
+        role: 'user',
+        content: query
+      })
+
+      // 빈 assistant 메시지를 먼저 추가 (스트리밍 진행 표시용)
+      commit('ADD_MESSAGE', {
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+        streamProgress: [],
+        currentStep: null,
+        queryType: state.searchMode
+      })
+
+      const callbacks = {
+        onNodeStart: (event) => {
+          // 현재 진행 중인 노드의 "~중..." 레이블 업데이트
+          commit('UPDATE_LAST_MESSAGE', {
+            currentStep: event.message
+          })
+        },
+        onNodeComplete: (event) => {
+          commit('ADD_STREAM_PROGRESS', event)
+          // 마지막 assistant 메시지의 streamProgress 업데이트 + currentStep 초기화
+          const lastMsg = state.messages[state.messages.length - 1]
+          if (lastMsg && lastMsg.role === 'assistant') {
+            commit('UPDATE_LAST_MESSAGE', {
+              streamProgress: [...(lastMsg.streamProgress || []), event],
+              currentStep: null
+            })
+          }
+        },
+        onComplete: (event) => {
+          const data = event.data
+
+          if (state.searchMode === 'agent') {
+            // 서버 session_id 저장
+            if (data.session_id && data.session_id !== state.sessionId) {
+              commit('SET_SESSION_ID', data.session_id)
+            }
+
+            commit('UPDATE_LAST_MESSAGE', {
+              content: data.answer || '답변을 생성하지 못했습니다.',
+              isStreaming: false,
+              queryType: 'agent',
+              agentResult: {
+                steps: data.steps || [],
+                totalIterations: data.total_iterations || 0,
+                toolsUsed: data.tools_used || [],
+                success: data.success,
+                sessionId: data.session_id
+              },
+              metadata: data.metadata || {}
+            })
+          } else {
+            // NL2SQL 모드
+            if (data.session_id && data.session_id !== state.sessionId) {
+              commit('SET_SESSION_ID', data.session_id)
+            }
+
+            commit('UPDATE_LAST_MESSAGE', {
+              content: data.answer,
+              isStreaming: false,
+              queryType: data.query_type || 'nl2sql',
+              sql: data.sql,
+              sqlResult: data.sql_result,
+              responseTimeMs: data.response_time_ms,
+              metadata: data.metadata,
+              sessionId: data.session_id
+            })
+          }
+
+          commit('SET_STREAMING', false)
+          commit('SET_LOADING', false)
+          commit('SET_STREAM_CONTROLLER', null)
+        },
+        onError: (error) => {
+          const errorMessage = error.message || '스트리밍 중 오류가 발생했습니다.'
+          const errorCode = error.code || 'STREAM_ERROR'
+
+          commit('SET_ERROR', { code: errorCode, message: errorMessage })
+          commit('UPDATE_LAST_MESSAGE', {
+            content: `죄송합니다. ${errorMessage}`,
+            isStreaming: false,
+            isError: true,
+            errorCode: errorCode
+          })
+          commit('SET_STREAMING', false)
+          commit('SET_LOADING', false)
+          commit('SET_STREAM_CONTROLLER', null)
+        }
+      }
+
+      // 스트리밍 시작
+      let controller
+      if (state.searchMode === 'agent') {
+        controller = agentApi.agentSearchStream(
+          { question: query, sessionId: state.sessionId },
+          callbacks
+        )
+      } else {
+        controller = searchApi.searchStream(
+          { query, mode: state.searchMode, sessionId: state.sessionId },
+          callbacks
+        )
+      }
+
+      commit('SET_STREAM_CONTROLLER', controller)
+    },
+
+    cancelStream({ state, commit }) {
+      if (state.streamController) {
+        state.streamController.abort()
+        commit('SET_STREAMING', false)
+        commit('SET_LOADING', false)
+        commit('SET_STREAM_CONTROLLER', null)
       }
     },
 

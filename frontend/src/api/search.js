@@ -1,4 +1,5 @@
 import apiClient from './index'
+import { streamSSE } from './sse'
 
 // 검색 API
 export default {
@@ -52,5 +53,22 @@ export default {
       query: params.query,
       filters: params.filters || {}
     })
+  },
+
+  /**
+   * NL2SQL SSE 스트리밍 검색
+   * @param {Object} params - 검색 파라미터
+   * @param {Object} callbacks - SSE 이벤트 콜백
+   * @returns {AbortController} - 스트림 취소용 컨트롤러
+   */
+  searchStream(params, callbacks) {
+    const payload = {
+      query: params.query,
+      mode: params.mode || 'nl2sql',
+    }
+    if (params.sessionId) {
+      payload.session_id = params.sessionId
+    }
+    return streamSSE('/api/v1/search/stream', payload, callbacks)
   }
 }

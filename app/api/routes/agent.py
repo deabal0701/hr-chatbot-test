@@ -13,6 +13,7 @@ import uuid
 from typing import Dict, Any
 
 from fastapi import APIRouter, Body
+from fastapi.responses import StreamingResponse
 
 from app.api.services.agent_service import agent_service
 from app.core.errors import APIException, ErrorCode, success_response
@@ -54,6 +55,40 @@ async def agent_search(request: AgentRequest):
     except Exception as e:
         logger.error(f"[{request_id}] Agent 검색 실패: {e}", exc_info=True)
         raise APIException(error_code=ErrorCode.AGENT_FAILED, detail=str(e))
+
+
+@router.post("/search/stream")
+async def agent_search_stream(request: AgentRequest):
+    """
+    AI Agent SSE 스트리밍 검색 (ReAct 패턴)
+
+    노드별 진행 상태를 실시간으로 전송하고,
+    최종 완료 시 전체 AgentResponse를 전송합니다.
+
+    Response: text/event-stream (SSE)
+    """
+    request_id = str(uuid.uuid4())[:8]
+
+    logger.info(f"[{request_id}] Agent SSE 검색 요청: {truncate_text(request.question, 100)}")
+
+    async def event_generator():
+        async for event in agent_service.search_stream(
+            question=request.question,
+            session_id=request.session_id,
+            request_id=request_id,
+        ):
+            yield event
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Request-ID": request_id,
+        },
+    )
 
 
 @router.get("/sessions")

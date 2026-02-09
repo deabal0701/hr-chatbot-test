@@ -8,6 +8,7 @@
 import uuid
 
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 
 from app.api.services.rag_service import rag_service
 from app.api.services.nl2sql_service import nl2sql_service
@@ -60,6 +61,50 @@ async def search(search_request: SearchRequest, request: Request):
     except Exception as e:
         logger.error(f"[{request_id}] [ERROR] 검색 실패: {e}", exc_info=True)
         raise APIException(error_code=ErrorCode.SEARCH_FAILED, detail=str(e))
+
+
+@router.post("/search/stream")
+async def search_stream(search_request: SearchRequest, request: Request):
+    """
+    통합 검색 SSE 스트리밍 엔드포인트
+
+    NL2SQL 모드에서만 SSE 스트리밍을 지원합니다.
+    RAG 모드는 지원하지 않으며 요청 시 에러를 반환합니다.
+
+    Response: text/event-stream (SSE)
+    """
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
+
+    # 모드 결정
+    if search_request.mode == "auto":
+        query_type = _classify_query_intent(search_request.query)
+    else:
+        query_type = search_request.mode
+
+    # RAG 모드는 SSE 미지원
+    if query_type == "rag":
+        raise APIException(error_code=ErrorCode.BAD_REQUEST, message="RAG 모드는 SSE 스트리밍을 지원하지 않습니다. 기존 /api/v1/search 엔드포인트를 사용하세요.")
+
+    log_step(logger, request_id, "API", "1", "SSE", "NL2SQL SSE 검색 요청", query=search_request.query)
+
+    async def event_generator():
+        async for event in nl2sql_service.search_stream(
+            query=search_request.query,
+            session_id=search_request.session_id,
+            request_id=request_id,
+        ):
+            yield event
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Request-ID": request_id,
+        },
+    )
 
 
 def _classify_query_intent(query: str) -> str:

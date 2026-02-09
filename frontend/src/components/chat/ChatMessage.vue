@@ -7,7 +7,29 @@
 
     <!-- AI 응답 -->
     <div v-else class="message-bubble assistant" :class="{ error: message.isError }">
-      <div class="message-content" v-html="formattedContent"></div>
+      <!-- SSE 스트리밍 진행 상태 -->
+      <template v-if="message.isStreaming">
+        <div class="streaming-indicator">
+          <div class="stream-steps" v-if="message.streamProgress && message.streamProgress.length > 0">
+            <div class="stream-step" v-for="(p, idx) in message.streamProgress" :key="idx">
+              <span class="step-check-icon">&#10003;</span>
+              <span class="step-label">{{ p.message }}</span>
+            </div>
+          </div>
+          <div class="streaming-current">
+            <div class="typing-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <span class="streaming-text">{{ message.currentStep || '처리 중...' }}</span>
+          </div>
+        </div>
+      </template>
+      <!-- 최종 응답 -->
+      <template v-else>
+        <div class="message-content" v-html="formattedContent"></div>
+      </template>
 
       <!-- 메타 정보 -->
       <div v-if="!message.isError" class="message-meta">
@@ -478,6 +500,78 @@ const formatTime = (timestamp) => {
         }
       }
     }
+  }
+}
+
+// SSE 스트리밍 진행 상태
+.streaming-indicator {
+  padding: 4px 0;
+
+  .stream-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .stream-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-color-regular);
+
+    .step-check-icon {
+      color: var(--el-color-success);
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .step-label {
+      color: var(--text-color-secondary);
+    }
+  }
+
+  .streaming-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .streaming-text {
+      font-size: 13px;
+      color: var(--color-primary);
+      font-weight: 500;
+    }
+  }
+
+  .typing-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+
+    span {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--color-primary);
+      animation: streaming-typing 1.4s infinite ease-in-out both;
+
+      &:nth-child(1) { animation-delay: 0s; }
+      &:nth-child(2) { animation-delay: 0.2s; }
+      &:nth-child(3) { animation-delay: 0.4s; }
+    }
+  }
+}
+
+@keyframes streaming-typing {
+  0%, 80%, 100% {
+    transform: scale(0.4);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 </style>

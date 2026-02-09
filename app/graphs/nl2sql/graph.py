@@ -30,7 +30,8 @@ NL2SQL 검색 그래프 (LangGraph)
 - handle_error: 오류 처리
 - prepare_retry: 재시도 상태 업데이트 (retry_count 증가)
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
+import asyncio
 import time
 
 from langgraph.graph import END, StateGraph
@@ -261,6 +262,89 @@ class NL2SQLGraph:
             session_id=session_id,
             metadata=metadata
         )
+
+    async def astream_events(self, inputs: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """
+        NL2SQL SSE 스트리밍 실행
+
+        ainvoke()와 동일한 전처리/후처리를 수행하되,
+        astream()을 사용하여 노드별 이벤트를 yield합니다.
+
+        Args:
+            inputs: 요청 데이터 (question, session_id, request_id)
+
+        Yields:
+            SSE 포맷 문자열
+        """
+        from app.core.sse.stream_manager import format_sse, get_node_label, get_entry_node, get_next_node, extract_node_detail
+        from app.models.sse import NodeStartEvent, NodeCompleteEvent, CompleteEvent, ErrorEvent
+
+        start_time = time.time()
+        request_id = inputs.get("request_id", "unknown")
+        session_id = inputs.get("session_id")
+        if not session_id:
+            session_id = f"nl2sql-{request_id}"
+            inputs["session_id"] = session_id
+
+        initial_state = self._prepare_initial_state(inputs, session_id)
+
+        log_step(logger, request_id, "NL2SQL", "0", "INIT", "NL2SQL SSE 스트리밍 시작", question=inputs["question"], session_id=session_id)
+
+        try:
+            config: RunnableConfig = {
+                "configurable": {"thread_id": session_id},
+                "run_name": inputs["question"],
+            }
+
+            # 엔트리 포인트 node_start 이벤트 전송
+            step_count = 0
+            entry_node = get_entry_node("nl2sql")
+            if entry_node:
+                start_label = get_node_label(entry_node, "start", "nl2sql")
+                start_event = NodeStartEvent(node=entry_node, message=start_label, step=1)
+                yield format_sse("node_start", start_event.model_dump())
+                await asyncio.sleep(0)
+
+            # astream으로 노드별 이벤트 스트리밍
+            async for chunk in self.graph.astream(initial_state, config=config):
+                for node_name, state_update in chunk.items():
+                    if node_name.startswith("__"):
+                        continue
+
+                    step_count += 1
+                    # 노드 완료 이벤트
+                    label = get_node_label(node_name, "complete", "nl2sql")
+                    detail = extract_node_detail(node_name, state_update, "nl2sql")
+                    event = NodeCompleteEvent(node=node_name, message=label, step=step_count, detail=detail)
+                    log_step(logger, request_id, "NL2SQL", str(step_count), "SSE", f"노드 완료: {node_name}")
+                    yield format_sse("node_complete", event.model_dump())
+                    await asyncio.sleep(0)
+
+                    # 다음 노드 시작 이벤트 (확정적 엣지인 경우)
+                    next_node = get_next_node(node_name, "nl2sql")
+                    if next_node:
+                        next_label = get_node_label(next_node, "start", "nl2sql")
+                        next_event = NodeStartEvent(node=next_node, message=next_label, step=step_count + 1)
+                        yield format_sse("node_start", next_event.model_dump())
+                        await asyncio.sleep(0)
+
+            # 최종 상태를 checkpointer에서 가져오기 (reducer 안전 처리)
+            final_checkpoint = await self.graph.aget_state(config)
+            result = final_checkpoint.values
+
+            response_time_ms = int((time.time() - start_time) * 1000)
+            response = self._build_response(result, session_id, response_time_ms)
+
+            log_step(logger, request_id, "NL2SQL", "END", "COMPLETE", "NL2SQL SSE 완료", time_ms=response_time_ms)
+
+            complete_event = CompleteEvent(data=response.model_dump())
+            yield format_sse("complete", complete_event.model_dump())
+
+        except Exception as e:
+            log_step(logger, request_id, "NL2SQL", "ERR", "SSE", f"NL2SQL SSE 실패: {str(e)}", level="ERROR")
+
+            error_event = ErrorEvent(code="NL2SQL_FAILED", message=f"NL2SQL 실행 중 오류: {str(e)}", detail=str(e))
+            yield format_sse("error", error_event.model_dump())
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:
         """그래프 비동기 실행 (멀티턴 대화 지원)"""
