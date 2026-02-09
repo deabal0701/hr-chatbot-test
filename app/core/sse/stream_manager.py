@@ -3,46 +3,15 @@ SSE Stream Manager
 
 위치: app/core/sse/stream_manager.py
 - SSE 포맷팅 유틸리티
-- 노드 레이블 조회
-- 노드 결과 요약 추출
-- 다음 노드 예측 (node_start 이벤트용)
+- 스테이지 레이블 조회
+- 노드→스테이지 매핑 조회
 """
 import json
-from typing import Any, Dict, Optional
 
-from app.models.sse import AGENT_NODE_LABELS, NL2SQL_NODE_LABELS
-
-
-# NL2SQL 다음 노드 매핑 (확정적 엣지만, 조건부 엣지는 None)
-NL2SQL_NEXT_NODE = {
-    "load_history": "intent_rewrite",
-    "intent_rewrite": None,         # 조건부: schema_retrieval 또는 sql_not_needed
-    "sql_not_needed": "save_history",
-    "schema_retrieval": "fewshot_retrieval",
-    "fewshot_retrieval": "prompt_build",
-    "prompt_build": "sql_generate",
-    "sql_generate": "validate_sql",
-    "validate_sql": None,           # 조건부: execute_sql, prepare_retry, handle_error
-    "execute_sql": None,            # 조건부: pii_filter, prepare_retry, handle_error
-    "pii_filter": "generate_answer",
-    "generate_answer": "save_history",
-    "save_history": None,           # END
-    "handle_error": None,           # END
-    "prepare_retry": "fewshot_retrieval",
-}
-
-# Agent 다음 노드 매핑
-AGENT_NEXT_NODE = {
-    "agent": None,     # 조건부: tools 또는 answer
-    "tools": "agent",
-    "answer": None,    # END
-}
-
-# 그래프 엔트리 포인트
-ENTRY_NODES = {
-    "nl2sql": "load_history",
-    "agent": "agent",
-}
+from app.models.sse import (
+    NL2SQL_NODE_STAGE, NL2SQL_STAGE_LABELS,
+    AGENT_NODE_STAGE, AGENT_STAGE_LABELS,
+)
 
 
 def format_sse(event_type: str, data: dict) -> str:
@@ -59,80 +28,42 @@ def format_sse(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json_data}\n\n"
 
 
-def get_node_label(node_name: str, phase: str, mode: str) -> str:
-    """노드 이름에 대한 표시 레이블 반환
+def get_stage_label(stage: int, phase: str, mode: str) -> str:
+    """스테이지 번호에 대한 표시 레이블을 반환합니다.
 
     Args:
-        node_name: LangGraph 노드 이름
+        stage: 스테이지 번호 (1, 2, 3, 4)
         phase: "start" 또는 "complete"
         mode: "agent" 또는 "nl2sql"
 
     Returns:
         한글 표시 레이블
+
+    예시:
+        get_stage_label(1, "start", "nl2sql")     → "질문 분석 중..."
+        get_stage_label(3, "complete", "nl2sql")   → "SQL 생성 및 실행 완료"
+        get_stage_label(2, "start", "agent")       → "도구 실행 중..."
     """
-    labels = AGENT_NODE_LABELS if mode == "agent" else NL2SQL_NODE_LABELS
-    node_info = labels.get(node_name, {"start": f"{node_name} 처리 중...", "complete": f"{node_name} 완료"})
-    return node_info.get(phase, node_name)
+    labels = AGENT_STAGE_LABELS if mode == "agent" else NL2SQL_STAGE_LABELS
+    stage_info = labels.get(stage, {"start": f"단계 {stage} 처리 중...", "complete": f"단계 {stage} 완료"})
+    return stage_info.get(phase, f"단계 {stage}")
 
 
-def get_entry_node(mode: str) -> str:
-    """그래프 엔트리 포인트 노드 이름 반환"""
-    return ENTRY_NODES.get(mode, "")
-
-
-def get_next_node(node_name: str, mode: str) -> Optional[str]:
-    """현재 노드 완료 후 다음 노드 예측 (확정적 엣지만)
+def get_node_stage(node_name: str, mode: str) -> int:
+    """노드가 속하는 스테이지 번호를 반환합니다.
 
     Args:
-        node_name: 현재 완료된 노드 이름
+        node_name: LangGraph 노드 이름 (예: "schema_retrieval")
         mode: "agent" 또는 "nl2sql"
 
     Returns:
-        다음 노드 이름 (조건부 엣지이면 None)
+        스테이지 번호 (1, 2, 3, 4)
+        매핑에 없는 노드이면 0을 반환합니다.
+
+    예시:
+        get_node_stage("load_history", "nl2sql")    → 1
+        get_node_stage("sql_generate", "nl2sql")    → 3
+        get_node_stage("tools", "agent")            → 2
     """
-    next_map = AGENT_NEXT_NODE if mode == "agent" else NL2SQL_NEXT_NODE
-    return next_map.get(node_name)
-
-
-def extract_node_detail(node_name: str, state_update: dict, mode: str) -> Optional[Dict[str, Any]]:
-    """노드 결과에서 UI 표시용 요약 정보 추출
-
-    Args:
-        node_name: 노드 이름
-        state_update: 노드가 반환한 상태 업데이트
-        mode: "agent" 또는 "nl2sql"
-
-    Returns:
-        요약 딕셔너리 또는 None
-    """
-    detail: Dict[str, Any] = {}
-
-    if mode == "nl2sql":
-        if node_name == "schema_retrieval":
-            detail["tables"] = state_update.get("selected_tables", [])
-        elif node_name == "fewshot_retrieval":
-            detail["example_count"] = state_update.get("fewshot_count", 0)
-        elif node_name == "sql_generate":
-            sql = state_update.get("generated_sql", "")
-            if sql:
-                detail["sql_preview"] = sql[:100] + "..." if len(sql) > 100 else sql
-        elif node_name == "validate_sql":
-            detail["validated"] = state_update.get("validated", False)
-            if state_update.get("validation_error"):
-                detail["error"] = str(state_update["validation_error"])[:100]
-        elif node_name == "execute_sql":
-            sql_result = state_update.get("sql_result")
-            if sql_result:
-                row_count = sql_result.get("row_count", 0) if isinstance(sql_result, dict) else getattr(sql_result, "row_count", 0)
-                detail["row_count"] = row_count
-        elif node_name == "intent_rewrite":
-            detail["query_type"] = state_update.get("query_type", "")
-            detail["rewritten"] = bool(state_update.get("rewritten_question", ""))
-
-    elif mode == "agent":
-        if node_name == "tools":
-            detail["tools_used"] = state_update.get("tools_used", [])
-        elif node_name == "agent":
-            detail["iteration"] = state_update.get("iteration_count", 0)
-
-    return detail if detail else None
+    stage_map = AGENT_NODE_STAGE if mode == "agent" else NL2SQL_NODE_STAGE
+    return stage_map.get(node_name, 0)

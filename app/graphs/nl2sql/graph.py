@@ -265,10 +265,14 @@ class NL2SQLGraph:
 
     async def astream_events(self, inputs: Dict[str, Any]) -> AsyncGenerator[str, None]:
         """
-        NL2SQL SSE 스트리밍 실행
+        NL2SQL SSE 스트리밍 실행 (스테이지 그룹핑 방식)
 
-        ainvoke()와 동일한 전처리/후처리를 수행하되,
-        astream()을 사용하여 노드별 이벤트를 yield합니다.
+        14개 노드를 4개 스테이지로 그룹핑하여 SSE 이벤트를 전송합니다.
+        스테이지가 변경될 때만 node_complete/node_start 이벤트를 보내므로,
+        사용자에게는 최대 4단계만 표시됩니다.
+
+        forward-only 규칙: 현재 스테이지보다 큰 경우에만 전환
+        (재시도 루프 시 스테이지가 뒤로 돌아가지 않음)
 
         Args:
             inputs: 요청 데이터 (question, session_id, request_id)
@@ -276,7 +280,7 @@ class NL2SQLGraph:
         Yields:
             SSE 포맷 문자열
         """
-        from app.core.sse.stream_manager import format_sse, get_node_label, get_entry_node, get_next_node, extract_node_detail
+        from app.core.sse.stream_manager import format_sse, get_node_stage, get_stage_label
         from app.models.sse import NodeStartEvent, NodeCompleteEvent, CompleteEvent, ErrorEvent
 
         start_time = time.time()
@@ -296,37 +300,63 @@ class NL2SQLGraph:
                 "run_name": inputs["question"],
             }
 
-            # 엔트리 포인트 node_start 이벤트 전송
-            step_count = 0
-            entry_node = get_entry_node("nl2sql")
-            if entry_node:
-                start_label = get_node_label(entry_node, "start", "nl2sql")
-                start_event = NodeStartEvent(node=entry_node, message=start_label, step=1)
-                yield format_sse("node_start", start_event.model_dump())
-                await asyncio.sleep(0)
+            # 스테이지 추적 변수
+            current_stage = 0
+
+            # 1단계 node_start 이벤트 전송 (그래프 실행 전)
+            start_label = get_stage_label(1, "start", "nl2sql")
+            start_event = NodeStartEvent(node="stage_1", message=start_label, step=1)
+            yield format_sse("node_start", start_event.model_dump())
+            await asyncio.sleep(0)
+            current_stage = 1
 
             # astream으로 노드별 이벤트 스트리밍
             async for chunk in self.graph.astream(initial_state, config=config):
-                for node_name, state_update in chunk.items():
+                for node_name, _state_update in chunk.items():
                     if node_name.startswith("__"):
                         continue
 
-                    step_count += 1
-                    # 노드 완료 이벤트
-                    label = get_node_label(node_name, "complete", "nl2sql")
-                    detail = extract_node_detail(node_name, state_update, "nl2sql")
-                    event = NodeCompleteEvent(node=node_name, message=label, step=step_count, detail=detail)
-                    log_step(logger, request_id, "NL2SQL", str(step_count), "SSE", f"노드 완료: {node_name}")
-                    yield format_sse("node_complete", event.model_dump())
-                    await asyncio.sleep(0)
+                    node_stage = get_node_stage(node_name, "nl2sql")
+                    if node_stage == 0:
+                        continue
 
-                    # 다음 노드 시작 이벤트 (확정적 엣지인 경우)
-                    next_node = get_next_node(node_name, "nl2sql")
-                    if next_node:
-                        next_label = get_node_label(next_node, "start", "nl2sql")
-                        next_event = NodeStartEvent(node=next_node, message=next_label, step=step_count + 1)
-                        yield format_sse("node_start", next_event.model_dump())
+                    # forward-only: 현재보다 큰 스테이지일 때만 이벤트 전송
+                    # (재시도 루프에서 스테이지가 뒤로 돌아가지 않음)
+                    if node_stage > current_stage:
+                        # 현재 스테이지 완료 이벤트
+                        complete_label = get_stage_label(current_stage, "complete", "nl2sql")
+                        complete_event = NodeCompleteEvent(
+                            node=f"stage_{current_stage}",
+                            message=complete_label,
+                            step=current_stage,
+                        )
+                        yield format_sse("node_complete", complete_event.model_dump())
                         await asyncio.sleep(0)
+
+                        # 새 스테이지 시작 이벤트
+                        new_start_label = get_stage_label(node_stage, "start", "nl2sql")
+                        new_start_event = NodeStartEvent(
+                            node=f"stage_{node_stage}",
+                            message=new_start_label,
+                            step=node_stage,
+                        )
+                        yield format_sse("node_start", new_start_event.model_dump())
+                        await asyncio.sleep(0)
+
+                        current_stage = node_stage
+
+                    log_step(logger, request_id, "NL2SQL", str(current_stage), "SSE", f"노드 완료: {node_name} (stage {node_stage})")
+
+            # 마지막 스테이지 완료 이벤트
+            if current_stage > 0:
+                final_label = get_stage_label(current_stage, "complete", "nl2sql")
+                final_event = NodeCompleteEvent(
+                    node=f"stage_{current_stage}",
+                    message=final_label,
+                    step=current_stage,
+                )
+                yield format_sse("node_complete", final_event.model_dump())
+                await asyncio.sleep(0)
 
             # 최종 상태를 checkpointer에서 가져오기 (reducer 안전 처리)
             final_checkpoint = await self.graph.aget_state(config)

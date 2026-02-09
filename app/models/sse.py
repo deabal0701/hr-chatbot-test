@@ -55,7 +55,7 @@ AGENT_NODE_LABELS = {
     "answer": {"start": "답변 생성 중...", "complete": "답변 생성 완료"},
 }
 
-# NL2SQL 노드 표시 레이블
+# NL2SQL 노드 표시 레이블(전체 노드를 모두 표시하는 경우)
 NL2SQL_NODE_LABELS = {
     "load_history": {"start": "대화 이력 로드 중...", "complete": "대화 이력 로드 완료"},
     "intent_rewrite": {"start": "질문 분석 중...", "complete": "질문 분석 완료"},
@@ -71,4 +71,46 @@ NL2SQL_NODE_LABELS = {
     "save_history": {"start": "이력 저장 중...", "complete": "이력 저장 완료"},
     "handle_error": {"start": "오류 처리 중...", "complete": "오류 처리 완료"},
     "prepare_retry": {"start": "재시도 준비 중...", "complete": "재시도 준비 완료"},
+}
+
+# NL2SQL 노드 표시 레이블(스테이지별 표시하는 경우)
+# NL2SQL: 노드 → 스테이지 번호 매핑
+NL2SQL_NODE_STAGE = {
+    "load_history": 1,       # 1단계: 질문 분석
+    "intent_rewrite": 1,     # 1단계: 질문 분석
+    "schema_retrieval": 2,   # 2단계: 데이터 검색 준비
+    "fewshot_retrieval": 2,  # 2단계: 데이터 검색 준비
+    "prompt_build": 2,       # 2단계: 데이터 검색 준비
+    "sql_generate": 3,       # 3단계: SQL 생성 및 실행
+    "validate_sql": 3,       # 3단계: SQL 생성 및 실행
+    "execute_sql": 3,        # 3단계: SQL 생성 및 실행
+    "pii_filter": 3,         # 3단계: SQL 생성 및 실행
+    "prepare_retry": 3,      # 3단계: SQL 생성 및 실행 (재시도)
+    "generate_answer": 4,    # 4단계: 답변 생성
+    "save_history": 4,       # 4단계: 답변 생성
+    "sql_not_needed": 4,     # 4단계: 답변 생성 (이전 결과 활용)
+    "handle_error": 4,       # 4단계: 답변 생성 (에러 처리)
+}
+
+# NL2SQL: 스테이지 번호 → 표시 레이블 매핑
+NL2SQL_STAGE_LABELS = {
+    1: {"start": "질문을 분석하고 의도를 파악하고 있습니다...", "complete": "질문 분석 및 의도 파악 완료"},
+    2: {"start": "관련 테이블 스키마와 유사 질문을 검색하고 있습니다...", "complete": "테이블 스키마 및 유사 질문 검색 완료"},
+    3: {"start": "SQL을 생성하고 검증 후 실행하고 있습니다...", "complete": "SQL 생성, 검증 및 실행 완료"},
+    4: {"start": "조회 결과를 바탕으로 답변을 생성하고 있습니다...", "complete": "답변 생성 완료"},
+}
+
+# Agent: 노드 → 스테이지 번호 매핑
+# Agent는 노드가 3개뿐이므로 각 노드 = 각 스테이지
+AGENT_NODE_STAGE = {
+    "agent": 1,   # 1단계: AI 추론
+    "tools": 2,   # 2단계: 도구 실행
+    "answer": 3,  # 3단계: 답변 생성
+}
+
+# Agent: 스테이지 번호 → 표시 레이블 매핑
+AGENT_STAGE_LABELS = {
+    1: {"start": "AI가 질문을 분석하고 실행 계획을 수립하고 있습니다...", "complete": "질문 분석 및 실행 계획 수립 완료"},
+    2: {"start": "데이터베이스 조회 및 문서 검색 도구를 실행하고 있습니다...", "complete": "도구 실행 및 결과 수집 완료"},
+    3: {"start": "수집된 결과를 종합하여 최종 답변을 생성하고 있습니다...", "complete": "최종 답변 생성 완료"},
 }
