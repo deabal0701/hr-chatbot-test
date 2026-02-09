@@ -200,6 +200,15 @@ class SettingsService:
             except Exception as reload_err:
                 logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
 
+        # pii 카테고리인 경우 pii_service reload (전략/활성화 즉시 반영)
+        if category == 'pii' and success_count > 0:
+            try:
+                from app.core.pii.pii_service import pii_service
+                pii_service.reload()
+                logger.info("PII 서비스 설정 갱신 완료")
+            except Exception as reload_err:
+                logger.warning(f"PII 서비스 갱신 실패 (무시): {reload_err}")
+
         return success_count, failed_keys
 
     def _update_setting_without_reload(self, category: str, key: str, value: str, changed_by: str = 'admin', change_reason: Optional[str] = None) -> bool:

@@ -545,6 +545,51 @@
                   </el-form-item>
                 </template>
               </div>
+
+              <el-divider />
+
+              <!-- 섹션 6: PII 감지/마스킹 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Lock /></el-icon>
+                  PII 감지/마스킹 (개인정보 보호)
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                </h4>
+                <p class="section-desc">
+                  SQL 실행 결과에서 개인정보(PII)를 감지하여 LLM에 전송되기 전에 마스킹합니다.<br>
+                  주민등록번호, 전화번호, 계좌번호, 이메일 등을 자동 감지합니다.
+                </p>
+
+                <el-form-item label="PII 감지/마스킹 활성화">
+                  <el-switch v-model="formData.pii.enabled" />
+                  <span class="switch-label">{{ formData.pii.enabled ? '활성화' : '비활성화' }}</span>
+                  <div class="form-help">
+                    <el-icon><Warning /></el-icon>
+                    비활성화 시 개인정보가 LLM API로 전송될 수 있습니다
+                  </div>
+                </el-form-item>
+
+                <template v-if="formData.pii.enabled">
+                  <el-form-item label="PII 처리 전략">
+                    <el-select v-model="formData.pii.strategy" style="width: 100%">
+                      <el-option label="삭제 (Redact) - [***Redacted***]으로 대체" value="redact" />
+                      <el-option label="마스킹 (Mask) - 일부 문자를 ****로 대체" value="mask" />
+                      <el-option label="해시 (Hash) - 해시값으로 대체" value="hash" />
+                    </el-select>
+                    <div class="form-help">감지된 개인정보를 어떻게 처리할지 선택합니다 (권장: 삭제)</div>
+                  </el-form-item>
+
+                  <div class="pii-patterns-info">
+                    <p class="pii-patterns-title">감지 패턴</p>
+                    <div class="pii-patterns-grid">
+                      <span class="pii-pattern-item">주민등록번호 <code>880101-1234567</code></span>
+                      <span class="pii-pattern-item">전화번호 <code>010-1234-5678</code></span>
+                      <span class="pii-pattern-item">계좌번호 <code>110-234-567890</code></span>
+                      <span class="pii-pattern-item">이메일 <code>hong@company.com</code></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </el-form>
 
             <!-- 외부 비즈니스 데이터베이스 연결 설정 -->
@@ -1003,7 +1048,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 
@@ -1081,6 +1126,10 @@ const formData = reactive({
     // 멀티턴 대화 설정
     multiturn_enabled: true,
     multiturn_max_turns: 5
+  },
+  pii: {
+    enabled: true,
+    strategy: 'redact'
   },
   external_database: {
     enabled: true,
@@ -1202,7 +1251,7 @@ const saveSettings = async () => {
     const categoriesToSave = category === 'api_keys'
       ? ['openai', 'anthropic', 'google']
       : category === 'nl2sql'
-        ? ['nl2sql', 'external_database']
+        ? ['nl2sql', 'external_database', 'pii']
         : category === 'rag'
           ? ['rag', 'embedding', 'chunking']
           : [category]
@@ -1888,6 +1937,45 @@ onMounted(async () => {
       line-height: 1.6;
       white-space: pre-wrap;
       word-wrap: break-word;
+    }
+  }
+
+  // PII 패턴 정보 스타일 (다크모드)
+  .pii-patterns-info {
+    background-color: #1a1a2e;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-top: 8px;
+    border: 1px solid #2a2a3e;
+
+    .pii-patterns-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #a0a0b0;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pii-patterns-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+    }
+
+    .pii-pattern-item {
+      font-size: 13px;
+      color: #c0c0d0;
+
+      code {
+        background-color: #2a2a3e;
+        color: #7ec8e3;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        margin-left: 4px;
+      }
     }
   }
 

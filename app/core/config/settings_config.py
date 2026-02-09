@@ -83,6 +83,10 @@ class SettingsConfig:
             "multiturn_enabled": ("true", "bool", "멀티턴 대화 활성화", False),
             "multiturn_max_turns": ("5", "int", "최대 대화 턴 수 (1-20, 기본 5)", False),
         },
+        "pii": {
+            "enabled": ("true", "bool", "PII 감지/마스킹 활성화", False),
+            "strategy": ("redact", "string", "PII 처리 전략 (redact, mask, hash, block)", False),
+        },
         "chunking": {
             "default_chunk_size": ("1000", "int", "기본 청크 크기 (문자)", False),
             "default_overlap": ("100", "int", "기본 오버랩 크기 (문자)", False),

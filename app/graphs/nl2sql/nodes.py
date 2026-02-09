@@ -820,6 +820,45 @@ def should_continue_after_execute(state: Dict[str, Any]) -> str:
     return "error"
 
 
+def pii_filter_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    PII 필터 노드
+
+    SQL 실행 결과에서 PII(개인정보)를 감지하고 마스킹합니다.
+    generate_answer_node(LLM 호출) 전에 실행되어
+    개인정보가 외부 LLM API로 전송되는 것을 방지합니다.
+
+    Args:
+        state: NL2SQLState (Dict 형태로 전달)
+
+    Returns:
+        업데이트된 state (sql_result.rows에서 PII 마스킹 적용)
+    """
+    from app.core.pii.pii_service import pii_service
+
+    request_id = state.get("request_id", "unknown")
+    sql_result = state.get("sql_result")
+
+    if not sql_result or not sql_result.rows:
+        log_step(logger, request_id, "NL2SQL", "3p", "PII", "PII 필터 스킵 (결과 없음)")
+        return state
+
+    if not pii_service.enabled:
+        log_step(logger, request_id, "NL2SQL", "3p", "PII", "PII 필터 비활성화")
+        return state
+
+    masked_rows, pii_count = pii_service.mask_sql_rows(sql_result.rows)
+
+    if pii_count > 0:
+        sql_result.rows = masked_rows
+        state["sql_result"] = sql_result
+        log_step(logger, request_id, "NL2SQL", "3p", "PII", f"PII 마스킹 완료 | detected={pii_count}, rows={len(masked_rows)}")
+    else:
+        log_step(logger, request_id, "NL2SQL", "3p", "PII", "PII 미감지", level="DEBUG")
+
+    return state
+
+
 def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     답변 생성 노드

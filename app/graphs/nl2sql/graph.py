@@ -3,11 +3,11 @@ NL2SQL 검색 그래프 (LangGraph)
 
 위치: app/graphs/nl2sql/graph.py
 
-그래프 흐름 (멀티턴 대화 + 의도 분석 지원):
+그래프 흐름 (멀티턴 대화 + 의도 분석 + PII 필터 지원):
     load_history → intent_rewrite → should_route_after_intent
                                      ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
                                      │                                                                                      ├─ execute → execute_sql → should_continue_after_execute
-                                     │                                                                                      │                            ├─ answer → generate_answer → save_history → END
+                                     │                                                                                      │                            ├─ answer → pii_filter → generate_answer → save_history → END
                                      │                                                                                      │                            ├─ retry → prepare_retry → fewshot_retrieval
                                      │                                                                                      │                            └─ error → handle_error → END
                                      │                                                                                      ├─ retry → prepare_retry → fewshot_retrieval
@@ -24,6 +24,7 @@ NL2SQL 검색 그래프 (LangGraph)
 - sql_generate: LLM 호출만 수행
 - validate_sql: SQL 안전성 및 유효성 검증
 - execute_sql: SQL 실행
+- pii_filter: SQL 결과에서 PII 감지/마스킹 (LLM 전송 전 개인정보 보호)
 - generate_answer: 결과를 자연어 답변으로 변환
 - save_history: 현재 대화를 이력에 저장 (멀티턴, sql_result_summary 포함)
 - handle_error: 오류 처리
@@ -59,6 +60,7 @@ from app.graphs.nl2sql.nodes import (
     sql_generate_node,
     validate_sql_node,
     execute_sql_node,
+    pii_filter_node,
     generate_answer_node,
     handle_error_node,
     prepare_retry_node,
@@ -97,11 +99,11 @@ class NL2SQLGraph:
     def _build_graph(self) -> CompiledStateGraph:
         """그래프 구성
 
-        흐름 (멀티턴 대화 + 의도 분석 지원):
+        흐름 (멀티턴 대화 + 의도 분석 + PII 필터 지원):
         load_history → intent_rewrite → should_route_after_intent
                                          ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
                                          │                                                                                       ├─ execute → execute_sql → should_continue_after_execute
-                                         │                                                                                       │                            ├─ answer → generate_answer → save_history → END
+                                         │                                                                                       │                            ├─ answer → pii_filter → generate_answer → save_history → END
                                          │                                                                                       │                            ├─ retry → prepare_retry → fewshot_retrieval
                                          │                                                                                       │                            └─ error → handle_error → END
                                          │                                                                                       ├─ retry → prepare_retry → fewshot_retrieval
@@ -120,6 +122,7 @@ class NL2SQLGraph:
         workflow.add_node("sql_generate", sql_generate_node)
         workflow.add_node("validate_sql", validate_sql_node)
         workflow.add_node("execute_sql", execute_sql_node)
+        workflow.add_node("pii_filter", pii_filter_node)
         workflow.add_node("generate_answer", generate_answer_node)
         workflow.add_node("save_history", save_history_node)
         workflow.add_node("handle_error", handle_error_node)
@@ -164,11 +167,14 @@ class NL2SQLGraph:
             "execute_sql",
             should_continue_after_execute,
             {
-                "answer": "generate_answer",
+                "answer": "pii_filter",    # 실행 성공 → PII 필터 → 답변 생성
                 "retry": "prepare_retry",  # 실행 오류 → 재시도 준비 → fewshot
                 "error": "handle_error"
             }
         )
+
+        # pii_filter → generate_answer (PII 마스킹 후 LLM 호출)
+        workflow.add_edge("pii_filter", "generate_answer")
 
         # prepare_retry → fewshot_retrieval
         workflow.add_edge("prepare_retry", "fewshot_retrieval")
