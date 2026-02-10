@@ -77,7 +77,10 @@
     </div>
 
     <!-- 차트 렌더링 영역 -->
-    <div v-if="chartGenerated" class="chart-area">
+    <div v-if="chartGenerated" class="chart-area" :class="{ 'white-bg': whiteBg }">
+      <button class="bg-toggle-btn" :title="whiteBg ? '다크 배경' : '흰색 배경'" @click="toggleBg">
+        <el-icon><Sunny v-if="whiteBg" /><Moon v-else /></el-icon>
+      </button>
       <v-chart :option="chartOption" autoresize class="chart-canvas" />
     </div>
   </div>
@@ -85,7 +88,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { TrendCharts, ArrowDown } from '@element-plus/icons-vue'
+import { TrendCharts, ArrowDown, Sunny, Moon } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -122,6 +125,12 @@ const xAxisColumn = ref('')
 const yAxisColumns = ref([])
 const chartGenerated = ref(false)
 const pieTopN = ref(10)
+const whiteBg = ref(false)
+
+const toggleBg = () => {
+  whiteBg.value = !whiteBg.value
+  if (chartGenerated.value) generateChart()
+}
 
 // 숫자 컬럼 자동 감지
 const columnTypes = computed(() => {
@@ -202,13 +211,13 @@ const getThemeColor = (varName) => {
 const chartOption = ref({})
 
 const generateChart = () => {
-  const textColor = getThemeColor('--text-color-primary')
-  const subTextColor = getThemeColor('--text-color-secondary')
-  const borderColor = getThemeColor('--border-color-lighter')
+  const textColor = whiteBg.value ? '#333333' : getThemeColor('--text-color-primary')
+  const subTextColor = whiteBg.value ? '#666666' : getThemeColor('--text-color-secondary')
+  const borderColor = whiteBg.value ? '#dcdcdc' : getThemeColor('--border-color-lighter')
 
   const baseStyle = {
     textStyle: { color: textColor },
-    backgroundColor: 'transparent'
+    backgroundColor: whiteBg.value ? '#ffffff' : 'transparent'
   }
 
   if (chartType.value === 'pie') {
@@ -298,7 +307,7 @@ const generateChart = () => {
           color: subTextColor,
           fontSize: 11,
           rotate: xData.length > 15 ? 90 : xData.length > 8 ? 45 : 0,
-          interval: xData.length > 30 ? Math.floor(xData.length / 20) : 0
+          interval: 0
         },
         axisLine: { lineStyle: { color: borderColor } },
         axisTick: { lineStyle: { color: borderColor } }
@@ -367,6 +376,48 @@ const generateChart = () => {
 .chart-area {
   @include mx.chart-render-area(400px);
   margin-top: 12px;
+  position: relative;
+  transition: background-color 0.2s;
+
+  &.white-bg {
+    background-color: #ffffff;
+  }
+
+  .bg-toggle-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-color-overlay, rgba(0, 0, 0, 0.3));
+    border: 1px solid var(--border-color-lighter);
+    border-radius: 6px;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+    font-size: 14px;
+
+    &:hover {
+      color: var(--text-color-primary);
+      background: var(--bg-color-hover, rgba(0, 0, 0, 0.5));
+    }
+  }
+
+  &.white-bg .bg-toggle-btn {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: #ddd;
+    color: #666;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.12);
+      color: #333;
+    }
+  }
 
   .chart-canvas {
     width: 100%;
