@@ -54,8 +54,8 @@
       @mouseenter="showSidebar"
       @mouseleave="hideSidebar"
     >
-      <!-- 트리거 탭 (항상 보임) -->
-      <div class="sidebar-trigger">
+      <!-- 트리거 탭 (항상 보임, 클릭으로 토글) -->
+      <div class="sidebar-trigger" @click.stop="toggleSidebar">
         <span class="trigger-arrow">{{ isSidebarVisible ? '»' : '«' }}</span>
       </div>
 
@@ -190,6 +190,13 @@ const hideSidebar = () => {
       sidebarHideTimer = null
     }, 500)
   }
+}
+
+// 트리거 클릭으로 즉시 토글
+const toggleSidebar = () => {
+  if (sidebarShowTimer) { clearTimeout(sidebarShowTimer); sidebarShowTimer = null }
+  if (sidebarHideTimer) { clearTimeout(sidebarHideTimer); sidebarHideTimer = null }
+  isSidebarVisible.value = !isSidebarVisible.value
 }
 
 const messages = computed(() => store.state.chat.messages)
