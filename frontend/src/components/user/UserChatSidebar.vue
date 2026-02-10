@@ -74,9 +74,7 @@
               :class="{ active: activeChatId === chat.session_key }"
               @click="handleSelectChat(chat.session_key)"
             >
-              <el-icon class="chat-icon"><ChatLineRound /></el-icon>
               <span class="chat-title">{{ chat.title }}</span>
-              <span class="chat-badge" :class="chat.request_type">{{ getTypeLabel(chat.request_type) }}</span>
               <button
                 class="chat-delete-btn"
                 @click.stop="handleDeleteChat(chat.session_key)"
@@ -166,11 +164,6 @@ const groupedHistory = computed(() => {
 
   return groups
 })
-
-const getTypeLabel = (type) => {
-  const labels = { agent: 'Agent', nl2sql: 'SQL', rag: 'RAG' }
-  return labels[type] || type
-}
 
 const handleNewChat = () => {
   store.dispatch('chat/newChat')
@@ -397,20 +390,10 @@ const clearSearch = () => {
       .chat-delete-btn {
         opacity: 1;
       }
-
-      .chat-badge {
-        display: none;
-      }
     }
 
     &.active {
       background-color: var(--user-sidebar-active-bg);
-    }
-
-    .chat-icon {
-      flex-shrink: 0;
-      font-size: 14px;
-      color: var(--user-sidebar-text-muted);
     }
 
     .chat-title {
@@ -421,34 +404,12 @@ const clearSearch = () => {
       min-width: 0;
     }
 
-    .chat-badge {
-      flex-shrink: 0;
-      font-size: 10px;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-weight: 600;
-      line-height: 1.4;
-
-      &.agent {
-        color: #a78bfa;
-        background-color: rgba(167, 139, 250, 0.12);
-      }
-      &.nl2sql {
-        color: #60a5fa;
-        background-color: rgba(96, 165, 250, 0.12);
-      }
-      &.rag {
-        color: #34d399;
-        background-color: rgba(52, 211, 153, 0.12);
-      }
-    }
-
     .chat-delete-btn {
       flex-shrink: 0;
       opacity: 0;
       background: none;
       border: none;
-      padding: 4px;
+      padding: 2px;
       cursor: pointer;
       color: var(--user-sidebar-text-muted);
       border-radius: 4px;

@@ -558,6 +558,9 @@ class HistoryService:
             logger.error(f"[HISTORY] User summary failed: {e}")
             return {"user_id": user_id, "total_requests": 0, "recent_requests": []}
 
+    # 사이드바 이력 표시 기간 (일) - 추후 변경 가능
+    SIDEBAR_HISTORY_DAYS = 30
+
     def get_session_list(
         self,
         search_query: Optional[str] = None,
@@ -570,7 +573,7 @@ class HistoryService:
         session_id가 있는 레코드는 session_id로 그룹핑하고,
         session_id가 NULL인 레코드(RAG 등)는 request_id를 session_key로 사용한다.
         """
-        conditions = ["success = true"]
+        conditions = ["success = true", f"created_at >= NOW() - INTERVAL '{self.SIDEBAR_HISTORY_DAYS} days'"]
         params = []
 
         if search_query:
@@ -611,7 +614,7 @@ class HistoryService:
         request_type: Optional[str] = None,
     ) -> int:
         """세션 단위 이력 총 개수 조회"""
-        conditions = ["success = true"]
+        conditions = ["success = true", f"created_at >= NOW() - INTERVAL '{self.SIDEBAR_HISTORY_DAYS} days'"]
         params = []
 
         if search_query:
