@@ -193,11 +193,11 @@ const props = defineProps({
   }
 })
 
-// 전역 테이블 복사 함수 등록 및 디버깅
+// 전역 테이블 복사 함수 등록
 onMounted(() => {
   registerTableCopyFunction()
 
-  if (props.message.role === 'assistant') {
+  if (import.meta.env.DEV && props.message.role === 'assistant') {
     console.log('[ChatMessage Mounted]', props.message)
     console.log('[ChatMessage Content]', props.message.content)
     console.log('[ChatMessage Content Type]', typeof props.message.content)
@@ -206,7 +206,9 @@ onMounted(() => {
 })
 
 watch(() => props.message.content, (newVal) => {
-  console.log('[ChatMessage Content Changed]', newVal)
+  if (import.meta.env.DEV) {
+    console.log('[ChatMessage Content Changed]', newVal)
+  }
 }, { immediate: true })
 
 // 마크다운 처리 (모듈 사용)
@@ -299,7 +301,6 @@ const formatTime = (timestamp) => {
 }
 
 .message-content {
-  white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
 
