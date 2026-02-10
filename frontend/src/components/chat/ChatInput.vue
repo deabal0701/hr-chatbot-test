@@ -5,7 +5,7 @@
       type="textarea"
       :rows="2"
       :autosize="{ minRows: 2, maxRows: 6 }"
-      placeholder="질문을 입력하세요..."
+      :placeholder="placeholder"
       :disabled="disabled"
       @keydown.enter.exact.prevent="handleSend"
     />
@@ -28,6 +28,10 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  placeholder: {
+    type: String,
+    default: '질문을 입력하세요...'
   }
 })
 

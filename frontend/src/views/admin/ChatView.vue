@@ -43,7 +43,7 @@
 
       <!-- 입력 영역 -->
       <div class="chat-input-area">
-        <ChatInput @send="handleSend" :disabled="isLoading" />
+        <ChatInput @send="handleSend" :disabled="isLoading" :placeholder="modePlaceholder" />
       </div>
     </div>
 
@@ -213,6 +213,13 @@ const nl2sqlExampleQueries = [
   '2000년 이후 재직자와 퇴직자 현황은?',
   '가장 최근에 입사한 직원 5명은?'
 ]
+
+// 검색 모드별 입력 플레이스홀더
+const modePlaceholder = computed(() => {
+  const modeLabels = { rag: 'RAG', nl2sql: 'NL2SQL', agent: 'Agent' }
+  const label = modeLabels[searchMode.value] || searchMode.value
+  return `[${label}] 질문을 입력하세요...`
+})
 
 const exampleQueries = computed(() => {
   if (searchMode.value === 'nl2sql') {
