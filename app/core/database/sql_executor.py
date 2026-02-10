@@ -321,8 +321,13 @@ class SQLExecutorService:
 
                 # 결과 가져오기 (어댑터 사용)
                 columns = adapter.get_column_names(cur)
-                rows = cur.fetchall()
-
+                rows = cur.fetchall()  
+                # rows는 튜플 리스트로 실제 값을 가짐
+                # 예시들:
+                # SELECT count(*) FROM emp        → [(42,)]          — 1행 1열
+                # SELECT name, age FROM emp       → [('김철수', 30), ('이영희', 25)]  — 2행 2열
+                # SELECT avg(score) FROM scores   → [(100,)]         — 1행 1열 (현재 케이스)
+                
                 execution_time_ms = int((time.time() - start_time) * 1000)
 
                 # 결과 변환 (어댑터 사용)
