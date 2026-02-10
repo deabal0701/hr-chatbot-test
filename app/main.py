@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import documents, search, agent, codes, history
+from app.api.routes import documents, search, agent, codes, history, export
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.api.services.history_service import history_service
@@ -87,6 +87,7 @@ app.include_router(settings_router.router)
 app.include_router(codes.router, prefix="/api/admin/v1")  # 코드 관리 라우터 (Phase A)
 app.include_router(agent.router)  # AI Agent 라우터
 app.include_router(history.router)  # API 요청 이력 라우터
+app.include_router(export.router)  # Excel 내보내기 라우터
 
 
 # 기본 엔드포인트

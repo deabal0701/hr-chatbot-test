@@ -79,6 +79,11 @@
               :columns="message.sqlResult.columns"
               :rows="message.sqlResult.rows"
             />
+            <div class="export-bar">
+              <el-button size="small" :icon="Download" :loading="exporting" @click="exportToExcel">
+                Excel 다운로드
+              </el-button>
+            </div>
           </el-collapse-item>
         </el-collapse>
       </div>
@@ -187,10 +192,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
-import { Document } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { Document, Download } from '@element-plus/icons-vue'
 import SourceCard from './SourceCard.vue'
 import ChartBuilder from '../chart/ChartBuilder.vue'
+import searchApi from '@/api/search'
+import { ElMessage } from 'element-plus'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
 const props = defineProps({
@@ -250,6 +257,29 @@ const turnInfo = computed(() => {
   }
   return null
 })
+
+const exporting = ref(false)
+
+// Excel 내보내기
+const exportToExcel = async () => {
+  exporting.value = true
+  try {
+    const msg = props.message
+    await searchApi.exportExcel({
+      columns: msg.sqlResult.columns,
+      rows: msg.sqlResult.rows,
+      question: msg.content || '',
+      sql: msg.sql || '',
+      answer: msg.content || '',
+      execution_time_ms: msg.sqlResult.execution_time_ms || 0
+    })
+    ElMessage.success('Excel 파일이 다운로드되었습니다.')
+  } catch {
+    ElMessage.error('Excel 다운로드에 실패했습니다.')
+  } finally {
+    exporting.value = false
+  }
+}
 
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
@@ -376,6 +406,12 @@ const formatTime = (timestamp) => {
     font-size: 12px;
     color: var(--text-color-secondary);
     text-align: center;
+  }
+
+  .export-bar {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
   }
 }
 

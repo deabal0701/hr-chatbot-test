@@ -46,6 +46,16 @@ class SearchRequest(BaseModel):
     }
 
 
+class ExcelExportRequest(BaseModel):
+    """Excel 내보내기 요청"""
+    columns: List[str] = Field(..., description="컬럼 목록")
+    rows: List[Dict[str, Any]] = Field(..., description="데이터 행 목록")
+    question: Optional[str] = Field(default="", description="사용자 질문")
+    sql: Optional[str] = Field(default="", description="실행된 SQL")
+    answer: Optional[str] = Field(default="", description="AI 답변")
+    execution_time_ms: Optional[int] = Field(default=0, description="SQL 실행 시간(ms)")
+
+
 class SearchResponse(BaseModel):
     """
     통합 검색 응답

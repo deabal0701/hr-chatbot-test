@@ -72,6 +72,11 @@
               :columns="message.sqlResult.columns"
               :rows="message.sqlResult.rows"
             />
+            <div class="export-bar">
+              <el-button size="small" :icon="Download" :loading="exporting" @click="exportToExcel">
+                Excel 다운로드
+              </el-button>
+            </div>
           </div>
         </div>
 
@@ -210,8 +215,9 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument, TrendCharts } from '@element-plus/icons-vue'
+import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument, TrendCharts, Download } from '@element-plus/icons-vue'
 import ChartBuilder from '../chart/ChartBuilder.vue'
+import searchApi from '@/api/search'
 import { ElMessage } from 'element-plus'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
@@ -226,6 +232,7 @@ const showSources = ref(false)
 const showSql = ref(false)
 const showAgentSteps = ref(false)
 const showResult = ref(false)
+const exporting = ref(false)
 
 // 전역 테이블 복사 함수 등록
 onMounted(() => {
@@ -309,6 +316,27 @@ const formatTime = (timestamp) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// Excel 내보내기
+const exportToExcel = async () => {
+  exporting.value = true
+  try {
+    const msg = props.message
+    await searchApi.exportExcel({
+      columns: msg.sqlResult.columns,
+      rows: msg.sqlResult.rows,
+      question: msg.content || '',
+      sql: msg.sql || '',
+      answer: msg.content || '',
+      execution_time_ms: msg.sqlResult.execution_time_ms || 0
+    })
+    ElMessage.success('Excel 파일이 다운로드되었습니다.')
+  } catch {
+    ElMessage.error('Excel 다운로드에 실패했습니다.')
+  } finally {
+    exporting.value = false
+  }
 }
 
 // 현재 메시지 내용만 복사
@@ -549,6 +577,12 @@ const copyContent = async () => {
       font-size: 12px;
       color: var(--text-color-secondary);
       text-align: center;
+    }
+
+    .export-bar {
+      margin-top: 12px;
+      display: flex;
+      justify-content: flex-end;
     }
   }
 }
