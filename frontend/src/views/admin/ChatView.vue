@@ -47,83 +47,96 @@
       </div>
     </div>
 
-    <!-- 우측: 설정 및 정보 -->
-    <div class="chat-sidebar">
-      <!-- 프롬프트 가이드 - 추후 사용 예정
-      <div class="sidebar-section content-card">
-        <h4>프롬프트 가이드</h4>
-        <el-button
-          type="info"
-          plain
-          :icon="QuestionFilled"
-          @click="showGuideModal = true"
-        >
-          작성 가이드 보기
-        </el-button>
+    <!-- 우측: 오버레이 사이드바 -->
+    <div
+      class="sidebar-overlay-wrapper"
+      :class="{ visible: isSidebarVisible }"
+      @mouseenter="showSidebar"
+      @mouseleave="hideSidebar"
+    >
+      <!-- 트리거 탭 (항상 보임) -->
+      <div class="sidebar-trigger">
+        <span class="trigger-arrow">{{ isSidebarVisible ? '»' : '«' }}</span>
       </div>
-      -->
 
-      <!-- 검색 모드 선택 -->
-      <div class="sidebar-section content-card">
-        <h4>검색 모드</h4>
-        <div class="mode-selector-wrapper">
-          <!-- Auto 모드 - 추후 사용 예정
-          <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-primary">
-            <el-radio-button value="auto">Auto</el-radio-button>
-          </el-radio-group>
-          -->
-          <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
-            <el-radio-button value="rag">RAG</el-radio-button>
-            <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
-            <el-radio-button value="agent">Agent</el-radio-button>
-          </el-radio-group>
+      <!-- 사이드바 패널 -->
+      <div class="chat-sidebar">
+        <!-- 프롬프트 가이드 - 추후 사용 예정
+        <div class="sidebar-section content-card">
+          <h4>프롬프트 가이드</h4>
+          <el-button
+            type="info"
+            plain
+            :icon="QuestionFilled"
+            @click="showGuideModal = true"
+          >
+            작성 가이드 보기
+          </el-button>
         </div>
-        <p class="mode-description">
-          <!-- Auto 모드 설명 - 추후 사용 예정
-          <template v-if="searchMode === 'auto'">
-            질문을 분석하여 자동으로 적합한 검색 방식을 선택합니다.
-          </template>
-          -->
-          <template v-if="searchMode === 'rag'">
-            문서 기반 검색 (정책, 가이드, 규정 등)
-          </template>
-          <template v-else-if="searchMode === 'nl2sql'">
-            데이터베이스 조회 (통계, 수치 데이터 등)
-          </template>
-          <!-- Agent 모드 설명 - 추후 사용 예정
-          <template v-else-if="searchMode === 'agent'">
-            AI Agent가 도구를 자율 선택하여 복합 질문 처리<br>
-            <small>(DB 조회 → 문서 검색 → 계산)</small>
-          </template>
-          -->
-        </p>
-      </div>
+        -->
 
-      <!-- 대화 관리 -->
-      <div class="sidebar-section content-card">
-        <h4>대화 관리</h4>
-        <el-button
-          type="danger"
-          plain
-          :icon="Delete"
-          :disabled="messages.length === 0"
-          @click="clearChat"
-        >
-          대화 초기화
-        </el-button>
-      </div>
+        <!-- 검색 모드 선택 -->
+        <div class="sidebar-section content-card">
+          <h4>검색 모드</h4>
+          <div class="mode-selector-wrapper">
+            <!-- Auto 모드 - 추후 사용 예정
+            <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-primary">
+              <el-radio-button value="auto">Auto</el-radio-button>
+            </el-radio-group>
+            -->
+            <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
+              <el-radio-button value="rag">RAG</el-radio-button>
+              <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
+              <el-radio-button value="agent">Agent</el-radio-button>
+            </el-radio-group>
+          </div>
+          <p class="mode-description">
+            <!-- Auto 모드 설명 - 추후 사용 예정
+            <template v-if="searchMode === 'auto'">
+              질문을 분석하여 자동으로 적합한 검색 방식을 선택합니다.
+            </template>
+            -->
+            <template v-if="searchMode === 'rag'">
+              문서 기반 검색 (정책, 가이드, 규정 등)
+            </template>
+            <template v-else-if="searchMode === 'nl2sql'">
+              데이터베이스 조회 (통계, 수치 데이터 등)
+            </template>
+            <!-- Agent 모드 설명 - 추후 사용 예정
+            <template v-else-if="searchMode === 'agent'">
+              AI Agent가 도구를 자율 선택하여 복합 질문 처리<br>
+              <small>(DB 조회 → 문서 검색 → 계산)</small>
+            </template>
+            -->
+          </p>
+        </div>
 
-      <!-- 사용자 화면 -->
-      <div class="sidebar-section content-card">
-        <h4>사용자 화면</h4>
-        <el-button
-          type="primary"
-          plain
-          :icon="Monitor"
-          @click="openUserChat"
-        >
-          새 창으로 열기
-        </el-button>
+        <!-- 대화 관리 -->
+        <div class="sidebar-section content-card">
+          <h4>대화 관리</h4>
+          <el-button
+            type="danger"
+            plain
+            :icon="Delete"
+            :disabled="messages.length === 0"
+            @click="clearChat"
+          >
+            대화 초기화
+          </el-button>
+        </div>
+
+        <!-- 사용자 화면 -->
+        <div class="sidebar-section content-card">
+          <h4>사용자 화면</h4>
+          <el-button
+            type="primary"
+            plain
+            :icon="Monitor"
+            @click="openUserChat"
+          >
+            새 창으로 열기
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -147,6 +160,24 @@ import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 const store = useStore()
 const messagesContainer = ref(null)
 const showGuideModal = ref(false)
+
+// 사이드바 호버 슬라이드
+const isSidebarVisible = ref(false)
+let sidebarHideTimer = null
+
+const showSidebar = () => {
+  if (sidebarHideTimer) {
+    clearTimeout(sidebarHideTimer)
+    sidebarHideTimer = null
+  }
+  isSidebarVisible.value = true
+}
+
+const hideSidebar = () => {
+  sidebarHideTimer = setTimeout(() => {
+    isSidebarVisible.value = false
+  }, 300)
+}
 
 const messages = computed(() => store.state.chat.messages)
 const isLoading = computed(() => store.state.chat.isLoading)
@@ -222,8 +253,9 @@ watch(messages, async () => {
 
 .chat-view {
   display: flex;
-  gap: 20px;
+  position: relative;
   height: calc(100vh - 120px);
+  overflow: hidden;
 }
 
 .chat-container {
@@ -283,9 +315,77 @@ watch(messages, async () => {
   transition: var(--theme-transition);
 }
 
+// 우측 오버레이 사이드바 래퍼 (트리거 + 사이드바를 flex로 묶어 한 덩어리로 슬라이딩)
+.sidebar-overlay-wrapper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  display: flex;
+  z-index: 10;
+  transform: translateX(280px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.visible {
+    transform: translateX(0);
+
+    .chat-sidebar {
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar-trigger .trigger-arrow {
+      opacity: 0.8;
+      color: var(--color-primary, #409eff);
+      background-color: var(--bg-color-card);
+    }
+  }
+}
+
+// 트리거 영역 (투명 flex 아이템, 중앙에 작은 탭만 표시)
+.sidebar-trigger {
+  width: 24px;
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+
+  .trigger-arrow {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-color-card);
+    border: 1px solid var(--border-color);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-color-secondary);
+    opacity: 0.5;
+    user-select: none;
+    transition: opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+  }
+
+  &:hover .trigger-arrow {
+    opacity: 1;
+    color: var(--color-primary, #409eff);
+  }
+}
+
+// 사이드바 패널 (flex 아이템)
 .chat-sidebar {
   width: 280px;
   flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding-top: 0;
+  background-color: var(--bg-color-page);
+  border-left: 1px solid var(--border-color);
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-section {

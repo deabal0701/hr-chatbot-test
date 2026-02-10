@@ -58,3 +58,19 @@
     transform: rotate(180deg);
   }
 }
+
+// 우측 오버레이 사이드바 슬라이드
+@mixin sidebar-overlay-slide($width: 280px, $duration: 0.3s) {
+  width: $width;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform $duration cubic-bezier(0.4, 0, 0.2, 1),
+              opacity $duration cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow $duration cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.visible {
+    transform: translateX(0);
+    opacity: 1;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+  }
+}
