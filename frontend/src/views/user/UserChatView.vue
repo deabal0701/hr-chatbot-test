@@ -467,7 +467,7 @@ watch(messages, async () => {
 
 .chat-content {
   width: 100%;
-  max-width: 1000px;
+  max-width: 1200px;
   padding: 0 32px;
 }
 
@@ -618,7 +618,7 @@ watch(messages, async () => {
 }
 
 .input-container {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
