@@ -218,9 +218,10 @@ const toggleDarkMode = () => {
   store.dispatch('app/toggleDarkMode')
 }
 
-// 사용자 화면 진입 시 currentView 설정
+// 사용자 화면 진입 시 currentView 설정 + 채팅 이력 로드
 onMounted(() => {
   store.dispatch('app/setCurrentView', 'user')
+  store.dispatch('chat/fetchChatHistory')
 })
 
 // 사용자 화면 이탈 시 관리자로 복원 (선택적)

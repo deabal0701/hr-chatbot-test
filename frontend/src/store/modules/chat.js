@@ -1,5 +1,6 @@
 import searchApi from '@/api/search'
 import agentApi from '@/api/agent'
+import historyApi from '@/api/history'
 
 // 채팅 상태 모듈
 export default {
@@ -11,9 +12,10 @@ export default {
     searchMode: 'nl2sql', // 'auto' | 'rag' | 'nl2sql' | 'agent' (기본값: nl2sql)
     error: null,
     sessionId: null, // Agent 멀티턴 대화용 세션 ID (서버에서 생성)
-    // 채팅 히스토리 (하드코딩 샘플 - 향후 API 연동)
+    // 채팅 히스토리 (API 연동)
     chatHistory: [],
-    activeChatId: null, // 현재 선택된 채팅 ID
+    historyLoading: false,
+    activeChatId: null, // 현재 선택된 채팅의 session_key
     // SSE 스트리밍 상태
     isStreaming: false,
     streamProgress: [],
@@ -82,6 +84,16 @@ export default {
     },
     SET_STREAM_CONTROLLER(state, controller) {
       state.streamController = controller
+    },
+    // 채팅 이력 mutations
+    SET_CHAT_HISTORY(state, history) {
+      state.chatHistory = history
+    },
+    SET_HISTORY_LOADING(state, loading) {
+      state.historyLoading = loading
+    },
+    REMOVE_CHAT_HISTORY_ITEM(state, sessionKey) {
+      state.chatHistory = state.chatHistory.filter(item => item.session_key !== sessionKey)
     }
   },
 
@@ -90,7 +102,8 @@ export default {
     hasError: (state) => state.error !== null,
     lastMessage: (state) => state.messages.length > 0 ? state.messages[state.messages.length - 1] : null,
     getChatHistory: (state) => state.chatHistory,
-    getActiveChatId: (state) => state.activeChatId
+    getActiveChatId: (state) => state.activeChatId,
+    isHistoryLoading: (state) => state.historyLoading
   },
 
   actions: {
@@ -138,6 +151,9 @@ export default {
           metadata: response.metadata,
           sessionId: response.session_id
         })
+
+        // 이력 갱신
+        dispatch('fetchChatHistory')
       } catch (error) {
         // 새 에러 형식: error.code, error.message 사용
         const errorCode = error.code || 'UNKNOWN_ERROR'
@@ -157,7 +173,7 @@ export default {
       }
     },
 
-    async sendMessageStream({ commit, state }, query) {
+    async sendMessageStream({ commit, state, dispatch }, query) {
       commit('SET_LOADING', true)
       commit('SET_STREAMING', true)
       commit('CLEAR_STREAM_PROGRESS')
@@ -240,6 +256,9 @@ export default {
           commit('SET_STREAMING', false)
           commit('SET_LOADING', false)
           commit('SET_STREAM_CONTROLLER', null)
+
+          // 이력 갱신
+          dispatch('fetchChatHistory')
         },
         onError: (error) => {
           const errorMessage = error.message || '스트리밍 중 오류가 발생했습니다.'
@@ -300,10 +319,111 @@ export default {
       commit('SET_SESSION_ID', null)
     },
 
-    selectChat({ commit }, chatId) {
-      commit('SET_ACTIVE_CHAT', chatId)
-      // 샘플 채팅이므로 메시지는 초기화 (향후 API에서 로드)
+    // =========================================================================
+    // 채팅 이력 액션
+    // =========================================================================
+
+    async fetchChatHistory({ commit }, searchQuery = null) {
+      commit('SET_HISTORY_LOADING', true)
+      try {
+        const params = { limit: 50, offset: 0 }
+        if (searchQuery) params.search = searchQuery
+        const response = await historyApi.listSessions(params)
+        commit('SET_CHAT_HISTORY', response.items || [])
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('[fetchChatHistory] Failed:', error)
+        }
+        commit('SET_CHAT_HISTORY', [])
+      } finally {
+        commit('SET_HISTORY_LOADING', false)
+      }
+    },
+
+    async loadChatSession({ commit }, sessionKey) {
+      commit('SET_LOADING', true)
+      commit('SET_ACTIVE_CHAT', sessionKey)
       commit('CLEAR_MESSAGES')
+      commit('CLEAR_ERROR')
+
+      try {
+        const response = await historyApi.getSessionHistory(sessionKey)
+        const records = response.items || []
+
+        // 이력 레코드를 메시지 배열로 변환
+        for (const record of records) {
+          // 사용자 메시지
+          commit('ADD_MESSAGE', {
+            role: 'user',
+            content: record.question,
+            timestamp: new Date(record.requested_at || record.created_at)
+          })
+
+          // AI 응답 메시지
+          const traceData = record.trace_data || {}
+          const assistantMsg = {
+            role: 'assistant',
+            content: record.answer || '',
+            queryType: record.request_type,
+            timestamp: new Date(record.completed_at || record.created_at),
+            isHistory: true
+          }
+
+          // request_type별 추가 데이터 매핑
+          if (record.request_type === 'agent') {
+            assistantMsg.agentResult = {
+              steps: traceData.steps || [],
+              totalIterations: traceData.iteration_count || 0,
+              toolsUsed: traceData.tools_used || [],
+              success: record.success
+            }
+          } else if (record.request_type === 'nl2sql') {
+            assistantMsg.sql = traceData.sql
+            assistantMsg.sqlResult = traceData.sql_result
+          } else if (record.request_type === 'rag') {
+            assistantMsg.sources = traceData.sources
+          }
+
+          commit('ADD_MESSAGE', assistantMsg)
+        }
+
+        // 세션 ID 설정 (멀티턴 대화 재개용)
+        if (records.length > 0 && records[0].session_id) {
+          commit('SET_SESSION_ID', records[0].session_id)
+          // 세션의 request_type으로 모드 설정
+          const mode = records[records.length - 1].request_type
+          if (mode) commit('SET_MODE', mode)
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('[loadChatSession] Failed:', error)
+        }
+        commit('SET_ERROR', {
+          code: error.code || 'LOAD_ERROR',
+          message: '대화 이력을 불러오는데 실패했습니다.'
+        })
+      } finally {
+        commit('SET_LOADING', false)
+      }
+    },
+
+    async deleteChatHistory({ commit, state }, sessionKey) {
+      try {
+        await historyApi.deleteSession(sessionKey)
+        commit('REMOVE_CHAT_HISTORY_ITEM', sessionKey)
+        // 현재 보고 있는 채팅이 삭제된 경우 초기화
+        if (state.activeChatId === sessionKey) {
+          commit('CREATE_NEW_CHAT')
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('[deleteChatHistory] Failed:', error)
+        }
+      }
+    },
+
+    selectChat({ dispatch }, sessionKey) {
+      dispatch('loadChatSession', sessionKey)
     },
 
     newChat({ commit }) {

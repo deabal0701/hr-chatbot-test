@@ -167,23 +167,68 @@ async def get_user_history(
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
 
 
-@router.get("/sessions/{session_id}")
-async def get_session_history(session_id: str):
-    """
-    세션별 이력 조회
-
-    멀티턴 대화 세션의 전체 이력 조회
-    """
+@router.get("/sessions")
+async def list_sessions(
+    search: Optional[str] = Query(None, description="검색어 (질문 내용 필터)"),
+    request_type: Optional[str] = Query(None, description="요청 타입 (agent/nl2sql/rag)"),
+    limit: int = Query(50, ge=1, le=200, description="조회 개수"),
+    offset: int = Query(0, ge=0, description="오프셋"),
+):
+    """세션 단위 이력 목록 조회 (사용자 사이드바용)"""
     try:
-        items = history_service.get_session_history(session_id)
+        items = history_service.get_session_list(
+            search_query=search,
+            request_type=request_type,
+            limit=limit,
+            offset=offset,
+        )
+        total = history_service.get_session_list_count(
+            search_query=search,
+            request_type=request_type,
+        )
         return success_response({
-            "session_id": session_id,
+            "total": total,
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(items) < total
+        })
+    except Exception as e:
+        logger.error(f"[HISTORY] Session list failed: {e}")
+        raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
+
+
+@router.get("/sessions/{session_key}")
+async def get_session_history(session_key: str):
+    """세션별 이력 상세 조회 (session_id 또는 request_id)"""
+    try:
+        items = history_service.get_session_detail(session_key)
+        return success_response({
+            "session_key": session_key,
             "total": len(items),
             "items": items
         })
-
     except Exception as e:
         logger.error(f"[HISTORY] Session history failed: {e}")
+        raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
+
+
+@router.delete("/sessions/{session_key}")
+async def delete_session_history(session_key: str):
+    """세션 단위 이력 삭제"""
+    try:
+        deleted = history_service.delete_session(session_key)
+        if not deleted:
+            raise APIException(error_code=ErrorCode.NOT_FOUND, message=f"Session {session_key} not found")
+        return success_response({
+            "message": f"Session {session_key} deleted",
+            "session_key": session_key,
+            "deleted_count": deleted
+        })
+    except APIException:
+        raise
+    except Exception as e:
+        logger.error(f"[HISTORY] Session delete failed: {e}")
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
 
 

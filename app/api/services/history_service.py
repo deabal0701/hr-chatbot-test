@@ -558,6 +558,114 @@ class HistoryService:
             logger.error(f"[HISTORY] User summary failed: {e}")
             return {"user_id": user_id, "total_requests": 0, "recent_requests": []}
 
+    def get_session_list(
+        self,
+        search_query: Optional[str] = None,
+        request_type: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """세션 단위 이력 목록 조회 (사이드바용)
+
+        session_id가 있는 레코드는 session_id로 그룹핑하고,
+        session_id가 NULL인 레코드(RAG 등)는 request_id를 session_key로 사용한다.
+        """
+        conditions = ["success = true"]
+        params = []
+
+        if search_query:
+            conditions.append("question ILIKE %s")
+            params.append(f"%{search_query}%")
+
+        if request_type:
+            conditions.append("request_type = %s")
+            params.append(request_type)
+
+        where_clause = " AND ".join(conditions)
+        params.extend([limit, offset])
+
+        try:
+            with db_manager.get_cursor() as cur:
+                cur.execute(f"""
+                    SELECT
+                        COALESCE(session_id, request_id) as session_key,
+                        (ARRAY_AGG(question ORDER BY created_at ASC))[1] as title,
+                        MAX(request_type) as request_type,
+                        COUNT(*) as message_count,
+                        MIN(created_at) as created_at,
+                        MAX(created_at) as last_activity
+                    FROM tb_api_history
+                    WHERE {where_clause}
+                    GROUP BY COALESCE(session_id, request_id)
+                    ORDER BY last_activity DESC
+                    LIMIT %s OFFSET %s
+                """, params)
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"[HISTORY] Session list failed: {e}")
+            return []
+
+    def get_session_list_count(
+        self,
+        search_query: Optional[str] = None,
+        request_type: Optional[str] = None,
+    ) -> int:
+        """세션 단위 이력 총 개수 조회"""
+        conditions = ["success = true"]
+        params = []
+
+        if search_query:
+            conditions.append("question ILIKE %s")
+            params.append(f"%{search_query}%")
+
+        if request_type:
+            conditions.append("request_type = %s")
+            params.append(request_type)
+
+        where_clause = " AND ".join(conditions)
+
+        try:
+            with db_manager.get_cursor() as cur:
+                cur.execute(f"""
+                    SELECT COUNT(DISTINCT COALESCE(session_id, request_id)) as cnt
+                    FROM tb_api_history
+                    WHERE {where_clause}
+                """, params)
+                row = cur.fetchone()
+                return row['cnt'] if row else 0
+        except Exception as e:
+            logger.error(f"[HISTORY] Session list count failed: {e}")
+            return 0
+
+    def delete_session(self, session_key: str) -> int:
+        """세션 단위 이력 삭제 (session_id 또는 request_id로 삭제)"""
+        try:
+            with db_manager.get_cursor(commit=True) as cur:
+                cur.execute(
+                    "DELETE FROM tb_api_history WHERE session_id = %s OR request_id = %s",
+                    (session_key, session_key)
+                )
+                deleted = cur.rowcount
+                log_step(logger, "system", "HISTORY", "DELETE_SESSION", "COMPLETE", f"Session deleted | session_key={session_key}, deleted={deleted}")
+                return deleted
+        except Exception as e:
+            logger.error(f"[HISTORY] Session delete failed: {e}")
+            return 0
+
+    def get_session_detail(self, session_key: str) -> List[Dict[str, Any]]:
+        """세션 키로 이력 상세 조회 (session_id 또는 request_id)"""
+        try:
+            with db_manager.get_cursor() as cur:
+                cur.execute("""
+                    SELECT * FROM tb_api_history
+                    WHERE session_id = %s OR request_id = %s
+                    ORDER BY created_at ASC
+                """, (session_key, session_key))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"[HISTORY] Session detail failed: {e}")
+            return []
+
     def delete_by_request_id(self, request_id: str) -> bool:
         """단일 요청 이력 삭제
 

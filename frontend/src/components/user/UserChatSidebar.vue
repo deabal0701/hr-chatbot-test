@@ -30,29 +30,68 @@
       </button>
     </div>
 
-    <!-- Chat History -->
-    <div class="chat-history-section">
-      <div class="section-title"><!-- 내 채팅 (일단 주석처리함. ) --> </div>
-      <div class="chat-list">
-        <div
-          v-for="chat in chatHistory"
-          :key="chat.id"
-          class="chat-item"
-          :class="{ active: activeChatId === chat.id }"
-          @click="handleSelectChat(chat.id)"
-        >
-          <el-icon><ChatLineRound /></el-icon>
-          <span class="chat-title">{{ chat.title }}</span>
-        </div>
+    <!-- Search Input -->
+    <div class="search-section">
+      <div class="search-input-wrapper">
+        <el-icon class="search-icon"><Search /></el-icon>
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="이력 검색..."
+          @input="handleSearchInput"
+        />
+        <button v-if="searchQuery" class="search-clear-btn" @click="clearSearch">
+          <el-icon><Close /></el-icon>
+        </button>
       </div>
     </div>
 
-    <!-- Footer with User Label (관리자 링크 주석처리 - 로그인 기능 없음) -->
+    <!-- Chat History -->
+    <div class="chat-history-section">
+      <!-- Loading State -->
+      <div v-if="historyLoading && chatHistory.length === 0" class="history-loading">
+        <div v-for="i in 5" :key="i" class="skeleton-item">
+          <div class="skeleton-line"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="chatHistory.length === 0" class="history-empty">
+        <el-icon class="empty-icon"><ChatLineRound /></el-icon>
+        <p>{{ searchQuery ? '검색 결과가 없습니다' : '검색 이력이 없습니다' }}</p>
+      </div>
+
+      <!-- Grouped Chat List -->
+      <template v-else>
+        <div v-for="group in groupedHistory" :key="group.label" class="history-group">
+          <div class="group-label">{{ group.label }}</div>
+          <div class="chat-list">
+            <div
+              v-for="chat in group.items"
+              :key="chat.session_key"
+              class="chat-item"
+              :class="{ active: activeChatId === chat.session_key }"
+              @click="handleSelectChat(chat.session_key)"
+            >
+              <el-icon class="chat-icon"><ChatLineRound /></el-icon>
+              <span class="chat-title">{{ chat.title }}</span>
+              <span class="chat-badge" :class="chat.request_type">{{ getTypeLabel(chat.request_type) }}</span>
+              <button
+                class="chat-delete-btn"
+                @click.stop="handleDeleteChat(chat.session_key)"
+                title="삭제"
+              >
+                <el-icon><Delete /></el-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Footer with User Label -->
     <div class="sidebar-footer">
-      <!-- <router-link to="/admin" class="admin-link">
-        <el-icon><Setting /></el-icon>
-        <span>Admin</span>
-      </router-link> -->
       <div class="user-link">
         <el-icon><User /></el-icon>
         <span>User</span>
@@ -62,9 +101,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useStore } from 'vuex'
-import { Close, EditPen, ChatLineRound, Fold, User } from '@element-plus/icons-vue'
+import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete } from '@element-plus/icons-vue'
 
 const props = defineProps({
   isMobile: {
@@ -77,8 +116,61 @@ const emit = defineEmits(['new-chat', 'select-chat', 'close', 'toggle'])
 
 const store = useStore()
 
+const searchQuery = ref('')
+let searchTimer = null
+
 const chatHistory = computed(() => store.getters['chat/getChatHistory'])
 const activeChatId = computed(() => store.getters['chat/getActiveChatId'])
+const historyLoading = computed(() => store.getters['chat/isHistoryLoading'])
+
+// 날짜 그룹핑 (ChatGPT 스타일)
+const groupedHistory = computed(() => {
+  const groups = []
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const weekAgo = new Date(today)
+  weekAgo.setDate(weekAgo.getDate() - 7)
+  const monthAgo = new Date(today)
+  monthAgo.setDate(monthAgo.getDate() - 30)
+
+  const buckets = {
+    today: { label: '오늘', items: [] },
+    yesterday: { label: '어제', items: [] },
+    week: { label: '지난 7일', items: [] },
+    month: { label: '지난 30일', items: [] },
+    older: { label: '이전', items: [] }
+  }
+
+  for (const chat of chatHistory.value) {
+    const date = new Date(chat.last_activity || chat.created_at)
+    if (date >= today) {
+      buckets.today.items.push(chat)
+    } else if (date >= yesterday) {
+      buckets.yesterday.items.push(chat)
+    } else if (date >= weekAgo) {
+      buckets.week.items.push(chat)
+    } else if (date >= monthAgo) {
+      buckets.month.items.push(chat)
+    } else {
+      buckets.older.items.push(chat)
+    }
+  }
+
+  for (const bucket of Object.values(buckets)) {
+    if (bucket.items.length > 0) {
+      groups.push(bucket)
+    }
+  }
+
+  return groups
+})
+
+const getTypeLabel = (type) => {
+  const labels = { agent: 'Agent', nl2sql: 'SQL', rag: 'RAG' }
+  return labels[type] || type
+}
 
 const handleNewChat = () => {
   store.dispatch('chat/newChat')
@@ -88,12 +180,28 @@ const handleNewChat = () => {
   }
 }
 
-const handleSelectChat = (chatId) => {
-  store.dispatch('chat/selectChat', chatId)
-  emit('select-chat', chatId)
+const handleSelectChat = (sessionKey) => {
+  store.dispatch('chat/selectChat', sessionKey)
+  emit('select-chat', sessionKey)
   if (props.isMobile) {
     emit('close')
   }
+}
+
+const handleDeleteChat = (sessionKey) => {
+  store.dispatch('chat/deleteChatHistory', sessionKey)
+}
+
+const handleSearchInput = () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    store.dispatch('chat/fetchChatHistory', searchQuery.value || null)
+  }, 300)
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  store.dispatch('chat/fetchChatHistory')
 }
 </script>
 
@@ -161,7 +269,7 @@ const handleSelectChat = (chatId) => {
 }
 
 .new-chat-section {
-  padding: 16px;
+  padding: 12px 16px 0;
   flex-shrink: 0;
 
   .new-chat-btn {
@@ -189,43 +297,120 @@ const handleSelectChat = (chatId) => {
   }
 }
 
+.search-section {
+  padding: 12px 16px;
+  flex-shrink: 0;
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--user-sidebar-text-muted);
+    font-size: 14px;
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 32px 0 32px;
+    border: 1px solid var(--user-sidebar-border);
+    border-radius: 8px;
+    background-color: transparent;
+    color: var(--user-sidebar-text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+
+    &::placeholder {
+      color: var(--user-sidebar-text-muted);
+    }
+
+    &:focus {
+      border-color: var(--user-sidebar-text-muted);
+    }
+  }
+
+  .search-clear-btn {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--user-sidebar-text-muted);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+
+    &:hover {
+      color: var(--user-sidebar-text);
+    }
+  }
+}
+
 .chat-history-section {
   flex: 1;
   overflow-y: auto;
   padding: 0 12px;
 
-  .section-title {
-    font-size: 12px;
+  .history-group {
+    margin-bottom: 4px;
+  }
+
+  .group-label {
+    font-size: 11px;
     font-weight: 600;
     color: var(--user-sidebar-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 12px 8px 8px;
+    padding: 10px 8px 6px;
+    letter-spacing: 0.02em;
   }
 
   .chat-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
   }
 
   .chat-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 9px 10px;
     border-radius: 8px;
     color: var(--user-sidebar-text);
-    font-size: 14px;
+    font-size: 13px;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.15s;
+    position: relative;
 
     &:hover {
       background-color: var(--user-sidebar-hover-bg);
+
+      .chat-delete-btn {
+        opacity: 1;
+      }
+
+      .chat-badge {
+        display: none;
+      }
     }
 
     &.active {
       background-color: var(--user-sidebar-active-bg);
+    }
+
+    .chat-icon {
+      flex-shrink: 0;
+      font-size: 14px;
+      color: var(--user-sidebar-text-muted);
     }
 
     .chat-title {
@@ -233,31 +418,111 @@ const handleSelectChat = (chatId) => {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .chat-badge {
+      flex-shrink: 0;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+      line-height: 1.4;
+
+      &.agent {
+        color: #a78bfa;
+        background-color: rgba(167, 139, 250, 0.12);
+      }
+      &.nl2sql {
+        color: #60a5fa;
+        background-color: rgba(96, 165, 250, 0.12);
+      }
+      &.rag {
+        color: #34d399;
+        background-color: rgba(52, 211, 153, 0.12);
+      }
+    }
+
+    .chat-delete-btn {
+      flex-shrink: 0;
+      opacity: 0;
+      background: none;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      color: var(--user-sidebar-text-muted);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      transition: opacity 0.15s, color 0.15s;
+
+      &:hover {
+        color: #f56c6c;
+      }
     }
   }
+
+  // Loading skeleton
+  .history-loading {
+    padding: 8px 0;
+
+    .skeleton-item {
+      padding: 10px 12px;
+
+      .skeleton-line {
+        height: 14px;
+        border-radius: 4px;
+        background: linear-gradient(
+          90deg,
+          var(--user-sidebar-border) 25%,
+          var(--user-sidebar-hover-bg) 50%,
+          var(--user-sidebar-border) 75%
+        );
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s infinite;
+      }
+
+      &:nth-child(1) .skeleton-line { width: 85%; }
+      &:nth-child(2) .skeleton-line { width: 70%; }
+      &:nth-child(3) .skeleton-line { width: 90%; }
+      &:nth-child(4) .skeleton-line { width: 60%; }
+      &:nth-child(5) .skeleton-line { width: 75%; }
+    }
+  }
+
+  // Empty state
+  .history-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--user-sidebar-text-muted);
+
+    .empty-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    p {
+      font-size: 13px;
+      margin: 0;
+    }
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .sidebar-footer {
   padding: 16px;
   border-top: 1px solid var(--user-sidebar-border);
   flex-shrink: 0;
-
-  .admin-link {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    color: var(--user-sidebar-text-muted);
-    font-size: 14px;
-    text-decoration: none;
-    transition: all 0.2s;
-
-    &:hover {
-      background-color: var(--user-sidebar-hover-bg);
-      color: var(--user-sidebar-text);
-    }
-  }
 
   .user-link {
     display: flex;
@@ -324,7 +589,7 @@ const handleSelectChat = (chatId) => {
   }
 
   .new-chat-section {
-    padding: 12px;
+    padding: 10px 12px 0;
 
     .new-chat-btn {
       height: 40px;
@@ -332,18 +597,22 @@ const handleSelectChat = (chatId) => {
     }
   }
 
+  .search-section {
+    padding: 10px 12px;
+  }
+
   .chat-history-section {
     padding: 0 10px;
 
-    .section-title {
-      font-size: 11px;
-      padding: 10px 6px 6px;
+    .group-label {
+      font-size: 10px;
+      padding: 8px 6px 4px;
     }
 
     .chat-item {
-      padding: 10px;
-      font-size: 13px;
-      gap: 10px;
+      padding: 9px 8px;
+      font-size: 12px;
+      gap: 8px;
     }
   }
 

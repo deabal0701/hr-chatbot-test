@@ -46,11 +46,27 @@ export default {
   },
 
   /**
-   * 세션별 이력 조회
-   * @param {string} sessionId - 세션 ID
+   * 세션 단위 이력 목록 조회 (사용자 사이드바용)
+   * @param {Object} params - { search, request_type, limit, offset }
    */
-  getSessionHistory(sessionId) {
-    return apiClient.get(`/api/v1/history/sessions/${sessionId}`)
+  listSessions(params = {}) {
+    return apiClient.get('/api/v1/history/sessions', { params })
+  },
+
+  /**
+   * 세션별 이력 상세 조회
+   * @param {string} sessionKey - 세션 키 (session_id 또는 request_id)
+   */
+  getSessionHistory(sessionKey) {
+    return apiClient.get(`/api/v1/history/sessions/${sessionKey}`)
+  },
+
+  /**
+   * 세션 단위 이력 삭제
+   * @param {string} sessionKey - 세션 키
+   */
+  deleteSession(sessionKey) {
+    return apiClient.delete(`/api/v1/history/sessions/${sessionKey}`)
   },
 
   /**
