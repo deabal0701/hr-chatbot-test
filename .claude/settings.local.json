@@ -17,7 +17,8 @@
       "Bash(PGPASSWORD='hermesuser123!' psql -h 115.68.223.220 -p 5432 -U hermesuser -d hermesdb -c \"SELECT category, key, value FROM tb_app_settings WHERE category = ''llm'' OR \\(category = ''agent'' AND key LIKE ''%model%''\\) ORDER BY category, key;\")",
       "Bash(find:*)",
       "Bash(pip show:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [],
     "ask": []

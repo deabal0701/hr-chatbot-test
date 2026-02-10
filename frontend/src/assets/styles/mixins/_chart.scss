@@ -1,0 +1,75 @@
+// =============================================
+// Chart 관련 Mixin
+// =============================================
+
+// 차트 빌더 컨테이너
+@mixin chart-builder-container {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color-light);
+  padding-top: 12px;
+}
+
+// 차트 토글 버튼
+@mixin chart-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border-color-light);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-color-regular);
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background-color: rgba(var(--color-primary-rgb, 64, 158, 255), 0.05);
+  }
+}
+
+// 차트 설정 패널
+@mixin chart-config-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding: 12px;
+  background-color: var(--bg-color-overlay, var(--bg-color-page));
+  border: 1px solid var(--border-color-lighter);
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+// 차트 설정 항목
+@mixin chart-config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+
+  .config-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  // 라벨 아래 컨트롤을 하단 정렬
+  > :last-child {
+    margin-top: auto;
+  }
+}
+
+// 차트 렌더링 영역
+@mixin chart-render-area($height: 400px) {
+  width: 100%;
+  height: $height;
+  min-height: 300px;
+  border: 1px solid var(--border-color-lighter);
+  border-radius: 8px;
+  overflow: hidden;
+}

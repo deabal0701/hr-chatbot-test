@@ -73,6 +73,12 @@
             <div v-if="message.sqlResult.row_count > 1000" class="more-rows">
               ... 외 {{ message.sqlResult.row_count - 1000 }}개 행
             </div>
+            <!-- 차트 생성 -->
+            <ChartBuilder
+              v-if="message.sqlResult.rows.length > 0"
+              :columns="message.sqlResult.columns"
+              :rows="message.sqlResult.rows"
+            />
           </el-collapse-item>
         </el-collapse>
       </div>
@@ -184,6 +190,7 @@
 import { computed, onMounted, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import SourceCard from './SourceCard.vue'
+import ChartBuilder from '../chart/ChartBuilder.vue'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
 const props = defineProps({

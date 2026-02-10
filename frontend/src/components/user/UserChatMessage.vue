@@ -39,6 +39,42 @@
         <template v-else>
         <div class="answer-text" v-html="formattedContent" />
 
+        <!-- NL2SQL 조회 결과 + 차트 생성 -->
+        <div v-if="message.sqlResult && message.sqlResult.rows && message.sqlResult.rows.length > 0" class="nl2sql-result-section">
+          <button class="result-toggle" @click="showResult = !showResult">
+            <div class="toggle-left">
+              <el-icon><TrendCharts /></el-icon>
+              <span>조회 결과 ({{ message.sqlResult.row_count }}건)</span>
+            </div>
+            <el-icon class="toggle-icon" :class="{ expanded: showResult }">
+              <ArrowDown />
+            </el-icon>
+          </button>
+          <div v-show="showResult" class="result-content">
+            <el-table
+              :data="message.sqlResult.rows.slice(0, 100)"
+              size="small"
+              border
+              max-height="400"
+            >
+              <el-table-column
+                v-for="col in message.sqlResult.columns"
+                :key="col"
+                :prop="col"
+                :label="col"
+                min-width="100"
+              />
+            </el-table>
+            <div v-if="message.sqlResult.row_count > 100" class="more-rows">
+              ... 외 {{ message.sqlResult.row_count - 100 }}건
+            </div>
+            <ChartBuilder
+              :columns="message.sqlResult.columns"
+              :rows="message.sqlResult.rows"
+            />
+          </div>
+        </div>
+
         <!-- 소스 정보 :  임시로 주석처리함.-->
         <!-- <div v-if="message.sources && message.sources.length > 0" class="sources-section">
           <button class="sources-toggle" @click="showSources = !showSources">
@@ -174,7 +210,8 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument } from '@element-plus/icons-vue'
+import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument, TrendCharts } from '@element-plus/icons-vue'
+import ChartBuilder from '../chart/ChartBuilder.vue'
 import { ElMessage } from 'element-plus'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
@@ -188,6 +225,7 @@ const props = defineProps({
 const showSources = ref(false)
 const showSql = ref(false)
 const showAgentSteps = ref(false)
+const showResult = ref(false)
 
 // 전역 테이블 복사 함수 등록
 onMounted(() => {
@@ -490,6 +528,28 @@ const copyContent = async () => {
   40% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+// NL2SQL 조회 결과 섹션
+.nl2sql-result-section {
+  @include mx.toggle-section-container;
+
+  .result-toggle {
+    @include mx.toggle-button;
+  }
+
+  .result-content {
+    padding: 12px 16px 16px;
+    background-color: var(--bg-color-card, var(--bg-color-overlay));
+    border-top: 1px solid var(--border-color-light);
+
+    .more-rows {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-color-secondary);
+      text-align: center;
+    }
   }
 }
 
@@ -849,6 +909,21 @@ const copyContent = async () => {
         padding-left: 20px;
         li { margin-bottom: 6px; }
       }
+    }
+  }
+
+  // NL2SQL 조회 결과 섹션
+  .nl2sql-result-section {
+    margin-top: 16px;
+    border-radius: 10px;
+
+    .result-toggle {
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+
+    .result-content {
+      padding: 10px 12px 12px;
     }
   }
 
