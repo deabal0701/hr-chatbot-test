@@ -161,8 +161,9 @@ const store = useStore()
 const messagesContainer = ref(null)
 const showGuideModal = ref(false)
 
-// 사이드바 호버 슬라이드
+// 사이드바 호버 슬라이드 (진입/이탈 모두 1초 대기 후 트랜지션)
 const isSidebarVisible = ref(false)
+let sidebarShowTimer = null
 let sidebarHideTimer = null
 
 const showSidebar = () => {
@@ -170,13 +171,25 @@ const showSidebar = () => {
     clearTimeout(sidebarHideTimer)
     sidebarHideTimer = null
   }
-  isSidebarVisible.value = true
+  if (!isSidebarVisible.value && !sidebarShowTimer) {
+    sidebarShowTimer = setTimeout(() => {
+      isSidebarVisible.value = true
+      sidebarShowTimer = null
+    }, 500)
+  }
 }
 
 const hideSidebar = () => {
-  sidebarHideTimer = setTimeout(() => {
-    isSidebarVisible.value = false
-  }, 500)
+  if (sidebarShowTimer) {
+    clearTimeout(sidebarShowTimer)
+    sidebarShowTimer = null
+  }
+  if (isSidebarVisible.value) {
+    sidebarHideTimer = setTimeout(() => {
+      isSidebarVisible.value = false
+      sidebarHideTimer = null
+    }, 500)
+  }
 }
 
 const messages = computed(() => store.state.chat.messages)
