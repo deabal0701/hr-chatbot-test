@@ -7,6 +7,9 @@ from typing import Any, Dict
 from pythonjsonlogger import jsonlogger
 from app.config import settings
 
+# 파일 핸들러 초기화 여부 플래그
+_file_handler_initialized = False
+
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     """커스텀 JSON 로거 포맷터"""
@@ -18,65 +21,99 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         log_record['env'] = settings.app_env
 
 
-def setup_logger(name: str) -> logging.Logger:
-    """로거 설정"""
-    logger = logging.getLogger(name)
-
-    # 이미 핸들러가 설정되어 있으면 스킵
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(getattr(logging, settings.log_level))
-
-    # 콘솔 핸들러
-    handler = logging.StreamHandler(sys.stdout)
-
-    # 로그 포맷 설정: LOG_FORMAT 환경변수로 제어 (기본값: text)
-    # json: ELK/Datadog 등 로그 수집 시스템 연동 시 사용
-    # text: 콘솔에서 직접 확인 시 사용 (기본값)
+def _get_formatter():
+    """로그 포맷터 생성"""
     log_format = getattr(settings, 'log_format', 'text').lower()
 
     if log_format == 'json':
-        formatter = CustomJsonFormatter(
+        return CustomJsonFormatter(
             '%(timestamp)s %(level)s %(logger)s %(message)s',
             timestamp=True,
-            json_ensure_ascii=False  # 한글 등 비-ASCII 문자를 그대로 출력
+            json_ensure_ascii=False
         )
     else:
-        # 텍스트 포맷 (기본값) - 개발/프로덕션 모두 동일
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        return logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
 
-    # 파일 핸들러 (log_file 설정 시)
+def _setup_file_handler():
+    """
+    루트 로거(app)에 파일 핸들러를 한 번만 설정.
+    여러 모듈에서 setup_logger()를 호출해도 파일 핸들러는 단일 인스턴스만 존재하여
+    Windows에서 TimedRotatingFileHandler의 rename 충돌(WinError 32)을 방지한다.
+    """
+    global _file_handler_initialized
+    if _file_handler_initialized:
+        return
+    _file_handler_initialized = True
+
     log_file = getattr(settings, 'log_file', None)
-    if log_file:
-        try:
-            # 디렉토리가 없으면 생성
-            log_dir = os.path.dirname(log_file)
-            if log_dir and not os.path.exists(log_dir):
-                os.makedirs(log_dir, exist_ok=True)
+    if not log_file:
+        return
 
-            # TimedRotatingFileHandler: 매일 자정에 로테이트
-            backup_count = getattr(settings, 'log_backup_count', 30)
-            file_handler = TimedRotatingFileHandler(
-                log_file,
-                when='midnight',
-                interval=1,
-                backupCount=backup_count,
-                encoding='utf-8'
-            )
-            file_handler.suffix = "%Y-%m-%d"  # app.log.2024-01-15 형식
-            file_handler.setLevel(getattr(logging, settings.log_level))
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-        except Exception as e:
-            logger.warning(f"로그 파일 핸들러 설정 실패: {e}")
+    try:
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
 
-    # 상위 로거로 전파하지 않음
-    logger.propagate = False
+        backup_count = getattr(settings, 'log_backup_count', 30)
+        file_handler = TimedRotatingFileHandler(
+            log_file,
+            when='midnight',
+            interval=1,
+            backupCount=backup_count,
+            encoding='utf-8'
+        )
+        file_handler.suffix = "%Y-%m-%d"
+        file_handler.setLevel(getattr(logging, settings.log_level))
+        file_handler.setFormatter(_get_formatter())
 
+        # 'app' 루트 로거에 파일 핸들러를 한 번만 등록
+        root_app_logger = logging.getLogger('app')
+        root_app_logger.addHandler(file_handler)
+    except Exception as e:
+        logging.getLogger('app').warning(f"로그 파일 핸들러 설정 실패: {e}")
+
+
+def _setup_root_app_logger():
+    """
+    'app' 루트 로거에 콘솔 + 파일 핸들러를 한 번만 설정.
+    하위 로거(app.main, app.core.* 등)는 핸들러 없이 propagate로 이 로거를 통해 출력한다.
+    """
+    root_app_logger = logging.getLogger('app')
+    if root_app_logger.handlers:
+        return
+
+    root_app_logger.setLevel(getattr(logging, settings.log_level))
+
+    # 콘솔 핸들러
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(_get_formatter())
+    root_app_logger.addHandler(console_handler)
+
+    # 파일 핸들러
+    _setup_file_handler()
+
+    # Python 최상위 root 로거로 전파하지 않음
+    root_app_logger.propagate = False
+
+
+def setup_logger(name: str) -> logging.Logger:
+    """
+    로거 설정.
+
+    'app' 루트 로거에만 콘솔/파일 핸들러를 설정하고,
+    하위 로거(app.main, app.core.* 등)는 핸들러 없이 propagate=True로
+    'app' 루트를 통해 출력한다. 이렇게 하면 파일 핸들러가 단일 인스턴스만 존재하여
+    Windows에서 TimedRotatingFileHandler의 rename 충돌(WinError 32)을 방지한다.
+    """
+    # 'app' 루트 로거 초기화 (최초 1회)
+    _setup_root_app_logger()
+
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, settings.log_level))
+
+    # 하위 로거는 핸들러를 직접 갖지 않고, 'app' 루트로 전파 (propagate=True가 기본값)
+    # 'app' 자체인 경우 _setup_root_app_logger()에서 이미 설정됨
     return logger
 
 
