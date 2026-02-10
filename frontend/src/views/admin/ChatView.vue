@@ -176,7 +176,7 @@ const showSidebar = () => {
 const hideSidebar = () => {
   sidebarHideTimer = setTimeout(() => {
     isSidebarVisible.value = false
-  }, 300)
+  }, 500)
 }
 
 const messages = computed(() => store.state.chat.messages)
@@ -324,7 +324,7 @@ watch(messages, async () => {
   display: flex;
   z-index: 10;
   transform: translateX(280px);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 
   &.visible {
     transform: translateX(0);
@@ -385,7 +385,7 @@ watch(messages, async () => {
   padding-top: 0;
   background-color: var(--bg-color-page);
   border-left: 1px solid var(--border-color);
-  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-section {
