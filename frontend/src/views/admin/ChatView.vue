@@ -299,6 +299,11 @@ watch(messages, async () => {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+
+  // 관리자 화면: 어시스턴트 응답 폭 확장
+  :deep(.message-bubble.assistant) {
+    max-width: 90%;
+  }
 }
 
 .welcome-message {
