@@ -21,6 +21,7 @@ export DOCKER_NETWORK_NAME="mureum-network"
 export ENV_FILE=".env.docker"
 export DOCKERFILE="Dockerfile"
 export BACKEND_PORT="19090"
+export LOGS_DIR="/data/files/mureum/logs"
 
 # ============================================================
 # 기본 설정 (환경변수가 없을 때 사용)
@@ -38,6 +39,7 @@ DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-mureum-network}"
 ENV_FILE="${ENV_FILE:-.env.docker}"
 DOCKERFILE="${DOCKERFILE:-Dockerfile}"
 BACKEND_PORT="${BACKEND_PORT:-19090}"
+LOGS_DIR="${LOGS_DIR:-/data/files/mureum/logs}"
 
 # ============================================================
 # 이하 코드는 수정하지 마세요
@@ -188,6 +190,9 @@ deploy_container() {
         docker rm \"$DOCKER_CONTAINER_NAME\" 2>/dev/null || true
     fi
 
+    # 로그 디렉토리 생성
+    mkdir -p \"$LOGS_DIR\"
+
     # 네트워크 생성 (없는 경우)
     docker network ls | grep -q \"$DOCKER_NETWORK_NAME\" || {
         echo \"Docker 네트워크 생성: $DOCKER_NETWORK_NAME\"
@@ -200,7 +205,7 @@ deploy_container() {
         --name \"$DOCKER_CONTAINER_NAME\" \\
         --network \"$DOCKER_NETWORK_NAME\" \\
         -p \"$BACKEND_PORT:19090\" \\
-        -v \"$REMOTE_DIR/logs:/app/logs\" \\
+        -v \"$LOGS_DIR:/app/logs\" \\
         --restart unless-stopped \\
         \"$DOCKER_IMAGE_NAME:latest\"
     '"
