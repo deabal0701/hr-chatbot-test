@@ -104,8 +104,8 @@ class RAGGraph:
 
         log_step(logger, request_id, "RAG", "0", "INIT", "RAG 그래프 실행 시작", question=inputs["question"], top_k=initial_state["top_k"])
 
-        # 그래프 실행 (run_name으로 LangSmith에 질문 표시)
-        config: RunnableConfig = {"run_name": inputs["question"]}
+        # 그래프 실행 (LangSmith 트레이싱은 @traceable에서 처리)
+        config: RunnableConfig = {}
         result = await self.graph.ainvoke(initial_state, config=config)
         response_time_ms = int((time.time() - start_time) * 1000)
         log_step(logger, request_id, "RAG", "3", "COMPLETE", "RAG 그래프 실행 완료", docs_found=len(result["retrieved_docs"]), answer_length=len(result["answer"]))

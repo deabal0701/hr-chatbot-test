@@ -162,6 +162,35 @@ class InsightAgentGraph:
 
     async def astream_events(self, inputs: Dict[str, Any]) -> AsyncGenerator[str, None]:
         """
+        Agent SSE 스트리밍 실행 (LangSmith 트레이싱 포함)
+
+        LangSmith가 활성화되면 @traceable 래퍼로 감싸서
+        Name/Input/Output이 올바르게 표시되도록 합니다.
+        """
+        if LANGSMITH_AVAILABLE and traceable:
+            async for event in self._traced_astream_events(inputs):
+                yield event
+        else:
+            async for event in self._raw_astream_events(inputs):
+                yield event
+
+    async def _traced_astream_events(self, inputs: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """LangSmith 트레이싱이 적용된 SSE 스트리밍
+
+        @traceable로 감싸서 LangSmith에 아래와 같이 표시:
+        - Name: "Agent"
+        - Input: {"question": "사용자 질문"}
+        - Output: SSE 이벤트 목록
+        """
+        @traceable(name="Agent")  # type: ignore
+        async def traced_stream(question: str):  # noqa: ARG001
+            async for event in self._raw_astream_events(inputs):
+                yield event
+        async for event in traced_stream(inputs["question"]):
+            yield event
+
+    async def _raw_astream_events(self, inputs: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """
         Agent SSE 스트리밍 실행 (스테이지 그룹핑 방식)
 
         Agent 노드(agent, tools, answer)를 스테이지로 그룹핑하여 SSE 이벤트를 전송합니다.
@@ -202,7 +231,6 @@ class InsightAgentGraph:
         try:
             graph_config: RunnableConfig = {
                 "configurable": {"thread_id": session_id},
-                "run_name": question,
             }
 
             # 스테이지 추적 변수
@@ -344,10 +372,9 @@ class InsightAgentGraph:
         initial_state["messages"] = [HumanMessage(content=question)]
 
         try:
-            # 4. 그래프 실행 (run_name으로 LangSmith에 질문 표시)
+            # 4. 그래프 실행 (LangSmith 트레이싱은 @traceable에서 처리)
             graph_config: RunnableConfig = {
                 "configurable": {"thread_id": session_id},
-                "run_name": question,  # LangGraph 트레이스 Name 컬럼에 표시
             }
             result = await self.graph.ainvoke(initial_state, config=graph_config)
 
