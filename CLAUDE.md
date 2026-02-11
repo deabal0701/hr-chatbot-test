@@ -14,11 +14,14 @@ MUREUM is an enterprise AI knowledge base assistant combining multiple AI techni
 
 **Key Features**:
 - AI Agent with ReAct pattern (autonomous tool selection, multi-step reasoning)
-- **Intent Analysis & Context Retrieval** (질문 의도 분석, SQL 컨텍스트 자동 주입)
+- NL2SQL with **multi-turn conversation** (session-based history, intent rewrite, PII filter)
+- RAG document search with vector embeddings (pgvector)
 - Multi-turn conversations with session-based memory (InMemorySaver)
+- SSE streaming for real-time responses (Agent, NL2SQL)
 - Dynamic settings management (DB-based real-time configuration)
 - Multi-LLM provider support (OpenAI, Anthropic via init_chat_model)
 - Multi-DB support for NL2SQL (PostgreSQL, Oracle via adapter pattern)
+- PII detection and masking (Agent middleware, NL2SQL pipeline)
 
 ## Common Commands
 
@@ -100,100 +103,106 @@ This codebase uses **LangGraph** for AI workflows. Understanding the graph execu
 - Entry point: `workflow.set_entry_point("node_name")`
 - Sequential: `workflow.add_edge(from, to)`
 - Conditional: `workflow.add_conditional_edges(node, decision_func, mapping)`
-- Checkpointing: InMemorySaver for session-based conversation memory
+- Checkpointing: InMemorySaver for session-based conversation memory (Agent, NL2SQL)
 
-**AI Agent Flow** (ReAct + Intent Analysis - `app/graphs/agent_graph.py`):
+**AI Agent Flow** (ReAct - `app/graphs/agent/graph.py`):
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  intent_analysis (질문 유형/의도 분석)                        │
-│    ↓                                                        │
-│  context_retrieval (SQL 컨텍스트: 스키마, Few-shot, 용어집)    │
-│    ↓                                                        │
-│  agent (LLM decides) → should_continue() decision           │
-│                        ├─ "continue" → tools → agent (loop) │
-│                        └─ "end" → END (final answer)        │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  START → agent_node → should_continue() decision         │
+│                        ├─ "tools" → tools_node → agent   │
+│                        └─ "answer" → answer_node → END   │
+└──────────────────────────────────────────────────────────┘
 ```
 
-**NL2SQL Flow** (`app/graphs/nl2sql_graph.py`):
+**NL2SQL Flow** (Multi-turn + Intent Analysis + PII Filter - `app/graphs/nl2sql/graph.py`):
 ```
-schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                                                        ├─ execute → execute_sql → should_continue_after_execute
-                                                                        │                            ├─ answer → generate_answer → END
-                                                                        │                            ├─ retry → fewshot_retrieval (enhanced)
-                                                                        │                            └─ error → handle_error → END
-                                                                        ├─ retry → fewshot_retrieval (enhanced)
-                                                                        └─ error → handle_error → END
+load_history → intent_rewrite → should_route_after_intent
+                                 ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                 │                                                                                      ├─ execute → execute_sql → should_continue_after_execute
+                                 │                                                                                      │                            ├─ answer → pii_filter → generate_answer → save_history → END
+                                 │                                                                                      │                            ├─ retry → prepare_retry → fewshot_retrieval
+                                 │                                                                                      │                            └─ error → handle_error → END
+                                 │                                                                                      ├─ retry → prepare_retry → fewshot_retrieval
+                                 │                                                                                      └─ error → handle_error → END
+                                 └─ sql_not_needed → answer_from_history → save_history → END
 ```
 
-### AgentState (확장된 상태 관리)
+**RAG Flow** (`app/graphs/rag/graph.py`):
+```
+retrieve → generate_answer → END
+```
 
-Agent 상태는 TypedDict로 정의되며, LangGraph의 reducer 패턴을 사용합니다:
+### AgentState (ReAct 상태 관리)
+
+Agent 상태는 TypedDict로 정의됩니다 (`app/graphs/agent/state.py`):
 
 ```python
 class AgentState(TypedDict):
     # ===== 기본 필드 =====
-    messages: Annotated[Sequence[BaseMessage], add_messages]  # 누적
-    question: Annotated[str, _overwrite]
-    session_id: Annotated[str, _overwrite]
-    config: Annotated[AgentConfig, _overwrite]
-    iteration_count: Annotated[int, _overwrite]
-    final_answer: Annotated[str, _overwrite]
-    request_id: Annotated[str, _overwrite]
-    start_time: Annotated[float, _overwrite]
+    messages: Annotated[Sequence[BaseMessage], add_messages]  # 대화 히스토리 (누적)
+    question: str                        # 원본 질문
+    session_id: str                      # 세션 ID (멀티턴)
+    request_id: str                      # 요청 추적 ID
 
-    # ===== 의도 분석 =====
-    intent_analysis: Annotated[Dict[str, Any], _overwrite]
-    intent_confidence: Annotated[float, _overwrite]
-    is_ambiguous: Annotated[bool, _overwrite]
-    ambiguity_options: Annotated[List[str], _overwrite]
-    extracted_entities: Annotated[Dict[str, Any], _overwrite]
+    # ===== ReAct 제어 필드 =====
+    iteration_count: int                 # 현재 반복 횟수
+    max_iterations: int                  # 최대 반복 횟수
+    final_answer: str                    # 최종 답변
 
-    # ===== 컨텍스트 검색 =====
-    relevant_schemas: Annotated[List[Dict], _overwrite]     # 관련 테이블 스키마
-    similar_queries: Annotated[List[Dict], _overwrite]      # Few-shot 예제
-    business_terms: Annotated[List[Dict], _overwrite]       # 비즈니스 용어집
-    context_prompt: Annotated[str, _overwrite]              # Agent에 주입할 컨텍스트
+    # ===== 설정 =====
+    config: AgentConfig                  # Agent 설정
 
-    # ===== Human in the Loop =====
-    waiting_for_human: Annotated[bool, _overwrite]
-    human_intervention: Annotated[Dict[str, Any], _overwrite]
-    human_response: Annotated[str, _overwrite]
+    # ===== Tool 결과 =====
+    last_tool_name: str                  # 마지막 사용 Tool
+    last_tool_result: str                # 마지막 Tool 결과
+
+    # ===== SQL Tool 결과 (프론트엔드 표시용) =====
+    generated_sql: str                   # 생성된 SQL
+    sql_result: Optional[SQLResult]      # SQL 실행 결과
+
+    # ===== RAG Tool 결과 =====
+    rag_sources: List[Dict]              # 검색된 문서 목록
+
+    # ===== 메타데이터 =====
+    tools_used: List[str]                # 사용된 Tool 목록
+    start_time: float                    # 시작 시간
 ```
 
 **초기 상태 생성**:
 ```python
-from app.graphs.agent_graph import create_state_defaults
+from app.graphs.agent.state import create_initial_state
 
-initial_state = {
-    **create_state_defaults(),  # 확장 필드 기본값
-    "messages": [HumanMessage(content=question)],
-    "question": question,
-    # ...
-}
+initial_state = create_initial_state(
+    question="사용자 질문",
+    session_id="session-123",
+    request_id="abc12345",
+    config=AgentConfig(),
+    max_iterations=10,
+)
+initial_state["messages"] = [HumanMessage(content=question)]
 ```
 
-### Intent Analysis & Context Retrieval
+### NL2SQLState (멀티턴 상태 관리)
 
-Agent 실행 전에 의도 분석과 컨텍스트 검색이 자동으로 수행됩니다:
+NL2SQL 상태는 멀티턴 대화와 의도 분석을 포함합니다 (`app/graphs/nl2sql/state.py`):
 
-**의도 분석** (`app/graphs/nodes/agent_nodes.py:intent_analysis_node`):
-- 질문 유형 분류: `sql_query`, `document_search`, `hybrid`, `calculation`, `general`
-- 쿼리 의도: `select`, `aggregate`, `compare`, `trend`, `join`, `search`, `calculate`
-- 모호성 감지: `period`, `quantity`, `criteria`, `table`, `column`
-- 신뢰도 점수 산출
-
-**컨텍스트 검색** (`app/graphs/nodes/agent_nodes.py:context_retrieval_node`):
-- SQL 질의 시 자동으로 관련 스키마, Few-shot 예제, 용어집 검색
-- Vector Store에서 유사도 기반 검색 (usage_type='rag_action')
-- 결과는 `state["context_prompt"]`에 저장되어 Agent System Prompt에 자동 주입
+```python
+class NL2SQLState(TypedDict):
+    # 기본 필드: question, schema_description, generated_sql, validated, sql_result, answer, metadata, request_id
+    # 스키마 검색: selected_tables, schema_retrieval_confidence
+    # Few-shot: fewshot_context, fewshot_examples, fewshot_count
+    # 프롬프트: sql_prompt, user_prompt, prompt_metadata
+    # 재시도: retry_count, max_retries, previous_sql, previous_error, enhanced_fewshot
+    # 멀티턴: session_id, conversation_history, current_turn, max_turns, history_truncated
+    # 의도 분석: query_type, rewritten_question, intent_reasoning, sql_result_summary
+```
 
 ### Async/Await Pattern
 
 **CRITICAL**: All graph invocations and API endpoints use `async/await`:
 - FastAPI endpoints: `async def search()`
 - Graph execution: `await graph.ainvoke(inputs)`
-- LLM calls: Internal blocking `llm.invoke()` within async nodes
+- SSE streaming: `async for chunk in graph.astream(inputs)`
 
 ### Dynamic Settings System
 
@@ -225,6 +234,7 @@ llm = LLMConfigManager.create_llm(temperature=0.0)  # Auto-loads from DB/env
 **PostgreSQL** (Primary DB with pgvector):
 - `tb_docs`: Documents + embeddings (RAG source)
 - `tb_app_settings`: Dynamic configuration
+- `tb_api_history`: API 요청 이력 (history middleware 자동 저장)
 - `employee`, `department`: NL2SQL query targets
 
 **Connection Pattern** (`app/core/database/connection.py`):
@@ -239,6 +249,12 @@ with db_manager.get_cursor(commit=True) as cur:
     cur.execute("INSERT ...")
 ```
 
+**External Business DB** (`app/core/database/external.py`):
+```python
+from app.core.database.external import external_db_manager
+# NL2SQL 대상 DB (PostgreSQL 또는 Oracle)
+```
+
 **Multi-DB Support** (NL2SQL via Factory Pattern - `app/core/database/adapters/factory.py`):
 ```python
 from app.core.database.adapters.factory import get_adapter, get_supported_db_types
@@ -251,122 +267,239 @@ supported = get_supported_db_types()  # ["postgresql", "oracle"]
 - PostgreSQL: `LIMIT N`, `information_schema`
 - Oracle: `FETCH FIRST N ROWS ONLY`, `ALL_TABLES`
 
+### SSE Streaming
+
+Agent와 NL2SQL은 SSE(Server-Sent Events) 스트리밍을 지원합니다:
+- `app/core/sse/stream_manager.py`: SSE 포맷팅, 스테이지 그룹핑
+- `app/models/sse.py`: NodeStartEvent, NodeCompleteEvent, CompleteEvent, ErrorEvent
+- Agent: `astream_events()` → 노드별 스테이지 이벤트 전송
+- NL2SQL: `astream_events()` → forward-only 스테이지 전환 (재시도 루프 시 뒤로 안 감)
+
+### Error Handling
+
+통일된 에러 처리 시스템 (`app/core/errors/`):
+- `error_codes.py`: ErrorCode enum 정의
+- `handlers.py`: FastAPI 전역 예외 핸들러
+- `response.py`: 표준화된 응답 포맷 (success_response, error_response)
+
+### Middleware
+
+**FastAPI Middleware** (`app/middleware/`):
+```
+요청 순서: LoggingMiddleware → HistoryMiddleware → CORSMiddleware → Handler
+응답 순서: Handler → CORSMiddleware → HistoryMiddleware → LoggingMiddleware
+```
+- `logging.py`: 요청/응답 로깅 + request_id 생성
+- `history.py`: API 요청 이력 DB 저장 (비동기 워커)
+- `base.py`: 미들웨어 베이스 클래스
+
+**Agent Middleware** (`app/graphs/agent/middleware/`):
+- `chain.py`: 미들웨어 체인 실행기
+- `pii.py`: PII 필터링 미들웨어
+- `base.py`: 미들웨어 베이스 클래스
+
 ## Code Organization
 
 ```
 app/
-├── main.py                    # FastAPI app + lifespan
+├── main.py                    # FastAPI app + lifespan + router/middleware 등록
 ├── config.py                  # Pydantic settings
 ├── api/
 │   ├── routes/                # HTTP endpoints (thin layer)
-│   │   ├── agent.py           # AI Agent endpoints
-│   │   ├── search.py          # RAG/NL2SQL search
-│   │   ├── documents.py       # Document management
+│   │   ├── agent.py           # AI Agent endpoints (search, stream, sessions, tools)
+│   │   ├── search.py          # RAG/NL2SQL search (auto/rag/nl2sql + stream)
+│   │   ├── documents.py       # Document management CRUD
 │   │   ├── settings.py        # Settings management
-│   │   └── codes.py           # Code management
+│   │   ├── codes.py           # Code management
+│   │   ├── history.py         # API 요청 이력 (필터, 통계, 세션별)
+│   │   └── export.py          # Excel 내보내기
 │   └── services/              # Business logic layer
-│       ├── agent_service.py   # Agent orchestration
-│       ├── rag_service.py     # RAG service
-│       ├── nl2sql_service.py  # NL2SQL service
+│       ├── agent_service.py   # Agent orchestration (→ graphs/agent/graph.py)
+│       ├── rag_service.py     # RAG orchestration (→ graphs/rag/graph.py)
+│       ├── nl2sql_service.py  # NL2SQL orchestration (→ graphs/nl2sql/graph.py)
 │       ├── document_service.py # Document CRUD
-│       ├── settings_service.py # Dynamic config
-│       └── code_service.py    # Code service
+│       ├── settings_service.py # Dynamic config (DB fallback chain)
+│       ├── code_service.py    # Code service
+│       ├── history_service.py # 이력 저장 (비동기 워커 큐)
+│       └── export_service.py  # Excel export logic
 ├── graphs/                    # LangGraph workflows (core AI logic)
-│   ├── agent_graph.py         # AI Agent (ReAct + Intent Analysis)
-│   ├── rag_graph.py           # Document search
-│   ├── nl2sql_graph.py        # NL2SQL
-│   └── nodes/                 # 분리된 노드 모듈
-│       ├── __init__.py
-│       ├── agent_nodes.py     # intent_analysis_node, context_retrieval_node
-│       ├── nl2sql_nodes.py    # NL2SQL 노드 함수들
-│       └── rag_nodes.py       # RAG 노드 함수들
-├── graphs/agent/tools/        # AI Agent tools (ReAct 패턴에서만 사용)
-│   ├── base.py                # BaseTool class with hooks
-│   ├── sql_tool.py            # SQL query tool
-│   ├── rag_tool.py            # Document search tool
-│   └── calc_tool.py           # Calculator tool (safe AST)
+│   ├── agent/                 # AI Agent (ReAct 패턴)
+│   │   ├── graph.py           # InsightAgentGraph 클래스
+│   │   ├── state.py           # AgentState TypedDict + create_initial_state()
+│   │   ├── nodes/             # Agent 노드 함수들
+│   │   │   ├── agent_node.py  # LLM Think/Action + should_continue()
+│   │   │   ├── tools_node.py  # Tool 실행 라우터
+│   │   │   └── answer_node.py # 최종 답변 생성
+│   │   ├── tools/             # AI Agent tools (ReAct에서 LLM이 선택)
+│   │   │   ├── base.py        # BaseTool ABC, ToolResult, ToolValidator, ToolMetrics
+│   │   │   ├── sql_tool.py    # SQL query tool (query_database_tool)
+│   │   │   ├── rag_tool.py    # Document search tool
+│   │   │   └── calc_tool.py   # Calculator tool (safe AST)
+│   │   └── middleware/        # Agent 미들웨어
+│   │       ├── base.py        # Middleware base class
+│   │       ├── chain.py       # MiddlewareChain (input/output processing)
+│   │       └── pii.py         # PIIMiddleware
+│   ├── nl2sql/                # NL2SQL (멀티턴 + 의도분석 + PII 필터)
+│   │   ├── graph.py           # NL2SQLGraph 클래스 (세션 관리 포함)
+│   │   ├── state.py           # NL2SQLState TypedDict + create_initial_state()
+│   │   └── nodes.py           # 모든 NL2SQL 노드 함수 (14개)
+│   └── rag/                   # RAG (문서 검색)
+│       ├── graph.py           # RAGGraph 클래스
+│       ├── state.py           # RAGState TypedDict + create_initial_state()
+│       └── nodes.py           # retrieve_documents_node, generate_answer_node
 ├── core/                      # Core infrastructure
 │   ├── database/              # Database layer
-│   │   ├── adapters/          # DB adapter pattern
-│   │   │   ├── base.py        # DatabaseAdapter ABC
-│   │   │   ├── postgresql.py  # PostgreSQL adapter
-│   │   │   ├── oracle.py      # Oracle adapter
-│   │   │   └── factory.py     # Adapter factory
-│   │   ├── connection.py      # Connection pool (psycopg3)
-│   │   ├── external.py        # External DB manager
+│   │   ├── connection.py      # Connection pool (psycopg3) - db_manager
+│   │   ├── external.py        # External DB manager (NL2SQL 대상 DB)
 │   │   ├── schema_loader.py   # DB schema introspection
-│   │   └── sql_executor.py    # SQL validation + execution
+│   │   ├── sql_executor.py    # SQL validation + execution
+│   │   ├── table_catalog.py   # Table metadata caching
+│   │   └── adapters/          # DB adapter pattern
+│   │       ├── base.py        # DatabaseAdapter ABC
+│   │       ├── postgresql.py  # PostgreSQL adapter
+│   │       ├── oracle.py      # Oracle adapter
+│   │       └── factory.py     # Adapter factory (get_adapter, get_supported_db_types)
 │   ├── llm/                   # LLM layer
-│   │   ├── llm_config.py      # Unified LLM configuration
-│   │   ├── prompt_service.py  # Prompt templates
-│   │   └── sql_generator.py   # SQL generation
+│   │   ├── llm_config.py      # LLMConfigManager (create_llm, get_rag_settings)
+│   │   ├── prompt_service.py  # Prompt templates (agent, nl2sql, rag)
+│   │   └── sql_generator.py   # SQL generation orchestration
 │   ├── vector/                # Vector search layer
-│   │   ├── vector_store.py    # Embedding + pgvector
+│   │   ├── vector_store.py    # Embedding + pgvector search
 │   │   └── text_chunker.py    # Document chunking
+│   ├── pii/                   # PII 처리
+│   │   └── pii_service.py     # PII detection + masking
+│   ├── sse/                   # Server-Sent Events
+│   │   └── stream_manager.py  # format_sse, get_node_stage, get_stage_label
+│   ├── errors/                # Error handling
+│   │   ├── error_codes.py     # ErrorCode enum
+│   │   ├── handlers.py        # 전역 예외 핸들러 (register_exception_handlers)
+│   │   └── response.py        # success_response, error_response
 │   └── config/                # Configuration
-│       └── settings_config.py # Settings schema
+│       └── settings_config.py # Settings schema (settings_config)
 ├── models/                    # Pydantic models (API contracts)
-│   ├── agent.py, rag.py, search.py, documents.py, settings.py, codes.py, common.py
+│   ├── agent.py               # AgentRequest, AgentResponse, AgentConfig, AgentStep, AgentSQLResult
+│   ├── search.py              # SearchRequest, SearchResponse, SearchFilters, ExcelExportRequest
+│   ├── rag.py                 # DocumentSource, SQLResult
+│   ├── documents.py           # Document CRUD models
+│   ├── settings.py            # Settings models
+│   ├── codes.py               # Code management models
+│   ├── history.py             # History models
+│   ├── sse.py                 # NodeStartEvent, NodeCompleteEvent, CompleteEvent, ErrorEvent
+│   └── common.py              # Common shared models
+├── middleware/                 # FastAPI middleware
+│   ├── base.py                # Middleware base class
+│   ├── logging.py             # Request/response logging + request_id 생성
+│   └── history.py             # API history recording (async worker)
 └── utils/                     # Utilities
-    ├── logger.py              # Structured logging
-    ├── langsmith.py           # LangSmith integration
-    └── common.py              # Common utilities
+    ├── logger.py              # Structured logging + log_step()
+    ├── langsmith.py           # LangSmith integration (init_langsmith)
+    └── common.py              # truncate_text 등 유틸리티
 
 frontend/src/
 ├── views/
 │   ├── user/
-│   │   └── UserChatView.vue   # User chat interface (dark mode default)
-│   └── admin/                 # Admin views
-│       ├── AdminLayout.vue    # Admin navigation wrapper
-│       ├── ChatView.vue       # Admin chat interface
-│       ├── DashboardView.vue  # Dashboard/analytics
-│       ├── DocumentsView.vue  # Document management
-│       ├── DocumentDetailView.vue  # Document detail
-│       ├── DocumentEditView.vue    # Document editor
-│       ├── SettingsView.vue   # Settings management
-│       └── CodesView.vue      # Code management
+│   │   └── UserChatView.vue          # User chat interface (dark mode default)
+│   └── admin/
+│       ├── AdminLayout.vue           # Admin navigation wrapper
+│       ├── ChatView.vue              # Admin chat interface
+│       ├── DashboardView.vue         # Dashboard/analytics
+│       ├── DocumentsView.vue         # Document management
+│       ├── DocumentDetailView.vue    # Document detail
+│       ├── DocumentEditView.vue      # Document editor
+│       ├── SettingsView.vue          # Settings management
+│       ├── CodesView.vue             # Code management
+│       ├── HistoryView.vue           # API history
+│       └── HistoryDetailView.vue     # History detail
 ├── components/
 │   ├── chat/                  # Chat components
-│   │   └── PromptGuideModal.vue # Prompt guide modal (NL2SQL/RAG examples)
+│   │   ├── ChatMessage.vue    # Message display (admin)
+│   │   ├── ChatInput.vue      # Message input
+│   │   ├── SourceCard.vue     # Source document display
+│   │   └── PromptGuideModal.vue # NL2SQL/RAG examples modal
+│   ├── chart/                 # Chart components
+│   │   └── ChartBuilder.vue   # SQL result chart visualization
 │   ├── user/                  # User-facing components
 │   │   ├── UserChatLayout.vue
 │   │   ├── UserChatMessage.vue
 │   │   └── UserChatSidebar.vue
-│   └── layout/                # Layout components
-├── store/                     # Vuex state
-│   └── modules/               # chat.js, document.js, app.js
-└── api/                       # Axios API clients
+│   ├── documents/
+│   │   └── ChunkPreview.vue   # Document chunk preview
+│   └── layout/
+│       ├── AppHeader.vue
+│       └── AppSidebar.vue
+├── api/                       # Axios API clients
+│   ├── index.js               # Axios instance + interceptors
+│   ├── agent.js               # Agent API
+│   ├── search.js              # Search API (RAG/NL2SQL)
+│   ├── documents.js           # Document API
+│   ├── settings.js            # Settings API
+│   ├── codes.js               # Code API
+│   ├── history.js             # History API
+│   └── sse.js                 # SSE stream client
+├── store/modules/             # Vuex state management
+│   ├── chat.js                # Chat conversation state
+│   ├── document.js            # Document state
+│   └── app.js                 # Global app state
+└── assets/styles/
+    ├── _variables.scss         # CSS variables
+    ├── main.scss               # Main stylesheet
+    └── mixins/                 # SCSS mixins (스타일 참조 필수)
+        ├── _index.scss
+        ├── _animations.scss
+        ├── _cards.scss
+        ├── _chart.scss
+        ├── _chat.scss
+        ├── _forms.scss
+        ├── _layout.scss
+        └── _markdown.scss
 
 scripts/
-├── init_db.py                 # DB initialization
-├── embed_documents.py         # Document embedding
+├── add_multiturn_settings.py  # Multi-turn settings initialization
 ├── check_oracle_schema.py     # Oracle schema validation
 ├── check_tools_config.py      # Tool configuration checker
-└── sql/                       # SQL scripts
+├── check_feedback.py          # Feedback data validation
+
+tests/
+├── test_agent.py              # Agent + Calculator tool tests
+├── test_classfy.py            # Classification tests
+├── test_pii_service.py        # PII service tests
+└── test_pii_redaction.py      # PII redaction tests
 ```
 
 ### Request Flow Examples
 
-**AI Agent Flow** (ReAct + Intent Analysis):
+**AI Agent Flow** (ReAct):
 ```
 User question → api/routes/agent.py
   → api/services/agent_service.py
-    → graphs/agent_graph.py:ainvoke(state, config={thread_id})
-      → intent_analysis_node (의도 분석)
-      → context_retrieval_node (SQL 컨텍스트 검색)
-      → agent_node → tools_node → agent_node (loop)
+    → graphs/agent/graph.py:ainvoke(inputs)
+      → middleware.process_input()
+      → create_initial_state()
+      → agent_node → tools_node → agent_node (loop) → answer_node
+      → middleware.process_output()
     → END (InMemorySaver auto-saves session)
   → Return AgentResponse
 ```
 
-**NL2SQL Flow**:
+**NL2SQL Flow** (Multi-turn):
 ```
 User query → api/routes/search.py
   → api/services/nl2sql_service.py
-    → graphs/nl2sql_graph.py:ainvoke()
-      → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate
-        → validate_sql → execute_sql → generate_answer (with retry on error)
-  → Return NL2SQLResponse
+    → graphs/nl2sql/graph.py:ainvoke(inputs)
+      → load_history → intent_rewrite
+        → sql_needed? → schema → fewshot → prompt → generate → validate → execute → pii_filter → answer → save_history
+        → sql_not_needed? → answer_from_history → save_history
+    → END (InMemorySaver auto-saves session)
+  → Return SearchResponse
+```
+
+**RAG Flow**:
+```
+User query → api/routes/search.py
+  → api/services/rag_service.py
+    → graphs/rag/graph.py:ainvoke(inputs)
+      → retrieve_documents → generate_answer
+  → Return SearchResponse
 ```
 
 ## Critical Implementation Details
@@ -380,15 +513,21 @@ User query → api/routes/search.py
 4. Timeout: 30-second
 5. Row limit: Auto-add via adapter
 
+### PII Protection
+
+- **Agent**: `app/graphs/agent/middleware/pii.py` - 입출력 PII 마스킹
+- **NL2SQL**: `pii_filter_node` - SQL 결과의 PII를 LLM 전송 전 마스킹
+- **Core**: `app/core/pii/pii_service.py` - PII 감지 및 마스킹 서비스
+
 ### Logging Conventions
 
 ```python
 request_id = str(uuid.uuid4())[:8]
-logger.info(f"[{request_id}] [STEP] [STAGE] Message | key=value")
+log_step(logger, request_id, "MODULE", "STEP", "ACTION", "Message", key=value)
 ```
 
-**Agent stages**: INIT → INTENT → CONTEXT → THINK → ACTION → OBSERVE → FINISH → COMPLETE
-**NL2SQL stages**: INIT → GENERATE → VALIDATE → EXECUTE → ANSWER → COMPLETE
+**Agent stages**: INIT → THINK → ACTION → OBSERVE → FINISH → COMPLETE
+**NL2SQL stages**: INIT → INTENT → GENERATE → VALIDATE → EXECUTE → ANSWER → COMPLETE
 **RAG stages**: INIT → RETRIEVE → GENERATE → COMPLETE
 
 log_step은 가능한 한줄에 작성하라.
@@ -427,27 +566,20 @@ DATABASE_URL=postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermes
 
 ### Adding a New Graph Node
 
-**In separate node file** (`app/graphs/nodes/new_nodes.py`):
+**In node file** (`app/graphs/{workflow}/nodes.py`):
 ```python
 from typing import Dict, Any
 
 def new_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Node description - returns only updated fields"""
     request_id = state.get("request_id", "unknown")
-
-    # Process state
     result = do_something(state["question"])
-
-    # Return only changed fields (LangGraph merges automatically)
-    return {
-        "new_field": result,
-        "another_field": "value"
-    }
+    return {"new_field": result}
 ```
 
-**In graph class** (`app/graphs/agent_graph.py`):
+**In graph class** (`app/graphs/{workflow}/graph.py`):
 ```python
-from app.graphs.nodes.new_nodes import new_node
+from app.graphs.{workflow}.nodes import new_node
 
 # In _build_graph()
 workflow.add_node("new_node", new_node)
@@ -524,7 +656,8 @@ docker run -p 80:80 mureum-frontend
 **Files**:
 - `Dockerfile` - Backend container
 - `frontend/Dockerfile` - Frontend container
-- `deploy-docker.sh` - Deployment script
+- `deploy-docker.sh` - Backend deployment script (SSH + Docker)
+- `frontend/deploy-docker.sh` - Frontend deployment script
 - `frontend/nginx.conf` - Nginx configuration
 - `frontend/.env.development`, `.env.docker`, `.env.production` - Environment configs
 
@@ -539,8 +672,11 @@ docker run -p 80:80 mureum-frontend
 ### DB Connection Pool Exhausted
 **Fix**: Increase `DB_POOL_SIZE` in `.env` (default: 20)
 
-### Intent Analysis Not Working
-**Fix**: Ensure `config.enable_intent_analysis=True` in AgentConfig
+### FastAPI Reload Not Detecting Changes
+**Fix**: 서버 수동 재기동 필요 (`--reload` 모드에서도 감지 안 될 수 있음)
+
+### Route Order Matters
+**Fix**: `/sessions` 같은 고정 경로는 `/{request_id}` 같은 파라미터 경로보다 **앞에** 배치
 
 ## Dependencies (requirements.txt)
 
@@ -558,6 +694,10 @@ openai>=1.30.0, anthropic>=0.39.0
 
 # Utilities
 numpy>=1.26.2, sqlparse>=0.4.4, python-json-logger>=2.0.7
+aiofiles>=24.1.0, httpx>=0.27.0, openpyxl>=3.1.0
+
+# Monitoring (Optional)
+prometheus-client>=0.19.0
 ```
 
 **Import Pattern** (LangChain v1.0):
@@ -573,9 +713,8 @@ from langgraph.graph import END, StateGraph
 - 가상환경: `conda activate penv3.13-nlq`
 - DB확인: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
 - DB스크립트 및 데이터:  docs/sql/psql-hermes_db.sql
-- 로그파일 : ./logs/app.log 
+- 로그파일 : ./logs/app.log
 - log_step출력: log_step는 로그이니 다른비즈니스 로직과 분리하여 한줄에 출력하라.
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
 - __init__에는 가능한 파일만 생성하고 import모듈등은 구현하지 말라.
 - css의 style는 asset/styles/mixins하위 디렉토리를 참조하라.
-- 응답model을 생성할때 기존의 규칙을 찾아서 따르라. 
