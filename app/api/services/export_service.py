@@ -180,30 +180,29 @@ class ExportService:
                         ws.cell(row=pie_start_row + pi, column=col_start + 1).font = hide_font
                     current_row = max(current_row + 18, pie_end_row + 3)
                 else:
-                    # Bar / Line 차트
-                    for y_col in y_col_indices:
-                        chart = LineChart() if chart_type == "line" else BarChart()
-                        if chart_type == "bar":
-                            chart.type = "col"
-                        chart.style = 10
-                        chart_title = columns[y_col - col_start]
-                        if len(rows) > CHART_MAX_ROWS:
-                            chart_title += f" (상위 {CHART_MAX_ROWS}건)"
-                        chart.title = chart_title
-                        chart.y_axis.title = columns[y_col - col_start]
-                        chart.width = int(available_width * 0.2)
-                        chart.height = 12
+                    # Bar / Line 차트 (여러 Y축은 하나의 차트에 시리즈로 통합)
+                    chart = LineChart() if chart_type == "line" else BarChart()
+                    if chart_type == "bar":
+                        chart.type = "col"
+                    chart.style = 10
+                    chart_title = ", ".join(columns[yc - col_start] for yc in y_col_indices)
+                    if len(rows) > CHART_MAX_ROWS:
+                        chart_title += f" (상위 {CHART_MAX_ROWS}건)"
+                    chart.title = chart_title
+                    chart.width = int(available_width * 0.2)
+                    chart.height = 14
 
+                    for y_col in y_col_indices:
                         data_ref = Reference(ws, min_col=y_col, min_row=header_row, max_row=chart_end_row)
                         chart.add_data(data_ref, titles_from_data=True)
 
-                        if x_col_idx:
-                            cats = Reference(ws, min_col=x_col_idx, min_row=header_row + 1, max_row=chart_end_row)
-                            chart.set_categories(cats)
-                            chart.x_axis.title = columns[x_col_idx - col_start]
+                    if x_col_idx:
+                        cats = Reference(ws, min_col=x_col_idx, min_row=header_row + 1, max_row=chart_end_row)
+                        chart.set_categories(cats)
+                        chart.x_axis.title = columns[x_col_idx - col_start]
 
-                        ws.add_chart(chart, f"{get_column_letter(col_start)}{current_row}")
-                        current_row += 18
+                    ws.add_chart(chart, f"{get_column_letter(col_start)}{current_row}")
+                    current_row += 18
 
             current_row += 2  # 차트 후 여백
 
