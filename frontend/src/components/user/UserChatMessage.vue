@@ -69,6 +69,7 @@
               ... 외 {{ message.sqlResult.row_count - 100 }}건
             </div>
             <ChartBuilder
+              ref="chartBuilderRef"
               :columns="message.sqlResult.columns"
               :rows="message.sqlResult.rows"
             />
@@ -232,6 +233,7 @@ const showSources = ref(false)
 const showSql = ref(false)
 const showAgentSteps = ref(false)
 const showResult = ref(false)
+const chartBuilderRef = ref(null)
 const exporting = ref(false)
 
 // 전역 테이블 복사 함수 등록
@@ -323,13 +325,22 @@ const exportToExcel = async () => {
   exporting.value = true
   try {
     const msg = props.message
+    const cb = chartBuilderRef.value
+    const includeChart = cb?.chartGenerated || false
     await searchApi.exportExcel({
       columns: msg.sqlResult.columns,
       rows: msg.sqlResult.rows,
       question: msg.content || '',
       sql: msg.sql || '',
       answer: msg.content || '',
-      execution_time_ms: msg.sqlResult.execution_time_ms || 0
+      execution_time_ms: msg.sqlResult.execution_time_ms || 0,
+      include_chart: includeChart,
+      chart_config: includeChart ? {
+        chart_type: cb.chartType,
+        x_column: cb.xAxisColumn,
+        y_columns: cb.yAxisColumns,
+        pie_top_n: cb.pieTopN
+      } : null
     })
     ElMessage.success('Excel 파일이 다운로드되었습니다.')
   } catch {

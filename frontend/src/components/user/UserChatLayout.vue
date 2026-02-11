@@ -210,7 +210,7 @@ const handleResize = () => {
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
-  // Set initial sidebar state based on screen size
+  // 모바일에서는 항상 사이드바 숨김, 데스크탑에서는 localStorage 저장값 유지
   if (isMobile.value) {
     store.dispatch('app/setUserSidebarVisible', false)
   }

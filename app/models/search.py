@@ -54,6 +54,8 @@ class ExcelExportRequest(BaseModel):
     sql: Optional[str] = Field(default="", description="실행된 SQL")
     answer: Optional[str] = Field(default="", description="AI 답변")
     execution_time_ms: Optional[int] = Field(default=0, description="SQL 실행 시간(ms)")
+    include_chart: Optional[bool] = Field(default=False, description="차트 포함 여부 (UI에서 차트 생성 시 True)")
+    chart_config: Optional[Dict[str, Any]] = Field(default=None, description="차트 설정 (chart_type, x_column, y_columns, pie_top_n)")
 
 
 class SearchResponse(BaseModel):

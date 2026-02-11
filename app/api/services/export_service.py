@@ -9,7 +9,7 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from openpyxl import Workbook
-from openpyxl.chart import BarChart, Reference
+from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -32,6 +32,14 @@ THIN_BORDER = Border(
 )
 ALT_ROW_FILL = PatternFill(start_color="F5F7FA", end_color="F5F7FA", fill_type="solid")
 
+# 레이아웃 상수
+MARGIN_COL = 1       # A열은 여백
+START_COL = 2        # B열부터 데이터 시작
+MARGIN_ROW = 1       # 1행은 여백
+START_ROW = 2        # 2행부터 데이터 시작
+MARGIN_WIDTH = 2     # A열(여백) 너비
+TARGET_WIDTH = 130   # 전체 목표 너비 (약 1000px, 1 unit ≈ 7.7px)
+
 
 class ExportService:
     """Excel 내보내기 서비스"""
@@ -44,6 +52,8 @@ class ExportService:
         sql: str = "",
         answer: str = "",
         execution_time_ms: int = 0,
+        include_chart: bool = False,
+        chart_config: Optional[Dict] = None,
     ) -> BytesIO:
         """보고서 형태의 Excel 파일 생성"""
         wb = Workbook()
@@ -51,26 +61,39 @@ class ExportService:
         ws.title = "조회결과"
 
         col_count = max(len(columns), 1)
-        current_row = 1
+        col_start = START_COL
+        col_end = col_start + col_count - 1
+        current_row = START_ROW
 
-        # 1) 제목: 질문
+        # A열 여백
+        ws.column_dimensions["A"].width = MARGIN_WIDTH
+
+        # 열 너비 계산 (전체 약 1000px)
+        available_width = TARGET_WIDTH - MARGIN_WIDTH
+        col_width = max(available_width / col_count, 8)
+        for ci in range(col_count):
+            ws.column_dimensions[get_column_letter(col_start + ci)].width = col_width
+
+        # 1) 제목: 질문 (첫 줄만 표시)
         if question:
-            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=col_count)
-            cell = ws.cell(row=current_row, column=1, value=question)
+            title_text = question.split("\n")[0].strip()
+            ws.merge_cells(start_row=current_row, start_column=col_start, end_row=current_row, end_column=col_end)
+            cell = ws.cell(row=current_row, column=col_start, value=title_text)
             cell.font = TITLE_FONT
             cell.alignment = Alignment(vertical="center")
             current_row += 1
 
         # 2) 부제: 생성 일시
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=col_count)
-        cell = ws.cell(row=current_row, column=1, value=f"생성일시: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        ws.merge_cells(start_row=current_row, start_column=col_start, end_row=current_row, end_column=col_end)
+        cell = ws.cell(row=current_row, column=col_start, value=f"생성일시: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         cell.font = SUBTITLE_FONT
+        cell.alignment = Alignment(horizontal="right")
         current_row += 2  # 빈 행
 
         # 3) 데이터 테이블 - 헤더
         header_row = current_row
-        for col_idx, col_name in enumerate(columns, 1):
-            cell = ws.cell(row=current_row, column=col_idx, value=col_name)
+        for ci, col_name in enumerate(columns):
+            cell = ws.cell(row=current_row, column=col_start + ci, value=col_name)
             cell.font = HEADER_FONT
             cell.fill = HEADER_FILL
             cell.border = THIN_BORDER
@@ -80,75 +103,118 @@ class ExportService:
         # 4) 데이터 행
         numeric_columns = set()
         for row_idx, row_data in enumerate(rows):
-            for col_idx, col_name in enumerate(columns, 1):
+            for ci, col_name in enumerate(columns):
                 value = row_data.get(col_name, "")
-                cell = ws.cell(row=current_row, column=col_idx, value=value)
+                cell = ws.cell(row=current_row, column=col_start + ci, value=value)
                 cell.font = DATA_FONT
                 cell.border = THIN_BORDER
-                # 숫자 감지
                 if isinstance(value, (int, float)):
-                    numeric_columns.add(col_idx)
+                    numeric_columns.add(col_start + ci)
                     cell.alignment = Alignment(horizontal="right")
                     cell.number_format = '#,##0' if isinstance(value, int) else '#,##0.00'
                 else:
                     cell.alignment = Alignment(horizontal="left")
-                # 줄무늬 행
                 if row_idx % 2 == 1:
                     cell.fill = ALT_ROW_FILL
             current_row += 1
 
         data_end_row = current_row - 1
-
-        # 5) 자동 열너비
-        for col_idx, col_name in enumerate(columns, 1):
-            max_len = len(str(col_name))
-            for row_data in rows[:100]:
-                val = row_data.get(col_name, "")
-                max_len = max(max_len, len(str(val)))
-            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 40)
-
         current_row += 1  # 빈 행
 
-        # 6) 차트 생성 (숫자 컬럼이 있고 데이터가 2행 이상일 때)
-        if numeric_columns and len(rows) >= 2 and len(rows) <= 50:
-            # 첫 번째 비숫자 컬럼을 카테고리(라벨)로, 첫 번째 숫자 컬럼을 데이터로 사용
-            label_col = None
-            for ci, cn in enumerate(columns, 1):
-                if ci not in numeric_columns:
-                    label_col = ci
-                    break
+        # 5) 차트 생성 (UI에서 차트 생성 버튼을 클릭한 경우만, chart_config 설정 반영)
+        CHART_MAX_ROWS = 1000
+        if include_chart and chart_config and len(rows) >= 2:
+            chart_end_row = min(header_row + CHART_MAX_ROWS, data_end_row)
+            chart_type = chart_config.get("chart_type", "line")
+            x_column = chart_config.get("x_column", "")
+            y_columns = chart_config.get("y_columns", [])
+            pie_top_n = chart_config.get("pie_top_n", 10)
 
-            for num_col in sorted(numeric_columns):
-                chart = BarChart()
-                chart.type = "col"
-                chart.style = 10
-                chart.title = columns[num_col - 1]
-                chart.y_axis.title = columns[num_col - 1]
-                chart.width = 18
-                chart.height = 12
+            # X축 컬럼의 Excel 열 번호
+            x_col_idx = None
+            if x_column in columns:
+                x_col_idx = col_start + columns.index(x_column)
 
-                data_ref = Reference(ws, min_col=num_col, min_row=header_row, max_row=data_end_row)
-                chart.add_data(data_ref, titles_from_data=True)
+            # Y축 컬럼들의 Excel 열 번호
+            y_col_indices = []
+            for yc in (y_columns if isinstance(y_columns, list) else [y_columns]):
+                if yc in columns:
+                    y_col_indices.append(col_start + columns.index(yc))
 
-                if label_col:
-                    cats = Reference(ws, min_col=label_col, min_row=header_row + 1, max_row=data_end_row)
+            if y_col_indices:
+                if chart_type == "pie":
+                    # Pie 차트: 별도 데이터 시트에 Top N 데이터 작성
+                    pie_col = y_col_indices[0]
+                    pie_data = sorted(
+                        [(str(r.get(x_column, "")), float(r.get(y_columns if isinstance(y_columns, str) else y_columns[0], 0) or 0)) for r in rows],
+                        key=lambda x: x[1], reverse=True
+                    )
+                    if pie_top_n and pie_top_n > 0 and len(pie_data) > pie_top_n:
+                        top_items = pie_data[:pie_top_n]
+                        other_sum = sum(d[1] for d in pie_data[pie_top_n:])
+                        top_items.append((f"기타 ({len(pie_data) - pie_top_n}건)", other_sum))
+                        pie_data = top_items
+
+                    # Pie 데이터를 임시 영역에 기록
+                    pie_start_row = current_row + 1
+                    for pi, (label, val) in enumerate(pie_data):
+                        ws.cell(row=pie_start_row + pi, column=col_start, value=label)
+                        ws.cell(row=pie_start_row + pi, column=col_start + 1, value=val)
+                    pie_end_row = pie_start_row + len(pie_data) - 1
+
+                    chart = PieChart()
+                    chart.style = 10
+                    chart.title = columns[pie_col - col_start]
+                    chart.width = int(available_width * 0.2)
+                    chart.height = 14
+                    data_ref = Reference(ws, min_col=col_start + 1, min_row=pie_start_row, max_row=pie_end_row)
+                    cats = Reference(ws, min_col=col_start, min_row=pie_start_row, max_row=pie_end_row)
+                    chart.add_data(data_ref)
                     chart.set_categories(cats)
-                    chart.x_axis.title = columns[label_col - 1]
 
-                ws.add_chart(chart, f"A{current_row}")
-                current_row += 16  # 차트 높이만큼 이동
-                break  # 첫 번째 숫자 컬럼만 차트 생성
+                    ws.add_chart(chart, f"{get_column_letter(col_start)}{current_row}")
+                    # Pie 임시 데이터 + 차트 영역을 모두 건너뜀
+                    hide_font = Font(color="FFFFFF", size=1)
+                    for pi in range(len(pie_data)):
+                        ws.cell(row=pie_start_row + pi, column=col_start).font = hide_font
+                        ws.cell(row=pie_start_row + pi, column=col_start + 1).font = hide_font
+                    current_row = max(current_row + 18, pie_end_row + 3)
+                else:
+                    # Bar / Line 차트
+                    for y_col in y_col_indices:
+                        chart = LineChart() if chart_type == "line" else BarChart()
+                        if chart_type == "bar":
+                            chart.type = "col"
+                        chart.style = 10
+                        chart_title = columns[y_col - col_start]
+                        if len(rows) > CHART_MAX_ROWS:
+                            chart_title += f" (상위 {CHART_MAX_ROWS}건)"
+                        chart.title = chart_title
+                        chart.y_axis.title = columns[y_col - col_start]
+                        chart.width = int(available_width * 0.2)
+                        chart.height = 12
 
-        # 7) 하단 요약
+                        data_ref = Reference(ws, min_col=y_col, min_row=header_row, max_row=chart_end_row)
+                        chart.add_data(data_ref, titles_from_data=True)
+
+                        if x_col_idx:
+                            cats = Reference(ws, min_col=x_col_idx, min_row=header_row + 1, max_row=chart_end_row)
+                            chart.set_categories(cats)
+                            chart.x_axis.title = columns[x_col_idx - col_start]
+
+                        ws.add_chart(chart, f"{get_column_letter(col_start)}{current_row}")
+                        current_row += 18
+
+            current_row += 2  # 차트 후 여백
+
+        # 6) 하단 요약 (SQL 제외)
         summary_lines = [f"조회 건수: {len(rows)}건"]
         if execution_time_ms:
             summary_lines.append(f"실행 시간: {execution_time_ms}ms")
-        if sql:
-            summary_lines.append(f"SQL: {sql[:200]}")
 
         for line in summary_lines:
-            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=col_count)
-            cell = ws.cell(row=current_row, column=1, value=line)
+            ws.merge_cells(start_row=current_row, start_column=col_start, end_row=current_row, end_column=col_end)
+            cell = ws.cell(row=current_row, column=col_start, value=line)
             cell.font = SUMMARY_FONT
             current_row += 1
 

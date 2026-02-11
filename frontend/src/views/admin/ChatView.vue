@@ -87,7 +87,9 @@
             <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
               <el-radio-button value="rag">RAG</el-radio-button>
               <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
+              <!-- Agent 모드 - 추후 복구 예정
               <el-radio-button value="agent">Agent</el-radio-button>
+              -->
             </el-radio-group>
           </div>
           <p class="mode-description">

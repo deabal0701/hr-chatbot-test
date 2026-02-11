@@ -329,6 +329,9 @@ const generateChart = () => {
 
   chartGenerated.value = true
 }
+
+// 부모 컴포넌트에서 차트 상태 및 설정값 접근 가능하도록 노출
+defineExpose({ chartGenerated, chartType, xAxisColumn, yAxisColumns, pieTopN })
 </script>
 
 <style lang="scss" scoped>

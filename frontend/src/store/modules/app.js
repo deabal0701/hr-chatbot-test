@@ -3,7 +3,8 @@
 // localStorage 키 정의
 const STORAGE_KEYS = {
   USER_THEME: 'user_theme',    // 사용자 화면 테마
-  ADMIN_THEME: 'admin_theme'   // 관리자 화면 테마
+  ADMIN_THEME: 'admin_theme',  // 관리자 화면 테마
+  USER_SIDEBAR: 'user_sidebar_visible'  // 사용자 사이드바 표시 상태
 }
 
 // 기본 테마 설정
@@ -48,6 +49,26 @@ const saveTheme = (type, isDark) => {
   }
 }
 
+// localStorage에서 사이드바 상태 로드
+const getStoredSidebarVisible = () => {
+  try {
+    const value = localStorage.getItem(STORAGE_KEYS.USER_SIDEBAR)
+    if (value === null) return true  // 기본값: 표시
+    return value === 'true'
+  } catch {
+    return true
+  }
+}
+
+// localStorage에 사이드바 상태 저장
+const saveSidebarVisible = (visible) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.USER_SIDEBAR, String(visible))
+  } catch {
+    // localStorage 사용 불가시 무시
+  }
+}
+
 export default {
   namespaced: true,
 
@@ -57,8 +78,8 @@ export default {
     userRole: 'admin',    // 'admin' | 'user'
     sidebarCollapsed: false,
 
-    // 사용자 채팅 사이드바 상태
-    userSidebarVisible: false,
+    // 사용자 채팅 사이드바 상태 (localStorage에서 복원)
+    userSidebarVisible: getStoredSidebarVisible(),
 
     // 앱 설정
     apiHealthy: true,
@@ -124,9 +145,11 @@ export default {
     },
     TOGGLE_USER_SIDEBAR(state) {
       state.userSidebarVisible = !state.userSidebarVisible
+      saveSidebarVisible(state.userSidebarVisible)
     },
     SET_USER_SIDEBAR_VISIBLE(state, visible) {
       state.userSidebarVisible = visible
+      saveSidebarVisible(visible)
     }
   },
 

@@ -30,6 +30,8 @@ async def export_excel(request: ExcelExportRequest):
             sql=request.sql or "",
             answer=request.answer or "",
             execution_time_ms=request.execution_time_ms or 0,
+            include_chart=request.include_chart or False,
+            chart_config=request.chart_config,
         )
 
         filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"

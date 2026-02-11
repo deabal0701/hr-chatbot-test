@@ -140,7 +140,8 @@
                   </div>
                 </el-dropdown-item>
               
-                  <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
+                  <!-- Agent 모드 - 추후 복구 예정
+                <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
                   <div class="mode-option">
                     <span class="mode-name">
                       <el-icon class="mode-icon"><CoffeeCup /></el-icon>
@@ -148,7 +149,8 @@
                     </span>
                     <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
                   </div>
-                </el-dropdown-item> 
+                </el-dropdown-item>
+                -->
               </el-dropdown-menu>
             </template>
           </el-dropdown>
