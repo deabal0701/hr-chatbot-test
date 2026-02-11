@@ -578,3 +578,4 @@ from langgraph.graph import END, StateGraph
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
 - __init__에는 가능한 파일만 생성하고 import모듈등은 구현하지 말라.
 - css의 style는 asset/styles/mixins하위 디렉토리를 참조하라.
+- 응답model을 생성할때 기존의 규칙을 찾아서 따르라. 
