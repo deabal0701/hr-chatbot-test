@@ -101,6 +101,110 @@
       </section>
     </div>
 
+    <!-- Agent 가이드 -->
+    <div v-else-if="mode === 'agent'" class="guide-content">
+      <section class="guide-section">
+        <h4 class="section-title">
+          <el-icon><SetUp /></el-icon>
+          Agent 모드란?
+        </h4>
+        <div class="agent-overview">
+          <p class="overview-desc">
+            AI Agent가 질문을 분석하고, 필요한 도구를 <strong>자율적으로 선택·조합</strong>하여 복잡한 질문을 처리합니다.
+            단일 모드(RAG, NL2SQL)로는 답할 수 없는 <strong>멀티스텝 질문</strong>에 적합합니다.
+          </p>
+          <div class="tool-cards">
+            <div class="tool-card">
+              <div class="tool-icon sql"><el-icon><DataLine /></el-icon></div>
+              <div class="tool-info">
+                <span class="tool-name">DB 조회</span>
+                <span class="tool-desc">인사 데이터 SQL 조회 (직원, 부서, 급여, 평가 등)</span>
+              </div>
+            </div>
+            <div class="tool-card">
+              <div class="tool-icon rag"><el-icon><Document /></el-icon></div>
+              <div class="tool-info">
+                <span class="tool-name">문서 검색</span>
+                <span class="tool-desc">정책·규정·가이드 문서 검색 (재택근무, 연차, 출장 등)</span>
+              </div>
+            </div>
+            <div class="tool-card">
+              <div class="tool-icon calc"><el-icon><DataBoard /></el-icon></div>
+              <div class="tool-info">
+                <span class="tool-name">계산기</span>
+                <span class="tool-desc">수치 계산, 비율 산출, 통계 연산</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="guide-section">
+        <h4 class="section-title">
+          <el-icon><CircleCheck /></el-icon>
+          좋은 질문 예시
+        </h4>
+        <ul class="example-list good">
+          <li v-for="example in agentGoodExamples" :key="example" @click="useExample(example)">
+            <el-icon><Check /></el-icon>
+            {{ example }}
+          </li>
+        </ul>
+      </section>
+
+      <section class="guide-section">
+        <h4 class="section-title">
+          <el-icon><Warning /></el-icon>
+          Agent가 필요 없는 질문
+        </h4>
+        <ul class="example-list bad">
+          <li v-for="example in agentBadExamples" :key="example.text">
+            <el-icon><Close /></el-icon>
+            <span>{{ example.text }}</span>
+            <span class="reason">- {{ example.reason }}</span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="guide-section">
+        <h4 class="section-title">
+          <el-icon><InfoFilled /></el-icon>
+          프롬프트 작성 팁
+        </h4>
+        <ul class="tips-list">
+          <li v-for="(tip, index) in agentTips" :key="index">
+            <span class="tip-number">{{ index + 1 }}</span>
+            <span v-html="tip"></span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="guide-section important-rules">
+        <h4 class="section-title">
+          <el-icon><Bell /></el-icon>
+          Agent 모드 특징
+        </h4>
+        <div class="rules-grid">
+          <div class="rule-item">
+            <span class="rule-label">자동 도구 선택</span>
+            <span class="rule-value">질문 분석 후 <strong>최적의 도구</strong>를 자동 선택</span>
+          </div>
+          <div class="rule-item">
+            <span class="rule-label">멀티스텝 처리</span>
+            <span class="rule-value">여러 도구를 <strong>순차적으로 조합</strong>하여 복합 답변 생성</span>
+          </div>
+          <div class="rule-item">
+            <span class="rule-label">대화 기억</span>
+            <span class="rule-value">이전 대화 맥락을 기억하여 <strong>후속 질문</strong> 처리</span>
+          </div>
+          <div class="rule-item">
+            <span class="rule-label">처리 시간</span>
+            <span class="rule-value">복잡한 질문일수록 다소 <strong>시간 소요</strong> (최대 5분)</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <!-- RAG 가이드 -->
     <div v-else-if="mode === 'rag'" class="guide-content">
       <section class="guide-section">
@@ -173,7 +277,7 @@
 import { computed } from 'vue'
 import {
   DataLine, Document, CircleCheck, Warning, InfoFilled, Bell,
-  Check, Close
+  Check, Close, SetUp, DataBoard
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -340,6 +444,32 @@ const ragTips = [
   '특정 정책이나 절차에 대해 구체적으로 질문하세요',
   '조건이나 제한사항이 궁금하면 명시적으로 요청하세요',
   '"~은 어떻게 되나요?", "~의 기준은?" 형식이 효과적입니다'
+]
+
+// ============================================
+// Agent 가이드 데이터
+// ============================================
+const agentGoodExamples = [
+  '2024년 입사자는 몇 명이고 재택근무 정책은 뭐야?',
+  '부서별 직원 수를 조회하고, 가장 많은 부서의 비율을 계산해줘',
+  '정보처리기사 보유자 명단과 자격증 관련 사내 지원 정책을 알려줘',
+  'TOEIC 평균 점수를 부서별로 비교하고, 어학 교육 지원 정책도 알려줘',
+  '2023년 퇴사자 수와 2024년 입사자 수를 비교 분석해줘',
+  '인사평가 A등급 직원 수와 성과평가 제도가 어떻게 운영되는지 같이 알려줘'
+]
+
+const agentBadExamples = [
+  { text: '재택근무 정책이 뭐야?', reason: 'RAG 모드만으로 충분 (문서 검색만 필요)' },
+  { text: '2024년 입사자 몇 명?', reason: 'NL2SQL 모드만으로 충분 (DB 조회만 필요)' },
+  { text: '안녕하세요', reason: '일반 인사말은 AI 검색이 필요 없음' }
+]
+
+const agentTips = [
+  '<strong>데이터 + 정책</strong>을 함께 물으면 Agent가 자동으로 SQL과 문서를 조합합니다',
+  '<strong>비교·분석·계산</strong>이 필요한 복합 질문에 효과적입니다',
+  '한 문장에 <strong>여러 요구사항</strong>을 포함하면 Agent가 순차적으로 처리합니다',
+  '후속 질문 시 이전 대화를 <strong>참조</strong>하므로 "위 결과에서~" 같은 표현이 가능합니다',
+  '단순한 질문은 RAG 또는 NL2SQL 모드를 사용하면 <strong>더 빠르게</strong> 답변받을 수 있습니다'
 ]
 
 // 예시 사용

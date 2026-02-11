@@ -140,7 +140,6 @@
                   </div>
                 </el-dropdown-item>
               
-                  <!-- Agent 모드 - 추후 복구 예정
                 <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
                   <div class="mode-option">
                     <span class="mode-name">
@@ -150,7 +149,6 @@
                     <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
                   </div>
                 </el-dropdown-item>
-                -->
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -266,11 +264,20 @@ const nl2sqlExampleQueries = [
   '가장 최근에 입사한 직원 5명은?'
 ]
 
+const agentExampleQueries = [
+  '2024년 입사자는 몇 명이고 재택근무 정책은 뭐야?',
+  '부서별 직원 수를 조회하고 가장 많은 부서의 비율을 계산해줘',
+  '정보처리기사 보유자 명단과 자격증 지원 정책을 알려줘',
+  'TOEIC 평균 점수를 부서별로 비교하고 어학 교육 지원 정책도 알려줘'
+]
+
 const exampleQueries = computed(() => {
   if (searchMode.value === 'nl2sql') {
     return nl2sqlExampleQueries
   }
-  // RAG 또는 기타 모드는 RAG 예시 사용
+  if (searchMode.value === 'agent') {
+    return agentExampleQueries
+  }
   return ragExampleQueries
 })
 

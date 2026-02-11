@@ -170,6 +170,10 @@
                           <div v-if="step.sql_result.row_count > 1000" class="more-rows">
                             ... 외 {{ step.sql_result.row_count - 1000 }}개 행
                           </div>
+                          <ChartBuilder
+                            :columns="step.sql_result.columns"
+                            :rows="step.sql_result.rows"
+                          />
                         </div>
                         <div v-else class="no-results">
                           조회 결과가 없습니다.

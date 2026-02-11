@@ -81,6 +81,48 @@
           </div>
         </div>
 
+        <!-- Agent SQL 조회 결과 + 차트 (Agent 모드에서 DB 조회 시) -->
+        <template v-if="agentSqlSteps.length > 0">
+          <div
+            v-for="(step, idx) in agentSqlSteps"
+            :key="'agent-sql-' + idx"
+            class="nl2sql-result-section"
+          >
+            <button class="result-toggle" @click="toggleAgentSql(idx)">
+              <div class="toggle-left">
+                <el-icon><TrendCharts /></el-icon>
+                <span>DB 조회 결과 {{ agentSqlSteps.length > 1 ? `#${idx + 1} ` : '' }}({{ step.sql_result.row_count }}건)</span>
+              </div>
+              <el-icon class="toggle-icon" :class="{ expanded: agentSqlExpanded[idx] }">
+                <ArrowDown />
+              </el-icon>
+            </button>
+            <div v-show="agentSqlExpanded[idx]" class="result-content">
+              <el-table
+                :data="step.sql_result.rows.slice(0, 100)"
+                size="small"
+                border
+                max-height="400"
+              >
+                <el-table-column
+                  v-for="col in step.sql_result.columns"
+                  :key="col"
+                  :prop="col"
+                  :label="col"
+                  min-width="100"
+                />
+              </el-table>
+              <div v-if="step.sql_result.row_count > 100" class="more-rows">
+                ... 외 {{ step.sql_result.row_count - 100 }}건
+              </div>
+              <ChartBuilder
+                :columns="step.sql_result.columns"
+                :rows="step.sql_result.rows"
+              />
+            </div>
+          </div>
+        </template>
+
         <!-- 소스 정보 :  임시로 주석처리함.-->
         <!-- <div v-if="message.sources && message.sources.length > 0" class="sources-section">
           <button class="sources-toggle" @click="showSources = !showSources">
@@ -131,64 +173,6 @@
           </div>
         </div> -->
 
-        <!-- Agent 실행 단계 (Agent 모드) -->
-        <div v-if="message.agentResult && message.agentResult.steps" class="agent-section">
-          <button class="agent-toggle" @click="showAgentSteps = !showAgentSteps">
-            <div class="toggle-left">
-              <el-icon><CoffeeCup /></el-icon>
-              <span>에이전트 사고 과정 ({{ message.agentResult.steps.length }}단계)</span>
-            </div>
-            <el-icon class="toggle-icon" :class="{ expanded: showAgentSteps }">
-              <ArrowDown />
-            </el-icon>
-          </button>
-
-          <div v-show="showAgentSteps" class="agent-steps-container">
-            <div class="agent-steps">
-              <div
-                v-for="(step, index) in message.agentResult.steps"
-                :key="index"
-                class="agent-step-item"
-              >
-                <div class="step-marker">
-                  <div class="step-dot"></div>
-                  <div v-if="index < message.agentResult.steps.length - 1" class="step-line"></div>
-                </div>
-                <div class="step-body">
-                  <div class="step-header">
-                    <span class="step-tool" v-if="step.action">
-                      <el-icon>{{ getToolIcon(step.action) }}</el-icon>
-                      {{ getToolLabel(step.action) }}
-                    </span>
-                    <span class="step-name">단계 {{ index + 1 }}</span>
-                  </div>
-                  <div class="step-main">
-                    <div v-if="step.thought" class="step-thought">
-                      {{ step.thought }}
-                    </div>
-                    <div v-if="step.observation" class="step-observation">
-                      <div class="obs-label">결과값</div>
-                      <div class="obs-content">{{ truncateText(step.observation, 300) }}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="agent-summary">
-              <div class="summary-item">
-                <span class="label">상태</span>
-                <span class="value" :class="message.agentResult.success ? 'success' : 'error'">
-                  {{ message.agentResult.success ? '해결됨' : '실패' }}
-                </span>
-              </div>
-              <div class="summary-item" v-if="message.agentResult.toolsUsed">
-                <span class="label">도구</span>
-                <span class="value">{{ message.agentResult.toolsUsed.join(', ') }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
         </template>
 
         <!-- 메타 정보 -->
@@ -215,8 +199,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { Document, ArrowDown, DataLine, CoffeeCup, CopyDocument, TrendCharts, Download } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { Document, ArrowDown, DataLine, CopyDocument, TrendCharts, Download } from '@element-plus/icons-vue'
 import ChartBuilder from '../chart/ChartBuilder.vue'
 import searchApi from '@/api/search'
 import { ElMessage } from 'element-plus'
@@ -231,10 +215,21 @@ const props = defineProps({
 
 const showSources = ref(false)
 const showSql = ref(false)
-const showAgentSteps = ref(false)
 const showResult = ref(false)
 const chartBuilderRef = ref(null)
 const exporting = ref(false)
+const agentSqlExpanded = reactive({})
+
+// Agent 모드에서 SQL 결과가 있는 step 추출
+const agentSqlSteps = computed(() => {
+  const result = props.message.agentResult
+  if (!result?.steps) return []
+  return result.steps.filter(s => s.sql_result?.rows?.length > 0)
+})
+
+const toggleAgentSql = (idx) => {
+  agentSqlExpanded[idx] = !agentSqlExpanded[idx]
+}
 
 // 전역 테이블 복사 함수 등록
 onMounted(() => {
@@ -289,26 +284,6 @@ const getModeLabel = (mode) => {
     agent: 'Agent'
   }
   return labels[mode] || mode
-}
-
-const getToolLabel = (toolName) => {
-  const labels = {
-    query_database_tool: 'DB 조회',
-    search_documents_tool: '문서 검색',
-    calculate_tool: '계산'
-  }
-  return labels[toolName] || toolName
-}
-
-const getToolIcon = (toolName) => {
-  // Element Plus 아이콘 컴포넌트는 템플릿에서 직접 사용해야 하므로
-  // 여기서는 아이콘 이름만 반환
-  const icons = {
-    query_database_tool: 'DataLine',
-    search_documents_tool: 'Document',
-    calculate_tool: 'Calculator'
-  }
-  return icons[toolName] || 'Tools'
 }
 
 const formatTime = (timestamp) => {
