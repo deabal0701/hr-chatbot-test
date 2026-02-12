@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     secret_key: str = Field(..., description="JWT 시크릿 키")
     algorithm: str = Field(default="HS256", description="JWT 알고리즘")
     access_token_expire_minutes: int = Field(default=30, description="액세스 토큰 만료 시간(분)")
+    jwt_refresh_token_expire_days: int = Field(default=7, description="Refresh Token 만료 시간(일)")
+    password_min_length: int = Field(default=8, description="최소 비밀번호 길이")
+    login_max_fail_count: int = Field(default=5, description="로그인 실패 허용 횟수")
+    login_lock_minutes: int = Field(default=30, description="계정 잠금 시간(분)")
 
     # RAG Settings
     rag_top_k: int = Field(default=10, description="RAG 검색 시 상위 K개 문서")

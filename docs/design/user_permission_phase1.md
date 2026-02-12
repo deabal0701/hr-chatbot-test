@@ -28,7 +28,7 @@ Phase 1은 **모든 후속 Phase의 기반**이 되는 데이터 구조를 확�
 
 ```
 Phase 1 산출물:
-  [DB]  8개 테이블 + 초기 데이터 + 유틸리티 함수 3개
+  [DB]  8개 테이블 + 초기 데이터
   [NEW] app/models/auth.py      ← 인증 요청/응답 모델
   [NEW] app/models/user.py      ← 사용자/역할/권한 모델
   [NEW] app/models/tenant.py    ← 테넌트 모델
@@ -157,14 +157,6 @@ psql "postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb" -f 
 | 관리자 1명 | admin / admin123! (bcrypt 해시) |
 | 데이터 필터 4개 | TENANT_ADMIN→employee/tb_user, USER→employee/tb_user |
 
-#### 유틸리티 함수 3개
-
-| 함수 | 용도 |
-|------|------|
-| `fn_get_user_permissions(user_id)` | 사용자의 모든 권한 목록 조회 |
-| `fn_get_user_data_filters(user_id)` | 사용자의 데이터 필터 목록 조회 |
-| `fn_cleanup_expired_sessions()` | 만료된 세션 정리 |
-
 ### 2.4 실행 후 검증 쿼리
 
 DDL 실행 후 아래 쿼리로 정상 생성을 확인합니다.
@@ -195,7 +187,7 @@ GROUP BY r.role_code ORDER BY r.role_code;
 -- 결과: SYSTEM_ADMIN=9, TENANT_ADMIN=6, USER=3
 
 -- 5) 관리자 계정 확인
-SELECT username, display_name, is_superuser FROM tb_user;
+SELECT login_id, display_name, is_superuser FROM tb_user;
 -- 결과: admin, 시스템 관리자, true
 
 -- 6) 데이터 필터 확인
@@ -206,13 +198,6 @@ ORDER BY r.role_code, df.target_table;
 -- 결과: TENANT_ADMIN→employee(TENANT), TENANT_ADMIN→tb_user(TENANT),
 --       USER→employee(USER), USER→tb_user(USER)
 
--- 7) 함수 존재 확인
-SELECT routine_name
-FROM information_schema.routines
-WHERE routine_schema = 'public'
-  AND routine_name LIKE 'fn_%'
-ORDER BY routine_name;
--- 결과: fn_cleanup_expired_sessions, fn_get_user_data_filters, fn_get_user_permissions
 ```
 
 ### 2.5 DDL 핵심 설계 원칙 (참고)
@@ -241,7 +226,7 @@ scope_type = "데이터 범위"    (어디까지 볼 수 있는가)
 
 | 클래스 | 사용처 | 없으면 어떻게 되는가 |
 |--------|--------|---------------------|
-| `LoginRequest` | `POST /auth/login` 요청 바디 | 클라이언트가 보내는 username/password를 검증할 수 없음 |
+| `LoginRequest` | `POST /auth/login` 요청 바디 | 클라이언트가 보내는 login_id/password를 검증할 수 없음 |
 | `TokenResponse` | 로그인 성공 응답 | access_token 등을 구조화하여 반환할 수 없음 |
 | `UserInfo` | TokenResponse 내부의 사용자 정보 | 로그인 응답에 사용자 정보를 포함할 수 없음 |
 | `UserContext` | 인증 미들웨어가 생성하는 현재 사용자 객체 | 모든 API에서 현재 사용자를 알 수 없음 |
@@ -268,13 +253,13 @@ from pydantic import BaseModel, Field, field_validator
 
 class LoginRequest(BaseModel):
     """로그인 요청"""
-    username: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
+    login_id: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
     password: str = Field(..., min_length=1, description="비밀번호")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "username": "admin",
+                "login_id": "admin",
                 "password": "admin123!"
             }
         }
@@ -284,7 +269,7 @@ class LoginRequest(BaseModel):
 class UserInfo(BaseModel):
     """로그인 응답에 포함되는 사용자 정보 (JWT payload의 일부)"""
     user_id: int = Field(..., description="사용자 ID")
-    username: str = Field(..., description="로그인 ID")
+    login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
@@ -309,7 +294,7 @@ class TokenResponse(BaseModel):
                 "expires_in": 1800,
                 "user": {
                     "user_id": 1,
-                    "username": "admin",
+                    "login_id": "admin",
                     "display_name": "시스템 관리자",
                     "tenant_id": None,
                     "scope_type": "GLOBAL",
@@ -374,7 +359,7 @@ class UserContext(BaseModel):
     모든 API 핸들러에서 현재 사용자 정보를 참조할 때 사용.
     """
     user_id: int = Field(..., description="사용자 ID")
-    username: str = Field(..., description="로그인 ID")
+    login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
@@ -437,14 +422,14 @@ from pydantic import BaseModel, Field, field_validator
 
 ```python
 class LoginRequest(BaseModel):
-    username: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
+    login_id: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
     password: str = Field(..., min_length=1, description="비밀번호")
 ```
 
 - `Field(...)`: `...`은 Python의 `Ellipsis` 객체. Pydantic에서 **필수 필드**를 의미
 - `min_length=1`: 빈 문자열 방지. `""` 전송 시 422 Validation Error 반환
-- `max_length=100`: DB의 `tb_user.username VARCHAR(100)`과 일치
-- **DB 매핑**: `username` → `tb_user.username`, `password` → bcrypt로 해싱 후 `tb_user.password_hash`와 비교
+- `max_length=100`: DB의 `tb_user.login_id VARCHAR(100)`과 일치
+- **DB 매핑**: `login_id` → `tb_user.login_id`, `password` → bcrypt로 해싱 후 `tb_user.password_hash`와 비교
 
 #### 3.4.3 UserInfo (JWT 페이로드 → 프론트엔드)
 
@@ -484,7 +469,7 @@ class TokenResponse(BaseModel):
   "expires_in": 1800,
   "user": {
     "user_id": 1,
-    "username": "admin",
+    "login_id": "admin",
     "scope_type": "GLOBAL",
     "roles": ["SYSTEM_ADMIN"],
     "permissions": ["nl2sql:execute", "admin:settings", ...]
@@ -539,7 +524,7 @@ Phase 3 이후 **모든 API 핸들러**에서 이 객체를 사용합니다:
 # middleware/auth.py (미래 구현)
 request.state.current_user = UserContext(
     user_id=1,
-    username="admin",
+    login_id="admin",
     scope_type="GLOBAL",
     permissions=["nl2sql:execute", "admin:settings", ...]
 )
@@ -623,7 +608,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class UserBase(BaseModel):
     """사용자 기본 필드 (Create/Update의 공통 부모)"""
-    username: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
+    login_id: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
     email: str = Field(..., max_length=255, description="이메일")
     display_name: Optional[str] = Field(None, max_length=100, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
@@ -646,7 +631,7 @@ class UserCreate(UserBase):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "username": "user01",
+                "login_id": "user01",
                 "email": "user01@company.com",
                 "display_name": "홍길동",
                 "password": "Password1!",
@@ -695,7 +680,7 @@ class RoleSimple(BaseModel):
 class UserResponse(BaseModel):
     """사용자 상세 응답"""
     user_id: int = Field(..., description="사용자 ID")
-    username: str = Field(..., description="로그인 ID")
+    login_id: str = Field(..., description="로그인 ID")
     email: str = Field(..., description="이메일")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
@@ -711,7 +696,7 @@ class UserResponse(BaseModel):
         "json_schema_extra": {
             "example": {
                 "user_id": 1,
-                "username": "admin",
+                "login_id": "admin",
                 "email": "admin@system.local",
                 "display_name": "시스템 관리자",
                 "tenant_id": None,
@@ -903,7 +888,7 @@ class DataFilterResponse(BaseModel):
 이 파일의 핵심 패턴은 **상속을 통한 필드 재사용**입니다:
 
 ```
-UserBase (공통 필드: username, email, display_name, tenant_id)
+UserBase (공통 필드: login_id, email, display_name, tenant_id)
   ├── UserCreate (상속 + password, is_active, role_ids 추가)
   └── (UserUpdate는 별도 — 모든 필드 Optional이므로)
 
@@ -913,8 +898,8 @@ UserResponse (별도 정의 — DB 조회 결과에 맞춤)
 **왜 UserUpdate는 UserBase를 상속하지 않는가?**
 
 ```python
-# UserBase는 username이 필수 (Field(...))
-# UserUpdate에서 username을 Optional로 바꿀 수 없음
+# UserBase는 login_id이 필수 (Field(...))
+# UserUpdate에서 login_id을 Optional로 바꿀 수 없음
 # Pydantic에서 상속 시 필수→Optional 변경이 불가능하므로 별도 클래스로 정의
 class UserUpdate(BaseModel):  # UserBase가 아닌 BaseModel 상속
     email: Optional[str] = Field(None, ...)  # 모든 필드 Optional
@@ -923,7 +908,7 @@ class UserUpdate(BaseModel):  # UserBase가 아닌 BaseModel 상속
 **왜 UserResponse는 UserBase를 상속하지 않는가?**
 
 ```python
-# UserBase에는 email, username이 필수로 정의됨
+# UserBase에는 email, login_id이 필수로 정의됨
 # UserResponse에는 user_id, is_active, created_at 등 추가 필드가 많고,
 # DB에서 읽는 결과이므로 별도 클래스가 더 명확
 class UserResponse(BaseModel):
@@ -940,14 +925,14 @@ class UserCreate(UserBase):
     role_ids: List[int] = Field(default_factory=list, description="부여할 역할 ID 목록")
 ```
 
-- `UserBase`를 상속하므로 `username`, `email`, `display_name`, `tenant_id` 필드가 자동 포함
+- `UserBase`를 상속하므로 `login_id`, `email`, `display_name`, `tenant_id` 필드가 자동 포함
 - `password`: 생성 시에만 필요 (조회/수정에서는 사용하지 않음)
 - `role_ids`: 사용자 생성과 동시에 역할 할당. 빈 리스트면 역할 없이 생성
 - **DB 처리 흐름** (Phase 4에서 구현):
   ```
   1. UserCreate 모델 검증 → 422 또는 통과
   2. password → bcrypt 해싱 → tb_user.password_hash에 저장
-  3. username, email 등 → tb_user INSERT
+  3. login_id, email 등 → tb_user INSERT
   4. role_ids → tb_user_role에 각각 INSERT
   ```
 
@@ -1286,9 +1271,8 @@ Phase 1 완료 후 아래 항목을 확인합니다.
 - [ ] 3개 역할 정상 INSERT 확인 (`SELECT * FROM tb_role`)
 - [ ] 9개 권한 정상 INSERT 확인 (`SELECT * FROM tb_permission`)
 - [ ] 역할-권한 매핑 확인 (SYSTEM_ADMIN=9, TENANT_ADMIN=6, USER=3)
-- [ ] 관리자 계정 존재 확인 (`SELECT * FROM tb_user WHERE username='admin'`)
+- [ ] 관리자 계정 존재 확인 (`SELECT * FROM tb_user WHERE login_id='admin'`)
 - [ ] 데이터 필터 4개 확인 (`SELECT * FROM tb_data_filter`)
-- [ ] 유틸리티 함수 3개 확인 (`SELECT * FROM information_schema.routines WHERE routine_name LIKE 'fn_%'`)
 
 ### 7.2 Pydantic 모델 검증
 
@@ -1319,12 +1303,12 @@ from app.models.tenant import (
 )
 
 # 4. 인스턴스 생성 테스트
-login = LoginRequest(username="admin", password="admin123!")
+login = LoginRequest(login_id="admin", password="admin123!")
 print(login.model_dump())
-# {'username': 'admin', 'password': 'admin123!'}
+# {'login_id': 'admin', 'password': 'admin123!'}
 
 user_ctx = UserContext(
-    user_id=1, username="admin", scope_type="GLOBAL",
+    user_id=1, login_id="admin", scope_type="GLOBAL",
     is_superuser=True, permissions=["admin:settings", "nl2sql:execute"]
 )
 print(user_ctx.has_permission("admin:settings"))  # True
@@ -1332,7 +1316,7 @@ print(user_ctx.is_global)                          # True
 
 # 5. 검증 테스트
 try:
-    LoginRequest(username="", password="test")  # min_length=1 위반
+    LoginRequest(login_id="", password="test")  # min_length=1 위반
 except Exception as e:
     print(f"예상된 검증 오류: {e}")
 

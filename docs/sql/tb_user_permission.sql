@@ -46,7 +46,7 @@ CREATE INDEX idx_tenant_active ON tb_tenant(is_active);
 -- ==========================================
 CREATE TABLE tb_user (
     user_id         BIGSERIAL PRIMARY KEY,
-    username        VARCHAR(100) UNIQUE NOT NULL,   -- 로그인 ID
+    login_id        VARCHAR(100) UNIQUE NOT NULL,   -- 로그인 ID
     email           VARCHAR(255) UNIQUE NOT NULL,
     password_hash   VARCHAR(255) NOT NULL,          -- bcrypt 해시
     display_name    VARCHAR(100),
@@ -61,13 +61,13 @@ CREATE TABLE tb_user (
 );
 
 COMMENT ON TABLE tb_user IS '사용자 정보';
-COMMENT ON COLUMN tb_user.username IS '로그인 ID';
+COMMENT ON COLUMN tb_user.login_id IS '로그인 ID';
 COMMENT ON COLUMN tb_user.password_hash IS '비밀번호 해시 (bcrypt)';
 COMMENT ON COLUMN tb_user.is_superuser IS 'RBAC 비상 안전장치 (정상 흐름은 Role→Permission만 사용, 역할 삭제 등 비상 시 복구용)';
 COMMENT ON COLUMN tb_user.login_fail_count IS '연속 로그인 실패 횟수 (잠금 정책용)';
 COMMENT ON COLUMN tb_user.locked_until IS '계정 잠금 해제 시간 (NULL이면 잠금 아님)';
 
--- username, email은 UNIQUE 제약조건으로 인덱스 자동 생성됨
+-- login_id, email은 UNIQUE 제약조건으로 인덱스 자동 생성됨
 CREATE INDEX idx_user_tenant ON tb_user(tenant_id);
 CREATE INDEX idx_user_active ON tb_user(is_active);
 
@@ -274,7 +274,7 @@ INSERT INTO tb_tenant (tenant_code, tenant_name, metadata) VALUES
 
 -- 7. 기본 관리자 계정 (비밀번호: admin123! → bcrypt 해시)
 -- 실제 운영 시 반드시 비밀번호 변경 필요
-INSERT INTO tb_user (username, email, password_hash, display_name, is_superuser, is_active) VALUES
+INSERT INTO tb_user (login_id, email, password_hash, display_name, is_superuser, is_active) VALUES
 ('admin', 'admin@system.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G6E9SiEO6oM9Oy', '시스템 관리자', true, true);
 -- 위 해시는 'admin123!' 의 bcrypt 해시 예시입니다. 실제 구현 시 생성 필요
 
@@ -283,7 +283,7 @@ INSERT INTO tb_user_role (user_id, role_id, tenant_id)
 SELECT u.user_id, r.role_id, NULL
 FROM tb_user u
 CROSS JOIN tb_role r
-WHERE u.username = 'admin' AND r.role_code = 'SYSTEM_ADMIN';
+WHERE u.login_id = 'admin' AND r.role_code = 'SYSTEM_ADMIN';
 
 -- 9. 데이터 필터 설정
 -- ※ SYSTEM_ADMIN(GLOBAL)은 필터 레코드 없음 → 전체 데이터 접근

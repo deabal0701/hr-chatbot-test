@@ -90,7 +90,7 @@ MUREUM 시스템에 사용자 인증 및 권한 관리 기능을 추가하여, �
 │  tb_tenant   │       │   tb_user    │       │   tb_role    │
 ├──────────────┤       ├──────────────┤       ├──────────────┤
 │ tenant_id(PK)│◄──┐   │ user_id(PK)  │◄──┐   │ role_id(PK)  │◄──┐
-│ tenant_code  │   │   │ username     │   │   │ role_code    │   │
+│ tenant_code  │   │   │ login_id     │   │   │ role_code    │   │
 │ tenant_name  │   ├───│ tenant_id(FK)│   │   │ role_name    │   │
 │ is_active    │   │   │ password_hash│   │   │ scope_type   │   │
 │ metadata     │   │   │ is_superuser │   │   │ is_system    │   │
@@ -153,7 +153,7 @@ MUREUM 시스템에 사용자 인증 및 권한 관리 기능을 추가하여, �
 | 컬럼명 | 타입 | 필수 | 설명 |
 |--------|------|------|------|
 | user_id | BIGSERIAL | PK | 사용자 고유 ID |
-| username | VARCHAR(100) | UK, NOT NULL | 로그인 ID |
+| login_id | VARCHAR(100) | UK, NOT NULL | 로그인 ID |
 | email | VARCHAR(255) | UK, NOT NULL | 이메일 |
 | password_hash | VARCHAR(255) | NOT NULL | 비밀번호 해시 (bcrypt) |
 | display_name | VARCHAR(100) | NULL | 표시 이름 |
@@ -299,7 +299,7 @@ MUREUM 시스템에 사용자 인증 및 권한 관리 기능을 추가하여, �
 │                                                                      │
 │  1. 로그인 요청                                                       │
 │     POST /api/v1/auth/login                                          │
-│     { "username": "user@company.com", "password": "..." }            │
+│     { "login_id": "user@company.com", "password": "..." }            │
 │                         │                                            │
 │                         ▼                                            │
 │  2. 비밀번호 검증 (bcrypt)                                            │
@@ -314,7 +314,7 @@ MUREUM 시스템에 사용자 인증 및 권한 관리 기능을 추가하여, �
 │       "expires_in": 900,                                             │
 │       "user": {                                                      │
 │         "user_id": 1,                                                │
-│         "username": "user@company.com",                              │
+│         "login_id": "user@company.com",                              │
 │         "tenant_id": 5,                                             │
 │         "roles": ["TENANT_ADMIN"],                                  │
 │         "permissions": ["nl2sql:execute", "rag:search"]              │
@@ -339,7 +339,7 @@ MUREUM 시스템에 사용자 인증 및 권한 관리 기능을 추가하여, �
 ```json
 {
   "sub": "user_id",
-  "username": "user@company.com",
+  "login_id": "user@company.com",
   "tenant_id": 5,
   "scope_type": "TENANT",
   "roles": ["TENANT_ADMIN"],
@@ -546,7 +546,7 @@ POST /api/v1/auth/login
 Content-Type: application/json
 
 {
-  "username": "admin@company.com",
+  "login_id": "admin@company.com",
   "password": "password123"
 }
 ```
@@ -562,7 +562,7 @@ Content-Type: application/json
     "expires_in": 900,
     "user": {
       "user_id": 1,
-      "username": "admin@company.com",
+      "login_id": "admin@company.com",
       "display_name": "관리자",
       "tenant_id": null,
       "roles": ["SYSTEM_ADMIN"],
@@ -871,17 +871,16 @@ FROM tb_role r WHERE r.role_code = 'DEPT_ADMIN';
 - 기본 테넌트 2개 (SYSTEM, DEMO)
 - 관리자 계정 1개 (admin / admin123!)
 - 데이터 필터 설정 (employee 테이블)
-- 유틸리티 함수 3개 (`fn_get_user_permissions`, `fn_get_user_data_filters`, `fn_cleanup_expired_sessions`)
 
 ##### 1-2. Pydantic 모델 생성
 
 **`app/models/auth.py`** — 인증 요청/응답:
 ```python
-# LoginRequest: username, password
+# LoginRequest: login_id, password
 # TokenResponse: access_token, refresh_token, token_type, expires_in, user
 # RefreshRequest: refresh_token
 # PasswordChangeRequest: current_password, new_password
-# UserContext: user_id, username, tenant_id, scope_type, roles, permissions
+# UserContext: user_id, login_id, tenant_id, scope_type, roles, permissions
 ```
 
 **`app/models/user.py`** — 사용자/역할/권한:
@@ -980,7 +979,7 @@ login_lock_minutes: int = Field(default=30, description="계정 잠금 시간(�
 
 | 메서드 | 설명 |
 |--------|------|
-| `authenticate(username, password)` | 비밀번호 검증 + 실패 횟수 관리 + 계정 잠금 |
+| `authenticate(login_id, password)` | 비밀번호 검증 + 실패 횟수 관리 + 계정 잠금 |
 | `create_session(user_id, ip, user_agent)` | DB 세션 생성 + 토큰 발급 |
 | `refresh_access_token(refresh_token)` | Refresh Token 검증 → 새 Access Token |
 | `logout(session_id)` | 세션 삭제 (토큰 무효화) |
@@ -1243,7 +1242,7 @@ LLM 생성 SQL:
 
 | 파일 | 설명 |
 |------|------|
-| `frontend/src/views/LoginView.vue` | 로그인 폼 (username, password, remember me) |
+| `frontend/src/views/LoginView.vue` | 로그인 폼 (login_id, password, remember me) |
 
 **기능**:
 - 로그인 폼 (유효성 검사 포함)
