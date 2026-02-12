@@ -1,9 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import store from '@/store'
 
 const routes = [
   {
     path: '/',
     redirect: '/chat'
+  },
+
+  // 로그인 페이지
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { title: '로그인', public: true }
   },
 
   // 일반 사용자 채팅 (메인 페이지) - ChatGPT 스타일 레이아웃
@@ -19,14 +28,7 @@ const routes = [
     component: () => import('@/views/admin/AdminLayout.vue'),
     meta: { requiresAdmin: true },
     children: [
-      // 기존: 대시보드를 기본 페이지로 사용
-      // {
-      //   path: '',
-      //   name: 'AdminDashboard',
-      //   component: () => import('@/views/admin/DashboardView.vue'),
-      //   meta: { title: '대시보드' }
-      // },
-      // 변경: /admin 접속 시 /admin/documents로 리다이렉트
+      // /admin 접속 시 /admin/documents로 리다이렉트
       {
         path: '',
         redirect: '/admin/documents'
@@ -106,14 +108,36 @@ router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} - ${appTitle}` : appTitle
 })
 
-// 향후 인증 가드 추가 위치
-// router.beforeEach((to, from, next) => {
-//   const store = useStore()
-//   if (to.meta.requiresAdmin && !store.getters['app/isAdmin']) {
-//     next('/user')
-//   } else {
-//     next()
-//   }
-// })
+// 인증 라우터 가드
+router.beforeEach((to, from, next) => {
+  const isAuthenticated = store.getters['auth/isAuthenticated']
+
+  // 1. 로그인 페이지: 이미 인증됐으면 리다이렉트
+  if (to.path === '/login') {
+    if (isAuthenticated) {
+      const canAdmin = store.getters['auth/canAccessAdmin']
+      return next(canAdmin ? '/admin' : '/chat')
+    }
+    return next()
+  }
+
+  // 2. 공개 페이지: 인증 불필요
+  if (to.meta.public) return next()
+
+  // 3. 관리자 페이지: 인증 + 관리 권한 필요
+  if (to.meta.requiresAdmin || to.matched.some(r => r.meta.requiresAdmin)) {
+    if (!isAuthenticated) {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
+    }
+    const canAdmin = store.getters['auth/canAccessAdmin']
+    if (!canAdmin) {
+      return next('/chat')
+    }
+    return next()
+  }
+
+  // 4. 일반 페이지 (/chat 등): Phase 3a 선택적 모드 — 통과
+  next()
+})
 
 export default router

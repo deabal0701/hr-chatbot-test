@@ -16,51 +16,159 @@
         </el-tag>
       </el-tooltip>
 
-      <!-- 다크모드 토글 버튼 - 추후 사용 예정 (다크모드 기본 고정)
-      <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
-        <el-button
-          circle
-          :icon="isDarkMode ? Sunny : Moon"
-          @click="toggleDarkMode"
-          class="theme-toggle-btn"
-        />
-      </el-tooltip>
-      -->
-
-      <!-- 향후 사용자 메뉴 추가 위치 -->
-      <!-- <el-dropdown>
-        <el-avatar :size="32" icon="UserFilled" />
+      <!-- 사용자 메뉴 (인증된 경우) -->
+      <el-dropdown v-if="currentUser" @command="handleUserCommand" trigger="click">
+        <div class="user-info">
+          <el-avatar :size="24" class="user-avatar">
+            <el-icon :size="14"><UserFilled /></el-icon>
+          </el-avatar>
+          <span class="user-name">{{ displayName }}</span>
+          <el-icon class="user-arrow"><ArrowDown /></el-icon>
+        </div>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item>설정</el-dropdown-item>
-            <el-dropdown-item divided>로그아웃</el-dropdown-item>
+            <el-dropdown-item disabled>
+              <div class="user-detail">
+                <span class="user-scope-name">권한 : {{ displayName }}</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item command="password" divided>
+              <el-icon><Lock /></el-icon> 비밀번호 변경
+            </el-dropdown-item>
+            <el-dropdown-item command="logout">
+              <el-icon><SwitchButton /></el-icon> 로그아웃
+            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
-      </el-dropdown> -->
+      </el-dropdown>
+
+      <!-- 미인증 상태: 로그인 버튼 -->
+      <el-button v-else type="primary" size="small" @click="goToLogin">
+        로그인
+      </el-button>
     </div>
+
+    <!-- 비밀번호 변경 다이얼로그 -->
+    <el-dialog
+      v-model="passwordDialogVisible"
+      title="비밀번호 변경"
+      width="420px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="passwordFormRef"
+        :model="passwordForm"
+        :rules="passwordRules"
+        label-position="top"
+      >
+        <el-form-item label="현재 비밀번호" prop="currentPassword">
+          <el-input v-model="passwordForm.currentPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="새 비밀번호" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="비밀번호 확인" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="passwordDialogVisible = false">취소</el-button>
+        <el-button type="primary" :loading="passwordLoading" @click="handleChangePassword">변경</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, reactive, ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import { Connection, Menu, Moon, Sunny } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Connection, Menu, ArrowDown, Lock, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import apiClient from '@/api'
 
 const route = useRoute()
+const router = useRouter()
 const store = useStore()
 
 const apiHealthy = computed(() => store.state.app.apiHealthy)
-const isDarkMode = computed(() => store.getters['app/isDarkMode'])
+const currentUser = computed(() => store.getters['auth/currentUser'])
+const displayName = computed(() => store.getters['auth/displayName'])
 
 const pageTitle = computed(() => {
   return route.meta.title || 'MUREUM'
 })
 
-// 다크모드 토글 (store의 app모듈의 toggleDarkMode 액션 호출)
-const toggleDarkMode = () => {
-  store.dispatch('app/toggleDarkMode')
+
+
+// 사용자 메뉴 커맨드 처리
+const handleUserCommand = async (command) => {
+  if (command === 'logout') {
+    await store.dispatch('auth/logout')
+    router.push('/login')
+  } else if (command === 'password') {
+    passwordDialogVisible.value = true
+  }
+}
+
+// 로그인 페이지로 이동
+const goToLogin = () => {
+  router.push('/login')
+}
+
+// ===== 비밀번호 변경 =====
+const passwordDialogVisible = ref(false)
+const passwordLoading = ref(false)
+const passwordFormRef = ref(null)
+const passwordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const passwordRules = {
+  currentPassword: [
+    { required: true, message: '현재 비밀번호를 입력해주세요', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '새 비밀번호를 입력해주세요', trigger: 'blur' },
+    { min: 8, message: '8자 이상 입력해주세요', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '비밀번호를 다시 입력해주세요', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== passwordForm.newPassword) {
+          callback(new Error('비밀번호가 일치하지 않습니다'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
+const handleChangePassword = async () => {
+  const valid = await passwordFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  passwordLoading.value = true
+  try {
+    await store.dispatch('auth/changePassword', {
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword
+    })
+    ElMessage.success('비밀번호가 변경되었습니다')
+    passwordDialogVisible.value = false
+    passwordForm.currentPassword = ''
+    passwordForm.newPassword = ''
+    passwordForm.confirmPassword = ''
+  } catch (err) {
+    ElMessage.error(err.message || '비밀번호 변경에 실패했습니다')
+  } finally {
+    passwordLoading.value = false
+  }
 }
 
 // API 헬스 체크
@@ -111,19 +219,53 @@ onMounted(() => {
   gap: 16px;
 }
 
-.theme-toggle-btn {
-  border: 1px solid var(--border-color-light);
-  background-color: var(--bg-color-overlay);
-  color: var(--text-color-regular);
-  transition: var(--theme-transition);
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
 
   &:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary);
+    background-color: var(--bg-color-hover);
+  }
+
+  .user-avatar {
+    background-color: #78909c;
+    color: #eceff1;
+  }
+
+  .user-name {
+    font-size: 14px;
+    color: var(--text-color-primary);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .user-arrow {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+  }
+}
+
+.user-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .user-scope-name {
+    font-size: 13px;
+    color: var(--text-color-primary);
+    font-weight: 500;
   }
 }
 
 .mr-5 {
   margin-right: 5px;
 }
+
 </style>

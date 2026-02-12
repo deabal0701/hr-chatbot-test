@@ -13,14 +13,25 @@ const apiClient = axios.create({
   }
 })
 
-// 요청 인터셉터
+// ===== 401 자동 갱신 관련 =====
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error)
+    else resolve(token)
+  })
+  failedQueue = []
+}
+
+// 요청 인터셉터 — Bearer 토큰 자동 첨부
 apiClient.interceptors.request.use(
   (config) => {
-    // 향후 인증 토큰 추가 위치
-    // const token = localStorage.getItem('token')
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`
-    // }
+    const token = localStorage.getItem('mureum_access_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error) => {
@@ -64,22 +75,94 @@ apiClient.interceptors.response.use(
       return Promise.reject(networkError)
     }
 
-    const errorData = error.response?.data
+    const originalRequest = error.config
 
-    // 표준 에러 응답: { success: false, error: { code, message, detail } }
-    if (errorData?.error && typeof errorData.success === 'boolean') {
-      const customError = new Error(errorData.error.message || '오류가 발생했습니다')
-      customError.code = errorData.error.code || 'UNKNOWN_ERROR'
-      customError.detail = errorData.error.detail
-      customError.response = error.response
-      console.error('API Error:', customError.code, customError.message)
-      return Promise.reject(customError)
+    // 401 Unauthorized → 토큰 자동 갱신 시도
+    if (error.response.status === 401 && !originalRequest._retry) {
+      // 로그인/refresh 요청 자체의 401은 갱신 시도하지 않음
+      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+        return handleApiError(error)
+      }
+
+      if (isRefreshing) {
+        // 이미 갱신 중이면 큐에 대기
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(token => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return apiClient(originalRequest)
+        }).catch(err => Promise.reject(err))
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const refreshToken = localStorage.getItem('mureum_refresh_token')
+      if (!refreshToken) {
+        isRefreshing = false
+        clearAuthAndRedirect()
+        return Promise.reject(error)
+      }
+
+      return apiClient.post('/api/v1/auth/refresh', {
+        refresh_token: refreshToken
+      }).then(data => {
+        const newToken = data.access_token
+        localStorage.setItem('mureum_access_token', newToken)
+        if (data.refresh_token) {
+          localStorage.setItem('mureum_refresh_token', data.refresh_token)
+        }
+        if (data.user) {
+          localStorage.setItem('mureum_user', JSON.stringify(data.user))
+        }
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        processQueue(null, newToken)
+        return apiClient(originalRequest)
+      }).catch(err => {
+        processQueue(err, null)
+        clearAuthAndRedirect()
+        return Promise.reject(err)
+      }).finally(() => {
+        isRefreshing = false
+      })
     }
 
-    // 예상치 못한 에러 형식 (로깅 후 그대로 전달)
-    console.error('Unexpected error format:', error.response?.status, errorData || error.message)
-    return Promise.reject(error)
+    return handleApiError(error)
   }
 )
+
+/**
+ * 표준 API 에러 처리
+ */
+function handleApiError(error) {
+  const errorData = error.response?.data
+
+  // 표준 에러 응답: { success: false, error: { code, message, detail } }
+  if (errorData?.error && typeof errorData.success === 'boolean') {
+    const customError = new Error(errorData.error.message || '오류가 발생했습니다')
+    customError.code = errorData.error.code || 'UNKNOWN_ERROR'
+    customError.detail = errorData.error.detail
+    customError.response = error.response
+    console.error('API Error:', customError.code, customError.message)
+    return Promise.reject(customError)
+  }
+
+  // 예상치 못한 에러 형식 (로깅 후 그대로 전달)
+  console.error('Unexpected error format:', error.response?.status, errorData || error.message)
+  return Promise.reject(error)
+}
+
+/**
+ * 토큰 전부 삭제 + 로그인 페이지 리다이렉트
+ */
+function clearAuthAndRedirect() {
+  localStorage.removeItem('mureum_access_token')
+  localStorage.removeItem('mureum_refresh_token')
+  localStorage.removeItem('mureum_user')
+  // 이미 로그인 페이지면 리다이렉트하지 않음
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
 
 export default apiClient

@@ -1,4 +1,5 @@
-// 앱 전역 상태 모듈 (향후 인증 확장용)
+// 앱 전역 상태 모듈 (테마, 사이드바, API 상태 관리)
+// 인증 관련은 store/modules/auth.js로 이전됨
 
 // localStorage 키 정의
 const STORAGE_KEYS = {
@@ -73,9 +74,6 @@ export default {
   namespaced: true,
 
   state: () => ({
-    // 향후 확장용
-    user: null,           // 로그인 사용자 정보
-    userRole: 'admin',    // 'admin' | 'user'
     sidebarCollapsed: false,
 
     // 사용자 채팅 사이드바 상태 (localStorage에서 복원)
@@ -91,12 +89,6 @@ export default {
   }),
 
   mutations: {
-    SET_USER(state, user) {
-      state.user = user
-    },
-    SET_ROLE(state, role) {
-      state.userRole = role
-    },
     TOGGLE_SIDEBAR(state) {
       state.sidebarCollapsed = !state.sidebarCollapsed
     },
@@ -154,8 +146,8 @@ export default {
   },
 
   getters: {
-    isAdmin: (state) => state.userRole === 'admin',
-    isAuthenticated: (state) => state.user !== null,
+    // 인증 관련 getter는 auth 모듈로 이전됨
+    // auth/isAuthenticated, auth/canAccessAdmin 사용
     // 현재 화면의 다크모드 상태
     isDarkMode: (state) => state.currentView === 'user' ? state.userDarkMode : state.adminDarkMode,
     // 개별 화면 다크모드 상태
@@ -166,15 +158,8 @@ export default {
   },
 
   actions: {
-    // 향후 로그인/로그아웃 구현
-    async login({ commit }, credentials) {
-      // const user = await authApi.login(credentials)
-      // commit('SET_USER', user)
-      console.log('Login action - to be implemented', credentials)
-    },
-    logout({ commit }) {
-      commit('SET_USER', null)
-    },
+    // 로그인/로그아웃은 auth 모듈로 이전됨
+    // auth/login, auth/logout 사용
     toggleSidebar({ commit }) {
       commit('TOGGLE_SIDEBAR')
     },

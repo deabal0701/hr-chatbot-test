@@ -8,7 +8,7 @@
       <span v-if="!isCollapsed" class="logo-text">MUREUM</span>
     </div>
 
-    <!-- 메뉴 -->
+    <!-- 메뉴 (권한 기반 동적 필터링) -->
     <el-menu
       :default-active="activeMenu"
       :collapse="isCollapsed"
@@ -18,34 +18,13 @@
       :active-text-color="menuActiveColor"
       router
     >
-      <!-- <el-menu-item index="/admin">
-        <el-icon><DataAnalysis /></el-icon>
-        <template #title>대시보드</template>
-      </el-menu-item> -->
-
-      <el-menu-item index="/admin/documents">
-        <el-icon><Document /></el-icon>
-        <template #title>지식문서 관리</template>
-      </el-menu-item>
-
-      <el-menu-item index="/admin/chat">
-        <el-icon><ChatDotSquare /></el-icon>
-        <template #title>자연어 검색</template>
-      </el-menu-item> 
-
-      <el-menu-item index="/admin/settings">
-        <el-icon><Setting /></el-icon>
-        <template #title>시스템 설정</template>
-      </el-menu-item>
-
-      <el-menu-item index="/admin/codes">
-        <el-icon><Grid /></el-icon>
-        <template #title>코드 관리</template>
-      </el-menu-item>
-
-      <el-menu-item index="/admin/history">
-        <el-icon><Histogram /></el-icon>
-        <template #title>검색 이력(Tracing)</template>
+      <el-menu-item
+        v-for="item in visibleMenuItems"
+        :key="item.index"
+        :index="item.index"
+      >
+        <el-icon><component :is="item.icon" /></el-icon>
+        <template #title>{{ item.title }}</template>
       </el-menu-item>
     </el-menu>
 
@@ -62,12 +41,14 @@ import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import {
   ChatDotRound,
-  DataAnalysis,
   ChatDotSquare,
   Document,
   Setting,
   Grid,
-  Histogram
+  Histogram,
+  User,
+  Key,
+  OfficeBuilding
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -76,6 +57,35 @@ const store = useStore()
 const isCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const activeMenu = computed(() => route.path)
 const isDarkMode = computed(() => store.getters['app/isDarkMode'])
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
+
+// 권한 체크 헬퍼
+const hasPermission = (code) => store.getters['auth/hasPermission'](code)
+
+// 전체 메뉴 정의 (permission 조건 포함)
+const allMenuItems = [
+  { index: '/admin/documents', icon: Document, title: '지식문서 관리', permission: 'document:read' },
+  { index: '/admin/chat', icon: ChatDotSquare, title: '자연어 검색', permission: null },
+  { index: '/admin/settings', icon: Setting, title: '시스템 설정', permission: 'admin:settings' },
+  { index: '/admin/codes', icon: Grid, title: '코드 관리', permission: 'admin:settings' },
+  { index: '/admin/history', icon: Histogram, title: '검색 이력(Tracing)', permission: null },
+  { index: '/admin/users', icon: User, title: '사용자 관리', permission: 'admin:users' },
+  { index: '/admin/roles', icon: Key, title: '역할 관리', permission: 'admin:users' },
+  { index: '/admin/tenants', icon: OfficeBuilding, title: '테넌트 관리', permission: 'admin:tenants' }
+]
+
+// 권한에 따라 보이는 메뉴만 필터링
+const visibleMenuItems = computed(() => {
+  // 미인증 상태에서는 전체 메뉴 표시 (Phase 3a 하위호환)
+  if (!isAuthenticated.value) {
+    return allMenuItems.filter(item => !item.permission || item.permission === 'document:read')
+  }
+  // 인증된 상태: 권한 기반 필터링
+  return allMenuItems.filter(item => {
+    if (!item.permission) return true
+    return hasPermission(item.permission)
+  })
+})
 
 // 다크모드에 따른 메뉴 색상 (_variables.scss 와 동기화)
 const menuBgColor = computed(() => isDarkMode.value ? '#1f1f1f' : '#304156')

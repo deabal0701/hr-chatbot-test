@@ -86,6 +86,7 @@
 
   .el-dialog {
     background-color: var(--bg-color-card);
+    border: 1px solid var(--border-color);
 
     .el-dialog__header {
       border-bottom-color: var(--border-color);
