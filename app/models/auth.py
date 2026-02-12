@@ -36,6 +36,7 @@ class UserInfo(BaseModel):
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
     roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
+    role_names: List[str] = Field(default_factory=list, description="역할 이름 목록")
     permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
 
 

@@ -48,16 +48,19 @@ async def refresh(body: RefreshRequest, request: Request):
 
 
 @router.get("/me")
-async def get_me(current_user: UserContext = Depends(get_current_active_user)):
-    """현재 사용자 정보 조회"""
+async def get_me(request: Request, current_user: UserContext = Depends(get_current_active_user)):
+    """현재 사용자 정보 조회 (DB에서 최신 권한 로드)"""
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
+    user_data = auth_service.get_user_with_permissions(current_user.user_id, request_id)
     user_info = UserInfo(
-        user_id=current_user.user_id,
-        login_id=current_user.login_id,
-        display_name=current_user.display_name,
-        tenant_id=current_user.tenant_id,
-        scope_type=current_user.scope_type,
-        roles=current_user.roles,
-        permissions=current_user.permissions,
+        user_id=user_data["user_id"],
+        login_id=user_data["login_id"],
+        display_name=user_data["display_name"],
+        tenant_id=user_data["tenant_id"],
+        scope_type=user_data["scope_type"],
+        roles=user_data["roles"],
+        role_names=user_data["role_names"],
+        permissions=user_data["permissions"],
     )
     return success_response(user_info.model_dump())
 

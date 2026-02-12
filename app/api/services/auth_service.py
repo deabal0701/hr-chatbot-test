@@ -100,6 +100,7 @@ class AuthService:
             "tenant_id": user_info["tenant_id"],
             "scope_type": user_info["scope_type"],
             "roles": user_info["roles"],
+            "role_names": user_info["role_names"],
             "permissions": user_info["permissions"],
             "is_superuser": user_info["is_superuser"],
         }
@@ -130,6 +131,7 @@ class AuthService:
                 tenant_id=user_info["tenant_id"],
                 scope_type=user_info["scope_type"],
                 roles=user_info["roles"],
+                role_names=user_info["role_names"],
                 permissions=user_info["permissions"],
             ),
         )
@@ -174,6 +176,7 @@ class AuthService:
             "tenant_id": user_info["tenant_id"],
             "scope_type": user_info["scope_type"],
             "roles": user_info["roles"],
+            "role_names": user_info["role_names"],
             "permissions": user_info["permissions"],
             "is_superuser": user_info["is_superuser"],
         }
@@ -193,6 +196,7 @@ class AuthService:
                 tenant_id=user_info["tenant_id"],
                 scope_type=user_info["scope_type"],
                 roles=user_info["roles"],
+                role_names=user_info["role_names"],
                 permissions=user_info["permissions"],
             ),
         )
@@ -227,7 +231,7 @@ class AuthService:
         # 2. 역할 + 권한 조회
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT r.role_code, r.scope_type, p.permission_code "
+                "SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code "
                 "FROM tb_user_role ur "
                 "JOIN tb_role r ON ur.role_id = r.role_id "
                 "LEFT JOIN tb_role_permission rp ON r.role_id = rp.role_id "
@@ -238,12 +242,15 @@ class AuthService:
             rows = cur.fetchall()
 
         roles = set()
+        role_names = set()
         permissions = set()
         max_scope = "USER"
 
         for row in rows:
             if row["role_code"]:
                 roles.add(row["role_code"])
+            if row["role_name"]:
+                role_names.add(row["role_name"])
             if row["permission_code"]:
                 permissions.add(row["permission_code"])
             row_scope = row["scope_type"] or "USER"
@@ -251,6 +258,7 @@ class AuthService:
                 max_scope = row_scope
 
         user["roles"] = sorted(roles)
+        user["role_names"] = sorted(role_names)
         user["permissions"] = sorted(permissions)
         user["scope_type"] = max_scope
 

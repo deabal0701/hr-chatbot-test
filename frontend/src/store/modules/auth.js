@@ -94,6 +94,7 @@ export default {
     // 권한 헬퍼
     permissions: (state) => state.user?.permissions || [],
     roles: (state) => state.user?.roles || [],
+    roleNames: (state) => state.user?.role_names || [],
     scopeType: (state) => state.user?.scope_type || 'USER',
 
     hasPermission: (state) => (code) => {

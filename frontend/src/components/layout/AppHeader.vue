@@ -29,7 +29,7 @@
           <el-dropdown-menu>
             <el-dropdown-item disabled>
               <div class="user-detail">
-                <span class="user-scope-name">권한 : {{ displayName }}</span>
+                <span class="user-scope-name">권한 : {{ roleName }}</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item command="password" divided>
@@ -94,6 +94,10 @@ const store = useStore()
 const apiHealthy = computed(() => store.state.app.apiHealthy)
 const currentUser = computed(() => store.getters['auth/currentUser'])
 const displayName = computed(() => store.getters['auth/displayName'])
+const roleName = computed(() => {
+  const names = store.getters['auth/roleNames'] || []
+  return names.length > 0 ? names.join(', ') : '-'
+})
 
 const pageTitle = computed(() => {
   return route.meta.title || 'MUREUM'
