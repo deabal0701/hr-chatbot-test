@@ -6,13 +6,16 @@
 - 비즈니스 로직은 서비스 계층에 위임
 """
 import uuid
+from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.services.rag_service import rag_service
 from app.api.services.nl2sql_service import nl2sql_service
 from app.core.errors import APIException, ErrorCode, success_response
+from app.core.security.dependencies import get_optional_user
+from app.models.auth import UserContext
 from app.models.search import SearchRequest
 from app.utils.logger import setup_logger, log_step
 
@@ -22,13 +25,16 @@ router = APIRouter(prefix="/api/v1", tags=["search"])
 
 
 @router.post("/search")
-async def search(search_request: SearchRequest, request: Request):
+async def search(search_request: SearchRequest, request: Request, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """
     통합 검색 엔드포인트
 
     - mode='auto': 자동으로 RAG/NL2SQL 선택 (기본값)
     - mode='rag': RAG 검색 (문서 기반)
     - mode='nl2sql': NL2SQL 검색 (데이터베이스 쿼리)
+
+    인증 시 권한 검증: rag:search (RAG), nl2sql:execute (NL2SQL)
+    Phase 3a: 미인증 허용 (하위호환)
     """
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
 
@@ -44,6 +50,12 @@ async def search(search_request: SearchRequest, request: Request):
         else:
             query_type = search_request.mode
             log_step(logger, request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
+
+        # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip)
+        if current_user:
+            required_perm = "nl2sql:execute" if query_type == "nl2sql" else "rag:search"
+            if not current_user.has_permission(required_perm):
+                raise APIException(ErrorCode.FORBIDDEN, f"{required_perm} 권한이 필요합니다")
 
         # 서비스 호출
         if query_type == "nl2sql":
@@ -64,7 +76,7 @@ async def search(search_request: SearchRequest, request: Request):
 
 
 @router.post("/search/stream")
-async def search_stream(search_request: SearchRequest, request: Request):
+async def search_stream(search_request: SearchRequest, request: Request, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """
     통합 검색 SSE 스트리밍 엔드포인트
 
@@ -80,6 +92,12 @@ async def search_stream(search_request: SearchRequest, request: Request):
         query_type = _classify_query_intent(search_request.query)
     else:
         query_type = search_request.mode
+
+    # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip)
+    if current_user:
+        required_perm = "nl2sql:execute" if query_type == "nl2sql" else "rag:search"
+        if not current_user.has_permission(required_perm):
+            raise APIException(ErrorCode.FORBIDDEN, f"{required_perm} 권한이 필요합니다")
 
     # RAG 모드는 SSE 미지원
     if query_type == "rag":
@@ -139,7 +157,7 @@ def _classify_query_intent(query: str) -> str:
 
 
 @router.get("/nl2sql/sessions")
-async def get_nl2sql_sessions():
+async def get_nl2sql_sessions(current_user: Optional[UserContext] = Depends(get_optional_user)):
     """NL2SQL 활성 세션 목록 조회"""
     try:
         sessions = nl2sql_service.get_sessions()
@@ -150,7 +168,7 @@ async def get_nl2sql_sessions():
 
 
 @router.get("/nl2sql/sessions/{session_id}/history")
-async def get_nl2sql_session_history(session_id: str):
+async def get_nl2sql_session_history(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """NL2SQL 세션 대화 이력 조회"""
     try:
         history = nl2sql_service.get_session_history(session_id)
@@ -161,7 +179,7 @@ async def get_nl2sql_session_history(session_id: str):
 
 
 @router.delete("/nl2sql/sessions/{session_id}")
-async def delete_nl2sql_session(session_id: str):
+async def delete_nl2sql_session(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """NL2SQL 세션 삭제"""
     try:
         result = nl2sql_service.delete_session(session_id)

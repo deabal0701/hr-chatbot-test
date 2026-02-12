@@ -8,15 +8,30 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.api.services.history_service import history_service
 from app.core.errors import APIException, ErrorCode, success_response
+from app.core.security.dependencies import get_optional_user
+from app.core.security.permission import require_permission
+from app.models.auth import UserContext
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
+
+
+def _apply_scope_filter(current_user: Optional[UserContext], tenant_id: Optional[str], user_id: Optional[str]):
+    """scope_type에 따라 tenant_id/user_id 필터를 강제 적용 (Phase 3a: 미인증 시 skip)"""
+    if not current_user:
+        return tenant_id, user_id
+    if current_user.scope_type == "TENANT":
+        tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
+    elif current_user.scope_type == "USER":
+        tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
+        user_id = str(current_user.user_id)
+    return tenant_id, user_id
 
 
 @router.get("")
@@ -30,14 +45,15 @@ async def list_history(
     to_date: Optional[datetime] = Query(None, description="종료일 (YYYY-MM-DDTHH:MM:SS)"),
     limit: int = Query(100, ge=1, le=1000, description="조회 개수"),
     offset: int = Query(0, ge=0, description="오프셋"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
     """
     API 요청 이력 조회
 
-    멀티테넌트 및 사용자별 필터링 지원:
-    - tenant_id: 특정 고객사의 이력만 조회
-    - user_id: 특정 사용자의 이력만 조회 (내 이력)
+    scope 기반 필터: GLOBAL=전체, TENANT=자기 테넌트, USER=본인 이력
+    Phase 3a: 미인증 허용 (하위호환)
     """
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
         items = history_service.get_history(
             tenant_id=tenant_id,
@@ -80,12 +96,10 @@ async def get_statistics(
     user_id: Optional[str] = Query(None, description="사용자 ID 필터"),
     from_date: Optional[datetime] = Query(None, description="시작일"),
     to_date: Optional[datetime] = Query(None, description="종료일"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
-    """
-    이력 통계 조회
-
-    테넌트 또는 사용자별 통계 지원
-    """
+    """이력 통계 조회 (scope 기반 필터 적용)"""
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
         stats = history_service.get_statistics(
             tenant_id=tenant_id,
@@ -104,12 +118,13 @@ async def get_statistics(
 async def get_user_summary(
     user_id: str,
     tenant_id: Optional[str] = Query(None, description="테넌트 ID"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
-    """
-    사용자별 이력 요약 (내 이력 요약)
-
-    특정 사용자의 사용 통계 및 최근 요청 목록 조회
-    """
+    """사용자별 이력 요약 (본인 또는 scope 범위 내)"""
+    # USER scope → 본인 이력만
+    if current_user and current_user.scope_type == "USER" and str(current_user.user_id) != user_id:
+        raise APIException(ErrorCode.FORBIDDEN, "본인의 이력만 조회할 수 있습니다")
+    tenant_id, _ = _apply_scope_filter(current_user, tenant_id, None)
     try:
         summary = history_service.get_user_summary(user_id=user_id, tenant_id=tenant_id)
         return success_response(summary)
@@ -128,12 +143,12 @@ async def get_user_history(
     to_date: Optional[datetime] = Query(None, description="종료일"),
     limit: int = Query(100, ge=1, le=1000, description="조회 개수"),
     offset: int = Query(0, ge=0, description="오프셋"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
-    """
-    사용자별 이력 상세 조회 (내 이력)
-
-    특정 사용자의 전체 요청 이력 조회
-    """
+    """사용자별 이력 상세 조회 (본인 또는 scope 범위 내)"""
+    if current_user and current_user.scope_type == "USER" and str(current_user.user_id) != user_id:
+        raise APIException(ErrorCode.FORBIDDEN, "본인의 이력만 조회할 수 있습니다")
+    tenant_id, _ = _apply_scope_filter(current_user, tenant_id, None)
     try:
         items = history_service.get_history(
             tenant_id=tenant_id,
@@ -173,6 +188,7 @@ async def list_sessions(
     request_type: Optional[str] = Query(None, description="요청 타입 (agent/nl2sql/rag)"),
     limit: int = Query(50, ge=1, le=200, description="조회 개수"),
     offset: int = Query(0, ge=0, description="오프셋"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
     """세션 단위 이력 목록 조회 (사용자 사이드바용)"""
     try:
@@ -199,8 +215,8 @@ async def list_sessions(
 
 
 @router.get("/sessions/{session_key}")
-async def get_session_history(session_key: str):
-    """세션별 이력 상세 조회 (session_id 또는 request_id)"""
+async def get_session_history(session_key: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
+    """세션별 이력 상세 조회 (session_id 또는 request_id, Phase 3a: 미인증 허용)"""
     try:
         items = history_service.get_session_detail(session_key)
         return success_response({
@@ -214,8 +230,8 @@ async def get_session_history(session_key: str):
 
 
 @router.delete("/sessions/{session_key}")
-async def delete_session_history(session_key: str):
-    """세션 단위 이력 삭제"""
+async def delete_session_history(session_key: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
+    """세션 단위 이력 삭제 (Phase 3a: 미인증 허용)"""
     try:
         deleted = history_service.delete_session(session_key)
         if not deleted:
@@ -233,11 +249,12 @@ async def delete_session_history(session_key: str):
 
 
 @router.get("/{request_id}")
-async def get_history_detail(request_id: str):
+async def get_history_detail(request_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """
     단일 요청 상세 조회
 
     request_id로 특정 요청의 상세 정보 조회
+    Phase 3a: 미인증 허용 (하위호환)
     """
     try:
         record = history_service.get_by_request_id(request_id)
@@ -259,9 +276,10 @@ async def get_history_detail(request_id: str):
 async def cleanup_old_records(
     days: int = Query(90, ge=7, le=365, description="보관 기간 (일)"),
     tenant_id: Optional[str] = Query(None, description="테넌트 ID (지정 시 해당 테넌트만 정리)"),
+    current_user: UserContext = Depends(require_permission("admin:settings")),
 ):
     """
-    오래된 이력 정리 (관리자용)
+    오래된 이력 정리 (관리자용, admin:settings 권한 필요)
 
     지정된 기간보다 오래된 이력 삭제
     - 기본 보관 기간: 90일
@@ -282,11 +300,12 @@ async def cleanup_old_records(
 
 
 @router.delete("/{request_id}")
-async def delete_history(request_id: str):
+async def delete_history(request_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """
     단일 요청 이력 삭제
 
     request_id로 특정 요청의 이력을 삭제합니다.
+    Phase 3a: 미인증 허용 (하위호환)
     """
     try:
         deleted = history_service.delete_by_request_id(request_id)

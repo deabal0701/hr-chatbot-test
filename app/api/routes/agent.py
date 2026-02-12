@@ -10,14 +10,16 @@
 비즈니스 로직은 agent_service에 위임
 """
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.services.agent_service import agent_service
 from app.core.errors import APIException, ErrorCode, success_response
+from app.core.security.dependencies import get_optional_user
 from app.models.agent import AgentRequest
+from app.models.auth import UserContext
 from app.utils.logger import setup_logger
 from app.utils.common import truncate_text
 
@@ -27,7 +29,7 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 
 @router.post("/search")
-async def agent_search(request: AgentRequest):
+async def agent_search(request: AgentRequest, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """
     AI Agent 기반 검색 (ReAct 패턴)
 
@@ -58,7 +60,7 @@ async def agent_search(request: AgentRequest):
 
 
 @router.post("/search/stream")
-async def agent_search_stream(request: AgentRequest):
+async def agent_search_stream(request: AgentRequest, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """
     AI Agent SSE 스트리밍 검색 (ReAct 패턴)
 
@@ -92,7 +94,7 @@ async def agent_search_stream(request: AgentRequest):
 
 
 @router.get("/sessions")
-async def list_sessions():
+async def list_sessions(current_user: Optional[UserContext] = Depends(get_optional_user)):
     """활성 세션 목록 조회 (InMemorySaver 기반)"""
     try:
         sessions = agent_service.get_sessions()
@@ -103,7 +105,7 @@ async def list_sessions():
 
 
 @router.get("/sessions/{session_id}/memory")
-async def get_session_memory(session_id: str):
+async def get_session_memory(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """세션 메모리 조회 (InMemorySaver 기반)"""
     try:
         result = agent_service.get_session_memory(session_id)
@@ -118,7 +120,7 @@ async def get_session_memory(session_id: str):
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """세션 삭제 (InMemorySaver 체크포인트 삭제)"""
     try:
         result = agent_service.delete_session(session_id)
@@ -131,7 +133,7 @@ async def delete_session(session_id: str):
 
 
 @router.get("/sessions/{session_id}/metrics")
-async def get_session_metrics(session_id: str):
+async def get_session_metrics(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
     """세션 메트릭 조회 (기본 정보)"""
     try:
         result = agent_service.get_session_metrics(session_id)
@@ -142,7 +144,7 @@ async def get_session_metrics(session_id: str):
 
 
 @router.get("/tools")
-async def list_tools():
+async def list_tools(current_user: Optional[UserContext] = Depends(get_optional_user)):
     """사용 가능한 도구 목록 조회"""
     try:
         from app.graphs.agent.tools.sql_tool import SQLQueryTool
@@ -169,7 +171,8 @@ async def list_tools():
 @router.post("/test-tool")
 async def test_tool(
     tool_name: str = Body(..., description="테스트할 도구 이름"),
-    params: Dict[str, Any] = Body(default={}, description="도구 파라미터")
+    params: Dict[str, Any] = Body(default={}, description="도구 파라미터"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
     """도구 단독 테스트 (디버깅용)"""
     try:

@@ -13,8 +13,10 @@
 """
 from typing import Optional
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
+from app.core.security.permission import require_permission
+from app.models.auth import UserContext
 from app.models.documents import (
     DocumentSaveRequest,
     DocumentSaveResponse,
@@ -40,7 +42,7 @@ router = APIRouter(prefix="/api/admin/v1/documents", tags=["admin-documents"])
 # ============================================
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def save_document(doc: DocumentSaveRequest):
+async def save_document(doc: DocumentSaveRequest, current_user: UserContext = Depends(require_permission("document:write"))):
     """문서 저장 (임베딩 없이)"""
     try:
         logger.info(f"문서 저장 요청: title='{doc.title}', content_length={len(doc.content)}자")
@@ -80,7 +82,8 @@ async def list_documents(
     indexed: Optional[bool] = Query(None, description="임베딩 여부 필터"),
     include_chunks: bool = Query(False, description="청크 포함 여부"),
     limit: int = Query(100, ge=1, le=1000, description="최대 결과 수"),
-    offset: int = Query(0, ge=0, description="시작 위치")
+    offset: int = Query(0, ge=0, description="시작 위치"),
+    current_user: UserContext = Depends(require_permission("document:read")),
 ):
     """문서 목록 조회"""
     try:
@@ -104,7 +107,7 @@ async def list_documents(
 
 
 @router.get("/{doc_id}")
-async def get_document(doc_id: int):
+async def get_document(doc_id: int, current_user: UserContext = Depends(require_permission("document:read"))):
     """문서 상세 조회"""
     try:
         doc = document_service.get_document(doc_id)
@@ -122,7 +125,7 @@ async def get_document(doc_id: int):
 
 
 @router.put("/{doc_id}")
-async def update_document(doc_id: int, doc: DocumentUpdateRequest):
+async def update_document(doc_id: int, doc: DocumentUpdateRequest, current_user: UserContext = Depends(require_permission("document:write"))):
     """문서 수정"""
     try:
         result = document_service.update_document(
@@ -155,7 +158,7 @@ async def update_document(doc_id: int, doc: DocumentUpdateRequest):
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: int):
+async def delete_document(doc_id: int, current_user: UserContext = Depends(require_permission("document:delete"))):
     """문서 삭제"""
     try:
         deleted_count = document_service.delete_document(doc_id)
@@ -180,7 +183,7 @@ async def delete_document(doc_id: int):
 
 
 @router.post("/bulk-delete")
-async def bulk_delete_documents(request: BulkDelete.Request):
+async def bulk_delete_documents(request: BulkDelete.Request, current_user: UserContext = Depends(require_permission("document:delete"))):
     """문서 일괄 삭제"""
     try:
         result = document_service.bulk_delete_documents(request.doc_ids)
@@ -208,7 +211,7 @@ async def bulk_delete_documents(request: BulkDelete.Request):
 # ============================================
 
 @router.post("/embedding/execute")
-async def execute_embedding(request: Chunking.ExecuteRequest):
+async def execute_embedding(request: Chunking.ExecuteRequest, current_user: UserContext = Depends(require_permission("document:write"))):
     """임베딩 실행 (청킹 포함)"""
     try:
         logger.info(f"임베딩 실행 요청: doc_ids={request.doc_ids}, chunk_size={request.chunk_size}")
@@ -237,7 +240,7 @@ async def execute_embedding(request: Chunking.ExecuteRequest):
 
 
 @router.post("/embedding/preview")
-async def preview_chunks(request: Chunking.PreviewRequest):
+async def preview_chunks(request: Chunking.PreviewRequest, current_user: UserContext = Depends(require_permission("document:read"))):
     """청킹 미리보기"""
     try:
         chunks = document_service.preview_chunks(

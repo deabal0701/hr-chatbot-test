@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, documents, search, agent, codes, history, export
+from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.api.services.history_service import history_service
@@ -90,6 +90,9 @@ app.include_router(codes.router, prefix="/api/admin/v1")  # 코드 관리 라우
 app.include_router(agent.router)  # AI Agent 라우터
 app.include_router(history.router)  # API 요청 이력 라우터
 app.include_router(export.router)  # Excel 내보내기 라우터
+app.include_router(users.router)    # 사용자 관리 라우터 (Phase 4)
+app.include_router(roles.router)    # 역할 관리 라우터 (Phase 4)
+app.include_router(tenants.router)  # 테넌트 관리 라우터 (Phase 4)
 
 
 # 기본 엔드포인트
@@ -202,6 +205,31 @@ async def api_info():
                 "GET /api/v1/history/sessions/{session_id}": "세션별 이력",
                 "GET /api/v1/history/{request_id}": "단일 요청 상세",
                 "DELETE /api/v1/history/cleanup": "오래된 이력 정리"
+            },
+            "admin_users": {
+                "GET /api/admin/v1/users": "사용자 목록 조회",
+                "POST /api/admin/v1/users": "사용자 생성",
+                "GET /api/admin/v1/users/{user_id}": "사용자 상세 조회",
+                "PUT /api/admin/v1/users/{user_id}": "사용자 수정",
+                "DELETE /api/admin/v1/users/{user_id}": "사용자 삭제",
+                "PUT /api/admin/v1/users/{user_id}/roles": "사용자 역할 할당",
+                "GET /api/admin/v1/users/{user_id}/permissions": "사용자 권한 조회"
+            },
+            "admin_roles": {
+                "GET /api/admin/v1/roles": "역할 목록 조회",
+                "POST /api/admin/v1/roles": "역할 생성",
+                "GET /api/admin/v1/roles/{role_id}": "역할 상세 조회",
+                "PUT /api/admin/v1/roles/{role_id}": "역할 수정",
+                "DELETE /api/admin/v1/roles/{role_id}": "역할 삭제",
+                "PUT /api/admin/v1/roles/{role_id}/permissions": "역할 권한 할당",
+                "GET /api/admin/v1/roles/permissions": "전체 권한 목록 조회"
+            },
+            "admin_tenants": {
+                "GET /api/admin/v1/tenants": "테넌트 목록 조회",
+                "POST /api/admin/v1/tenants": "테넌트 생성",
+                "GET /api/admin/v1/tenants/{tenant_id}": "테넌트 상세 조회",
+                "PUT /api/admin/v1/tenants/{tenant_id}": "테넌트 수정",
+                "DELETE /api/admin/v1/tenants/{tenant_id}": "테넌트 삭제"
             }
         }
     }
