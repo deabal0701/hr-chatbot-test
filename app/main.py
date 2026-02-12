@@ -4,14 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import documents, search, agent, codes, history, export
+from app.api.routes import auth, documents, search, agent, codes, history, export
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.api.services.history_service import history_service
 from app.core.database.connection import db_manager
 from app.core.database.external import external_db_manager
 from app.core.errors import register_exception_handlers
-from app.middleware import LoggingMiddleware, HistoryMiddleware
+from app.middleware import LoggingMiddleware, HistoryMiddleware, AuthMiddleware
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 
@@ -67,9 +67,10 @@ cors_origins = (
 )
 
 # Middleware 등록 (역순 실행: 나중에 추가한 것이 먼저 실행)
-# 요청 실행 순서: LoggingMiddleware → HistoryMiddleware → CORSMiddleware → Handler
-# 응답 실행 순서: Handler → CORSMiddleware → HistoryMiddleware → LoggingMiddleware
-app.add_middleware(HistoryMiddleware)  # 이력 저장 (LoggingMiddleware 다음 실행)
+# 요청 실행 순서: CORSMiddleware → LoggingMiddleware → AuthMiddleware → HistoryMiddleware → Handler
+# 응답 실행 순서: Handler → HistoryMiddleware → AuthMiddleware → LoggingMiddleware → CORSMiddleware
+app.add_middleware(HistoryMiddleware)  # 이력 저장
+app.add_middleware(AuthMiddleware)     # 인증 검증 (선택적 모드 — Phase 3a)
 app.add_middleware(LoggingMiddleware)  # 요청/응답 로깅 + request_id 생성 (가장 먼저 실행)
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +82,7 @@ app.add_middleware(
 
 
 # 라우터 등록
+app.include_router(auth.router)  # 인증 라우터 (Phase 3)
 app.include_router(search.router)
 app.include_router(documents.router)
 app.include_router(settings_router.router)
@@ -141,6 +143,13 @@ async def api_info():
             "embedding": settings.embedding_model
         },
         "endpoints": {
+            "auth": {
+                "POST /api/v1/auth/login": "로그인 (JWT 발급)",
+                "POST /api/v1/auth/logout": "로그아웃 (세션 삭제)",
+                "POST /api/v1/auth/refresh": "Access Token 갱신",
+                "GET /api/v1/auth/me": "현재 사용자 정보 조회",
+                "PUT /api/v1/auth/me/password": "비밀번호 변경"
+            },
             "search": {
                 "POST /api/v1/search": "통합 검색 (auto/rag/nl2sql 모드)",
                 "POST /api/v1/rag": "RAG 검색 전용",

@@ -13,9 +13,11 @@ Usage:
 from app.middleware.base import BaseMiddleware
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.history import HistoryMiddleware
+from app.middleware.auth import AuthMiddleware
 
 __all__ = [
     "BaseMiddleware",
     "LoggingMiddleware",
     "HistoryMiddleware",
+    "AuthMiddleware",
 ]
