@@ -2,7 +2,23 @@
 -- 사용자 및 권한 관리 테이블 DDL
 -- 파일: docs/sql/tb_user_permission.sql
 -- 작성일: 2026-02-06
+-- 수정일: 2026-02-12
+-- 비고: Function/Procedure 미사용, 서비스 레이어에서 처리
 -- ============================================================
+
+
+-- ==========================================
+-- 0. 기존 테이블 삭제 (재생성 시)
+-- ==========================================
+DROP TABLE IF EXISTS tb_user_session CASCADE;
+DROP TABLE IF EXISTS tb_data_filter CASCADE;
+DROP TABLE IF EXISTS tb_user_role CASCADE;
+DROP TABLE IF EXISTS tb_role_permission CASCADE;
+DROP TABLE IF EXISTS tb_permission CASCADE;
+DROP TABLE IF EXISTS tb_role CASCADE;
+DROP TABLE IF EXISTS tb_user CASCADE;
+DROP TABLE IF EXISTS tb_tenant CASCADE;
+
 
 -- ==========================================
 -- 1. 테넌트 테이블
@@ -21,8 +37,8 @@ COMMENT ON TABLE tb_tenant IS '테넌트(고객사) 정보';
 COMMENT ON COLUMN tb_tenant.tenant_code IS '테넌트 코드 (NL2SQL WHERE 조건에 사용)';
 COMMENT ON COLUMN tb_tenant.metadata IS '추가 정보 (업종, 계약정보, 연락처 등)';
 
+-- tenant_code는 UNIQUE 제약조건으로 인덱스 자동 생성됨
 CREATE INDEX idx_tenant_active ON tb_tenant(is_active);
-CREATE INDEX idx_tenant_code ON tb_tenant(tenant_code);
 
 
 -- ==========================================
@@ -47,14 +63,13 @@ CREATE TABLE tb_user (
 COMMENT ON TABLE tb_user IS '사용자 정보';
 COMMENT ON COLUMN tb_user.username IS '로그인 ID';
 COMMENT ON COLUMN tb_user.password_hash IS '비밀번호 해시 (bcrypt)';
-COMMENT ON COLUMN tb_user.is_superuser IS '시스템 관리자 플래그 (true면 모든 권한)';
+COMMENT ON COLUMN tb_user.is_superuser IS 'RBAC 비상 안전장치 (정상 흐름은 Role→Permission만 사용, 역할 삭제 등 비상 시 복구용)';
 COMMENT ON COLUMN tb_user.login_fail_count IS '연속 로그인 실패 횟수 (잠금 정책용)';
 COMMENT ON COLUMN tb_user.locked_until IS '계정 잠금 해제 시간 (NULL이면 잠금 아님)';
 
+-- username, email은 UNIQUE 제약조건으로 인덱스 자동 생성됨
 CREATE INDEX idx_user_tenant ON tb_user(tenant_id);
 CREATE INDEX idx_user_active ON tb_user(is_active);
-CREATE INDEX idx_user_username ON tb_user(username);
-CREATE INDEX idx_user_email ON tb_user(email);
 
 
 -- ==========================================
@@ -77,7 +92,7 @@ COMMENT ON COLUMN tb_role.role_code IS '역할 코드 (시스템 내부 식별�
 COMMENT ON COLUMN tb_role.scope_type IS '권한 범위: GLOBAL(전체), TENANT(테넌트), USER(사용자)';
 COMMENT ON COLUMN tb_role.is_system IS '시스템 기본 역할 (삭제 불가)';
 
-CREATE INDEX idx_role_code ON tb_role(role_code);
+-- role_code는 UNIQUE 제약조건으로 인덱스 자동 생성됨
 CREATE INDEX idx_role_scope ON tb_role(scope_type);
 
 
@@ -98,7 +113,7 @@ COMMENT ON TABLE tb_permission IS '권한 정의';
 COMMENT ON COLUMN tb_permission.permission_code IS '권한 코드 (category:action 형식)';
 COMMENT ON COLUMN tb_permission.category IS '권한 카테고리 (nl2sql, rag, admin, document 등)';
 
-CREATE INDEX idx_permission_code ON tb_permission(permission_code);
+-- permission_code는 UNIQUE 제약조건으로 인덱스 자동 생성됨
 CREATE INDEX idx_permission_category ON tb_permission(category);
 
 
@@ -114,26 +129,31 @@ CREATE TABLE tb_role_permission (
 
 COMMENT ON TABLE tb_role_permission IS '역할-권한 매핑';
 
-CREATE INDEX idx_role_permission_role ON tb_role_permission(role_id);
+-- PK 복합 인덱스가 (role_id, permission_id) 순서로 자동 생성됨
+-- permission_id 단독 조회용 인덱스 추가
 CREATE INDEX idx_role_permission_perm ON tb_role_permission(permission_id);
 
 
 -- ==========================================
 -- 6. 사용자-역할 매핑 테이블
 -- ==========================================
+-- 참고: tenant_id가 NULL(전역 역할)일 수 있으므로 PK에 직접 포함 불가.
+--       대리키(user_role_id) + UNIQUE INDEX(COALESCE) 조합으로 유일성 보장.
 CREATE TABLE tb_user_role (
+    user_role_id    BIGSERIAL PRIMARY KEY,
     user_id         BIGINT NOT NULL REFERENCES tb_user(user_id) ON DELETE CASCADE,
     role_id         BIGINT NOT NULL REFERENCES tb_role(role_id) ON DELETE CASCADE,
     tenant_id       BIGINT REFERENCES tb_tenant(tenant_id) ON DELETE CASCADE,  -- NULL이면 전역 역할
     granted_at      TIMESTAMPTZ DEFAULT NOW(),
-    granted_by      BIGINT REFERENCES tb_user(user_id) ON DELETE SET NULL,
-    PRIMARY KEY (user_id, role_id, COALESCE(tenant_id, 0))
+    granted_by      BIGINT REFERENCES tb_user(user_id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE tb_user_role IS '사용자-역할 매핑';
-COMMENT ON COLUMN tb_user_role.tenant_id IS '테넌트 ID (NULL이면 전역 역할)';
+COMMENT ON COLUMN tb_user_role.tenant_id IS '테넌트 ID (NULL이면 전역 역할). tb_user.tenant_id와 일치 또는 NULL이어야 함 (서비스 레이어 검증)';
 COMMENT ON COLUMN tb_user_role.granted_by IS '역할 부여자 ID';
 
+-- tenant_id가 NULL인 경우 COALESCE로 유일성 보장
+CREATE UNIQUE INDEX uk_user_role_tenant ON tb_user_role(user_id, role_id, COALESCE(tenant_id, 0));
 CREATE INDEX idx_user_role_user ON tb_user_role(user_id);
 CREATE INDEX idx_user_role_role ON tb_user_role(role_id);
 CREATE INDEX idx_user_role_tenant ON tb_user_role(tenant_id);
@@ -187,47 +207,6 @@ CREATE INDEX idx_session_expires ON tb_user_session(expires_at);
 CREATE INDEX idx_session_refresh ON tb_user_session(refresh_token);
 
 
--- ==========================================
--- 9. 비밀번호 변경 이력 테이블 (선택)
--- ==========================================
-CREATE TABLE tb_password_history (
-    history_id      BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES tb_user(user_id) ON DELETE CASCADE,
-    password_hash   VARCHAR(255) NOT NULL,
-    changed_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
-COMMENT ON TABLE tb_password_history IS '비밀번호 변경 이력 (재사용 방지)';
-
-CREATE INDEX idx_password_history_user ON tb_password_history(user_id);
-
-
--- ==========================================
--- 10. 감사 로그 테이블
--- ==========================================
-CREATE TABLE tb_audit_log (
-    log_id          BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT REFERENCES tb_user(user_id) ON DELETE SET NULL,
-    action_type     VARCHAR(50) NOT NULL,           -- LOGIN, LOGOUT, CREATE, UPDATE, DELETE
-    target_type     VARCHAR(50),                    -- USER, ROLE, PERMISSION, TENANT
-    target_id       BIGINT,
-    old_value       JSONB,
-    new_value       JSONB,
-    ip_address      VARCHAR(50),
-    user_agent      TEXT,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
-COMMENT ON TABLE tb_audit_log IS '감사 로그 (보안 이벤트 기록)';
-COMMENT ON COLUMN tb_audit_log.action_type IS '액션 유형: LOGIN, LOGOUT, CREATE, UPDATE, DELETE';
-COMMENT ON COLUMN tb_audit_log.target_type IS '대상 유형: USER, ROLE, PERMISSION, TENANT';
-
-CREATE INDEX idx_audit_log_user ON tb_audit_log(user_id);
-CREATE INDEX idx_audit_log_action ON tb_audit_log(action_type);
-CREATE INDEX idx_audit_log_target ON tb_audit_log(target_type, target_id);
-CREATE INDEX idx_audit_log_created ON tb_audit_log(created_at DESC);
-
-
 -- ============================================================
 -- 기본 데이터 INSERT
 -- ============================================================
@@ -239,6 +218,8 @@ INSERT INTO tb_role (role_code, role_name, scope_type, is_system, sort_order, de
 ('USER', '일반 사용자', 'USER', true, 3, '본인 데이터만 접근');
 
 -- 2. 기본 권한
+-- ※ permission = "기능 접근 여부", scope_type = "데이터 범위" (두 축 분리 원칙)
+--    예: admin:users 권한이 있어도 scope_type=TENANT이면 자기 테넌트 사용자만 관리 가능
 INSERT INTO tb_permission (permission_code, permission_name, category, is_system, description) VALUES
 -- NL2SQL 권한
 ('nl2sql:execute', 'NL2SQL 실행', 'nl2sql', true, 'NL2SQL 쿼리 실행 권한'),
@@ -249,10 +230,10 @@ INSERT INTO tb_permission (permission_code, permission_name, category, is_system
 ('document:read', '문서 조회', 'document', true, '문서 조회 권한'),
 ('document:write', '문서 등록/수정', 'document', true, '문서 등록 및 수정 권한'),
 ('document:delete', '문서 삭제', 'document', true, '문서 삭제 권한'),
--- 관리자 권한
-('admin:settings', '시스템 설정 관리', 'admin', true, '시스템 설정 조회/수정 권한'),
-('admin:users', '사용자 관리', 'admin', true, '사용자/역할/권한 관리 권한'),
-('admin:tenants', '테넌트 관리', 'admin', true, '테넌트(고객사) 관리 권한');
+-- 관리자 권한 (실제 데이터 범위는 scope_type으로 제한됨)
+('admin:settings', '시스템 설정 관리', 'admin', true, '시스템 설정 조회/수정 권한 (GLOBAL만)'),
+('admin:users', '사용자 관리', 'admin', true, '사용자/역할 관리 권한 (scope_type에 따라 범위 제한)'),
+('admin:tenants', '테넌트 관리', 'admin', true, '테넌트(고객사) 관리 권한 (GLOBAL만)');
 
 -- 3. 시스템 관리자: 전체 권한
 INSERT INTO tb_role_permission (role_id, permission_id)
@@ -261,13 +242,22 @@ FROM tb_role r
 CROSS JOIN tb_permission p
 WHERE r.role_code = 'SYSTEM_ADMIN';
 
--- 4. 고객사 관리자: NL2SQL, RAG, 문서 권한 (admin 제외)
+-- 4. 테넌트 관리자: 검색 + 문서 + 사용자 관리 (scope_type=TENANT → 자기 테넌트 범위로 제한)
+--    ※ admin:users 부여 → 서비스 레이어에서 scope_type=TENANT 기반으로 자기 테넌트 사용자만 관리
+--    ※ admin:settings, admin:tenants 미부여 → 시스템 설정/테넌트 관리 불가
 INSERT INTO tb_role_permission (role_id, permission_id)
 SELECT r.role_id, p.permission_id
 FROM tb_role r
 CROSS JOIN tb_permission p
 WHERE r.role_code = 'TENANT_ADMIN'
-AND p.permission_code IN ('nl2sql:execute', 'rag:search', 'document:read', 'document:write');
+AND p.permission_code IN (
+    'nl2sql:execute',    -- NL2SQL 실행 (테넌트 데이터만)
+    'rag:search',        -- RAG 문서 검색
+    'document:read',     -- 문서 조회
+    'document:write',    -- 문서 등록/수정
+    'document:delete',   -- 문서 삭제 (테넌트 내)
+    'admin:users'        -- 사용자 관리 (테넌트 내 사용자만)
+);
 
 -- 5. 일반 사용자: NL2SQL, RAG, 문서 조회 권한
 INSERT INTO tb_role_permission (role_id, permission_id)
@@ -288,79 +278,58 @@ INSERT INTO tb_user (username, email, password_hash, display_name, is_superuser,
 ('admin', 'admin@system.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G6E9SiEO6oM9Oy', '시스템 관리자', true, true);
 -- 위 해시는 'admin123!' 의 bcrypt 해시 예시입니다. 실제 구현 시 생성 필요
 
--- 8. 관리자에게 SYSTEM_ADMIN 역할 부여
+-- 8. 관리자에게 SYSTEM_ADMIN 역할 부여 (전역 역할이므로 tenant_id = NULL)
 INSERT INTO tb_user_role (user_id, role_id, tenant_id)
 SELECT u.user_id, r.role_id, NULL
 FROM tb_user u
 CROSS JOIN tb_role r
 WHERE u.username = 'admin' AND r.role_code = 'SYSTEM_ADMIN';
 
--- 9. 데이터 필터 설정 (예시: employee 테이블)
--- 테넌트 관리자: tenant_id 필터
+-- 9. 데이터 필터 설정
+-- ※ SYSTEM_ADMIN(GLOBAL)은 필터 레코드 없음 → 전체 데이터 접근
+-- ※ TENANT_ADMIN(TENANT)은 tenant_id 필터 → 자기 테넌트 데이터만
+-- ※ USER는 tenant_id + emp_id 필터 → 본인 데이터만
+
+-- 9-1. 테넌트 관리자: employee 테이블 → tenant_id 필터
 INSERT INTO tb_data_filter (role_id, target_table, filter_column, filter_type)
 SELECT r.role_id, 'employee', 'tenant_id', 'TENANT'
 FROM tb_role r WHERE r.role_code = 'TENANT_ADMIN';
 
--- 일반 사용자: emp_id (사용자 본인) 필터
+-- 9-2. 테넌트 관리자: tb_user 테이블 → tenant_id 필터 (사용자 관리 범위 제한)
+INSERT INTO tb_data_filter (role_id, target_table, filter_column, filter_type)
+SELECT r.role_id, 'tb_user', 'tenant_id', 'TENANT'
+FROM tb_role r WHERE r.role_code = 'TENANT_ADMIN';
+
+-- 9-3. 일반 사용자: employee 테이블 → emp_id (사용자 본인) 필터
 INSERT INTO tb_data_filter (role_id, target_table, filter_column, filter_type)
 SELECT r.role_id, 'employee', 'emp_id', 'USER'
 FROM tb_role r WHERE r.role_code = 'USER';
 
+-- 9-4. 일반 사용자: tb_user 테이블 → user_id (본인만 조회) 필터
+INSERT INTO tb_data_filter (role_id, target_table, filter_column, filter_type)
+SELECT r.role_id, 'tb_user', 'user_id', 'USER'
+FROM tb_role r WHERE r.role_code = 'USER';
+
 
 -- ============================================================
--- 유틸리티 함수 (선택)
+-- 확장 예시: 테넌트 서브 관리자 역할 추가 (필요 시)
 -- ============================================================
-
--- 사용자의 모든 권한 조회 함수
-CREATE OR REPLACE FUNCTION fn_get_user_permissions(p_user_id BIGINT)
-RETURNS TABLE(permission_code VARCHAR, permission_name VARCHAR, category VARCHAR)
-LANGUAGE SQL
-AS $$
-    SELECT DISTINCT p.permission_code, p.permission_name, p.category
-    FROM tb_user u
-    JOIN tb_user_role ur ON u.user_id = ur.user_id
-    JOIN tb_role_permission rp ON ur.role_id = rp.role_id
-    JOIN tb_permission p ON rp.permission_id = p.permission_id
-    WHERE u.user_id = p_user_id
-      AND u.is_active = true
-    ORDER BY p.category, p.permission_code;
-$$;
-
-COMMENT ON FUNCTION fn_get_user_permissions IS '사용자의 모든 권한 목록 조회';
-
-
--- 사용자의 데이터 필터 조회 함수
-CREATE OR REPLACE FUNCTION fn_get_user_data_filters(p_user_id BIGINT)
-RETURNS TABLE(target_table VARCHAR, filter_column VARCHAR, filter_type VARCHAR, filter_sql TEXT)
-LANGUAGE SQL
-AS $$
-    SELECT DISTINCT df.target_table, df.filter_column, df.filter_type, df.filter_sql
-    FROM tb_user u
-    JOIN tb_user_role ur ON u.user_id = ur.user_id
-    JOIN tb_data_filter df ON ur.role_id = df.role_id
-    WHERE u.user_id = p_user_id
-      AND u.is_active = true
-      AND df.is_active = true;
-$$;
-
-COMMENT ON FUNCTION fn_get_user_data_filters IS '사용자의 데이터 접근 필터 목록 조회';
-
-
--- 만료된 세션 정리 함수
-CREATE OR REPLACE FUNCTION fn_cleanup_expired_sessions()
-RETURNS INTEGER
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    deleted_count INTEGER;
-BEGIN
-    DELETE FROM tb_user_session WHERE expires_at < NOW();
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    RETURN deleted_count;
-END;
-$$;
-
-COMMENT ON FUNCTION fn_cleanup_expired_sessions IS '만료된 세션 정리 (정기 실행 권장)';
+-- 코드 변경 없이 DB 데이터만으로 새 역할 생성 가능
+--
+-- INSERT INTO tb_role (role_code, role_name, scope_type, description)
+-- VALUES ('TENANT_SUB_ADMIN', '테넌트 부관리자', 'TENANT', '테넌트 내 문서/이력 조회 (사용자 관리 불가)');
+--
+-- INSERT INTO tb_role_permission (role_id, permission_id)
+-- SELECT r.role_id, p.permission_id
+-- FROM tb_role r, tb_permission p
+-- WHERE r.role_code = 'TENANT_SUB_ADMIN'
+-- AND p.permission_code IN ('nl2sql:execute', 'rag:search', 'document:read', 'document:write');
+-- ※ admin:users 미부여 → 관리 화면의 사용자 관리 메뉴 안 보임
+-- ※ scope_type=TENANT → 자기 테넌트 데이터만 조회
+--
+-- INSERT INTO tb_data_filter (role_id, target_table, filter_column, filter_type)
+-- SELECT r.role_id, 'employee', 'tenant_id', 'TENANT'
+-- FROM tb_role r WHERE r.role_code = 'TENANT_SUB_ADMIN';
 
 
 -- ============================================================
@@ -370,3 +339,15 @@ COMMENT ON FUNCTION fn_cleanup_expired_sessions IS '만료된 세션 정리 (정
 -- 2. 기본 역할/권한 INSERT
 -- 3. 관리자 계정 생성 (비밀번호 해시는 애플리케이션에서 생성)
 -- 4. 데이터 필터 설정 (실제 비즈니스 테이블에 맞게 조정)
+--
+-- ============================================================
+-- 핵심 설계 원칙
+-- ============================================================
+-- permission = "기능 접근 여부" (무엇을 할 수 있는가)
+-- scope_type = "데이터 범위"   (어디까지 볼 수 있는가)
+-- 이 두 축을 분리하여, 새 역할 추가 시 코드 변경 없이 DB만으로 제어 가능
+--
+-- 역할별 권한 요약:
+--   SYSTEM_ADMIN  (GLOBAL) : 9개 전부 → 전체 데이터, 전체 관리
+--   TENANT_ADMIN  (TENANT) : 6개      → 테넌트 내 데이터, 테넌트 내 사용자 관리
+--   USER          (USER)   : 3개      → 본인 데이터만, 관리 기능 없음

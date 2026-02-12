@@ -711,9 +711,9 @@ from langgraph.graph import END, StateGraph
 
 중요:
 - 가상환경: `conda activate penv3.13-nlq`
-- DB확인: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
+- DB 확인할 경우: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
 - DB스크립트 및 데이터:  docs/sql/psql-hermes_db.sql
-- 로그파일 : ./logs/app.log
+- 로컬의 로그파일 : ./logs/app.log
 - log_step출력: log_step는 로그이니 다른비즈니스 로직과 분리하여 한줄에 출력하라.
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
 - __init__에는 가능한 파일만 생성하고 import모듈등은 구현하지 말라.
