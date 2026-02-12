@@ -24,11 +24,12 @@ async def list_users(
     offset: int = Query(0, ge=0, description="시작 위치"),
     tenant_id: Optional[int] = Query(None, description="테넌트 필터 (GLOBAL만)"),
     is_active: Optional[bool] = Query(None, description="활성화 필터"),
+    keyword: Optional[str] = Query(None, description="이름/로그인ID 검색"),
     current_user: UserContext = Depends(require_permission("admin:users")),
 ):
     """사용자 목록 조회"""
     request_id = getattr(request.state, "request_id", "")
-    result = user_service.list_users(current_user, request_id, limit, offset, tenant_id, is_active)
+    result = user_service.list_users(current_user, request_id, limit, offset, tenant_id, is_active, keyword)
     return success_response(result)
 
 

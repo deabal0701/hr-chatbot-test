@@ -28,7 +28,7 @@ class UserService:
             return
         raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
 
-    def list_users(self, current_user: UserContext, request_id: str = "", limit: int = 20, offset: int = 0, tenant_id_filter: Optional[int] = None, is_active_filter: Optional[bool] = None) -> Dict[str, Any]:
+    def list_users(self, current_user: UserContext, request_id: str = "", limit: int = 20, offset: int = 0, tenant_id_filter: Optional[int] = None, is_active_filter: Optional[bool] = None, keyword: Optional[str] = None) -> Dict[str, Any]:
         """사용자 목록 조회 (scope 제한 적용)"""
         conditions = []
         params: list = []
@@ -48,6 +48,10 @@ class UserService:
         if is_active_filter is not None:
             conditions.append("u.is_active = %s")
             params.append(is_active_filter)
+        if keyword and keyword.strip():
+            conditions.append("(u.display_name ILIKE %s OR u.login_id ILIKE %s)")
+            like_val = f"%{keyword.strip()}%"
+            params.extend([like_val, like_val])
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

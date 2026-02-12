@@ -86,6 +86,24 @@ const routes = [
         name: 'AdminHistoryDetail',
         component: () => import('@/views/admin/HistoryDetailView.vue'),
         meta: { title: '요청 상세' }
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('@/views/admin/UsersView.vue'),
+        meta: { title: '사용자 관리' }
+      },
+      {
+        path: 'roles',
+        name: 'AdminRoles',
+        component: () => import('@/views/admin/RolesView.vue'),
+        meta: { title: '역할 관리' }
+      },
+      {
+        path: 'tenants',
+        name: 'AdminTenants',
+        component: () => import('@/views/admin/TenantsView.vue'),
+        meta: { title: '테넌트 관리' }
       }
     ]
   },
