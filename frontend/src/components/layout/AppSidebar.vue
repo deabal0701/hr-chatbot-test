@@ -8,7 +8,7 @@
       <span v-if="!isCollapsed" class="logo-text">MUREUM</span>
     </div>
 
-    <!-- 메뉴 (권한 기반 동적 필터링) -->
+    <!-- 메뉴 (v2.0 — user.menus[]에서 동적 렌더링) -->
     <el-menu
       :default-active="activeMenu"
       :collapse="isCollapsed"
@@ -20,17 +20,17 @@
     >
       <el-menu-item
         v-for="item in visibleMenuItems"
-        :key="item.index"
-        :index="item.index"
+        :key="item.menu_code"
+        :index="item.menu_path"
       >
-        <el-icon><component :is="item.icon" /></el-icon>
-        <template #title>{{ item.title }}</template>
+        <el-icon><component :is="resolveIcon(item.icon)" /></el-icon>
+        <template #title>{{ item.menu_name }}</template>
       </el-menu-item>
     </el-menu>
 
     <!-- 하단 정보 -->
     <div v-if="!isCollapsed" class="sidebar-footer">
-      <div class="version">v1.0.0</div>
+      <div class="version">v2.0.0</div>
     </div>
   </div>
 </template>
@@ -48,7 +48,12 @@ import {
   Histogram,
   User,
   Key,
-  OfficeBuilding
+  OfficeBuilding,
+  Odometer,
+  Menu as MenuIcon,
+  List,
+  Folder,
+  DataLine
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -59,32 +64,39 @@ const activeMenu = computed(() => route.path)
 const isDarkMode = computed(() => store.getters['app/isDarkMode'])
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
 
-// 권한 체크 헬퍼
-const hasPermission = (code) => store.getters['auth/hasPermission'](code)
+// DB 아이콘명 → Element Plus 아이콘 컴포넌트 매핑
+// DB에 소문자 약어로 저장됨 (예: 'dashboard', 'chat', 'document')
+const ICON_MAP = {
+  // DB 소문자 아이콘명
+  dashboard: Odometer,
+  chat: ChatDotSquare,
+  document: Document,
+  users: User,
+  menu: MenuIcon,
+  role: Key,
+  tenant: OfficeBuilding,
+  settings: Setting,
+  code: Grid,
+  history: Histogram,
+  search: DataLine,
+  folder: Folder,
+  // PascalCase (Element Plus 원본명)
+  Odometer, ChatDotSquare, Document, Setting, Grid,
+  Histogram, User, Key, OfficeBuilding, Menu: MenuIcon,
+  List, Folder, DataLine, ChatDotRound
+}
 
-// 전체 메뉴 정의 (permission 조건 포함)
-const allMenuItems = [
-  { index: '/admin/documents', icon: Document, title: '지식문서 관리', permission: 'document:read' },
-  { index: '/admin/chat', icon: ChatDotSquare, title: '자연어 검색', permission: null },
-  { index: '/admin/settings', icon: Setting, title: '시스템 설정', permission: 'admin:settings' },
-  { index: '/admin/codes', icon: Grid, title: '코드 관리', permission: 'admin:settings' },
-  { index: '/admin/history', icon: Histogram, title: '검색 이력(Tracing)', permission: null },
-  { index: '/admin/users', icon: User, title: '사용자 관리', permission: 'admin:users' },
-  { index: '/admin/roles', icon: Key, title: '역할 관리', permission: 'admin:users' },
-  { index: '/admin/tenants', icon: OfficeBuilding, title: '테넌트 관리', permission: 'admin:tenants' }
-]
+const resolveIcon = (iconName) => {
+  return ICON_MAP[iconName] || Document
+}
 
-// 권한에 따라 보이는 메뉴만 필터링
+// 사용자 메뉴에서 PAGE 타입만 필터링 + sort_order 정렬
 const visibleMenuItems = computed(() => {
-  // 미인증 상태에서는 전체 메뉴 표시 (Phase 3a 하위호환)
-  if (!isAuthenticated.value) {
-    return allMenuItems.filter(item => !item.permission || item.permission === 'document:read')
-  }
-  // 인증된 상태: 권한 기반 필터링
-  return allMenuItems.filter(item => {
-    if (!item.permission) return true
-    return hasPermission(item.permission)
-  })
+  if (!isAuthenticated.value) return []
+  const menus = store.getters['auth/menus'] || []
+  return menus
+    .filter(m => m.menu_type === 'PAGE' && m.menu_path)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
 })
 
 // 다크모드에 따른 메뉴 색상 (_variables.scss 와 동기화)

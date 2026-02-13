@@ -1,7 +1,7 @@
 /**
- * 사용자 관리 API 클라이언트
+ * 사용자 관리 API 클라이언트 (v2.0 메뉴 기반)
  *
- * 사용자 CRUD + 역할 할당
+ * 사용자 CRUD + 메뉴 권한 할당
  * 백엔드: app/api/routes/users.py (prefix: /api/admin/v1/users)
  */
 import apiClient from './index'
@@ -85,16 +85,30 @@ const usersApi = {
   },
 
   /**
-   * 사용자 역할 할당
+   * 사용자 메뉴 권한 조회
    * @param {number} userId - 사용자 ID
-   * @param {number[]} roleIds - 역할 ID 목록
+   * @returns {Promise<Array>} UserMenuResponse[]
+   */
+  async getUserMenus(userId) {
+    try {
+      return await apiClient.get(`${BASE_URL}/${userId}/menus`)
+    } catch (error) {
+      console.error(`사용자 메뉴 조회 실패 (ID: ${userId}):`, error)
+      throw error
+    }
+  },
+
+  /**
+   * 사용자 메뉴 권한 할당 (replace 방식)
+   * @param {number} userId - 사용자 ID
+   * @param {Array<{menu_id, can_create, can_read, can_update, can_delete, can_export}>} menus
    * @returns {Promise<Object>}
    */
-  async assignRoles(userId, roleIds) {
+  async assignMenus(userId, menus) {
     try {
-      return await apiClient.put(`${BASE_URL}/${userId}/roles`, { role_ids: roleIds })
+      return await apiClient.put(`${BASE_URL}/${userId}/menus`, { menus })
     } catch (error) {
-      console.error(`역할 할당 실패 (User: ${userId}):`, error)
+      console.error(`메뉴 권한 할당 실패 (User: ${userId}):`, error)
       throw error
     }
   },

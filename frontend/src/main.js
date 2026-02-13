@@ -23,4 +23,7 @@ app.use(store)
 // 앱 마운트 전 저장된 테마 적용
 store.dispatch('app/initTheme')
 
-app.mount('#app')
+// 저장된 토큰이 있으면 /me 호출하여 최신 사용자 정보(menus) 갱신
+store.dispatch('auth/initAuth').finally(() => {
+  app.mount('#app')
+})

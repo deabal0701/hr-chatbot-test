@@ -94,9 +94,15 @@ const store = useStore()
 const apiHealthy = computed(() => store.state.app.apiHealthy)
 const currentUser = computed(() => store.getters['auth/currentUser'])
 const displayName = computed(() => store.getters['auth/displayName'])
+// 역할 코드 → 한국어 라벨 매핑
+const ROLE_LABELS = {
+  SYSTEM_ADMIN: '시스템 관리자',
+  TENANT_ADMIN: '테넌트 관리자',
+  USER: '일반 사용자'
+}
 const roleName = computed(() => {
-  const names = store.getters['auth/roleNames'] || []
-  return names.length > 0 ? names.join(', ') : '-'
+  const code = store.getters['auth/roleCode']
+  return ROLE_LABELS[code] || code || '-'
 })
 
 const pageTitle = computed(() => {

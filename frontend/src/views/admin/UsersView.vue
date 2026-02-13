@@ -4,7 +4,7 @@
     <div class="page-header">
       <div>
         <h2>사용자 관리</h2>
-        <p class="subtitle">사용자 계정을 생성, 수정, 삭제하고 역할을 할당합니다.</p>
+        <p class="subtitle">사용자 계정을 생성, 수정, 삭제하고 역할과 메뉴 권한을 할당합니다.</p>
       </div>
     </div>
 
@@ -57,18 +57,22 @@
 
         <el-table-column prop="email" label="이메일" min-width="170" show-overflow-tooltip />
 
-        <el-table-column label="역할" min-width="130">
+        <el-table-column label="역할" min-width="110">
           <template #default="{ row }">
             <el-tag
-              v-for="role in row.roles"
-              :key="role.role_id"
-              :type="scopeTagType(role.scope_type)"
+              v-if="row.role"
+              :type="scopeTagType(row.role.scope_type)"
               size="small"
-              style="margin-right: 4px; margin-bottom: 2px"
             >
-              {{ role.role_name }}
+              {{ row.role.role_name }}
             </el-tag>
-            <span v-if="!row.roles?.length" style="color: var(--text-color-secondary)">-</span>
+            <span v-else style="color: var(--text-color-secondary)">-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="menu_count" label="메뉴" width="70" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" type="info">{{ row.menu_count || 0 }}</el-tag>
           </template>
         </el-table-column>
 
@@ -125,82 +129,131 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '새 사용자 추가' : '사용자 수정'"
-      width="560px"
+      width="720px"
       :close-on-click-modal="false"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-position="top"
-        autocomplete="off"
-      >
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="로그인 ID" prop="login_id">
-              <el-input
-                v-model="formData.login_id"
-                placeholder="영문, 숫자, 5자 이상"
-                :disabled="dialogMode === 'edit'"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="이름" prop="display_name">
-              <el-input v-model="formData.display_name" placeholder="표시 이름" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-form-item label="이메일" prop="email">
-          <el-input v-model="formData.email" placeholder="user@example.com" autocomplete="off" />
-        </el-form-item>
-
-        <el-form-item v-if="dialogMode === 'create'" label="비밀번호" prop="password">
-          <el-input v-model="formData.password" type="password" show-password placeholder="8자 이상 (대소문자, 숫자 포함)" autocomplete="new-password" />
-        </el-form-item>
-
-        <el-form-item label="역할" prop="role_ids">
-          <el-select
-            v-model="formData.role_ids"
-            multiple
-            placeholder="역할을 선택하세요"
-            style="width: 100%"
+      <el-tabs v-model="activeTab">
+        <!-- 기본정보 탭 -->
+        <el-tab-pane label="기본정보" name="basic">
+          <el-form
+            ref="formRef"
+            :model="formData"
+            :rules="formRules"
+            label-position="top"
+            autocomplete="off"
           >
-            <el-option
-              v-for="role in allRoles"
-              :key="role.role_id"
-              :label="`${role.role_name} (${role.scope_type})`"
-              :value="role.role_id"
-            />
-          </el-select>
-        </el-form-item>
+            <el-row :gutter="16">
+              <el-col :span="12">
+                <el-form-item label="로그인 ID" prop="login_id">
+                  <el-input
+                    v-model="formData.login_id"
+                    placeholder="영문, 숫자, 3자 이상"
+                    :disabled="dialogMode === 'edit'"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="이름" prop="display_name">
+                  <el-input v-model="formData.display_name" placeholder="표시 이름" />
+                </el-form-item>
+              </el-col>
+            </el-row>
 
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="테넌트" prop="tenant_id">
+            <el-form-item label="이메일" prop="email">
+              <el-input v-model="formData.email" placeholder="user@example.com" autocomplete="off" />
+            </el-form-item>
+
+            <el-form-item v-if="dialogMode === 'create'" label="비밀번호" prop="password">
+              <el-input v-model="formData.password" type="password" show-password placeholder="8자 이상" autocomplete="new-password" />
+            </el-form-item>
+
+            <el-form-item label="역할" prop="role_id">
               <el-select
-                v-model="formData.tenant_id"
-                placeholder="테넌트 선택 (선택)"
-                clearable
+                v-model="formData.role_id"
+                placeholder="역할을 선택하세요"
                 style="width: 100%"
+                @change="handleRoleChange"
               >
                 <el-option
-                  v-for="t in allTenants"
-                  :key="t.tenant_id"
-                  :label="t.tenant_name"
-                  :value="t.tenant_id"
+                  v-for="role in allRoles"
+                  :key="role.role_id"
+                  :label="`${role.role_name} (${role.scope_type})`"
+                  :value="role.role_id"
                 />
               </el-select>
             </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="활성화 여부">
-              <el-switch v-model="formData.is_active" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
+
+            <el-row :gutter="16">
+              <el-col :span="12">
+                <el-form-item label="테넌트" prop="tenant_id">
+                  <el-select
+                    v-model="formData.tenant_id"
+                    placeholder="테넌트 선택 (선택)"
+                    clearable
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="t in allTenants"
+                      :key="t.tenant_id"
+                      :label="t.tenant_name"
+                      :value="t.tenant_id"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="활성화 여부">
+                  <el-switch v-model="formData.is_active" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+        </el-tab-pane>
+
+        <!-- 메뉴 권한 탭 -->
+        <el-tab-pane label="메뉴 권한" name="menus">
+          <div v-if="allMenus.length === 0" class="empty-state">
+            <p>메뉴 정보를 불러오는 중...</p>
+          </div>
+          <el-table v-else :data="allMenus" style="width: 100%" size="small">
+            <el-table-column label="메뉴" min-width="160">
+              <template #default="{ row }">
+                <span :style="{ paddingLeft: (row.depth - 1) * 16 + 'px' }">
+                  {{ row.menu_name }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="조회" width="60" align="center">
+              <template #default="{ row }">
+                <el-checkbox
+                  v-model="menuPermMap[row.menu_id].can_read"
+                  @change="(val) => handleMenuPermChange(row.menu_id, 'can_read', val)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="등록" width="60" align="center">
+              <template #default="{ row }">
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_create" />
+              </template>
+            </el-table-column>
+            <el-table-column label="수정" width="60" align="center">
+              <template #default="{ row }">
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_update" />
+              </template>
+            </el-table-column>
+            <el-table-column label="삭제" width="60" align="center">
+              <template #default="{ row }">
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_delete" />
+              </template>
+            </el-table-column>
+            <el-table-column label="내보내기" width="80" align="center">
+              <template #default="{ row }">
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_export" />
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
 
       <template #footer>
         <el-button @click="dialogVisible = false">취소</el-button>
@@ -217,7 +270,9 @@ import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete, Search } from '@element-plus/icons-vue'
 import usersApi from '@/api/users'
+import rolesApi from '@/api/roles'
 import tenantsApi from '@/api/tenants'
+import menusApi from '@/api/menus'
 import { formatDateTime } from '@/utils/format'
 
 // 상태
@@ -233,10 +288,13 @@ const dialogVisible = ref(false)
 const dialogMode = ref('create')
 const formRef = ref(null)
 const currentUserId = ref(null)
+const activeTab = ref('basic')
 
-// 역할/테넌트 목록 (다이얼로그 셀렉트 용)
+// 역할/테넌트/메뉴 목록 (다이얼로그용)
 const allRoles = ref([])
 const allTenants = ref([])
+const allMenus = ref([])
+const menuPermMap = reactive({})
 
 // 폼 데이터
 const formData = reactive({
@@ -246,7 +304,7 @@ const formData = reactive({
   password: '',
   tenant_id: null,
   is_active: true,
-  role_ids: []
+  role_id: null
 })
 
 // 폼 검증 규칙
@@ -265,6 +323,9 @@ const formRules = {
   password: [
     { required: true, message: '비밀번호를 입력하세요', trigger: 'blur' },
     { min: 8, message: '8자 이상 입력하세요', trigger: 'blur' }
+  ],
+  role_id: [
+    { required: true, message: '역할을 선택하세요', trigger: 'change' }
   ]
 }
 
@@ -273,6 +334,82 @@ const scopeTagType = (scope) => {
   if (scope === 'GLOBAL') return 'danger'
   if (scope === 'TENANT') return 'warning'
   return 'info'
+}
+
+// 메뉴 트리를 평탄화 (PAGE 타입만)
+const flattenMenuTree = (items, result = []) => {
+  for (const item of items) {
+    if (item.menu_type === 'PAGE') {
+      result.push(item)
+    }
+    if (item.children?.length) {
+      flattenMenuTree(item.children, result)
+    }
+  }
+  return result
+}
+
+// menuPermMap 초기화 (모든 메뉴에 대해 기본 false)
+const initMenuPermMap = () => {
+  for (const m of allMenus.value) {
+    menuPermMap[m.menu_id] = {
+      can_create: false,
+      can_read: false,
+      can_update: false,
+      can_delete: false,
+      can_export: false
+    }
+  }
+}
+
+// 메뉴 권한 변경 핸들러 (조회 OFF → 나머지도 OFF)
+const handleMenuPermChange = (menuId, field, val) => {
+  if (field === 'can_read' && !val) {
+    menuPermMap[menuId].can_create = false
+    menuPermMap[menuId].can_update = false
+    menuPermMap[menuId].can_delete = false
+    menuPermMap[menuId].can_export = false
+  }
+}
+
+// 역할 변경 시 기본 메뉴 로드
+const handleRoleChange = async (roleId) => {
+  const role = allRoles.value.find(r => r.role_id === roleId)
+  if (!role) return
+  try {
+    const defaultMenus = await rolesApi.getDefaultMenus(role.role_code)
+    initMenuPermMap()
+    for (const dm of (defaultMenus || [])) {
+      if (menuPermMap[dm.menu_id]) {
+        menuPermMap[dm.menu_id].can_create = dm.can_create ?? false
+        menuPermMap[dm.menu_id].can_read = dm.can_read ?? true
+        menuPermMap[dm.menu_id].can_update = dm.can_update ?? false
+        menuPermMap[dm.menu_id].can_delete = dm.can_delete ?? false
+        menuPermMap[dm.menu_id].can_export = dm.can_export ?? false
+      }
+    }
+  } catch {
+    // 기본 메뉴 로드 실패 시 무시
+  }
+}
+
+// menuPermMap → menus 배열 변환 (can_read가 true인 것만)
+const buildMenusPayload = () => {
+  const menus = []
+  for (const m of allMenus.value) {
+    const perm = menuPermMap[m.menu_id]
+    if (perm?.can_read) {
+      menus.push({
+        menu_id: m.menu_id,
+        can_create: perm.can_create,
+        can_read: perm.can_read,
+        can_update: perm.can_update,
+        can_delete: perm.can_delete,
+        can_export: perm.can_export
+      })
+    }
+  }
+  return menus
 }
 
 // 사용자 목록 로드
@@ -288,9 +425,8 @@ const loadUsers = async () => {
     const result = await usersApi.list(params)
     users.value = result.items || []
     total.value = result.total || 0
-  } catch (error) {
+  } catch {
     ElMessage.error('사용자 목록 로드 실패')
-    console.error(error)
   } finally {
     isLoading.value = false
   }
@@ -301,8 +437,8 @@ const loadRoles = async () => {
   try {
     const result = await usersApi.listRoles()
     allRoles.value = result.items || []
-  } catch (error) {
-    console.error('역할 목록 로드 실패:', error)
+  } catch {
+    allRoles.value = []
   }
 }
 
@@ -313,6 +449,17 @@ const loadTenants = async () => {
     allTenants.value = result.items || result || []
   } catch {
     allTenants.value = []
+  }
+}
+
+// 전체 메뉴 목록 로드 (트리 → 평탄화)
+const loadMenus = async () => {
+  try {
+    const tree = await menusApi.getTree()
+    allMenus.value = flattenMenuTree(tree.items || tree || [])
+    initMenuPermMap()
+  } catch {
+    allMenus.value = []
   }
 }
 
@@ -346,6 +493,7 @@ const handleSizeChange = (size) => {
 const openCreateDialog = () => {
   dialogMode.value = 'create'
   currentUserId.value = null
+  activeTab.value = 'basic'
   resetForm()
   dialogVisible.value = true
   nextTick(() => {
@@ -354,17 +502,36 @@ const openCreateDialog = () => {
 }
 
 // 수정 다이얼로그 열기
-const openEditDialog = (row) => {
+const openEditDialog = async (row) => {
   dialogMode.value = 'edit'
   currentUserId.value = row.user_id
+  activeTab.value = 'basic'
   formData.login_id = row.login_id
   formData.email = row.email
   formData.display_name = row.display_name || ''
   formData.tenant_id = row.tenant_id
   formData.is_active = row.is_active
-  formData.role_ids = (row.roles || []).map(r => r.role_id)
+  formData.role_id = row.role?.role_id || null
   formData.password = ''
   dialogVisible.value = true
+
+  // 사용자 메뉴 권한 로드
+  initMenuPermMap()
+  try {
+    const result = await usersApi.getUserMenus(row.user_id)
+    for (const um of (result.menus || [])) {
+      if (menuPermMap[um.menu_id]) {
+        menuPermMap[um.menu_id].can_create = um.can_create
+        menuPermMap[um.menu_id].can_read = um.can_read
+        menuPermMap[um.menu_id].can_update = um.can_update
+        menuPermMap[um.menu_id].can_delete = um.can_delete
+        menuPermMap[um.menu_id].can_export = um.can_export
+      }
+    }
+  } catch {
+    // 메뉴 권한 로드 실패 시 빈 상태 유지
+  }
+
   nextTick(() => {
     if (formRef.value) formRef.value.clearValidate()
   })
@@ -378,18 +545,26 @@ const resetForm = () => {
   formData.password = ''
   formData.tenant_id = null
   formData.is_active = true
-  formData.role_ids = []
+  formData.role_id = null
+  initMenuPermMap()
   if (formRef.value) formRef.value.clearValidate()
 }
 
 // 폼 제출
 const handleSubmit = async () => {
-  if (!formRef.value) return
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
+  // 기본정보 탭 유효성 검사
+  if (formRef.value) {
+    const valid = await formRef.value.validate().catch(() => false)
+    if (!valid) {
+      activeTab.value = 'basic'
+      return
+    }
+  }
 
   isSaving.value = true
   try {
+    const menus = buildMenusPayload()
+
     if (dialogMode.value === 'create') {
       await usersApi.create({
         login_id: formData.login_id,
@@ -398,7 +573,8 @@ const handleSubmit = async () => {
         password: formData.password,
         tenant_id: formData.tenant_id,
         is_active: formData.is_active,
-        role_ids: formData.role_ids
+        role_id: formData.role_id,
+        menus
       })
       ElMessage.success('사용자가 생성되었습니다')
     } else {
@@ -406,11 +582,12 @@ const handleSubmit = async () => {
         email: formData.email,
         display_name: formData.display_name,
         tenant_id: formData.tenant_id,
-        is_active: formData.is_active
+        is_active: formData.is_active,
+        role_id: formData.role_id
       })
-      // 역할이 변경된 경우 별도 할당
-      if (formData.role_ids.length > 0) {
-        await usersApi.assignRoles(currentUserId.value, formData.role_ids)
+      // 메뉴 권한 별도 업데이트
+      if (menus.length > 0) {
+        await usersApi.assignMenus(currentUserId.value, menus)
       }
       ElMessage.success('사용자가 수정되었습니다')
     }
@@ -418,7 +595,6 @@ const handleSubmit = async () => {
     await loadUsers()
   } catch (error) {
     ElMessage.error(error.message || '작업 실패')
-    console.error(error)
   } finally {
     isSaving.value = false
   }
@@ -442,13 +618,12 @@ const handleDelete = async (row) => {
   } catch (error) {
     if (error === 'cancel') return
     ElMessage.error(error.message || '삭제 실패')
-    console.error(error)
   }
 }
 
 // 마운트
 onMounted(async () => {
-  await Promise.all([loadUsers(), loadRoles(), loadTenants()])
+  await Promise.all([loadUsers(), loadRoles(), loadTenants(), loadMenus()])
 })
 </script>
 

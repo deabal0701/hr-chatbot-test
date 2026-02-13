@@ -1,8 +1,8 @@
 /**
- * 인증 상태 관리 (Vuex Module)
+ * 인증 상태 관리 (Vuex Module) — v2.0 메뉴 기반
  *
  * State:
- *   user        — UserInfo (user_id, login_id, display_name, scope_type, roles, permissions)
+ *   user        — UserInfo (user_id, login_id, display_name, role_code, scope_type, landing_page, menus[])
  *   accessToken — JWT Access Token
  *   refreshToken — JWT Refresh Token
  *
@@ -91,29 +91,29 @@ export default {
     refreshToken: (state) => state.refreshToken,
     displayName: (state) => state.user?.display_name || state.user?.login_id || '',
 
-    // 권한 헬퍼
-    permissions: (state) => state.user?.permissions || [],
-    roles: (state) => state.user?.roles || [],
-    roleNames: (state) => state.user?.role_names || [],
+    // v2.0 메뉴 기반 권한 헬퍼
+    menus: (state) => state.user?.menus || [],
+    roleCode: (state) => state.user?.role_code || 'USER',
     scopeType: (state) => state.user?.scope_type || 'USER',
+    landingPage: (state) => state.user?.landing_page || '/chat',
 
-    hasPermission: (state) => (code) => {
-      if (!state.user) return false
-      return state.user.permissions?.includes(code) || false
-    },
-    hasAnyPermission: (state) => (...codes) => {
-      if (!state.user) return false
-      return codes.some(c => state.user.permissions?.includes(c))
+    /**
+     * 메뉴 CRUD 권한 체크
+     * @param {string} menuCode - 메뉴 코드 (예: 'DASHBOARD', 'USER_MGMT')
+     * @param {string} action - 액션 (create, read, update, delete, export)
+     * @returns {boolean}
+     */
+    hasMenuPermission: (state) => (menuCode, action = 'read') => {
+      if (!state.user?.menus) return false
+      const menu = state.user.menus.find(m => m.menu_code === menuCode)
+      if (!menu) return false
+      return !!menu[`can_${action}`]
     },
 
-    // 관리 메뉴 접근 여부 (admin 권한 또는 document:write 이상)
+    // 관리 메뉴 접근 여부 (메뉴가 1개라도 할당되면 관리자 영역 접근 가능)
     canAccessAdmin: (state) => {
       if (!state.user) return false
-      const adminPerms = [
-        'admin:settings', 'admin:users', 'admin:tenants',
-        'document:write', 'document:delete'
-      ]
-      return adminPerms.some(p => state.user.permissions?.includes(p))
+      return (state.user.menus?.length || 0) > 0
     }
   },
 

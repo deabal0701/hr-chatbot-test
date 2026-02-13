@@ -108,26 +108,22 @@ const handleLogin = async () => {
       password: form.password
     })
 
-    // 로그인 성공 → 리다이렉트
+    // 로그인 성공 → 랜딩 페이지로 리다이렉트
     const redirect = route.query.redirect
     if (redirect) {
       router.push(redirect)
     } else {
-      // 권한에 따라 이동
-      const canAdmin = store.getters['auth/canAccessAdmin']
-      router.push(canAdmin ? '/admin' : '/chat')
+      router.push(store.getters['auth/landingPage'])
     }
   } catch {
     // loginError가 store에 설정됨 (계정잠금, 비활성화, 인증실패 등)
   }
 }
 
-// 이미 로그인된 상태면 리다이렉트
+// 이미 로그인된 상태면 랜딩 페이지로 리다이렉트
 onMounted(() => {
-  const isAuthenticated = store.getters['auth/isAuthenticated']
-  if (isAuthenticated) {
-    const canAdmin = store.getters['auth/canAccessAdmin']
-    router.replace(canAdmin ? '/admin' : '/chat')
+  if (store.getters['auth/isAuthenticated']) {
+    router.replace(store.getters['auth/landingPage'])
   }
 })
 </script>
