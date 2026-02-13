@@ -1,10 +1,12 @@
-# Phase 6: 프론트엔드 인증 및 권한 UI 구현 설계서
+# Phase 6: 프론트엔드 메뉴 기반 권한 UI 구현 설계서
 
-> **문서 버전**: 1.0
+> **문서 버전**: 2.0
 > **작성일**: 2026-02-12
+> **수정일**: 2026-02-13
 > **상태**: Draft
-> **선행 조건**: Phase 2 (Core Security), Phase 3 (인증 API + 미들웨어) 완료
-> **참조**: `docs/design/user_permission_system.md`
+> **선행 조건**: Phase 2 (Core Security), Phase 3 (인증 API + 미들웨어), Phase 4 (관리 CRUD API) 완료
+> **참조**: `docs/design/user_permission_system.md` (v2.0 - 메뉴 기반 권한)
+> **변경 사유**: v1.0 permission 코드 기반 → v2.0 메뉴 기반 권한 체계 전면 전환
 
 ---
 
@@ -13,12 +15,12 @@
 1. [개요](#1-개요)
 2. [현재 상태 분석](#2-현재-상태-분석)
 3. [단계별 구현 계획 (Step 1~7)](#3-단계별-구현-계획)
-4. [Step 1: 인증 인프라](#4-step-1-인증-인프라)
-5. [Step 2: 로그인 화면](#5-step-2-로그인-화면)
-6. [Step 3: 라우터 가드 + 레이아웃 UI](#6-step-3-라우터-가드--레이아웃-ui)
-7. [Step 4: 사용자 관리 API + 화면](#7-step-4-사용자-관리-api--화면)
-8. [Step 5: 역할 관리 API + 화면](#8-step-5-역할-관리-api--화면)
-9. [Step 6: 테넌트 관리 API + 화면](#9-step-6-테넌트-관리-api--화면)
+4. [Step 1: Auth Store 메뉴 기반 전환](#4-step-1-auth-store-메뉴-기반-전환)
+5. [Step 2: 사이드바 동적 메뉴 렌더링](#5-step-2-사이드바-동적-메뉴-렌더링)
+6. [Step 3: 라우터 가드 메뉴 기반 전환](#6-step-3-라우터-가드-메뉴-기반-전환)
+7. [Step 4: 사용자 관리 화면 v2.0](#7-step-4-사용자-관리-화면-v20)
+8. [Step 5: 메뉴/권한 관리 화면 (신규)](#8-step-5-메뉴권한-관리-화면-신규)
+9. [Step 6: 역할 관리 + 테넌트 관리 화면](#9-step-6-역할-관리--테넌트-관리-화면)
 10. [Step 7: 인증 필수 모드 전환](#10-step-7-인증-필수-모드-전환)
 11. [산출물 총괄](#11-산출물-총괄)
 12. [검증 계획](#12-검증-계획)
@@ -29,16 +31,28 @@
 
 ### 1.1 목적
 
-Phase 3에서 구현한 백엔드 인증 API(login, logout, refresh, me, password)를 프론트엔드에 통합하고, 역할(Role) 기반 메뉴 제어, 관리 화면(사용자/역할/테넌트)을 구현합니다.
+v2.0 메뉴 기반 권한 체계에 맞춰 프론트엔드를 전면 전환합니다.
+
+**v1.0 → v2.0 프론트엔드 핵심 변경**:
+
+| 구분 | v1.0 (현행) | v2.0 (목표) |
+|------|:---:|:---:|
+| 메뉴 목록 | 하드코딩 (`allMenuItems` 배열) | **DB에서 `menus` 배열 수신, 동적 렌더링** |
+| 권한 체크 | `hasPermission('admin:users')` | **`hasMenuPermission('USER_MGMT', 'read')`** |
+| 사용자 정보 | `roles: []`, `permissions: []` | **`role_code: str`, `menus: [{...CRUD}]`** |
+| 역할 할당 | `role_ids: List[int]` (M:N) | **`role_id: int` (1:N 단일)** |
+| 권한 할당 | permission 코드 체크박스 | **메뉴 트리 + CRUD 체크박스 (`tb_user_menu`)** |
+| 관리 화면 | UsersView만 구현 | **Users + Menus(★신규) + Roles + Tenants** |
 
 ### 1.2 핵심 원칙
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  1. 점진적 적용 — 각 Step 완료 후 기존 기능이 정상 동작해야 함     │
-│  2. 권한 코드 기반 — 역할 이름이 아닌 permission 코드로 UI 제어    │
-│  3. 백엔드 의존 최소화 — 이미 구현된 API만 활용                    │
-│  4. 하위 호환 — Step 7 전까지 토큰 없이도 기존 API 사용 가능       │
+│  1. 메뉴 기반 — 모든 UI 제어는 user.menus 배열에서 결정           │
+│  2. DB 기반 동적 렌더링 — 프론트엔드에 메뉴 목록 하드코딩 없음     │
+│  3. CRUD 세분화 — 읽기/등록/수정/삭제/내보내기를 개별 제어          │
+│  4. 점진적 적용 — 각 Step 완료 후 기존 기능이 정상 동작해야 함     │
+│  5. 하위 호환 — Step 7 전까지 토큰 없이도 기존 API 사용 가능       │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,21 +70,26 @@ Phase 3에서 구현한 백엔드 인증 API(login, logout, refresh, me, passwor
 │       ▼               ▼               ▼                         │
 │  ┌─────────┐    ┌──────────┐    ┌──────────────┐               │
 │  │Router   │    │AppSidebar│    │api/index.js  │               │
-│  │Guard    │    │(메뉴필터)│    │(interceptors)│               │
-│  │beforeEach│   │AppHeader │    │401→refresh   │               │
-│  └─────────┘    │(사용자)  │    │403→logout    │               │
+│  │Guard    │    │★동적 메뉴│    │(interceptors)│               │
+│  │(메뉴기반)│   │(DB 기반) │    │401→refresh   │               │
+│  └─────────┘    │AppHeader │    │403→alert     │               │
 │                 └──────────┘    └──────┬───────┘               │
 │                                        │                        │
 ├────────────────────────────────────────┼────────────────────────┤
-│  Backend (FastAPI — Phase 3 완료)       │                        │
+│  Backend (FastAPI)                     │                        │
 │                                        ▼                        │
-│  ┌──────────────────────────────────────────┐                   │
-│  │  POST /api/v1/auth/login                 │                   │
-│  │  POST /api/v1/auth/logout                │                   │
-│  │  POST /api/v1/auth/refresh               │                   │
-│  │  GET  /api/v1/auth/me                    │                   │
-│  │  PUT  /api/v1/auth/me/password           │                   │
-│  └──────────────────────────────────────────┘                   │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │  POST /api/v1/auth/login → { user: { menus: [...] } }│      │
+│  │  GET  /api/v1/auth/me    → { menus: [...] }          │      │
+│  │  ★ 로그인 응답에 메뉴 + CRUD 권한 포함                 │      │
+│  └──────────────────────────────────────────────────────┘      │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │  관리 API (require_menu_permission 보호)               │      │
+│  │  /api/admin/v1/users   → USER_MGMT:read/create/...   │      │
+│  │  /api/admin/v1/menus   → MENU_MGMT:read/create/...   │      │
+│  │  /api/admin/v1/roles   → ROLE_MGMT:read/create/...   │      │
+│  │  /api/admin/v1/tenants → TENANT_MGMT:read/create/... │      │
+│  └──────────────────────────────────────────────────────┘      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -78,45 +97,82 @@ Phase 3에서 구현한 백엔드 인증 API(login, logout, refresh, me, passwor
 
 ## 2. 현재 상태 분석
 
-### 2.1 프론트엔드 현황 (변경 필요 항목)
+### 2.1 프론트엔드 현황
 
-| 파일 | 현재 상태 | 변경 필요 |
-|------|----------|----------|
-| `router/index.js` | `beforeEach` 가드 주석 처리, `/login` 라우트 없음 | 가드 활성화, 로그인 라우트 추가 |
-| `store/modules/app.js` | `userRole: 'admin'` 하드코딩, `login()` 플레이스홀더 | auth 모듈로 분리 |
-| `api/index.js` | 토큰 인터셉터 주석 처리, 401/403 미처리 | 인터셉터 활성화 |
-| `api/auth.js` | **미존재** | 신규 생성 |
-| `components/layout/AppSidebar.vue` | 정적 메뉴, 권한 필터 없음 | 권한 기반 메뉴 필터링 |
-| `components/layout/AppHeader.vue` | 사용자 드롭다운 주석 처리 | 로그인 사용자 표시 + 로그아웃 |
-| `views/LoginView.vue` | **미존재** | 신규 생성 |
-| `views/admin/UsersView.vue` | **미존재** | Step 4에서 생성 |
-| `views/admin/RolesView.vue` | **미존재** | Step 5에서 생성 |
-| `views/admin/TenantsView.vue` | **미존재** | Step 6에서 생성 |
+| 파일 | 현재 상태 | v2.0 변경 필요 |
+|------|----------|---------------|
+| `api/auth.js` | ✅ 구현 완료 (5개 엔드포인트) | 응답 구조 변경 반영 (`menus` 처리) |
+| `api/users.js` | ✅ 구현 완료 (CRUD + assignRoles) | `assignRoles` → `assignMenus` 전환 |
+| `api/menus.js` | ❌ **미존재** | ★ 신규 생성 (메뉴 CRUD + 사용자 메뉴 권한) |
+| `api/tenants.js` | ✅ 구현 완료 (CRUD) | 변경 없음 |
+| `api/index.js` | ✅ 인터셉터 활성화 | 변경 없음 |
+| `store/modules/auth.js` | ✅ 구현 완료 | **v2.0 전환 필요** (permissions → menus) |
+| `store/index.js` | ✅ auth 모듈 등록 | 변경 없음 |
+| `views/LoginView.vue` | ✅ 구현 완료 | 랜딩 페이지 로직 변경 (`landing_page` 사용) |
+| `views/admin/UsersView.vue` | ✅ 구현 완료 (v1.0) | **v2.0 전환 필요** (role_id 단일 + 메뉴 권한) |
+| `views/admin/RolesView.vue` | ⚠️ 스텁 | 구현 필요 |
+| `views/admin/TenantsView.vue` | ⚠️ 스텁 | 구현 필요 |
+| `views/admin/MenusView.vue` | ❌ **미존재** | ★ 신규 생성 |
+| `components/layout/AppSidebar.vue` | ✅ 하드코딩 메뉴 + permission 필터 | **v2.0 전환 필요** (DB 동적 메뉴) |
+| `components/layout/AppHeader.vue` | ✅ 구현 완료 (사용자 드롭다운) | `role_code` 표시로 변경 |
+| `router/index.js` | ✅ 로그인 라우트 + auth 가드 | 메뉴 기반 라우트 가드로 전환 |
 
-### 2.2 백엔드 현황 (이미 완료)
-
-| 구분 | 파일 | 상태 |
-|------|------|------|
-| 인증 API | `app/api/routes/auth.py` | 5개 엔드포인트 완료 |
-| 인증 서비스 | `app/api/services/auth_service.py` | authenticate, create_session 등 완료 |
-| JWT | `app/core/security/jwt.py` | HS256, Access 30분, Refresh 7일 |
-| 비밀번호 | `app/core/security/password.py` | bcrypt 해싱 완료 |
-| 의존성 | `app/core/security/dependencies.py` | get_current_user, require_permission 완료 |
-| 미들웨어 | `app/middleware/auth.py` | Phase 3a 선택적 모드 |
-| 모델 | `app/models/auth.py` | UserContext, TokenResponse 등 완료 |
-
-### 2.3 백엔드 미구현 (Step 4~6에서 함께 구현)
+### 2.2 백엔드 현황 (Phase 4 완료 기준)
 
 | 구분 | 파일 | 상태 |
 |------|------|------|
-| 사용자 관리 API | `app/api/routes/users.py` | **미구현** |
-| 사용자 서비스 | `app/api/services/user_service.py` | **미구현** |
-| 역할 관리 API | `app/api/routes/roles.py` | **미구현** |
-| 역할 서비스 | `app/api/services/role_service.py` | **미구현** |
-| 테넌트 관리 API | `app/api/routes/tenants.py` | **미구현** |
-| 테넌트 서비스 | `app/api/services/tenant_service.py` | **미구현** |
-| 사용자 모델 | `app/models/user.py` | **미구현** |
-| 테넌트 모델 | `app/models/tenant.py` | **미구현** |
+| 인증 API | `app/api/routes/auth.py` | ✅ 5개 엔드포인트 |
+| 사용자 관리 | `app/api/routes/users.py` | ✅ 7개 엔드포인트 (v2.0: `menus` 포함) |
+| 역할 관리 | `app/api/routes/roles.py` | ✅ 5개 엔드포인트 |
+| 테넌트 관리 | `app/api/routes/tenants.py` | ✅ 5개 엔드포인트 |
+| 메뉴 관리 | `app/api/routes/menus.py` | ✅ 4개 엔드포인트 (★ 신규) |
+| 권한 체크 | `app/core/security/permission.py` | ✅ `require_menu_permission(menu_code, action)` |
+
+### 2.3 v1.0 → v2.0 프론트엔드 핵심 변경점
+
+#### 로그인 응답 구조 변경
+
+```javascript
+// v1.0 (현행): permission 코드 리스트
+{
+  user: {
+    roles: ["SYSTEM_ADMIN"],
+    role_names: ["시스템 관리자"],
+    permissions: ["nl2sql:execute", "admin:users", "admin:settings"]
+  }
+}
+
+// v2.0 (목표): role_code 단일 + menus 배열
+{
+  user: {
+    role_code: "SYSTEM_ADMIN",
+    scope_type: "GLOBAL",
+    landing_page: "/admin/dashboard",
+    menus: [
+      {
+        menu_code: "DASHBOARD", menu_name: "대시보드",
+        menu_path: "/admin/dashboard", menu_type: "PAGE",
+        icon: "dashboard", depth: 1, sort_order: 1,
+        can_create: false, can_read: true,
+        can_update: false, can_delete: false, can_export: false
+      },
+      // ...
+    ]
+  }
+}
+```
+
+#### 권한 체크 방식 변경
+
+```javascript
+// v1.0: permission 코드 기반
+const canManageUsers = hasPermission('admin:users')
+
+// v2.0: 메뉴 코드 + CRUD 액션 기반
+const canReadUsers = hasMenuPermission('USER_MGMT', 'read')
+const canCreateUsers = hasMenuPermission('USER_MGMT', 'create')
+const canDeleteUsers = hasMenuPermission('USER_MGMT', 'delete')
+```
 
 ---
 
@@ -126,591 +182,320 @@ Phase 3에서 구현한 백엔드 인증 API(login, logout, refresh, me, passwor
 
 ```
 Step 1 ─────► Step 2 ─────► Step 3 ─────► Step 7
-(인증 인프라)  (로그인 화면)  (라우터가드+UI)  (필수모드)
-                                │
-                                ├──► Step 4 (사용자 관리)
-                                ├──► Step 5 (역할 관리)
-                                └──► Step 6 (테넌트 관리)
+(Auth Store   (사이드바     (라우터 가드   (필수모드)
+ v2.0 전환)    동적 메뉴)    메뉴 기반)
+                               │
+                               ├──► Step 4 (사용자 관리 v2.0)
+                               ├──► Step 5 (메뉴/권한 관리 ★신규)
+                               └──► Step 6 (역할/테넌트 관리)
                                        │
                                        └──► Step 7 (필수모드)
 ```
 
 ### 3.2 Step 요약
 
-| Step | 이름 | 범위 | 신규 파일 | 수정 파일 |
-|------|------|------|----------|----------|
-| **1** | 인증 인프라 | FE | 2개 | 1개 |
-| **2** | 로그인 화면 | FE | 1개 | 1개 |
-| **3** | 라우터 가드 + 레이아웃 UI | FE | 0개 | 3개 |
-| **4** | 사용자 관리 | BE + FE | 5~6개 | 1~2개 |
-| **5** | 역할 관리 | BE + FE | 4~5개 | 1~2개 |
-| **6** | 테넌트 관리 | BE + FE | 4~5개 | 1~2개 |
-| **7** | 인증 필수 모드 전환 | BE + FE | 0개 | 2개 |
-
-### 3.3 Step별 독립 실행 가능 여부
-
-| Step | 독립 실행 | 설명 |
-|------|:---------:|------|
-| 1 | ✗ | Step 2와 함께 검증 |
-| 2 | ✓ | 로그인 → 토큰 저장 → API 호출 확인 가능 |
-| 3 | ✓ | 메뉴 필터링, 라우터 가드 동작 확인 |
-| 4 | ✓ | 사용자 CRUD 독립 동작 |
-| 5 | ✓ | 역할 CRUD 독립 동작 |
-| 6 | ✓ | 테넌트 CRUD 독립 동작 |
-| 7 | ✓ | 토큰 없으면 차단 확인 |
+| Step | 이름 | 범위 | 핵심 변경 |
+|------|------|------|----------|
+| **1** | Auth Store v2.0 전환 | FE | permissions → menus, hasMenuPermission |
+| **2** | 사이드바 동적 메뉴 렌더링 | FE | 하드코딩 → DB 기반 `user.menus` |
+| **3** | 라우터 가드 메뉴 기반 전환 | FE | requiresAdmin → menu path 매칭 |
+| **4** | 사용자 관리 화면 v2.0 | FE | role_id 단일 + 메뉴 CRUD 체크박스 |
+| **5** | 메뉴/권한 관리 화면 | FE | ★ 신규 (MenusView + api/menus.js) |
+| **6** | 역할 + 테넌트 관리 화면 | FE | 스텁 → 완전 구현 |
+| **7** | 인증 필수 모드 전환 | BE+FE | Phase 3a → 3b |
 
 ---
 
-## 4. Step 1: 인증 인프라
+## 4. Step 1: Auth Store 메뉴 기반 전환
 
 ### 4.1 목표
 
-프론트엔드 인증의 핵심 인프라 3개를 구축합니다:
-- **auth API 클라이언트** (`api/auth.js`) — 백엔드 인증 API 호출
-- **auth Vuex 모듈** (`store/modules/auth.js`) — 인증 상태 관리
-- **Axios 인터셉터** (`api/index.js` 수정) — 자동 토큰 첨부 + 401 자동 갱신
+`store/modules/auth.js`의 권한 체크 체계를 v1.0 permission 코드에서 v2.0 메뉴 기반으로 전환합니다.
 
 ### 4.2 산출물
 
 ```
-신규:
-  frontend/src/api/auth.js              # 인증 API 클라이언트
-  frontend/src/store/modules/auth.js    # 인증 상태 관리 (Vuex)
-
 수정:
-  frontend/src/api/index.js             # Axios 인터셉터 활성화
+  frontend/src/store/modules/auth.js    # permissions → menus 전환
 ```
 
-### 4.3 `frontend/src/api/auth.js`
+### 4.3 `store/modules/auth.js` 변경 사항
+
+#### State 변경
 
 ```javascript
-/**
- * 인증 API 클라이언트
- *
- * Backend endpoints:
- *   POST /api/v1/auth/login    → login(loginId, password)
- *   POST /api/v1/auth/logout   → logout()
- *   POST /api/v1/auth/refresh  → refreshToken(refreshToken)
- *   GET  /api/v1/auth/me       → getMe()
- *   PUT  /api/v1/auth/me/password → changePassword(current, new)
- */
-import apiClient from './index'
+// v1.0 (현행) — user 객체 구조
+// user.roles: ["SYSTEM_ADMIN"]
+// user.permissions: ["admin:users", "admin:settings", ...]
 
-const AUTH_BASE = '/api/v1/auth'
+// v2.0 (목표) — user 객체 구조
+// user.role_code: "SYSTEM_ADMIN"
+// user.scope_type: "GLOBAL"
+// user.landing_page: "/admin/dashboard"
+// user.menus: [{ menu_code, menu_name, menu_path, can_create, can_read, ... }, ...]
+```
 
-export default {
-  login(loginId, password) {
-    return apiClient.post(`${AUTH_BASE}/login`, {
-      login_id: loginId,
-      password
+#### Getters 변경
+
+```javascript
+getters: {
+  isAuthenticated: (state) => !!state.accessToken && !!state.user,
+  currentUser: (state) => state.user,
+
+  // ===== v2.0 메뉴 기반 권한 헬퍼 =====
+
+  // 역할 코드 (단일)
+  roleCode: (state) => state.user?.role_code || 'USER',
+  scopeType: (state) => state.user?.scope_type || 'USER',
+  landingPage: (state) => state.user?.landing_page || '/chat',
+
+  // 사용자의 메뉴 목록 (PAGE 타입만, can_read가 true인 것)
+  accessibleMenus: (state) => {
+    const menus = state.user?.menus || []
+    return menus
+      .filter(m => m.menu_type === 'PAGE' && m.can_read)
+      .sort((a, b) => a.sort_order - b.sort_order)
+  },
+
+  // 메뉴 코드로 특정 메뉴 권한 조회
+  getMenuPermission: (state) => (menuCode) => {
+    if (!state.user?.menus) return null
+    return state.user.menus.find(m => m.menu_code === menuCode) || null
+  },
+
+  // 메뉴 코드 + 액션으로 권한 체크
+  hasMenuPermission: (state) => (menuCode, action = 'read') => {
+    if (!state.user?.menus) return false
+    const menu = state.user.menus.find(m => m.menu_code === menuCode)
+    if (!menu) return false
+    return menu[`can_${action}`] === true
+  },
+
+  // 관리자 영역 접근 가능 여부 (ADMIN 하위 PAGE 메뉴가 하나라도 있는지)
+  canAccessAdmin: (state) => {
+    if (!state.user?.menus) return false
+    return state.user.menus.some(
+      m => m.menu_type === 'PAGE' && m.can_read && m.menu_path?.startsWith('/admin')
+    )
+  }
+},
+```
+
+#### 제거 대상 (v1.0 전용)
+
+```javascript
+// 아래 getters 제거
+permissions: (state) => state.user?.permissions || [],           // 삭제
+roles: (state) => state.user?.roles || [],                       // 삭제
+hasPermission: (state) => (code) => { ... },                     // 삭제
+hasAnyPermission: (state) => (...codes) => { ... },              // 삭제
+```
+
+#### Actions — login 응답 처리 변경
+
+```javascript
+async login({ commit }, { loginId, password }) {
+  commit('SET_LOGIN_LOADING', true)
+  commit('SET_LOGIN_ERROR', null)
+  try {
+    const data = await authApi.login(loginId, password)
+    commit('SET_AUTH', {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      user: data.user  // v2.0: { role_code, scope_type, landing_page, menus: [...] }
     })
-  },
-
-  logout() {
-    return apiClient.post(`${AUTH_BASE}/logout`)
-  },
-
-  refreshToken(refreshToken) {
-    return apiClient.post(`${AUTH_BASE}/refresh`, {
-      refresh_token: refreshToken
-    })
-  },
-
-  getMe() {
-    return apiClient.get(`${AUTH_BASE}/me`)
-  },
-
-  changePassword(currentPassword, newPassword) {
-    return apiClient.put(`${AUTH_BASE}/me/password`, {
-      current_password: currentPassword,
-      new_password: newPassword
-    })
+    return data.user
+  } catch (err) {
+    commit('SET_LOGIN_ERROR', err.message || '로그인에 실패했습니다')
+    throw err
+  } finally {
+    commit('SET_LOGIN_LOADING', false)
   }
 }
 ```
 
-### 4.4 `frontend/src/store/modules/auth.js`
+### 4.4 LoginView.vue 변경
+
+로그인 성공 후 리다이렉트를 `landing_page` 기반으로 변경:
 
 ```javascript
-/**
- * 인증 상태 관리 (Vuex Module)
- *
- * State:
- *   user        — UserInfo (user_id, login_id, display_name, scope_type, roles, permissions)
- *   accessToken — JWT Access Token
- *   refreshToken — JWT Refresh Token
- *
- * 토큰 저장: localStorage
- *   - mureum_access_token
- *   - mureum_refresh_token
- *   - mureum_user (JSON)
- */
-import authApi from '@/api/auth'
+// v1.0 (현행)
+const canAdmin = store.getters['auth/canAccessAdmin']
+router.push(canAdmin ? '/admin' : '/chat')
 
-const TOKEN_KEYS = {
-  ACCESS: 'mureum_access_token',
-  REFRESH: 'mureum_refresh_token',
-  USER: 'mureum_user'
-}
-
-// localStorage에서 초기값 복원
-const getStoredToken = (key) => {
-  try { return localStorage.getItem(key) } catch { return null }
-}
-
-const getStoredUser = () => {
-  try {
-    const json = localStorage.getItem(TOKEN_KEYS.USER)
-    return json ? JSON.parse(json) : null
-  } catch { return null }
-}
-
-const saveTokens = (accessToken, refreshToken, user) => {
-  try {
-    localStorage.setItem(TOKEN_KEYS.ACCESS, accessToken)
-    localStorage.setItem(TOKEN_KEYS.REFRESH, refreshToken)
-    localStorage.setItem(TOKEN_KEYS.USER, JSON.stringify(user))
-  } catch { /* ignore */ }
-}
-
-const clearTokens = () => {
-  try {
-    localStorage.removeItem(TOKEN_KEYS.ACCESS)
-    localStorage.removeItem(TOKEN_KEYS.REFRESH)
-    localStorage.removeItem(TOKEN_KEYS.USER)
-  } catch { /* ignore */ }
-}
-
-export default {
-  namespaced: true,
-
-  state: () => ({
-    user: getStoredUser(),
-    accessToken: getStoredToken(TOKEN_KEYS.ACCESS),
-    refreshToken: getStoredToken(TOKEN_KEYS.REFRESH),
-    loginLoading: false,
-    loginError: null
-  }),
-
-  mutations: {
-    SET_AUTH(state, { accessToken, refreshToken, user }) {
-      state.accessToken = accessToken
-      state.refreshToken = refreshToken
-      state.user = user
-      saveTokens(accessToken, refreshToken, user)
-    },
-    CLEAR_AUTH(state) {
-      state.accessToken = null
-      state.refreshToken = null
-      state.user = null
-      clearTokens()
-    },
-    SET_USER(state, user) {
-      state.user = user
-      try { localStorage.setItem(TOKEN_KEYS.USER, JSON.stringify(user)) } catch { /* ignore */ }
-    },
-    SET_LOGIN_LOADING(state, loading) {
-      state.loginLoading = loading
-    },
-    SET_LOGIN_ERROR(state, error) {
-      state.loginError = error
-    }
-  },
-
-  getters: {
-    isAuthenticated: (state) => !!state.accessToken && !!state.user,
-    currentUser: (state) => state.user,
-    accessToken: (state) => state.accessToken,
-    refreshToken: (state) => state.refreshToken,
-
-    // 권한 헬퍼
-    permissions: (state) => state.user?.permissions || [],
-    roles: (state) => state.user?.roles || [],
-    scopeType: (state) => state.user?.scope_type || 'USER',
-
-    hasPermission: (state) => (code) => {
-      if (!state.user) return false
-      return state.user.permissions?.includes(code) || false
-    },
-    hasAnyPermission: (state) => (...codes) => {
-      if (!state.user) return false
-      return codes.some(c => state.user.permissions?.includes(c))
-    },
-
-    // 관리 메뉴 접근 여부
-    canAccessAdmin: (state) => {
-      if (!state.user) return false
-      const adminPerms = ['admin:settings', 'admin:users', 'admin:tenants',
-                          'document:write', 'document:delete']
-      return adminPerms.some(p => state.user.permissions?.includes(p))
-    }
-  },
-
-  actions: {
-    /**
-     * 로그인
-     * @returns {Promise<object>} TokenResponse.user
-     */
-    async login({ commit }, { loginId, password }) {
-      commit('SET_LOGIN_LOADING', true)
-      commit('SET_LOGIN_ERROR', null)
-      try {
-        // apiClient 인터셉터가 data를 추출하므로 바로 TokenResponse 수신
-        const data = await authApi.login(loginId, password)
-        commit('SET_AUTH', {
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          user: data.user
-        })
-        return data.user
-      } catch (err) {
-        commit('SET_LOGIN_ERROR', err.message || '로그인에 실패했습니다')
-        throw err
-      } finally {
-        commit('SET_LOGIN_LOADING', false)
-      }
-    },
-
-    /**
-     * 로그아웃
-     */
-    async logout({ commit, state }) {
-      try {
-        if (state.accessToken) {
-          await authApi.logout()
-        }
-      } catch { /* 서버 에러 무시 */ } finally {
-        commit('CLEAR_AUTH')
-      }
-    },
-
-    /**
-     * 토큰 갱신
-     * @returns {Promise<string>} 새 Access Token
-     */
-    async refresh({ commit, state }) {
-      if (!state.refreshToken) throw new Error('No refresh token')
-      const data = await authApi.refreshToken(state.refreshToken)
-      commit('SET_AUTH', {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token || state.refreshToken,
-        user: data.user || state.user
-      })
-      return data.access_token
-    },
-
-    /**
-     * 사용자 정보 갱신 (GET /me)
-     */
-    async fetchMe({ commit }) {
-      const user = await authApi.getMe()
-      commit('SET_USER', user)
-      return user
-    },
-
-    /**
-     * 비밀번호 변경
-     */
-    async changePassword(_, { currentPassword, newPassword }) {
-      return authApi.changePassword(currentPassword, newPassword)
-    },
-
-    /**
-     * 앱 초기화 시 토큰 검증
-     * localStorage에 토큰이 있으면 /me 호출하여 유효성 확인
-     */
-    async initAuth({ commit, state, dispatch }) {
-      if (!state.accessToken) return false
-      try {
-        await dispatch('fetchMe')
-        return true
-      } catch {
-        commit('CLEAR_AUTH')
-        return false
-      }
-    }
-  }
-}
+// v2.0 (목표)
+const landingPage = store.getters['auth/landingPage']
+router.push(landingPage)
+// SYSTEM_ADMIN → /admin/dashboard
+// TENANT_ADMIN → /admin/dashboard
+// USER → /chat
 ```
 
-### 4.5 `frontend/src/api/index.js` 수정
+### 4.5 검증 항목
 
-주석 처리된 인터셉터를 활성화하고, 401 → 자동 갱신 로직을 추가합니다.
-
-**변경 사항**:
-
-```javascript
-// ===== 요청 인터셉터 변경 =====
-// 기존 (주석):
-//   const token = localStorage.getItem('token')
-//   if (token) { config.headers.Authorization = `Bearer ${token}` }
-
-// 변경:
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('mureum_access_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error)
-)
-
-// ===== 응답 인터셉터 — 401 자동 갱신 추가 =====
-// 기존 에러 핸들러 앞에 401 처리 로직 삽입:
-
-let isRefreshing = false
-let failedQueue = []
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error)
-    else resolve(token)
-  })
-  failedQueue = []
-}
-
-// 에러 인터셉터에 추가:
-(error) => {
-  const originalRequest = error.config
-
-  // 401 Unauthorized → 토큰 갱신 시도
-  if (error.response?.status === 401 && !originalRequest._retry) {
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject })
-      }).then(token => {
-        originalRequest.headers.Authorization = `Bearer ${token}`
-        return apiClient(originalRequest)
-      })
-    }
-
-    originalRequest._retry = true
-    isRefreshing = true
-
-    const refreshToken = localStorage.getItem('mureum_refresh_token')
-    if (!refreshToken) {
-      // Refresh Token 없음 → 로그인 페이지로
-      window.location.href = '/login'
-      return Promise.reject(error)
-    }
-
-    return apiClient.post('/api/v1/auth/refresh', {
-      refresh_token: refreshToken
-    }).then(data => {
-      const newToken = data.access_token
-      localStorage.setItem('mureum_access_token', newToken)
-      if (data.refresh_token) {
-        localStorage.setItem('mureum_refresh_token', data.refresh_token)
-      }
-      originalRequest.headers.Authorization = `Bearer ${newToken}`
-      processQueue(null, newToken)
-      return apiClient(originalRequest)
-    }).catch(err => {
-      processQueue(err, null)
-      // Refresh 실패 → 토큰 전부 삭제 + 로그인 페이지
-      localStorage.removeItem('mureum_access_token')
-      localStorage.removeItem('mureum_refresh_token')
-      localStorage.removeItem('mureum_user')
-      window.location.href = '/login'
-      return Promise.reject(err)
-    }).finally(() => {
-      isRefreshing = false
-    })
-  }
-
-  // 403 Forbidden → 권한 부족 (기존 에러 핸들러에 위임)
-  // ... 기존 에러 처리 로직 유지
-}
-```
-
-### 4.6 Vuex Store 등록
-
-`frontend/src/store/index.js`에 auth 모듈 추가:
-
-```javascript
-import auth from './modules/auth'
-
-// modules에 추가:
-modules: {
-  app,
-  chat,
-  document,
-  auth  // ← 추가
-}
-```
-
-### 4.7 검증 항목
-
-- [ ] `authApi.login('admin', 'admin123!')` 호출 → TokenResponse 수신
-- [ ] localStorage에 `mureum_access_token`, `mureum_refresh_token`, `mureum_user` 저장됨
-- [ ] 후속 API 요청에 `Authorization: Bearer <token>` 헤더 자동 첨부
-- [ ] 401 응답 시 자동 refresh → 재요청 성공
+- [ ] 로그인 → `user.menus` 배열이 저장됨 (localStorage `mureum_user` 확인)
+- [ ] `hasMenuPermission('DASHBOARD', 'read')` → `true`
+- [ ] `hasMenuPermission('MENU_MGMT', 'create')` → SYSTEM_ADMIN만 `true`
+- [ ] `canAccessAdmin` → 관리 메뉴가 하나라도 있으면 `true`
+- [ ] `landingPage` → 역할별 올바른 페이지 반환
+- [ ] v1.0 `hasPermission`, `permissions` getter 제거 확인
 
 ---
 
-## 5. Step 2: 로그인 화면
+## 5. Step 2: 사이드바 동적 메뉴 렌더링
 
 ### 5.1 목표
 
-로그인 페이지(`LoginView.vue`)를 구현하고 라우터에 등록합니다.
+`AppSidebar.vue`의 하드코딩된 메뉴를 DB에서 받은 `user.menus` 배열로 동적 렌더링합니다.
+
+> **핵심**: 프론트엔드 코드에 메뉴 목록을 하드코딩하지 않음.
+> DB에서 메뉴를 추가/삭제하면 프론트엔드 코드 변경 없이 메뉴가 자동으로 나타남/사라짐.
 
 ### 5.2 산출물
 
 ```
-신규:
-  frontend/src/views/LoginView.vue      # 로그인 페이지
-
 수정:
-  frontend/src/router/index.js          # /login 라우트 추가
+  frontend/src/components/layout/AppSidebar.vue   # 동적 메뉴 렌더링
+  frontend/src/components/layout/AppHeader.vue    # role_code 표시
 ```
 
-### 5.3 `frontend/src/views/LoginView.vue`
+### 5.3 `AppSidebar.vue` 변경
 
-**UI 설계**:
+#### 메뉴 아이콘 매핑
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                                                               │
-│                     ┌────────────────────┐                   │
-│                     │   🤖 MUREUM         │                   │
-│                     │   AI 지식 도우미     │                   │
-│                     │                     │                   │
-│                     │  ┌───────────────┐  │                   │
-│                     │  │ 아이디         │  │                   │
-│                     │  └───────────────┘  │                   │
-│                     │  ┌───────────────┐  │                   │
-│                     │  │ 비밀번호       │  │                   │
-│                     │  └───────────────┘  │                   │
-│                     │                     │                   │
-│                     │  [    로그인     ]   │                   │
-│                     │                     │                   │
-│                     └────────────────────┘                   │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**컴포넌트 설계**:
-
-```vue
-<template>
-  <div class="login-container">
-    <div class="login-card">
-      <!-- 로고 + 타이틀 -->
-      <div class="login-header">
-        <el-icon :size="48" color="#409eff"><ChatDotRound /></el-icon>
-        <h1 class="login-title">MUREUM</h1>
-        <p class="login-subtitle">AI 지식 도우미</p>
-      </div>
-
-      <!-- 로그인 폼 -->
-      <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleLogin">
-        <el-form-item prop="loginId">
-          <el-input v-model="form.loginId" placeholder="아이디" prefix-icon="User" size="large" />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="비밀번호"
-                    prefix-icon="Lock" size="large" show-password
-                    @keyup.enter="handleLogin" />
-        </el-form-item>
-
-        <!-- 에러 메시지 -->
-        <el-alert v-if="loginError" :title="loginError" type="error"
-                  show-icon :closable="false" class="login-error" />
-
-        <!-- 로그인 버튼 -->
-        <el-button type="primary" size="large" :loading="loginLoading"
-                   @click="handleLogin" class="login-btn">
-          로그인
-        </el-button>
-      </el-form>
-    </div>
-  </div>
-</template>
-
-<script setup>
-import { reactive, ref, computed } from 'vue'
-import { useStore } from 'vuex'
-import { useRouter } from 'vue-router'
-import { ChatDotRound } from '@element-plus/icons-vue'
-
-const store = useStore()
-const router = useRouter()
-const formRef = ref(null)
-
-const form = reactive({ loginId: '', password: '' })
-const rules = {
-  loginId: [{ required: true, message: '아이디를 입력해주세요', trigger: 'blur' }],
-  password: [{ required: true, message: '비밀번호를 입력해주세요', trigger: 'blur' }]
-}
-
-const loginLoading = computed(() => store.state.auth.loginLoading)
-const loginError = computed(() => store.state.auth.loginError)
-
-const handleLogin = async () => {
-  const valid = await formRef.value?.validate().catch(() => false)
-  if (!valid) return
-
-  try {
-    const user = await store.dispatch('auth/login', {
-      loginId: form.loginId,
-      password: form.password
-    })
-    // 권한에 따라 리다이렉트
-    const canAdmin = store.getters['auth/canAccessAdmin']
-    router.push(canAdmin ? '/admin' : '/chat')
-  } catch {
-    // loginError가 store에 설정됨
-  }
-}
-</script>
-```
-
-**스타일**: 다크 테마 기본, 중앙 카드 레이아웃, mixins의 `_forms.scss` 참조
-
-### 5.4 `router/index.js` 수정
+DB의 `icon` 문자열을 Element Plus 아이콘 컴포넌트로 매핑합니다:
 
 ```javascript
-// 라우트 추가 (최상위, /chat 위에)
-{
-  path: '/login',
-  name: 'Login',
-  component: () => import('@/views/LoginView.vue'),
-  meta: { title: '로그인', public: true }
-},
+import {
+  Odometer, ChatDotSquare, Document, User, Menu as MenuIcon,
+  Key, OfficeBuilding, Setting, Grid, Histogram
+} from '@element-plus/icons-vue'
+
+const iconMap = {
+  dashboard: Odometer,
+  chat: ChatDotSquare,
+  document: Document,
+  user: User,
+  menu: MenuIcon,
+  key: Key,
+  building: OfficeBuilding,
+  setting: Setting,
+  grid: Grid,
+  histogram: Histogram,
+}
 ```
 
-### 5.5 검증 항목
+#### 동적 메뉴 생성
 
-- [ ] `/login` 페이지 렌더링 확인
-- [ ] 올바른 계정 입력 → 로그인 성공 → `/admin` 또는 `/chat`으로 이동
-- [ ] 잘못된 계정 입력 → 에러 메시지 표시
-- [ ] Enter 키로 로그인 가능
-- [ ] 이미 로그인된 상태에서 `/login` 접근 시 리다이렉트 (Step 3에서 구현)
+```javascript
+const store = useStore()
+
+// v2.0: DB에서 받은 메뉴 목록으로 사이드바 생성
+const sidebarMenus = computed(() => {
+  const menus = store.getters['auth/accessibleMenus']  // PAGE + can_read
+  return menus
+    .filter(m => m.menu_path?.startsWith('/admin'))  // 관리자 메뉴만
+    .map(m => ({
+      path: m.menu_path,
+      title: m.menu_name,
+      icon: iconMap[m.icon] || Document,
+      menuCode: m.menu_code,
+    }))
+})
+
+// 비인증 상태 폴백 (Phase 3a 호환)
+const menuItems = computed(() => {
+  if (store.getters['auth/isAuthenticated']) {
+    return sidebarMenus.value
+  }
+  // Phase 3a: 인증 없이도 기본 메뉴 표시 (하드코딩 폴백)
+  return [
+    { path: '/admin/chat', title: '자연어 검색', icon: ChatDotSquare },
+    { path: '/admin/documents', title: '지식문서 관리', icon: Document },
+    { path: '/admin/history', title: '검색 이력', icon: Histogram },
+  ]
+})
+```
+
+#### Template
+
+```html
+<el-menu :default-active="activeMenu" :collapse="isCollapse" router>
+  <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
+    <el-icon><component :is="item.icon" /></el-icon>
+    <template #title>{{ item.title }}</template>
+  </el-menu-item>
+</el-menu>
+```
+
+### 5.4 `AppHeader.vue` 변경
+
+사용자 드롭다운에 `role_code`를 표시합니다:
+
+```javascript
+// v1.0 (현행)
+// user.roles → ["SYSTEM_ADMIN"] 배열
+
+// v2.0 (목표)
+const roleLabel = computed(() => {
+  const map = {
+    SYSTEM_ADMIN: '시스템 관리자',
+    TENANT_ADMIN: '테넌트 관리자',
+    USER: '일반 사용자'
+  }
+  return map[currentUser.value?.role_code] || currentUser.value?.role_code
+})
+```
+
+```html
+<el-dropdown-item disabled>
+  <el-tag size="small" type="info">{{ currentUser.scope_type }}</el-tag>
+  {{ roleLabel }}
+</el-dropdown-item>
+```
+
+### 5.5 역할별 사이드바 메뉴 비교
+
+| 메뉴 | menu_code | 경로 | SYSTEM_ADMIN | TENANT_ADMIN | USER |
+|------|-----------|------|:---:|:---:|:---:|
+| 대시보드 | DASHBOARD | /admin/dashboard | O | O | - |
+| 자연어 검색 | CHAT | /admin/chat | O | O | - |
+| 문서 관리 | DOCUMENTS | /admin/documents | O | O | - |
+| 사용자 관리 | USER_MGMT | /admin/users | O | O | - |
+| 메뉴/권한 관리 | MENU_MGMT | /admin/menus | O | - | - |
+| 역할 관리 | ROLE_MGMT | /admin/roles | O | - | - |
+| 테넌트 관리 | TENANT_MGMT | /admin/tenants | O | - | - |
+| 시스템 설정 | SETTINGS | /admin/settings | O | - | - |
+| 코드 관리 | CODES | /admin/codes | O | - | - |
+| 검색 이력 | HISTORY | /admin/history | O | O | - |
+| 채팅 | USER_CHAT | /chat | O | O | O |
+
+> USER 역할은 관리자 메뉴 없음 → `/chat`으로 직행 (landing_page 기반)
+
+### 5.6 검증 항목
+
+- [ ] SYSTEM_ADMIN 로그인 → 10개 관리 메뉴 표시
+- [ ] TENANT_ADMIN 로그인 → 할당된 메뉴만 표시 (약 6개)
+- [ ] USER 로그인 → `/chat`으로 이동, 관리 사이드바 없음
+- [ ] DB에서 메뉴 비활성화(`is_active=false`) → 사이드바에서 자동 제거
+- [ ] 비인증 상태 → 폴백 메뉴 표시 (Phase 3a 호환)
 
 ---
 
-## 6. Step 3: 라우터 가드 + 레이아웃 UI
+## 6. Step 3: 라우터 가드 메뉴 기반 전환
 
 ### 6.1 목표
 
-- Router `beforeEach` 가드 활성화 — 관리 페이지 접근 시 인증 확인
-- AppSidebar 메뉴를 권한 기반으로 필터링
-- AppHeader에 로그인 사용자 정보 + 로그아웃 버튼 표시
+라우터 `beforeEach` 가드를 메뉴 기반으로 전환합니다. URL 경로와 `user.menus`의 `menu_path`를 매칭하여 접근 제어합니다.
 
 ### 6.2 산출물
 
 ```
 수정:
-  frontend/src/router/index.js                    # beforeEach 가드 구현
-  frontend/src/components/layout/AppSidebar.vue   # 권한 기반 메뉴 필터링
-  frontend/src/components/layout/AppHeader.vue    # 사용자 드롭다운 활성화
+  frontend/src/router/index.js    # 메뉴 기반 라우트 가드
 ```
 
-### 6.3 `router/index.js` — 라우터 가드
-
-기존 주석 처리된 `beforeEach`를 교체합니다:
+### 6.3 `router/index.js` 변경
 
 ```javascript
 import store from '@/store'
@@ -718,11 +503,10 @@ import store from '@/store'
 router.beforeEach(async (to, from, next) => {
   const isAuthenticated = store.getters['auth/isAuthenticated']
 
-  // 1. 로그인 페이지: 이미 인증됐으면 리다이렉트
+  // 1. 로그인 페이지: 이미 인증됐으면 landing_page로 이동
   if (to.path === '/login') {
     if (isAuthenticated) {
-      const canAdmin = store.getters['auth/canAccessAdmin']
-      return next(canAdmin ? '/admin' : '/chat')
+      return next(store.getters['auth/landingPage'])
     }
     return next()
   }
@@ -730,11 +514,25 @@ router.beforeEach(async (to, from, next) => {
   // 2. 공개 페이지: 인증 불필요
   if (to.meta.public) return next()
 
-  // 3. 관리자 페이지: 인증 + 관리 권한 필요
-  if (to.meta.requiresAdmin) {
-    if (!isAuthenticated) return next('/login')
-    const canAdmin = store.getters['auth/canAccessAdmin']
-    if (!canAdmin) return next('/chat')
+  // 3. 관리자 영역 (/admin/*): 인증 + 메뉴 접근 권한 필요
+  if (to.path.startsWith('/admin')) {
+    if (!isAuthenticated) {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
+    }
+
+    // 관리자 영역 접근 가능 여부
+    if (!store.getters['auth/canAccessAdmin']) {
+      return next(store.getters['auth/landingPage'])
+    }
+
+    // 특정 관리 페이지 접근 시 해당 메뉴 read 권한 확인
+    const menus = store.state.auth.user?.menus || []
+    const targetMenu = menus.find(m => m.menu_path === to.path)
+    if (targetMenu && !targetMenu.can_read) {
+      // 해당 메뉴에 read 권한 없음 → 대시보드로
+      return next('/admin/dashboard')
+    }
+
     return next()
   }
 
@@ -743,502 +541,373 @@ router.beforeEach(async (to, from, next) => {
 })
 ```
 
-> **주의**: Step 7에서 인증 필수 모드 전환 시, 일반 페이지도 인증을 요구하도록 변경합니다.
-
-### 6.4 `AppSidebar.vue` — 권한 기반 메뉴 필터링
-
-**메뉴 아이템을 동적으로 구성**합니다:
+### 6.4 라우트 정의에 MenusView 추가
 
 ```javascript
-// <script setup> 내부
-const hasPermission = (code) => store.getters['auth/hasPermission'](code)
-
-const menuItems = computed(() => {
-  const items = []
-
-  // 지식문서 관리: document:read 이상
-  if (hasPermission('document:read')) {
-    items.push({ index: '/admin/documents', icon: 'Document', title: '지식문서 관리' })
-  }
-
-  // 자연어 검색: 관리 권한이 하나라도 있으면
-  items.push({ index: '/admin/chat', icon: 'ChatDotSquare', title: '자연어 검색' })
-
-  // 시스템 설정: admin:settings
-  if (hasPermission('admin:settings')) {
-    items.push({ index: '/admin/settings', icon: 'Setting', title: '시스템 설정' })
-  }
-
-  // 코드 관리: admin:settings
-  if (hasPermission('admin:settings')) {
-    items.push({ index: '/admin/codes', icon: 'Grid', title: '코드 관리' })
-  }
-
-  // 검색 이력: 모든 관리자
-  items.push({ index: '/admin/history', icon: 'Histogram', title: '검색 이력(Tracing)' })
-
-  // 사용자 관리: admin:users (Step 4 이후)
-  if (hasPermission('admin:users')) {
-    items.push({ index: '/admin/users', icon: 'User', title: '사용자 관리' })
-  }
-
-  // 역할 관리: admin:users (Step 5 이후)
-  if (hasPermission('admin:users')) {
-    items.push({ index: '/admin/roles', icon: 'Key', title: '역할 관리' })
-  }
-
-  // 테넌트 관리: admin:tenants (Step 6 이후)
-  if (hasPermission('admin:tenants')) {
-    items.push({ index: '/admin/tenants', icon: 'OfficeBuilding', title: '테넌트 관리' })
-  }
-
-  return items
-})
-```
-
-**template 변경**:
-
-```html
-<!-- 기존 정적 el-menu-item들을 동적으로 교체 -->
-<el-menu-item v-for="item in menuItems" :key="item.index" :index="item.index">
-  <el-icon><component :is="item.icon" /></el-icon>
-  <template #title>{{ item.title }}</template>
-</el-menu-item>
-```
-
-### 6.5 `AppHeader.vue` — 사용자 드롭다운
-
-주석 처리된 사용자 드롭다운을 활성화합니다:
-
-```html
-<!-- 기존 주석 제거 → 활성화 -->
-<el-dropdown v-if="currentUser" @command="handleUserCommand">
-  <div class="user-info">
-    <el-avatar :size="28" icon="UserFilled" />
-    <span class="user-name">{{ currentUser.display_name || currentUser.login_id }}</span>
-  </div>
-  <template #dropdown>
-    <el-dropdown-menu>
-      <el-dropdown-item disabled>
-        <el-tag size="small" type="info">{{ currentUser.scope_type }}</el-tag>
-        {{ currentUser.roles?.join(', ') }}
-      </el-dropdown-item>
-      <el-dropdown-item command="password" divided>비밀번호 변경</el-dropdown-item>
-      <el-dropdown-item command="logout">로그아웃</el-dropdown-item>
-    </el-dropdown-menu>
-  </template>
-</el-dropdown>
-```
-
-```javascript
-// <script setup> 추가
-const currentUser = computed(() => store.getters['auth/currentUser'])
-
-const handleUserCommand = async (command) => {
-  if (command === 'logout') {
-    await store.dispatch('auth/logout')
-    router.push('/login')
-  } else if (command === 'password') {
-    // 비밀번호 변경 다이얼로그 (간단한 ElMessageBox 활용)
-    // ... 또는 별도 컴포넌트
-  }
+// admin 하위 라우트에 추가
+{
+  path: 'menus',
+  name: 'Menus',
+  component: () => import('@/views/admin/MenusView.vue'),
+  meta: { title: '메뉴/권한 관리', requiresAdmin: true }
 }
 ```
 
-### 6.6 역할별 메뉴 가시성 매트릭스
+### 6.5 검증 항목
 
-| 메뉴 | 필요 권한 | SYSTEM_ADMIN | TENANT_ADMIN | USER |
-|------|----------|:---:|:---:|:---:|
-| 지식문서 관리 | `document:read` | O | O | O |
-| 자연어 검색 | (기본 표시) | O | O | O |
-| 시스템 설정 | `admin:settings` | O | | |
-| 코드 관리 | `admin:settings` | O | | |
-| 검색 이력 | (기본 표시) | O | O | O |
-| 사용자 관리 | `admin:users` | O | O | |
-| 역할 관리 | `admin:users` | O | O | |
-| 테넌트 관리 | `admin:tenants` | O | | |
-
-### 6.7 검증 항목
-
-- [ ] 미인증 상태에서 `/admin` 접근 → `/login`으로 리다이렉트
-- [ ] SYSTEM_ADMIN 로그인 → 모든 메뉴 표시
-- [ ] TENANT_ADMIN 로그인 → 시스템 설정, 코드 관리, 테넌트 관리 숨김
-- [ ] USER 로그인 → `/admin` 접근 불가, `/chat`으로 리다이렉트
-- [ ] AppHeader에 로그인 사용자명 표시
-- [ ] 로그아웃 → `/login` 이동 + localStorage 정리
+- [ ] 미인증 상태에서 `/admin/users` 접근 → `/login?redirect=/admin/users`
+- [ ] SYSTEM_ADMIN 로그인 → 모든 `/admin/*` 경로 접근 가능
+- [ ] TENANT_ADMIN 로그인 → `/admin/menus` 접근 시 대시보드로 리다이렉트
+- [ ] USER 로그인 → `/admin/*` 접근 시 `/chat`으로 리다이렉트
+- [ ] 로그인 후 `redirect` 쿼리 파라미터가 있으면 해당 경로로 이동
+- [ ] 이미 인증된 상태에서 `/login` → `landing_page`로 리다이렉트
 
 ---
 
-## 7. Step 4: 사용자 관리 API + 화면
+## 7. Step 4: 사용자 관리 화면 v2.0
 
 ### 7.1 목표
 
-백엔드 사용자 관리 API와 프론트엔드 사용자 관리 화면을 구현합니다.
+기존 `UsersView.vue`를 v2.0 메뉴 기반 권한 체계에 맞게 전환합니다:
+- 역할 할당: M:N `role_ids` → 1:N `role_id` (단일 선택)
+- 메뉴 권한 할당: 메뉴 트리 + CRUD 체크박스 UI 추가
 
 ### 7.2 산출물
 
 ```
-Backend 신규:
-  app/models/user.py                    # 사용자 Pydantic 모델
-  app/api/services/user_service.py      # 사용자 CRUD 서비스
-  app/api/routes/users.py               # 사용자 관리 API 엔드포인트
-
-Frontend 신규:
-  frontend/src/api/users.js             # 사용자 관리 API 클라이언트
-  frontend/src/views/admin/UsersView.vue # 사용자 관리 화면
-
-Backend 수정:
-  app/main.py                           # users 라우터 등록
+수정:
+  frontend/src/views/admin/UsersView.vue   # v2.0 전환
+  frontend/src/api/users.js               # menus 엔드포인트 추가
 ```
 
-### 7.3 Backend API 설계
+### 7.3 `api/users.js` 변경
 
-**`app/api/routes/users.py`** — `prefix="/api/v1/users"`, `tags=["users"]`
+```javascript
+// v1.0 → 제거
+// assignRoles(userId, roleIds) → 삭제
 
-| Method | Endpoint | Description | 필요 권한 |
-|--------|----------|-------------|-----------|
-| GET | `/` | 사용자 목록 (scope 기반 필터) | `admin:users` |
-| POST | `/` | 사용자 생성 | `admin:users` |
-| GET | `/{user_id}` | 사용자 상세 | `admin:users` 또는 본인 |
-| PUT | `/{user_id}` | 사용자 수정 | `admin:users` |
-| DELETE | `/{user_id}` | 사용자 비활성화 (soft delete) | `admin:users` |
-| PUT | `/{user_id}/roles` | 역할 할당/변경 | `admin:users` |
-| PUT | `/{user_id}/reset-password` | 비밀번호 초기화 | `admin:users` |
+// v2.0 → 추가
+getUserMenus(userId) {
+  return apiClient.get(`${USERS_BASE}/${userId}/menus`)
+},
 
-**scope_type 기반 데이터 범위**:
-- `GLOBAL`: 전체 사용자 조회/관리
-- `TENANT`: 자기 테넌트 사용자만 조회/관리
-- `USER`: 본인 정보만 조회
-
-### 7.4 `app/models/user.py`
-
-```python
-"""사용자 관리 스키마"""
-from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator
-
-
-class UserListItem(BaseModel):
-    """사용자 목록 아이템"""
-    user_id: int
-    login_id: str
-    display_name: Optional[str] = None
-    email: str
-    tenant_id: Optional[int] = None
-    tenant_name: Optional[str] = None
-    is_active: bool = True
-    is_superuser: bool = False
-    roles: List[str] = Field(default_factory=list)
-    last_login_at: Optional[str] = None
-    created_at: Optional[str] = None
-
-
-class UserCreate(BaseModel):
-    """사용자 생성 요청"""
-    login_id: str = Field(..., min_length=3, max_length=100)
-    email: str = Field(..., max_length=255)
-    password: str = Field(..., min_length=8)
-    display_name: Optional[str] = Field(None, max_length=100)
-    tenant_id: Optional[int] = None
-    role_ids: List[int] = Field(default_factory=list)
-
-
-class UserUpdate(BaseModel):
-    """사용자 수정 요청"""
-    display_name: Optional[str] = None
-    email: Optional[str] = None
-    is_active: Optional[bool] = None
-    tenant_id: Optional[int] = None
-
-
-class UserRoleAssign(BaseModel):
-    """역할 할당 요청"""
-    role_ids: List[int] = Field(..., min_length=1)
-
-
-class ResetPasswordRequest(BaseModel):
-    """비밀번호 초기화 요청"""
-    new_password: str = Field(..., min_length=8)
+updateUserMenus(userId, menus) {
+  // menus: [{ menu_id, can_create, can_read, can_update, can_delete, can_export }]
+  return apiClient.put(`${USERS_BASE}/${userId}/menus`, { menus })
+}
 ```
 
-### 7.5 `app/api/services/user_service.py` 핵심 로직
-
-```python
-class UserService:
-    """사용자 CRUD 서비스 (scope_type 기반 데이터 범위 제한)"""
-
-    def list_users(self, current_user: UserContext, page=1, size=20, keyword=None):
-        """scope_type에 따라 조회 범위 자동 제한"""
-        # GLOBAL → 전체, TENANT → 자기 테넌트, USER → 본인만
-        ...
-
-    def create_user(self, current_user: UserContext, data: UserCreate):
-        """사용자 생성 — TENANT scope는 자기 테넌트에만"""
-        # TENANT_ADMIN: data.tenant_id = current_user.tenant_id (강제)
-        ...
-
-    def update_user(self, current_user: UserContext, user_id: int, data: UserUpdate):
-        """사용자 수정 — scope 검증 후 업데이트"""
-        ...
-
-    def delete_user(self, current_user: UserContext, user_id: int):
-        """soft delete (is_active = false)"""
-        ...
-
-    def assign_roles(self, current_user: UserContext, user_id: int, role_ids: list):
-        """역할 할당 — TENANT scope는 TENANT/USER 역할만 부여 가능"""
-        ...
-```
-
-### 7.6 Frontend `UsersView.vue`
-
-**UI 구성**:
+### 7.4 UI 설계 — 사용자 생성/수정 다이얼로그
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  사용자 관리                                    [+ 사용자 추가] │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 검색: [_______________] [검색]   상태: [전체 ▼]          │ │
-│ └─────────────────────────────────────────────────────────┘ │
-│ ┌─────┬────────┬────────┬────────┬────────┬────────┬─────┐ │
-│ │ ID  │ 아이디  │ 이름   │ 테넌트  │ 역할   │ 상태   │ 액션 │ │
-│ ├─────┼────────┼────────┼────────┼────────┼────────┼─────┤ │
-│ │ 1   │ admin  │ 관리자 │ -      │ SYS..  │ 활성   │ ✏ 🗑 │ │
-│ │ 2   │ user1  │ 김철수 │ A사    │ TENA.. │ 활성   │ ✏ 🗑 │ │
-│ └─────┴────────┴────────┴────────┴────────┴────────┴─────┘ │
-│                    [< 1 2 3 >]                               │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  사용자 수정                                           [×]    │
+│                                                              │
+│  ┌───────── 기본 정보 ────────┐  ┌──── 역할/테넌트 ─────┐    │
+│  │ 로그인 ID: [user02       ] │  │ 역할: [테넌트 관리자▼]│    │
+│  │ 이메일:    [user@co.kr   ] │  │ 테넌트: [A회사    ▼] │    │
+│  │ 표시 이름: [김철수        ] │  └─────────────────────┘    │
+│  │ 비밀번호:  [••••••••     ] │                              │
+│  └───────────────────────────┘                              │
+│                                                              │
+│  ┌─────── 메뉴 권한 설정 ──────────────────────────────────┐ │
+│  │ ※ 역할 선택 시 기본 메뉴 권한이 자동 체크됩니다          │ │
+│  │                                                          │ │
+│  │ 메뉴              │ 조회 │ 등록 │ 수정 │ 삭제 │ 내보내기 │ │
+│  │ ─────────────────┼──────┼──────┼──────┼──────┼────────│ │
+│  │ ☑ 대시보드        │  ☑  │  □  │  □  │  □  │  □     │ │
+│  │ ☑ 자연어 검색     │  ☑  │  ☑  │  □  │  □  │  □     │ │
+│  │ ☑ 문서 관리       │  ☑  │  ☑  │  ☑  │  ☑  │  ☑     │ │
+│  │ ☑ 사용자 관리     │  ☑  │  ☑  │  ☑  │  □  │  □     │ │
+│  │ □ 메뉴/권한 관리  │  □  │  □  │  □  │  □  │  □     │ │
+│  │ □ 역할 관리       │  □  │  □  │  □  │  □  │  □     │ │
+│  │ □ 테넌트 관리     │  □  │  □  │  □  │  □  │  □     │ │
+│  │ ☑ 시스템 설정     │  ☑  │  □  │  □  │  □  │  □     │ │
+│  │ ☑ 검색 이력       │  ☑  │  □  │  □  │  □  │  ☑     │ │
+│  │ ☑ 채팅            │  ☑  │  ☑  │  □  │  □  │  □     │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                              │
+│                            [취소]  [저장]                      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**핵심 기능**:
-- 테이블 형태 사용자 목록 (페이징)
-- 검색/필터 (키워드, 상태, 테넌트)
-- 사용자 추가 다이얼로그 (ElDialog)
-- 사용자 수정 다이얼로그
-- 역할 할당 (ElSelect multi)
-- 비밀번호 초기화
-- 비활성화 (soft delete)
+### 7.5 역할 선택 → 기본 메뉴 자동 체크
 
-### 7.7 검증 항목
+역할을 선택하면 해당 역할의 기본 메뉴 권한이 자동 체크됩니다:
 
-- [ ] SYSTEM_ADMIN: 전체 사용자 목록 조회 가능
-- [ ] TENANT_ADMIN: 자기 테넌트 사용자만 표시
-- [ ] 사용자 생성 → 목록에 반영
-- [ ] 사용자 수정 → 변경사항 반영
-- [ ] 역할 할당 → 사용자의 역할 변경
-- [ ] 비밀번호 초기화 → 성공 메시지
-- [ ] 비활성화 → 상태 변경 (삭제 아님)
+```javascript
+// 역할별 기본 메뉴 권한 (user_permission_system.md §2.2.5 참조)
+const DEFAULT_MENU_PERMISSIONS = {
+  SYSTEM_ADMIN: {
+    DASHBOARD: { c: true, r: true, u: true, d: true, e: true },
+    CHAT: { c: true, r: true, u: false, d: false, e: false },
+    DOCUMENTS: { c: true, r: true, u: true, d: true, e: true },
+    USER_MGMT: { c: true, r: true, u: true, d: true, e: true },
+    MENU_MGMT: { c: true, r: true, u: true, d: true, e: true },
+    ROLE_MGMT: { c: true, r: true, u: true, d: true, e: true },
+    TENANT_MGMT: { c: true, r: true, u: true, d: true, e: true },
+    SETTINGS: { c: false, r: true, u: true, d: false, e: false },
+    CODES: { c: true, r: true, u: true, d: true, e: false },
+    HISTORY: { c: false, r: true, u: false, d: false, e: true },
+    USER_CHAT: { c: true, r: true, u: false, d: false, e: false },
+    // API 메뉴도 포함
+  },
+  TENANT_ADMIN: { /* ... 9개 메뉴 */ },
+  USER: { /* ... 4개 메뉴 (USER_CHAT + API 3개) */ }
+}
+
+// 역할 변경 핸들러
+const onRoleChange = async (roleId) => {
+  const role = roles.value.find(r => r.role_id === roleId)
+  if (!role) return
+  const defaults = DEFAULT_MENU_PERMISSIONS[role.role_code]
+  if (defaults) {
+    // 메뉴 체크박스 테이블 자동 갱신
+    menuPermissions.value = allMenus.value.map(menu => ({
+      menu_id: menu.menu_id,
+      menu_code: menu.menu_code,
+      menu_name: menu.menu_name,
+      ...( defaults[menu.menu_code] || { c: false, r: false, u: false, d: false, e: false } )
+    }))
+  }
+}
+```
+
+> **참고**: 기본값은 자동 체크만 하고, 관리자가 개별 조정할 수 있습니다.
+
+### 7.6 사용자 목록 테이블 컬럼 변경
+
+```
+v1.0: ID | 아이디 | 이름 | 이메일 | 역할(태그들) | 테넌트 | 상태 | 액션
+v2.0: ID | 아이디 | 이름 | 이메일 | 역할(단일) | 테넌트 | 메뉴수 | 상태 | 액션
+```
+
+- `역할` 컬럼: 복수 태그 → 단일 태그 (`role_code`)
+- `메뉴수` 컬럼: `menu_count` 표시 (해당 사용자의 접근 가능 메뉴 수)
+
+### 7.7 CRUD 버튼 권한 제어
+
+```javascript
+// 현재 사용자의 USER_MGMT 메뉴 권한에 따라 버튼 표시
+const userMgmtPerm = computed(() => store.getters['auth/getMenuPermission']('USER_MGMT'))
+
+const canCreate = computed(() => userMgmtPerm.value?.can_create)
+const canUpdate = computed(() => userMgmtPerm.value?.can_update)
+const canDelete = computed(() => userMgmtPerm.value?.can_delete)
+```
+
+```html
+<el-button v-if="canCreate" type="primary" @click="openCreateDialog">+ 사용자 추가</el-button>
+<el-button v-if="canUpdate" @click="openEditDialog(row)">수정</el-button>
+<el-button v-if="canDelete" type="danger" @click="deleteUser(row)">삭제</el-button>
+```
+
+### 7.8 검증 항목
+
+- [ ] 사용자 생성: role_id 단일 선택 + 메뉴 CRUD 체크박스 표시
+- [ ] 역할 변경 시 기본 메뉴 자동 체크
+- [ ] 메뉴 체크박스 개별 조정 가능
+- [ ] 사용자 수정: 기존 메뉴 권한 로드 → 수정 → 저장
+- [ ] TENANT_ADMIN: can_create=true면 추가 버튼 표시, can_delete=false면 삭제 버튼 숨김
+- [ ] 사용자 목록에 역할(단일) + 메뉴수 표시
 
 ---
 
-## 8. Step 5: 역할 관리 API + 화면
+## 8. Step 5: 메뉴/권한 관리 화면 (신규)
 
 ### 8.1 목표
 
-역할(Role) CRUD와 역할에 대한 권한(Permission) 할당 기능을 구현합니다.
+메뉴 트리를 조회/관리하는 `MenusView.vue`와 `api/menus.js`를 신규 생성합니다. SYSTEM_ADMIN만 접근 가능합니다.
 
 ### 8.2 산출물
 
 ```
-Backend 신규:
-  app/models/role.py                    # 역할/권한 Pydantic 모델
-  app/api/services/role_service.py      # 역할/권한 CRUD 서비스
-  app/api/routes/roles.py              # 역할 관리 API
+신규:
+  frontend/src/api/menus.js                 # 메뉴 관리 API 클라이언트
+  frontend/src/views/admin/MenusView.vue    # 메뉴/권한 관리 화면
 
-Frontend 신규:
-  frontend/src/api/roles.js             # 역할 관리 API 클라이언트
-  frontend/src/views/admin/RolesView.vue # 역할 관리 화면
-
-Backend 수정:
-  app/main.py                           # roles 라우터 등록
+수정:
+  frontend/src/router/index.js              # /admin/menus 라우트 추가
 ```
 
-### 8.3 Backend API 설계
+### 8.3 `api/menus.js`
 
-**`app/api/routes/roles.py`** — `prefix="/api/v1/roles"`, `tags=["roles"]`
+```javascript
+/**
+ * 메뉴 관리 API 클라이언트
+ *
+ * Backend: /api/admin/v1/menus
+ */
+import apiClient from './index'
 
-| Method | Endpoint | Description | 필요 권한 |
-|--------|----------|-------------|-----------|
-| GET | `/` | 역할 목록 | `admin:users` |
-| POST | `/` | 역할 생성 | `admin:users` (GLOBAL만) |
-| GET | `/{role_id}` | 역할 상세 (권한 포함) | `admin:users` |
-| PUT | `/{role_id}` | 역할 수정 | `admin:users` (GLOBAL만) |
-| DELETE | `/{role_id}` | 역할 삭제 (`is_system=false`만) | `admin:users` (GLOBAL만) |
-| PUT | `/{role_id}/permissions` | 역할에 권한 할당 | `admin:users` (GLOBAL만) |
-| GET | `/permissions` | 전체 권한 목록 | `admin:users` |
+const MENUS_BASE = '/api/admin/v1/menus'
 
-> **TENANT_ADMIN**은 역할 목록 조회만 가능합니다 (역할 생성/수정/삭제는 SYSTEM_ADMIN만).
+export default {
+  // 메뉴 트리 조회
+  getTree() {
+    return apiClient.get(`${MENUS_BASE}`)
+  },
 
-### 8.4 `app/models/role.py`
+  // 메뉴 생성
+  create(data) {
+    return apiClient.post(`${MENUS_BASE}`, data)
+  },
 
-```python
-"""역할/권한 관리 스키마"""
-from typing import List, Optional
-from pydantic import BaseModel, Field
+  // 메뉴 수정
+  update(menuId, data) {
+    return apiClient.put(`${MENUS_BASE}/${menuId}`, data)
+  },
 
-
-class PermissionItem(BaseModel):
-    """권한 아이템"""
-    permission_id: int
-    permission_code: str
-    permission_name: str
-    category: str
-
-
-class RoleListItem(BaseModel):
-    """역할 목록 아이템"""
-    role_id: int
-    role_code: str
-    role_name: str
-    scope_type: str
-    is_system: bool = False
-    user_count: int = 0
-    permission_count: int = 0
-
-
-class RoleDetail(RoleListItem):
-    """역할 상세 (권한 포함)"""
-    description: Optional[str] = None
-    permissions: List[PermissionItem] = Field(default_factory=list)
-
-
-class RoleCreate(BaseModel):
-    """역할 생성 요청"""
-    role_code: str = Field(..., min_length=2, max_length=50)
-    role_name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = None
-    scope_type: str = Field(..., pattern="^(GLOBAL|TENANT|USER)$")
-    permission_ids: List[int] = Field(default_factory=list)
-
-
-class RoleUpdate(BaseModel):
-    """역할 수정 요청"""
-    role_name: Optional[str] = None
-    description: Optional[str] = None
-    scope_type: Optional[str] = None
-
-
-class RolePermissionAssign(BaseModel):
-    """역할 권한 할당 요청"""
-    permission_ids: List[int] = Field(..., min_length=0)
+  // 메뉴 삭제
+  delete(menuId) {
+    return apiClient.delete(`${MENUS_BASE}/${menuId}`)
+  }
+}
 ```
 
-### 8.5 Frontend `RolesView.vue`
+### 8.4 `MenusView.vue` UI 설계
 
-**UI 구성**:
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  메뉴/권한 관리                                   [+ 메뉴 추가]   │
+│                                                                   │
+│  ┌─── 메뉴 트리 ──────────────┐  ┌─── 메뉴 상세 ──────────────┐  │
+│  │                             │  │                             │  │
+│  │ ▼ 관리자 (ADMIN)            │  │ 메뉴 코드: DASHBOARD       │  │
+│  │   ├ 대시보드                │  │ 메뉴 이름: 대시보드         │  │
+│  │   ├ 자연어 검색             │  │ 메뉴 타입: PAGE             │  │
+│  │   ├ 문서 관리               │  │ URL 경로: /admin/dashboard  │  │
+│  │   ├ 사용자 관리             │  │ 아이콘: dashboard            │  │
+│  │   ├ ★메뉴/권한 관리         │  │ 정렬순서: 1                 │  │
+│  │   ├ 역할 관리               │  │ 상태: ☑ 활성               │  │
+│  │   ├ 테넌트 관리             │  │                             │  │
+│  │   ├ 시스템 설정             │  │ [수정]  [삭제]              │  │
+│  │   ├ 코드 관리               │  │                             │  │
+│  │   └ 검색 이력               │  └─────────────────────────────┘  │
+│  │ ▼ 사용자 (USER_AREA)       │                                   │
+│  │   └ 채팅                    │                                   │
+│  │ ▼ API 접근 (API_ACCESS)    │                                   │
+│  │   ├ Agent API               │                                   │
+│  │   ├ RAG API                 │                                   │
+│  │   └ NL2SQL API              │                                   │
+│  │                             │                                   │
+│  └─────────────────────────────┘                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 8.5 핵심 기능
+
+| 기능 | 설명 |
+|------|------|
+| 메뉴 트리 조회 | `el-tree` 컴포넌트로 계층 표시 |
+| 메뉴 상세 보기 | 트리에서 노드 선택 시 우측 패널에 상세 정보 |
+| 메뉴 추가 | DIRECTORY/PAGE/API 타입 선택, 상위 메뉴 지정 |
+| 메뉴 수정 | 이름, 경로, 아이콘, 정렬순서, 활성화 수정 |
+| 메뉴 삭제 | 하위 메뉴가 없는 메뉴만 삭제 가능 |
+
+### 8.6 `el-tree` 바인딩
+
+```html
+<el-tree
+  :data="menuTree"
+  :props="{ label: 'menu_name', children: 'children' }"
+  node-key="menu_id"
+  highlight-current
+  default-expand-all
+  @node-click="onNodeClick"
+>
+  <template #default="{ data }">
+    <span class="menu-tree-node">
+      <el-tag size="small" :type="typeTagMap[data.menu_type]">
+        {{ data.menu_type }}
+      </el-tag>
+      <span>{{ data.menu_name }}</span>
+      <span class="menu-code">({{ data.menu_code }})</span>
+    </span>
+  </template>
+</el-tree>
+```
+
+### 8.7 검증 항목
+
+- [ ] 메뉴 트리 조회: 루트 3개 + 하위 14개 표시
+- [ ] 메뉴 타입별 태그 색상 구분 (DIRECTORY, PAGE, API)
+- [ ] 메뉴 선택 시 우측 상세 패널 표시
+- [ ] 메뉴 추가 → 트리에 반영
+- [ ] 메뉴 수정 → 변경 사항 반영
+- [ ] 하위 메뉴가 있는 DIRECTORY 삭제 시 에러 메시지
+- [ ] SYSTEM_ADMIN만 접근 가능 (TENANT_ADMIN 접근 불가)
+
+---
+
+## 9. Step 6: 역할 관리 + 테넌트 관리 화면
+
+### 9.1 역할 관리 — `RolesView.vue`
+
+#### 9.1.1 목표
+
+역할(Role) CRUD를 구현합니다. v2.0에서는 역할에 권한(permission) 코드를 할당하지 않고, 역할의 `scope_type`과 `landing_page`를 관리합니다.
+
+> **v2.0 핵심**: 역할은 "데이터 범위(scope_type)"만 결정하고, "메뉴 접근 권한"은 `tb_user_menu`에서 사용자별로 직접 관리합니다.
+
+#### 9.1.2 산출물
+
+```
+수정:
+  frontend/src/views/admin/RolesView.vue   # 스텁 → 완전 구현
+```
+
+> `api/users.js`에 이미 `listRoles()` 함수가 있으므로, 역할 CRUD를 위한 별도 API는 기존 `roles.py` 백엔드 엔드포인트를 호출합니다. 필요시 `api/roles.js` 신규 생성.
+
+#### 9.1.3 UI 설계
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  역할 관리                                      [+ 역할 추가]  │
-│ ┌────────┬───────┬─────────┬──────┬──────┬──────┬──────────┐ │
-│ │역할 코드│역할명 │ 범위    │시스템│사용자│권한수│ 액션     │ │
-│ ├────────┼───────┼─────────┼──────┼──────┼──────┼──────────┤ │
-│ │SYS_ADM │시스템…│ GLOBAL  │ ✓   │  1   │  9   │ 👁       │ │
-│ │TEN_ADM │테넌트…│ TENANT  │ ✓   │  3   │  6   │ 👁       │ │
-│ │USER    │일반…  │ USER    │ ✓   │ 10   │  3   │ 👁       │ │
-│ │CUSTOM  │감사자 │ TENANT  │     │  2   │  4   │ ✏ 🗑     │ │
-│ └────────┴───────┴─────────┴──────┴──────┴──────┴──────────┘ │
+│ ┌────────┬──────┬──────────┬─────────┬──────┬──────┬───────┐ │
+│ │역할 코드│역할명│데이터 범위│ 랜딩페이지│시스템│사용자수│ 액션  │ │
+│ ├────────┼──────┼──────────┼─────────┼──────┼──────┼───────┤ │
+│ │SYS_ADM │시스템│ GLOBAL   │/admin/..│ ✓   │  1   │ 👁    │ │
+│ │TEN_ADM │테넌트│ TENANT   │/admin/..│ ✓   │  3   │ 👁    │ │
+│ │USER    │일반  │ USER     │/chat    │ ✓   │ 10   │ 👁    │ │
+│ │AUDITOR │감사자│ TENANT   │/admin/..│     │  2   │ ✏ 🗑  │ │
+│ └────────┴──────┴──────────┴─────────┴──────┴──────┴───────┘ │
 │                                                               │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │  역할 상세: CUSTOM (감사자)                              │   │
-│  │  ┌──────────────────────────────────────────────────┐  │   │
-│  │  │  권한 할당                                        │  │   │
-│  │  │  ☑ nl2sql:execute    ☑ rag:search                │  │   │
-│  │  │  ☑ document:read     ☐ document:write            │  │   │
-│  │  │  ☐ document:delete   ☐ admin:settings            │  │   │
-│  │  │  ☐ admin:users       ☐ admin:tenants             │  │   │
-│  │  │  ☑ nl2sql:view_all                               │  │   │
-│  │  └──────────────────────────────────────────────────┘  │   │
-│  │  [저장]  [취소]                                          │   │
-│  └────────────────────────────────────────────────────────┘   │
+│  ┌── 역할 상세: AUDITOR (감사자) ────────────────────────┐    │
+│  │  역할 코드: AUDITOR                                    │    │
+│  │  역할 이름: [감사자        ]                            │    │
+│  │  데이터 범위: [TENANT  ▼]                               │    │
+│  │  랜딩 페이지: [/admin/dashboard]                        │    │
+│  │  설명: [감사 목적으로 이력만 조회하는 역할]               │    │
+│  │                                                         │    │
+│  │  [저장]  [취소]                                          │    │
+│  └─────────────────────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**핵심 기능**:
-- 역할 목록 테이블 (사용자 수, 권한 수 표시)
-- 시스템 역할(`is_system=true`)은 수정/삭제 불가 (읽기 전용)
-- 역할 상세 패널 — 권한 체크박스 할당
-- 카테고리별 권한 그룹핑 (nl2sql, rag, document, admin)
+#### 9.1.4 핵심 기능
 
-### 8.6 검증 항목
+- 역할 목록 테이블: `role_code`, `role_name`, `scope_type`, `landing_page`, `is_system`, `user_count`
+- 시스템 역할(`is_system=true`): 수정/삭제 불가 (읽기 전용, 상세 보기만)
+- 커스텀 역할 CRUD: `scope_type` 선택 (GLOBAL/TENANT/USER), `landing_page` 입력
+- CRUD 버튼 제어: `hasMenuPermission('ROLE_MGMT', 'create/update/delete')` 기반
 
-- [ ] 역할 목록 조회 (사용자 수, 권한 수 포함)
-- [ ] 커스텀 역할 생성 → 목록 반영
-- [ ] 역할에 권한 할당 → 저장 후 확인
-- [ ] 시스템 역할 수정/삭제 시 에러 메시지
-- [ ] TENANT_ADMIN은 조회만 가능 (생성/수정/삭제 버튼 숨김)
+### 9.2 테넌트 관리 — `TenantsView.vue`
 
----
-
-## 9. Step 6: 테넌트 관리 API + 화면
-
-### 9.1 목표
+#### 9.2.1 목표
 
 테넌트(Tenant) CRUD를 구현합니다. SYSTEM_ADMIN만 접근 가능합니다.
 
-### 9.2 산출물
+#### 9.2.2 산출물
 
 ```
-Backend 신규:
-  app/models/tenant.py                  # 테넌트 Pydantic 모델
-  app/api/services/tenant_service.py    # 테넌트 CRUD 서비스
-  app/api/routes/tenants.py             # 테넌트 관리 API
-
-Frontend 신규:
-  frontend/src/api/tenants.js           # 테넌트 관리 API 클라이언트
-  frontend/src/views/admin/TenantsView.vue # 테넌트 관리 화면
-
-Backend 수정:
-  app/main.py                           # tenants 라우터 등록
+수정:
+  frontend/src/views/admin/TenantsView.vue   # 스텁 → 완전 구현
 ```
 
-### 9.3 Backend API 설계
+> `api/tenants.js`는 이미 구현 완료되어 있으므로 그대로 사용합니다.
 
-**`app/api/routes/tenants.py`** — `prefix="/api/v1/tenants"`, `tags=["tenants"]`
-
-| Method | Endpoint | Description | 필요 권한 |
-|--------|----------|-------------|-----------|
-| GET | `/` | 테넌트 목록 | `admin:tenants` |
-| POST | `/` | 테넌트 생성 | `admin:tenants` |
-| GET | `/{tenant_id}` | 테넌트 상세 | `admin:tenants` |
-| PUT | `/{tenant_id}` | 테넌트 수정 | `admin:tenants` |
-| DELETE | `/{tenant_id}` | 테넌트 비활성화 | `admin:tenants` |
-
-### 9.4 `app/models/tenant.py`
-
-```python
-"""테넌트 관리 스키마"""
-from typing import Optional
-from pydantic import BaseModel, Field
-
-
-class TenantListItem(BaseModel):
-    """테넌트 목록 아이템"""
-    tenant_id: int
-    tenant_code: str
-    tenant_name: str
-    is_active: bool = True
-    user_count: int = 0
-    created_at: Optional[str] = None
-
-
-class TenantCreate(BaseModel):
-    """테넌트 생성 요청"""
-    tenant_code: str = Field(..., min_length=2, max_length=50)
-    tenant_name: str = Field(..., min_length=1, max_length=200)
-    metadata: Optional[dict] = None
-
-
-class TenantUpdate(BaseModel):
-    """테넌트 수정 요청"""
-    tenant_name: Optional[str] = None
-    is_active: Optional[bool] = None
-    metadata: Optional[dict] = None
-```
-
-### 9.5 Frontend `TenantsView.vue`
-
-**UI 구성**:
+#### 9.2.3 UI 설계
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -1246,19 +915,30 @@ class TenantUpdate(BaseModel):
 │ ┌────────┬──────────┬──────┬────────┬──────────┬──────────┐  │
 │ │코드    │ 이름     │ 상태 │ 사용자수│ 생성일    │ 액션     │  │
 │ ├────────┼──────────┼──────┼────────┼──────────┼──────────┤  │
+│ │SYSTEM  │ 시스템   │ 활성 │  1     │ 2026-02  │ 👁       │  │
+│ │DEMO    │ 데모     │ 활성 │  2     │ 2026-02  │ ✏ 🗑     │  │
 │ │COMP_A  │ A회사    │ 활성 │ 15     │ 2026-01  │ ✏ 🗑     │  │
-│ │COMP_B  │ B회사    │ 활성 │  8     │ 2026-02  │ ✏ 🗑     │  │
 │ └────────┴──────────┴──────┴────────┴──────────┴──────────┘  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 9.6 검증 항목
+#### 9.2.4 핵심 기능
 
-- [ ] SYSTEM_ADMIN만 테넌트 관리 메뉴 접근 가능
-- [ ] 테넌트 생성 → 목록 반영
-- [ ] 테넌트 수정 → 이름 변경 확인
-- [ ] 테넌트 비활성화 → 상태 변경
-- [ ] 테넌트별 사용자 수 표시
+- 테넌트 목록: `tenant_code`, `tenant_name`, `is_active`, `user_count`, `created_at`
+- 테넌트 생성: `tenant_code` (영문 대문자+숫자+언더스코어), `tenant_name`
+- 테넌트 수정: `tenant_name`, `is_active`, `metadata` (JSONB)
+- 테넌트 비활성화: soft delete (`is_active = false`)
+- CRUD 버튼 제어: `hasMenuPermission('TENANT_MGMT', 'create/update/delete')` 기반
+
+### 9.3 검증 항목
+
+- [ ] 역할 목록: scope_type, landing_page, user_count 표시
+- [ ] 시스템 역할 수정/삭제 불가
+- [ ] 커스텀 역할 CRUD 정상 동작
+- [ ] SYSTEM_ADMIN만 역할 생성/수정/삭제 가능
+- [ ] 테넌트 목록: user_count 표시
+- [ ] 테넌트 CRUD 정상 동작
+- [ ] SYSTEM_ADMIN만 테넌트 관리 접근 가능
 
 ---
 
@@ -1266,7 +946,7 @@ class TenantUpdate(BaseModel):
 
 ### 10.1 목표
 
-Phase 3a(선택적 모드)에서 Phase 3b(필수 모드)로 전환합니다. 인증되지 않은 사용자는 모든 API 호출이 차단됩니다.
+Phase 3a(선택적 모드)에서 Phase 3b(필수 모드)로 전환합니다. 모든 API 호출과 페이지 접근에 인증을 요구합니다.
 
 ### 10.2 산출물
 
@@ -1274,6 +954,7 @@ Phase 3a(선택적 모드)에서 Phase 3b(필수 모드)로 전환합니다. 인
 수정:
   app/middleware/auth.py                # Phase 3b: 필수 모드 전환
   frontend/src/router/index.js          # /chat도 인증 필요
+  frontend/src/components/layout/AppSidebar.vue  # 폴백 메뉴 제거
 ```
 
 ### 10.3 `app/middleware/auth.py` 변경
@@ -1292,14 +973,11 @@ class AuthMiddleware(BaseMiddleware):
         path = request.url.path
         request.state.current_user = None
 
-        # 제외 경로는 통과
         if self._is_excluded(path):
             return await call_next(request)
 
-        # Bearer 토큰 추출
         auth_header = request.headers.get("authorization", "")
         if not auth_header.startswith("Bearer "):
-            # Phase 3b: 토큰 없으면 차단
             return JSONResponse(
                 status_code=401,
                 content={"success": False, "data": None,
@@ -1310,33 +988,32 @@ class AuthMiddleware(BaseMiddleware):
         try:
             payload = verify_token(token)
             if payload.token_type == "access":
-                request.state.current_user = UserContext(...)
+                request.state.current_user = UserContext(
+                    user_id=payload.sub, login_id=payload.login_id,
+                    tenant_id=payload.tenant_id, role_code=payload.role_code,
+                    scope_type=payload.scope_type, is_superuser=payload.is_superuser
+                )
             else:
-                return JSONResponse(status_code=401, ...)
+                return JSONResponse(status_code=401, content={...})
         except Exception:
-            return JSONResponse(status_code=401, ...)
+            return JSONResponse(status_code=401, content={...})
 
         return await call_next(request)
-
-    def _is_excluded(self, path: str) -> bool:
-        if path in self.EXCLUDE_PATHS:
-            return True
-        return any(path.startswith(prefix) for prefix in self.EXCLUDE_PREFIXES)
 ```
 
 ### 10.4 `router/index.js` 변경
 
 ```javascript
-// Step 7: 일반 페이지도 인증 필요
+// Step 7: 모든 페이지 인증 필요 (/login과 public 제외)
 router.beforeEach(async (to, from, next) => {
   const isAuthenticated = store.getters['auth/isAuthenticated']
 
-  // 공개 페이지만 통과
+  // 공개 페이지
   if (to.meta.public) return next()
 
-  // 로그인 페이지 처리
+  // 로그인 페이지
   if (to.path === '/login') {
-    return isAuthenticated ? next(getDefaultRoute()) : next()
+    return isAuthenticated ? next(store.getters['auth/landingPage']) : next()
   }
 
   // 미인증 → 로그인 (모든 페이지)
@@ -1344,23 +1021,40 @@ router.beforeEach(async (to, from, next) => {
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }
 
-  // 관리자 페이지 권한 확인
-  if (to.meta.requiresAdmin) {
-    const canAdmin = store.getters['auth/canAccessAdmin']
-    if (!canAdmin) return next('/chat')
+  // 관리자 영역 접근 권한 확인
+  if (to.path.startsWith('/admin')) {
+    if (!store.getters['auth/canAccessAdmin']) {
+      return next(store.getters['auth/landingPage'])
+    }
+    // 메뉴 경로 매칭으로 세부 접근 제어
+    const menus = store.state.auth.user?.menus || []
+    const targetMenu = menus.find(m => m.menu_path === to.path)
+    if (targetMenu && !targetMenu.can_read) {
+      return next('/admin/dashboard')
+    }
   }
 
   next()
 })
 ```
 
-### 10.5 검증 항목
+### 10.5 `AppSidebar.vue` 변경
 
-- [ ] 토큰 없이 API 호출 → 401
-- [ ] 만료된 토큰으로 API 호출 → 401 → 자동 refresh → 재시도 성공
+```javascript
+// Step 7: 폴백 메뉴 제거 (인증 필수이므로 비인증 상태 불가)
+const menuItems = computed(() => {
+  return sidebarMenus.value  // DB 기반 메뉴만
+})
+```
+
+### 10.6 검증 항목
+
+- [ ] 토큰 없이 모든 API 호출 → 401
+- [ ] 만료된 토큰 → 401 → 자동 refresh → 재시도 성공
 - [ ] Refresh Token도 만료 → `/login`으로 리다이렉트
 - [ ] `/chat` 미인증 접근 → `/login?redirect=/chat`
 - [ ] 로그인 후 `redirect` 파라미터가 있으면 해당 경로로 이동
+- [ ] 비인증 폴백 메뉴 제거 확인
 
 ---
 
@@ -1369,65 +1063,49 @@ router.beforeEach(async (to, from, next) => {
 ### 11.1 전체 파일 목록
 
 ```
-=== Step 1: 인증 인프라 (FE) ===
-[신규] frontend/src/api/auth.js
-[신규] frontend/src/store/modules/auth.js
-[수정] frontend/src/api/index.js
-[수정] frontend/src/store/index.js            # auth 모듈 등록
+=== Step 1: Auth Store v2.0 전환 ===
+[수정] frontend/src/store/modules/auth.js      # permissions → menus
+[수정] frontend/src/views/LoginView.vue         # landing_page 기반 리다이렉트
 
-=== Step 2: 로그인 화면 (FE) ===
-[신규] frontend/src/views/LoginView.vue
-[수정] frontend/src/router/index.js           # /login 라우트 추가
+=== Step 2: 사이드바 동적 메뉴 렌더링 ===
+[수정] frontend/src/components/layout/AppSidebar.vue   # 하드코딩 → DB 동적 메뉴
+[수정] frontend/src/components/layout/AppHeader.vue    # role_code 표시
 
-=== Step 3: 라우터 가드 + 레이아웃 (FE) ===
-[수정] frontend/src/router/index.js           # beforeEach 가드
-[수정] frontend/src/components/layout/AppSidebar.vue  # 권한 메뉴 필터
-[수정] frontend/src/components/layout/AppHeader.vue   # 사용자 드롭다운
+=== Step 3: 라우터 가드 메뉴 기반 전환 ===
+[수정] frontend/src/router/index.js                    # 메뉴 경로 매칭 가드
 
-=== Step 4: 사용자 관리 (BE + FE) ===
-[신규] app/models/user.py
-[신규] app/api/services/user_service.py
-[신규] app/api/routes/users.py
-[신규] frontend/src/api/users.js
-[신규] frontend/src/views/admin/UsersView.vue
-[수정] app/main.py                            # users 라우터 등록
-[수정] frontend/src/router/index.js           # /admin/users 라우트
+=== Step 4: 사용자 관리 v2.0 ===
+[수정] frontend/src/views/admin/UsersView.vue          # role_id 단일 + 메뉴 CRUD 체크박스
+[수정] frontend/src/api/users.js                       # getUserMenus, updateUserMenus 추가
 
-=== Step 5: 역할 관리 (BE + FE) ===
-[신규] app/models/role.py
-[신규] app/api/services/role_service.py
-[신규] app/api/routes/roles.py
-[신규] frontend/src/api/roles.js
-[신규] frontend/src/views/admin/RolesView.vue
-[수정] app/main.py                            # roles 라우터 등록
-[수정] frontend/src/router/index.js           # /admin/roles 라우트
+=== Step 5: 메뉴/권한 관리 (★ 신규) ===
+[신규] frontend/src/api/menus.js                       # 메뉴 관리 API 클라이언트
+[신규] frontend/src/views/admin/MenusView.vue          # 메뉴 트리 관리 화면
+[수정] frontend/src/router/index.js                    # /admin/menus 라우트 추가
 
-=== Step 6: 테넌트 관리 (BE + FE) ===
-[신규] app/models/tenant.py
-[신규] app/api/services/tenant_service.py
-[신규] app/api/routes/tenants.py
-[신규] frontend/src/api/tenants.js
-[신규] frontend/src/views/admin/TenantsView.vue
-[수정] app/main.py                            # tenants 라우터 등록
-[수정] frontend/src/router/index.js           # /admin/tenants 라우트
+=== Step 6: 역할 + 테넌트 관리 ===
+[신규] frontend/src/api/roles.js                       # 역할 관리 API 클라이언트 (선택)
+[수정] frontend/src/views/admin/RolesView.vue          # 스텁 → 완전 구현
+[수정] frontend/src/views/admin/TenantsView.vue        # 스텁 → 완전 구현
 
-=== Step 7: 인증 필수 모드 (BE + FE) ===
-[수정] app/middleware/auth.py                 # Phase 3a → 3b
-[수정] frontend/src/router/index.js           # 모든 페이지 인증 필요
+=== Step 7: 인증 필수 모드 (Phase 3a → 3b) ===
+[수정] app/middleware/auth.py                          # 필수 모드 전환
+[수정] frontend/src/router/index.js                    # 모든 페이지 인증 필요
+[수정] frontend/src/components/layout/AppSidebar.vue   # 폴백 메뉴 제거
 ```
 
 ### 11.2 파일 수 요약
 
 | 구분 | 신규 | 수정 | 합계 |
 |------|:----:|:----:|:----:|
-| Step 1 | 2 | 2 | 4 |
-| Step 2 | 1 | 1 | 2 |
-| Step 3 | 0 | 3 | 3 |
-| Step 4 | 5 | 2 | 7 |
-| Step 5 | 5 | 2 | 7 |
-| Step 6 | 5 | 2 | 7 |
-| Step 7 | 0 | 2 | 2 |
-| **합계** | **18** | **14** | **32** |
+| Step 1 | 0 | 2 | 2 |
+| Step 2 | 0 | 2 | 2 |
+| Step 3 | 0 | 1 | 1 |
+| Step 4 | 0 | 2 | 2 |
+| Step 5 | 2 | 1 | 3 |
+| Step 6 | 1 | 2 | 3 |
+| Step 7 | 0 | 3 | 3 |
+| **합계** | **3** | **13** | **16** |
 
 ---
 
@@ -1436,68 +1114,51 @@ router.beforeEach(async (to, from, next) => {
 ### 12.1 Step별 검증 흐름
 
 ```
-Step 1+2: 로그인 → 토큰 저장 → API 호출 헤더 확인
+Step 1:   auth store v2.0 전환 → hasMenuPermission 동작 확인
      ↓
-Step 3:   라우터 가드 → 메뉴 필터링 → 로그아웃
+Step 2:   사이드바 동적 메뉴 → 역할별 메뉴 표시 확인
      ↓
-Step 4:   사용자 CRUD → scope 기반 필터링
+Step 3:   라우터 가드 → 메뉴 경로 매칭 접근 제어
      ↓
-Step 5:   역할 CRUD → 권한 할당
+Step 4:   사용자 관리 v2.0 → role_id 단일 + 메뉴 CRUD 체크박스
      ↓
-Step 6:   테넌트 CRUD
+Step 5:   메뉴 관리 → 트리 조회/추가/수정/삭제
      ↓
-Step 7:   필수 모드 → 미인증 차단 → 자동 갱신
+Step 6:   역할/테넌트 관리 → CRUD + scope_type
+     ↓
+Step 7:   필수 모드 → 미인증 전면 차단
 ```
 
-### 12.2 통합 시나리오 테스트
+### 12.2 역할별 통합 시나리오 테스트
 
 | # | 시나리오 | 예상 결과 |
 |---|----------|----------|
-| 1 | SYSTEM_ADMIN 로그인 | 모든 메뉴 표시, 전체 데이터 접근 |
-| 2 | TENANT_ADMIN 로그인 | 시스템 설정/코드 관리/테넌트 관리 숨김, 테넌트 데이터만 |
-| 3 | USER 로그인 | `/chat`으로 이동, 관리 페이지 접근 불가 |
-| 4 | 토큰 만료 → 자동 갱신 | 사용자 모르게 토큰 갱신 후 재요청 |
-| 5 | Refresh Token 만료 | 로그인 페이지로 리다이렉트 |
-| 6 | 사용자 생성 → 역할 부여 → 로그인 | 부여된 역할의 메뉴만 표시 |
-| 7 | 역할 권한 변경 → 토큰 갱신 | 다음 Access Token부터 새 권한 반영 |
-| 8 | 테넌트 비활성화 → 소속 사용자 로그인 | 로그인 실패 |
+| 1 | SYSTEM_ADMIN 로그인 | landing_page `/admin/dashboard`, 10개 관리 메뉴 표시 |
+| 2 | TENANT_ADMIN 로그인 | landing_page `/admin/dashboard`, 할당된 메뉴만 표시 (약 6개) |
+| 3 | USER 로그인 | landing_page `/chat`, 관리 페이지 접근 불가 |
+| 4 | 사용자 생성 (메뉴 권한 포함) → 로그인 | 부여된 메뉴만 사이드바에 표시 |
+| 5 | 사용자 메뉴 권한 변경 → 재로그인 | 변경된 메뉴 반영 |
+| 6 | DB에서 메뉴 비활성화 → 재로그인 | 해당 메뉴 사이드바에서 사라짐 |
+| 7 | 토큰 만료 → 자동 갱신 | 사용자 모르게 토큰 갱신 후 재요청 |
+| 8 | Refresh Token 만료 | 로그인 페이지로 리다이렉트 |
+| 9 | CRUD 버튼 권한 제어 | can_create=false → 추가 버튼 숨김, can_delete=false → 삭제 버튼 숨김 |
+| 10 | 메뉴 트리에 새 메뉴 추가 → 사용자에 할당 → 로그인 | 새 메뉴가 사이드바에 표시 |
 
-### 12.3 테스트 계정 (Phase 1에서 생성)
+### 12.3 테스트 계정 (Phase 1 DDL 초기 데이터)
 
-| login_id | 역할 | scope_type | 테스트 용도 |
-|----------|------|-----------|------------|
-| `admin` | SYSTEM_ADMIN | GLOBAL | 전체 관리 |
-| `tenant_admin` | TENANT_ADMIN | TENANT | 테넌트 범위 테스트 |
-| `user1` | USER | USER | 일반 사용자 테스트 |
+| login_id | 역할 | scope_type | landing_page | 메뉴 수 |
+|----------|------|-----------|-------------|--------|
+| `admin` | SYSTEM_ADMIN | GLOBAL | /admin/dashboard | 14 |
+| `tenant_admin` | TENANT_ADMIN | TENANT | /admin/dashboard | 9 |
+| `user01` | USER | USER | /chat | 4 |
 
----
+### 12.4 CRUD 권한 세분화 테스트 매트릭스
 
-## 부록: app.js 정리
-
-Step 1에서 `auth.js` 모듈 도입 시, `app.js`의 인증 관련 코드를 정리합니다:
-
-### 제거 대상 (app.js → auth.js로 이전)
-
-```javascript
-// state에서 제거
-user: null,           // → auth.user
-userRole: 'admin',    // → auth.roles 기반으로 판단
-
-// mutations에서 제거
-SET_USER,             // → auth.SET_AUTH
-SET_ROLE,             // → auth.roles
-
-// getters에서 변경
-isAdmin: (state) => state.userRole === 'admin',
-// → isAdmin: (state, getters, rootState, rootGetters) => rootGetters['auth/canAccessAdmin']
-
-isAuthenticated: (state) => state.user !== null,
-// → isAuthenticated: (state, getters, rootState, rootGetters) => rootGetters['auth/isAuthenticated']
-
-// actions에서 제거
-async login({ commit }, credentials) { ... },  // → auth/login
-logout({ commit }) { ... },                    // → auth/logout
-```
-
-> **점진적 마이그레이션**: Step 1에서 auth 모듈을 추가하고, Step 3에서 app.js의 인증 코드를 정리합니다.
-> 기존 코드가 `app/isAdmin`을 참조하는 곳이 있으면 `auth/canAccessAdmin`으로 변경합니다.
+| 테스트 | 조건 | 예상 결과 |
+|--------|------|----------|
+| 사용자 관리 - 목록 조회 | USER_MGMT can_read=true | 목록 표시 |
+| 사용자 관리 - 추가 버튼 | USER_MGMT can_create=false | 버튼 숨김 |
+| 사용자 관리 - 삭제 버튼 | USER_MGMT can_delete=false | 버튼 숨김 |
+| 메뉴 관리 - 접근 | MENU_MGMT 없음 | `/admin/dashboard`로 리다이렉트 |
+| 검색 이력 - 내보내기 | HISTORY can_export=true | 내보내기 버튼 표시 |
+| 검색 이력 - 내보내기 | HISTORY can_export=false | 내보내기 버튼 숨김 |

@@ -1,21 +1,21 @@
-# Phase 3 구현 가이드: 인증 API + 인증 미들웨어
+# Phase 3 구현 가이드: 인증 API + 인증 미들웨어 (v2.0)
 
-> **문서 버전**: 1.0
-> **작성일**: 2026-02-12
-> **상위 문서**: `docs/design/user_permission_system.md`
-> **선행 조건**: Phase 2 완료 (Core Security 모듈)
-> **목적**: Phase 3(인증 API + 인증 미들웨어)의 실제 구현 절차를 코드 레벨에서 상세 설명
+> **문서 버전**: 2.0
+> **작성일**: 2026-02-13
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **선행 조건**: Phase 1 (DB + Models v2.0), Phase 2 (Core Security v2.0) 완료
+> **목적**: 인증 API + 인증 미들웨어를 v2.0 메뉴 기반 권한 체계에 맞게 구현
 
 ---
 
 ## 목차
 
 1. [Phase 3 개요](#1-phase-3-개요)
-2. [Step 0: `error_codes.py` 수정 — ACCOUNT_LOCKED 추가](#2-step-0-error_codes)
-3. [Step 1: `auth_service.py` — 인증 비즈니스 로직](#3-step-1-auth_service)
-4. [Step 2: `auth.py` (routes) — 인증 API 엔드포인트](#4-step-2-auth-routes)
-5. [Step 3: `auth.py` (middleware) — 인증 미들웨어](#5-step-3-auth-middleware)
-6. [Step 4: `main.py` 수정 — 미들웨어/라우터 등록](#6-step-4-main)
+2. [현행 상태 분석 (v1.0 → v2.0 갭)](#2-현행-상태-분석)
+3. [Step 1: `auth_service.py` v2.0 마이그레이션](#3-step-1-auth_servicepy)
+4. [Step 2: `routes/auth.py` v2.0 마이그레이션](#4-step-2-routesauthpy)
+5. [Step 3: `middleware/auth.py` v2.0 마이그레이션](#5-step-3-middlewareauthpy)
+6. [Step 4: `main.py` 확인](#6-step-4-mainpy-확인)
 7. [검증 체크리스트](#7-검증-체크리스트)
 8. [다음 단계 (Phase 4 Preview)](#8-다음-단계)
 
@@ -25,137 +25,225 @@
 
 ### 1.1 무엇을 하는가
 
-Phase 3은 실제 **로그인/로그아웃/토큰갱신** 기능을 구현하여 시스템 접근의 첫 관문을 만드는 단계입니다.
+Phase 3은 **로그인/로그아웃/토큰갱신** 기능을 v2.0 메뉴 기반 권한 체계에 맞게 마이그레이션합니다.
+현행 코드는 v1.0 (permission 코드 기반)으로 동작 중이며, v2.0 (메뉴 기반)으로 전환해야 합니다.
 
 ```
 Phase 3 산출물:
-  [MOD] app/core/errors/error_codes.py      ← ACCOUNT_LOCKED 에러코드 추가
-  [NEW] app/api/services/auth_service.py    ← 인증 비즈니스 로직 (6개 메서드)
-  [NEW] app/api/routes/auth.py              ← 인증 API (5개 엔드포인트)
-  [NEW] app/middleware/auth.py              ← 인증 미들웨어 (선택적 모드)
-  [MOD] app/middleware/__init__.py          ← AuthMiddleware export 추가
-  [MOD] app/main.py                        ← 미들웨어 + 라우터 등록
+  [MOD] app/api/services/auth_service.py    ← 쿼리 전면 재작성 (★ 핵심 변경)
+  [MOD] app/api/routes/auth.py              ← UserInfo 생성 변경 (menus 포함)
+  [MOD] app/middleware/auth.py              ← UserContext 생성 변경 (role_code 단일)
+  [OK]  app/main.py                         ← 이미 등록 완료 (변경 불필요)
 ```
 
-### 1.2 왜 필요한가
+### 1.2 v1.0 → v2.0 핵심 변경 사항
 
-| 모듈 | 없으면 어떻게 되는가 |
-|------|---------------------|
-| `auth_service.py` | 로그인 검증, 세션 관리, 권한 조회 로직을 API 핸들러에 직접 작성해야 함 |
-| `routes/auth.py` | 클라이언트가 로그인/로그아웃/토큰갱신할 수 있는 HTTP 엔드포인트가 없음 |
-| `middleware/auth.py` | 모든 API 핸들러에서 직접 토큰 검증을 해야 함 → 누락 위험 |
+| 구분 | v1.0 (현행 코드) | v2.0 (목표) |
+|------|:---:|:---:|
+| 역할 | `roles: List[str]` (M:N) | `role_code: str` (1:N) |
+| 권한 | `permissions: List[str]` (코드) | `menus: List[MenuPermission]` (메뉴 CRUD) |
+| 역할 조회 쿼리 | `tb_user_role` + `tb_role_permission` + `tb_permission` JOIN | `tb_user.role_id` → `tb_role` 직접 JOIN |
+| 메뉴 권한 조회 | 없음 | `tb_user_menu` + `tb_menu` JOIN |
+| UserInfo | `roles`, `role_names`, `permissions` | `role_code`, `landing_page`, `menus` |
+| UserContext | `roles`, `permissions`, `has_permission()` | `role_code`, `scope_type` (DB 조회로 대체) |
+| JWT payload | `roles`, `permissions` 배열 | `role_code` 단일 |
 
-### 1.3 핵심 설계 결정
+### 1.3 선행 완료 확인
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Q: 인증 미들웨어를 바로 "필수 모드"로 도입할까?                       │
-│  A: 아니요. "선택적 모드(Phase 3a)"로 도입합니다.                     │
-│                                                                      │
-│     이유: 기존 API (search, agent, rag 등)가 토큰 없이 동작하고      │
-│     있으므로, 미들웨어 도입 즉시 401을 반환하면 기존 기능이 깨집니다.  │
-│                                                                      │
-│     Phase 3a: 토큰 있으면 검증, 없으면 anonymous로 통과              │
-│     Phase 6+: 프론트엔드 인증 완료 후 "필수 모드"로 전환              │
-└─────────────────────────────────────────────────────────────────────┘
+Phase 3 시작 전 아래 Phase 1~2 산출물이 v2.0으로 완료되어야 합니다:
 
-┌─────────────────────────────────────────────────────────────────────┐
-│  Q: DB 조회는 언제 하는가?                                           │
-│  A: 로그인 시점과 Refresh Token 갱신 시점에만 DB에서 권한을 조회합니다.│
-│     Access Token 검증(매 요청)은 JWT 페이로드만으로 처리 (DB 조회 없음)│
-│                                                                      │
-│     권한이 변경되면?                                                  │
-│     → Access Token 만료(30분) 후 Refresh 시점에 최신 권한이 로드됨   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| 선행 산출물 | 확인 항목 |
+|------------|----------|
+| Phase 1: DB 테이블 | `tb_user.role_id` FK 존재, `tb_user_menu` 존재, v1.0 테이블(`tb_user_role`, `tb_role_permission`, `tb_permission`) 삭제 |
+| Phase 1: `models/auth.py` | `UserInfo.role_code`, `UserInfo.menus`, `UserContext.role_code` (v2.0) |
+| Phase 1: `models/menu.py` | `MenuPermission` 클래스 존재 |
+| Phase 2: `jwt.py` | `TokenPayload.role_code: str` (단일, `roles` 리스트 제거) |
+| Phase 2: `dependencies.py` | `UserContext(role_code=...)` 생성 |
+| Phase 2: `permission.py` | `require_menu_permission(menu_code, action)` 구현 |
 
-### 1.4 Phase 2에서 만든 모듈과의 관계
-
-```
-Phase 2 (이미 완성)           Phase 3 (이번에 구현)
-┌──────────────────┐         ┌──────────────────────────┐
-│ password.py      │────────→│ auth_service.py          │
-│ (해싱/검증)      │         │ (authenticate,           │
-├──────────────────┤         │  change_password)        │
-│ jwt.py           │────────→│                          │
-│ (토큰생성/검증)  │         │ (create_session,         │
-├──────────────────┤         │  refresh_access_token)   │
-│ dependencies.py  │────────→├──────────────────────────┤
-│ (get_current_user)│        │ routes/auth.py           │
-├──────────────────┤         │ (login, logout, refresh, │
-│ permission.py    │         │  me, change_password)    │
-│ (require_perm)   │         ├──────────────────────────┤
-└──────────────────┘         │ middleware/auth.py        │
-                             │ (토큰→UserContext 설정)   │
-                             └──────────────────────────┘
-```
-
-### 1.5 요청 흐름 (로그인 → API 사용 → 토큰 갱신)
+### 1.4 요청 흐름 (v2.0)
 
 ```
 1. POST /api/v1/auth/login
    → auth_service.authenticate(login_id, password)
      → tb_user 조회 → 잠금 확인 → 비밀번호 검증
    → auth_service.create_session(user_id, ip, user_agent)
-     → get_user_with_permissions(user_id) → 역할/권한 조회
+     → get_user_with_permissions(user_id)
+       → tb_user JOIN tb_role → role_code, scope_type, landing_page
+       → tb_user_menu JOIN tb_menu → menus[{menu_code, can_create, ...}]
      → tb_user_session INSERT
-     → JWT Access + Refresh Token 생성
-   → TokenResponse 반환
+     → JWT Access Token (role_code, scope_type) + Refresh Token (session_id)
+   → TokenResponse 반환 (user.menus 포함)
 
 2. GET /api/v1/auth/me (Authorization: Bearer <access_token>)
-   → AuthMiddleware: Bearer 토큰 추출 → verify_token → UserContext
+   → AuthMiddleware: Bearer 토큰 → verify_token → UserContext(role_code=...)
    → request.state.current_user에 저장
    → Depends(get_current_active_user) → UserContext 반환
+   → auth_service.get_user_with_permissions() → 최신 권한 + 메뉴 반환
 
 3. POST /api/v1/auth/refresh (Access Token 만료 후)
    → auth_service.refresh_access_token(refresh_token)
      → JWT verify (token_type=refresh)
-     → tb_user_session에서 refresh_token 조회
-     → get_user_with_permissions → 최신 권한 로드
-     → 새 Access Token 생성
+     → tb_user_session에서 refresh_token 확인
+     → get_user_with_permissions → 최신 role_code, menus 로드
+     → 새 Access Token (최신 role_code 반영)
    → TokenResponse 반환
 
 4. POST /api/v1/auth/logout
-   → auth_service.logout(session_id)
-     → tb_user_session DELETE
+   → auth_service.logout(user_id)
+     → tb_user_session DELETE (해당 사용자 전체 세션)
+```
+
+### 1.5 설계 결정
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Q: 인증 미들웨어를 "필수 모드"로 전환할까?                           │
+│  A: 아니요. "선택적 모드(Phase 3a)"를 유지합니다.                    │
+│                                                                      │
+│     이유: 기존 API (search, agent, rag 등)가 토큰 없이 동작 중이며,  │
+│     프론트엔드 인증 완료(Phase 5) 전까지 하위호환 유지 필요.          │
+│                                                                      │
+│     Phase 3a: 토큰 있으면 검증, 없으면 anonymous로 통과              │
+│     Phase 5+: 프론트엔드 인증 완료 후 "필수 모드"로 전환              │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  Q: JWT에 메뉴 권한을 포함할까?                                      │
+│  A: 아니요. JWT에는 role_code, scope_type만 포함합니다.              │
+│                                                                      │
+│     이유: 메뉴 권한은 사용자별로 커스터마이즈 가능 (role 기본값과      │
+│     다를 수 있음). JWT에 넣으면 토큰이 비대해지고, 권한 변경 시      │
+│     토큰 만료까지 반영 불가.                                         │
+│                                                                      │
+│     메뉴 권한 사용 시점:                                             │
+│     - 로그인 응답: menus 배열로 프론트엔드에 전달                    │
+│     - API 권한 체크: require_menu_permission()이 DB 직접 조회        │
+│     - /me 조회: DB에서 최신 메뉴 목록 반환                           │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  Q: 권한 변경이 실시간 반영되는가?                                    │
+│  A: Access Token 만료(30분) 후 Refresh 시점에 반영됩니다.            │
+│                                                                      │
+│     - Access Token 검증은 JWT 페이로드만 사용 (DB 조회 없음)         │
+│     - 관리자가 사용자 권한 변경 시:                                   │
+│       현재 Access Token은 이전 role_code 유지 (최대 30분)            │
+│       → Access Token 만료 → Refresh → 최신 role_code 로드           │
+│     - /me 엔드포인트는 항상 DB에서 최신 정보 반환                    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Step 0: error_codes.py 수정
+## 2. 현행 상태 분석
 
-### 2.1 변경 내용
+### 2.1 파일별 현행 상태
 
-`app/core/errors/error_codes.py`에 `ACCOUNT_LOCKED` 에러코드를 추가합니다.
+| # | 파일 | 현행 버전 | 상태 | v2.0 변경 내용 |
+|---|------|-----------|------|---------------|
+| 1 | `app/api/services/auth_service.py` | v1.0 | ⚠️ 쿼리 재작성 필요 | `tb_user_role` JOIN → `tb_user.role_id` + `tb_user_menu` |
+| 2 | `app/api/routes/auth.py` | v1.0 | ⚠️ 모델 참조 변경 | `UserInfo(roles=...)` → `UserInfo(role_code=..., menus=...)` |
+| 3 | `app/middleware/auth.py` | v1.0 | ⚠️ UserContext 변경 | `UserContext(roles=..., permissions=...)` → `UserContext(role_code=...)` |
+| 4 | `app/main.py` | v2.0 | ✅ 변경 불필요 | 미들웨어 + 라우터 이미 등록 |
 
-### 2.2 수정 부분
+### 2.2 auth_service.py — 현행 v1.0 문제점
 
-```python
-# ========== 비즈니스 오류 ========== 섹션에 추가:
-ACCOUNT_LOCKED = "ACCOUNT_LOCKED"          # 계정 잠금
+현행 `get_user_with_permissions()` 메서드가 참조하는 테이블:
 
-# ERROR_MESSAGES에 추가:
-ErrorCode.ACCOUNT_LOCKED: "계정이 잠겼습니다. 잠시 후 다시 시도해주세요",
-
-# ERROR_STATUS_CODES에 추가:
-ErrorCode.ACCOUNT_LOCKED: status.HTTP_423_LOCKED,
+```sql
+-- 현행 (v1.0): v2.0 DDL에서 삭제된 테이블을 JOIN (실행 불가)
+SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code
+FROM tb_user_role ur                          -- ← v2.0에서 삭제됨
+JOIN tb_role r ON ur.role_id = r.role_id
+LEFT JOIN tb_role_permission rp ON ...        -- ← v2.0에서 삭제됨
+LEFT JOIN tb_permission p ON ...              -- ← v2.0에서 삭제됨
+WHERE ur.user_id = %s
 ```
 
-### 2.3 HTTP 423 LOCKED
+v2.0 DDL 적용 후 위 쿼리는 `relation "tb_user_role" does not exist` 에러 발생.
 
-HTTP 423은 WebDAV에서 유래하지만, REST API에서도 "리소스가 잠김" 상태를 표현할 때 사용할 수 있습니다. 401(인증 실패)과 구분하여 클라이언트가 "계정 잠금"과 "비밀번호 오류"를 다르게 처리할 수 있게 합니다.
+### 2.3 auth_service.py — v2.0 쿼리 변경 방향
+
+```sql
+-- v2.0: tb_user.role_id FK로 역할 직접 JOIN
+SELECT u.user_id, u.login_id, u.display_name, u.tenant_id, u.is_superuser,
+       r.role_code, r.role_name, r.scope_type, r.landing_page
+FROM tb_user u
+JOIN tb_role r ON r.role_id = u.role_id
+WHERE u.user_id = %s
+
+-- v2.0: 메뉴 권한 별도 조회
+SELECT m.menu_code, m.menu_name, m.menu_path, m.menu_type, m.icon,
+       m.depth, m.sort_order, pm.menu_code AS parent_menu_code,
+       um.can_create, um.can_read, um.can_update, um.can_delete, um.can_export
+FROM tb_user_menu um
+JOIN tb_menu m ON m.menu_id = um.menu_id
+LEFT JOIN tb_menu pm ON pm.menu_id = m.parent_menu_id
+WHERE um.user_id = %s AND m.is_active = true
+ORDER BY m.depth, m.sort_order
+```
+
+### 2.4 TokenResponse — v1.0 vs v2.0 비교
+
+```json
+// v1.0 (현행)
+{
+  "user": {
+    "user_id": 1,
+    "login_id": "admin",
+    "scope_type": "GLOBAL",
+    "roles": ["SYSTEM_ADMIN"],
+    "role_names": ["시스템 관리자"],
+    "permissions": ["nl2sql:execute", "admin:settings"]
+  }
+}
+
+// v2.0 (목표)
+{
+  "user": {
+    "user_id": 1,
+    "login_id": "admin",
+    "role_code": "SYSTEM_ADMIN",
+    "scope_type": "GLOBAL",
+    "landing_page": "/admin/dashboard",
+    "menus": [
+      {
+        "menu_code": "DASHBOARD",
+        "menu_name": "대시보드",
+        "menu_path": "/admin/dashboard",
+        "menu_type": "PAGE",
+        "icon": "dashboard",
+        "depth": 1,
+        "sort_order": 1,
+        "can_create": false,
+        "can_read": true,
+        "can_update": false,
+        "can_delete": false,
+        "can_export": false
+      }
+    ]
+  }
+}
+```
 
 ---
 
 ## 3. Step 1: auth_service.py
 
-### 3.1 파일 위치
+### 3.1 변경 요약
 
-```
-app/api/services/auth_service.py
-```
+| 메서드 | 변경 내용 |
+|--------|----------|
+| `authenticate()` | 변경 없음 (tb_user 직접 조회) |
+| `_handle_login_failure()` | 변경 없음 |
+| `create_session()` | JWT 토큰 데이터에 `role_code` 단일, `roles`/`role_names`/`permissions` 제거, `UserInfo` 생성 변경 |
+| `refresh_access_token()` | 동일하게 JWT 토큰 데이터 + `UserInfo` 생성 변경 |
+| `logout()` | 변경 없음 |
+| `get_user_with_permissions()` | ★ **전면 재작성** — v2.0 쿼리 |
+| `change_password()` | 변경 없음 |
 
-### 3.2 전체 소스코드
+### 3.2 v2.0 전체 소스코드
 
 ```python
 """인증 서비스
@@ -165,20 +253,17 @@ app/api/services/auth_service.py
 """
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.config import settings
 from app.core.database.connection import db_manager
 from app.core.errors import APIException, ErrorCode
 from app.core.security.jwt import create_access_token, create_refresh_token, verify_token
 from app.core.security.password import hash_password, verify_password
-from app.models.auth import TokenResponse, UserInfo
+from app.models.auth import MenuPermission, TokenResponse, UserInfo
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
-
-# scope_type 우선순위 (숫자가 클수록 넓은 범위)
-_SCOPE_PRIORITY = {"USER": 1, "TENANT": 2, "GLOBAL": 3}
 
 
 class AuthService:
@@ -218,10 +303,7 @@ class AuthService:
 
             # 잠금 시간 경과 → 잠금 해제
             with db_manager.get_cursor(commit=True) as cur:
-                cur.execute(
-                    "UPDATE tb_user SET locked_until = NULL, login_fail_count = 0 WHERE user_id = %s",
-                    (user["user_id"],),
-                )
+                cur.execute("UPDATE tb_user SET locked_until = NULL, login_fail_count = 0 WHERE user_id = %s", (user["user_id"],))
 
         # 비밀번호 검증
         if not verify_password(password, user["password_hash"]):
@@ -230,11 +312,7 @@ class AuthService:
 
         # 로그인 성공 → 실패 횟수 초기화 + last_login_at 갱신
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute(
-                "UPDATE tb_user SET login_fail_count = 0, locked_until = NULL, "
-                "last_login_at = NOW() WHERE user_id = %s",
-                (user["user_id"],),
-            )
+            cur.execute("UPDATE tb_user SET login_fail_count = 0, locked_until = NULL, last_login_at = NOW() WHERE user_id = %s", (user["user_id"],))
 
         log_step(logger, request_id, "AUTH", "1", "LOGIN", "로그인 성공", login_id=login_id, user_id=user["user_id"])
         return user
@@ -249,10 +327,7 @@ class AuthService:
             log_step(logger, request_id, "AUTH", "1", "LOGIN", "계정 잠금 처리", login_id=login_id, fail_count=new_count, lock_min=settings.login_lock_minutes)
 
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute(
-                "UPDATE tb_user SET login_fail_count = %s, locked_until = %s WHERE user_id = %s",
-                (new_count, locked_until, user_id),
-            )
+            cur.execute("UPDATE tb_user SET login_fail_count = %s, locked_until = %s WHERE user_id = %s", (new_count, locked_until, user_id))
 
     def create_session(self, user_id: int, ip: str, user_agent: str, request_id: str = "") -> TokenResponse:
         """세션 생성 — 권한 조회 + tb_user_session INSERT + 토큰 발급"""
@@ -262,15 +337,14 @@ class AuthService:
         session_id = str(uuid.uuid4())
         expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
 
-        # JWT 토큰 데이터 구성
+        # JWT 토큰 데이터 구성 (v2.0: role_code 단일, permissions 제거)
         token_data = {
             "sub": str(user_id),
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
+            "role_code": user_info["role_code"],
             "scope_type": user_info["scope_type"],
-            "roles": user_info["roles"],
-            "permissions": user_info["permissions"],
             "is_superuser": user_info["is_superuser"],
         }
         access_token = create_access_token(token_data)
@@ -298,9 +372,10 @@ class AuthService:
                 login_id=user_info["login_id"],
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
+                role_code=user_info["role_code"],
                 scope_type=user_info["scope_type"],
-                roles=user_info["roles"],
-                permissions=user_info["permissions"],
+                landing_page=user_info["landing_page"],
+                menus=user_info["menus"],
             ),
         )
 
@@ -318,8 +393,7 @@ class AuthService:
         # 2. DB에서 세션 확인
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT user_id, expires_at FROM tb_user_session "
-                "WHERE session_id = %s AND refresh_token = %s",
+                "SELECT user_id, expires_at FROM tb_user_session WHERE session_id = %s AND refresh_token = %s",
                 (session_id, refresh_token),
             )
             session = cur.fetchone()
@@ -330,7 +404,6 @@ class AuthService:
 
         # 3. 세션 만료 확인
         if datetime.now(timezone.utc) > session["expires_at"]:
-            # 만료된 세션 삭제
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("DELETE FROM tb_user_session WHERE session_id = %s", (session_id,))
             raise APIException(ErrorCode.SESSION_EXPIRED, "세션이 만료되었습니다. 다시 로그인해주세요")
@@ -344,9 +417,8 @@ class AuthService:
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
+            "role_code": user_info["role_code"],
             "scope_type": user_info["scope_type"],
-            "roles": user_info["roles"],
-            "permissions": user_info["permissions"],
             "is_superuser": user_info["is_superuser"],
         }
         new_access_token = create_access_token(token_data)
@@ -363,28 +435,40 @@ class AuthService:
                 login_id=user_info["login_id"],
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
+                role_code=user_info["role_code"],
                 scope_type=user_info["scope_type"],
-                roles=user_info["roles"],
-                permissions=user_info["permissions"],
+                landing_page=user_info["landing_page"],
+                menus=user_info["menus"],
             ),
         )
 
-    def logout(self, session_id: str, request_id: str = "") -> bool:
-        """로그아웃 — 세션 삭제"""
+    def logout(self, user_id: int, request_id: str = "") -> bool:
+        """로그아웃 — 해당 사용자의 모든 세션 삭제"""
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("DELETE FROM tb_user_session WHERE session_id = %s", (session_id,))
+            cur.execute("DELETE FROM tb_user_session WHERE user_id = %s", (user_id,))
             deleted = cur.rowcount > 0
 
-        log_step(logger, request_id, "AUTH", "4", "LOGOUT", "로그아웃", session_id=session_id[:8], deleted=deleted)
+        log_step(logger, request_id, "AUTH", "4", "LOGOUT", "로그아웃", user_id=user_id, deleted=deleted)
         return deleted
 
     def get_user_with_permissions(self, user_id: int, request_id: str = "") -> Dict[str, Any]:
-        """사용자 정보 + 역할 + 권한 일괄 조회"""
-        # 1. 사용자 기본 정보
+        """
+        사용자 정보 + 역할 + 메뉴 권한 일괄 조회 (v2.0)
+
+        v2.0 변경:
+        - tb_user.role_id FK로 역할 직접 JOIN (tb_user_role M:N 제거)
+        - tb_user_menu + tb_menu JOIN으로 메뉴 CRUD 권한 조회 (tb_role_permission 제거)
+        - 반환값에 role_code(단일), landing_page, menus(MenuPermission 리스트) 포함
+        """
+        # 1. 사용자 + 역할 조회 (tb_user.role_id → tb_role 직접 JOIN)
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT user_id, login_id, email, display_name, tenant_id, is_superuser, is_active "
-                "FROM tb_user WHERE user_id = %s",
+                "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
+                "u.is_superuser, u.is_active, "
+                "r.role_code, r.role_name, r.scope_type, r.landing_page "
+                "FROM tb_user u "
+                "JOIN tb_role r ON r.role_id = u.role_id "
+                "WHERE u.user_id = %s",
                 (user_id,),
             )
             user_row = cur.fetchone()
@@ -396,38 +480,43 @@ class AuthService:
         if not user["is_active"]:
             raise APIException(ErrorCode.UNAUTHORIZED, "비활성화된 계정입니다")
 
-        # 2. 역할 + 권한 조회
+        # 2. 메뉴 권한 조회 (tb_user_menu + tb_menu JOIN)
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT r.role_code, r.scope_type, p.permission_code "
-                "FROM tb_user_role ur "
-                "JOIN tb_role r ON ur.role_id = r.role_id "
-                "LEFT JOIN tb_role_permission rp ON r.role_id = rp.role_id "
-                "LEFT JOIN tb_permission p ON rp.permission_id = p.permission_id "
-                "WHERE ur.user_id = %s",
+                "SELECT m.menu_code, m.menu_name, m.menu_path, m.menu_type, m.icon, "
+                "m.depth, m.sort_order, pm.menu_code AS parent_menu_code, "
+                "um.can_create, um.can_read, um.can_update, um.can_delete, um.can_export "
+                "FROM tb_user_menu um "
+                "JOIN tb_menu m ON m.menu_id = um.menu_id "
+                "LEFT JOIN tb_menu pm ON pm.menu_id = m.parent_menu_id "
+                "WHERE um.user_id = %s AND m.is_active = true "
+                "ORDER BY m.depth, m.sort_order",
                 (user_id,),
             )
-            rows = cur.fetchall()
+            menu_rows = cur.fetchall()
 
-        roles = set()
-        permissions = set()
-        max_scope = "USER"
+        menus = [
+            MenuPermission(
+                menu_code=row["menu_code"],
+                menu_name=row["menu_name"],
+                menu_path=row["menu_path"],
+                menu_type=row["menu_type"],
+                icon=row["icon"],
+                parent_menu_code=row["parent_menu_code"],
+                depth=row["depth"],
+                sort_order=row["sort_order"],
+                can_create=row["can_create"],
+                can_read=row["can_read"],
+                can_update=row["can_update"],
+                can_delete=row["can_delete"],
+                can_export=row["can_export"],
+            )
+            for row in menu_rows
+        ]
 
-        for row in rows:
-            if row["role_code"]:
-                roles.add(row["role_code"])
-            if row["permission_code"]:
-                permissions.add(row["permission_code"])
-            # scope_type 우선순위: GLOBAL > TENANT > USER
-            row_scope = row["scope_type"] or "USER"
-            if _SCOPE_PRIORITY.get(row_scope, 0) > _SCOPE_PRIORITY.get(max_scope, 0):
-                max_scope = row_scope
+        user["menus"] = menus
 
-        user["roles"] = sorted(roles)
-        user["permissions"] = sorted(permissions)
-        user["scope_type"] = max_scope
-
-        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, roles=len(roles), perms=len(permissions), scope=max_scope)
+        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus), scope=user["scope_type"])
         return user
 
     def change_password(self, user_id: int, current_password: str, new_password: str, request_id: str = "") -> bool:
@@ -446,10 +535,7 @@ class AuthService:
         # 2. 새 비밀번호 해시 + 저장
         new_hash = hash_password(new_password)
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute(
-                "UPDATE tb_user SET password_hash = %s, updated_at = NOW() WHERE user_id = %s",
-                (new_hash, user_id),
-            )
+            cur.execute("UPDATE tb_user SET password_hash = %s, updated_at = NOW() WHERE user_id = %s", (new_hash, user_id))
 
         log_step(logger, request_id, "AUTH", "5", "PASSWORD", "비밀번호 변경 완료", user_id=user_id)
         return True
@@ -459,53 +545,75 @@ class AuthService:
 auth_service = AuthService()
 ```
 
-### 3.3 주요 문법 설명
+### 3.3 v1.0 → v2.0 핵심 변경 상세
 
-#### 3.3.1 scope_type 결정 로직
+#### 3.3.1 get_user_with_permissions() — 쿼리 전면 재작성
 
-사용자가 여러 역할을 가질 수 있으므로, 가장 넓은 범위의 scope_type을 채택합니다.
+```
+v1.0 (제거):
+  tb_user_role ur → tb_role r → tb_role_permission rp → tb_permission p
+  → roles: Set[str], permissions: Set[str], max_scope 계산
+
+v2.0 (신규):
+  쿼리 1: tb_user u JOIN tb_role r → role_code, scope_type, landing_page (단일 역할)
+  쿼리 2: tb_user_menu um JOIN tb_menu m → menus 리스트 (MenuPermission 객체)
+
+변경 이유:
+  - tb_user_role, tb_role_permission, tb_permission 테이블이 v2.0 DDL에서 삭제됨
+  - 사용자:역할 = 1:N (tb_user.role_id FK 직접 보유)
+  - 권한 = 메뉴별 CRUD (tb_user_menu 유일한 권한 테이블)
+```
+
+#### 3.3.2 create_session() / refresh_access_token() — JWT 데이터 변경
 
 ```python
-_SCOPE_PRIORITY = {"USER": 1, "TENANT": 2, "GLOBAL": 3}
+# v1.0 (제거)
+token_data = {
+    "roles": user_info["roles"],           # List[str] → 제거
+    "role_names": user_info["role_names"], # List[str] → 제거
+    "permissions": user_info["permissions"], # List[str] → 제거
+}
 
-# 예: 사용자가 SYSTEM_ADMIN(GLOBAL) + TENANT_ADMIN(TENANT) 역할 보유
-# → max_scope = GLOBAL
+# v2.0 (신규)
+token_data = {
+    "role_code": user_info["role_code"],   # str (단일 역할)
+    # menus는 JWT에 포함하지 않음 (로그인 응답으로만 전달)
+}
 ```
 
-#### 3.3.2 계정 잠금 정책
+#### 3.3.3 UserInfo 생성 변경
 
-```
-login_max_fail_count = 5 (settings.py에 정의)
-login_lock_minutes = 30
+```python
+# v1.0 (제거)
+UserInfo(
+    roles=user_info["roles"],
+    role_names=user_info["role_names"],
+    permissions=user_info["permissions"],
+)
 
-1회 실패 → login_fail_count = 1
-2회 실패 → login_fail_count = 2
-...
-5회 실패 → login_fail_count = 5, locked_until = NOW() + 30분
-→ 잠금 해제 시간 이전 로그인 시도 → ACCOUNT_LOCKED 반환
-→ 잠금 해제 시간 경과 후 로그인 시도 → 잠금 해제 + 카운트 리셋
-```
-
-#### 3.3.3 Refresh Token 갱신 시 권한 재로드
-
-```
-로그인 시점 → JWT에 roles/permissions 포함 (30분 유효)
-관리자가 사용자 권한 변경 →
-  현재 Access Token은 이전 권한 유지 (최대 30분)
-  Access Token 만료 → Refresh → get_user_with_permissions() → 최신 권한 로드
+# v2.0 (신규)
+UserInfo(
+    role_code=user_info["role_code"],
+    landing_page=user_info["landing_page"],
+    menus=user_info["menus"],  # List[MenuPermission]
+)
 ```
 
 ---
 
 ## 4. Step 2: routes/auth.py
 
-### 4.1 파일 위치
+### 4.1 변경 요약
 
-```
-app/api/routes/auth.py
-```
+| 엔드포인트 | 변경 내용 |
+|------------|----------|
+| `POST /login` | 변경 없음 (auth_service가 v2.0 TokenResponse 반환) |
+| `POST /logout` | 변경 없음 |
+| `POST /refresh` | 변경 없음 (auth_service가 v2.0 TokenResponse 반환) |
+| `GET /me` | UserInfo 생성 변경 (role_code, landing_page, menus) |
+| `PUT /me/password` | 변경 없음 |
 
-### 4.2 전체 소스코드
+### 4.2 v2.0 전체 소스코드
 
 ```python
 """인증 API 엔드포인트
@@ -520,10 +628,7 @@ from fastapi import APIRouter, Depends, Request
 from app.api.services.auth_service import auth_service
 from app.core.errors import success_response
 from app.core.security.dependencies import get_current_active_user
-from app.models.auth import (
-    LoginRequest, RefreshRequest, PasswordChangeRequest,
-    UserContext, UserInfo,
-)
+from app.models.auth import LoginRequest, RefreshRequest, PasswordChangeRequest, UserContext, UserInfo
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
@@ -533,15 +638,12 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request):
-    """로그인 — JWT 토큰 발급"""
+    """로그인 — JWT 토큰 발급 + 메뉴 권한 목록"""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
     ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "")
 
-    # 1. 인증
     user = auth_service.authenticate(body.login_id, body.password, request_id)
-
-    # 2. 세션 생성 + 토큰 발급
     token_response = auth_service.create_session(user["user_id"], ip, user_agent, request_id)
 
     return success_response(token_response.model_dump())
@@ -549,55 +651,40 @@ async def login(body: LoginRequest, request: Request):
 
 @router.post("/logout")
 async def logout(request: Request, current_user: UserContext = Depends(get_current_active_user)):
-    """로그아웃 — 세션 삭제"""
+    """로그아웃 — 해당 사용자의 세션 삭제"""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
-
-    # Authorization 헤더에서 토큰 추출 → session_id 확인
-    from app.core.security.jwt import verify_token
-    auth_header = request.headers.get("authorization", "")
-    token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
-
-    if token:
-        payload = verify_token(token)
-        # Access Token에는 session_id가 없으므로, 해당 사용자의 세션을 user_id로 삭제
-        # 또는 Refresh Token의 session_id를 사용
-        # 여기서는 사용자의 모든 세션을 삭제 (단일 디바이스 가정)
-        with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("DELETE FROM tb_user_session WHERE user_id = %s", (current_user.user_id,))
-
-    log_step(logger, request_id, "AUTH", "4", "LOGOUT", "로그아웃 완료", user_id=current_user.user_id)
+    auth_service.logout(current_user.user_id, request_id)
     return success_response({"message": "로그아웃되었습니다"})
 
 
 @router.post("/refresh")
 async def refresh(body: RefreshRequest, request: Request):
-    """Access Token 갱신"""
+    """Access Token 갱신 (최신 역할/메뉴 권한 반영)"""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
     token_response = auth_service.refresh_access_token(body.refresh_token, request_id)
     return success_response(token_response.model_dump())
 
 
 @router.get("/me")
-async def get_me(current_user: UserContext = Depends(get_current_active_user)):
-    """현재 사용자 정보 조회"""
+async def get_me(request: Request, current_user: UserContext = Depends(get_current_active_user)):
+    """현재 사용자 정보 + 메뉴 권한 조회 (DB 최신 데이터)"""
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
+    user_data = auth_service.get_user_with_permissions(current_user.user_id, request_id)
     user_info = UserInfo(
-        user_id=current_user.user_id,
-        login_id=current_user.login_id,
-        display_name=current_user.display_name,
-        tenant_id=current_user.tenant_id,
-        scope_type=current_user.scope_type,
-        roles=current_user.roles,
-        permissions=current_user.permissions,
+        user_id=user_data["user_id"],
+        login_id=user_data["login_id"],
+        display_name=user_data["display_name"],
+        tenant_id=user_data["tenant_id"],
+        role_code=user_data["role_code"],
+        scope_type=user_data["scope_type"],
+        landing_page=user_data["landing_page"],
+        menus=user_data["menus"],
     )
     return success_response(user_info.model_dump())
 
 
 @router.put("/me/password")
-async def change_password(
-    body: PasswordChangeRequest,
-    request: Request,
-    current_user: UserContext = Depends(get_current_active_user),
-):
+async def change_password(body: PasswordChangeRequest, request: Request, current_user: UserContext = Depends(get_current_active_user)):
     """비밀번호 변경"""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
     auth_service.change_password(current_user.user_id, body.current_password, body.new_password, request_id)
@@ -606,25 +693,42 @@ async def change_password(
 
 ### 4.3 엔드포인트별 인증 요구사항
 
-| Endpoint | 인증 | Depends 사용 |
-|----------|------|-------------|
-| `POST /login` | 불필요 | - |
-| `POST /logout` | 필수 | `get_current_active_user` |
-| `POST /refresh` | 불필요* | *Refresh Token을 body로 받음 |
-| `GET /me` | 필수 | `get_current_active_user` |
-| `PUT /me/password` | 필수 | `get_current_active_user` |
+| Endpoint | 인증 | Depends 사용 | 비고 |
+|----------|------|-------------|------|
+| `POST /login` | 불필요 | - | 비밀번호로 인증 |
+| `POST /logout` | 필수 | `get_current_active_user` | |
+| `POST /refresh` | 불필요 | - | Refresh Token을 body로 수신 |
+| `GET /me` | 필수 | `get_current_active_user` | DB 최신 데이터 반환 |
+| `PUT /me/password` | 필수 | `get_current_active_user` | |
+
+### 4.4 GET /me 변경 상세
+
+```python
+# v1.0 (제거)
+user_info = UserInfo(
+    roles=user_data["roles"],           # List[str] → 제거
+    role_names=user_data["role_names"], # List[str] → 제거
+    permissions=user_data["permissions"], # List[str] → 제거
+)
+
+# v2.0 (신규)
+user_info = UserInfo(
+    role_code=user_data["role_code"],     # str (단일 역할)
+    landing_page=user_data["landing_page"], # str (랜딩 페이지)
+    menus=user_data["menus"],              # List[MenuPermission]
+)
+```
 
 ---
 
 ## 5. Step 3: middleware/auth.py
 
-### 5.1 파일 위치
+### 5.1 변경 요약
 
-```
-app/middleware/auth.py
-```
+- `UserContext` 생성 시 `roles`/`permissions` → `role_code` 단일로 변경
+- 선택적 모드(Phase 3a) 유지 (변경 없음)
 
-### 5.2 전체 소스코드
+### 5.2 v2.0 전체 소스코드
 
 ```python
 """인증 미들웨어
@@ -647,7 +751,7 @@ logger = setup_logger(__name__)
 
 
 class AuthMiddleware(BaseMiddleware):
-    """인증 미들웨어 (선택적 모드)"""
+    """인증 미들웨어 (선택적 모드 — Phase 3a)"""
 
     EXCLUDE_PATHS: Set[str] = {
         "/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico",
@@ -662,7 +766,7 @@ class AuthMiddleware(BaseMiddleware):
 
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
-            token = auth_header[7:]  # "Bearer " 이후
+            token = auth_header[7:]
             try:
                 payload = verify_token(token)
                 if payload.token_type == "access":
@@ -672,9 +776,8 @@ class AuthMiddleware(BaseMiddleware):
                         display_name=payload.display_name,
                         tenant_id=payload.tenant_id,
                         is_superuser=payload.is_superuser,
+                        role_code=payload.role_code,
                         scope_type=payload.scope_type,
-                        roles=payload.roles,
-                        permissions=payload.permissions,
                     )
             except Exception:
                 # Phase 3a: 토큰 검증 실패해도 차단하지 않음
@@ -683,11 +786,30 @@ class AuthMiddleware(BaseMiddleware):
         return await call_next(request)
 ```
 
-### 5.3 선택적 모드 동작
+### 5.3 v1.0 → v2.0 변경 상세
+
+```python
+# v1.0 (제거)
+request.state.current_user = UserContext(
+    ...,
+    roles=payload.roles,           # List[str] → 제거
+    permissions=payload.permissions, # List[str] → 제거
+)
+
+# v2.0 (신규)
+request.state.current_user = UserContext(
+    ...,
+    role_code=payload.role_code,  # str (단일 역할)
+    scope_type=payload.scope_type,
+    # menus는 JWT에 포함되지 않음 → DB 조회로 처리
+)
+```
+
+### 5.4 선택적 모드 동작 (변경 없음)
 
 ```
 요청에 Authorization 헤더 있음:
-  Bearer 토큰 유효 → request.state.current_user = UserContext(...)
+  Bearer 토큰 유효 → request.state.current_user = UserContext(role_code=...)
   Bearer 토큰 무효 → request.state.current_user = None (차단 안함)
 
 요청에 Authorization 헤더 없음:
@@ -697,38 +819,23 @@ class AuthMiddleware(BaseMiddleware):
   → middleware 자체를 건너뜀 (BaseMiddleware.should_skip)
 ```
 
-### 5.4 middleware/__init__.py 수정
-
-```python
-from app.middleware.auth import AuthMiddleware
-
-__all__ = [
-    "BaseMiddleware",
-    "LoggingMiddleware",
-    "HistoryMiddleware",
-    "AuthMiddleware",
-]
-```
-
 ---
 
-## 6. Step 4: main.py 수정
+## 6. Step 4: main.py 확인
 
-### 6.1 변경 내용
+### 6.1 현행 상태 — 변경 불필요
+
+`app/main.py`는 이미 v2.0 구조로 되어 있어 변경이 필요 없습니다:
 
 ```python
-# import 추가
-from app.api.routes import auth
-from app.middleware import AuthMiddleware
+# 이미 등록됨 — 변경 불필요
+from app.middleware import LoggingMiddleware, HistoryMiddleware, AuthMiddleware
 
-# 미들웨어 등록 순서 변경 (역순 실행)
-app.add_middleware(HistoryMiddleware)     # 4. 이력 저장
-app.add_middleware(AuthMiddleware)        # 3. 인증 검증 ← 추가
-app.add_middleware(LoggingMiddleware)     # 2. 로깅 + request_id
-app.add_middleware(CORSMiddleware, ...)   # 1. CORS
+app.add_middleware(HistoryMiddleware)
+app.add_middleware(AuthMiddleware)       # ← 이미 등록
+app.add_middleware(LoggingMiddleware)
 
-# 라우터 등록 추가
-app.include_router(auth.router)          # ← 추가
+app.include_router(auth.router)          # ← 이미 등록
 ```
 
 ### 6.2 미들웨어 실행 순서 (최종)
@@ -740,7 +847,7 @@ app.include_router(auth.router)          # ← 추가
 역할:
   CORS       → 브라우저 Same-Origin 정책 처리
   Logging    → request_id 생성 + 요청/응답 로깅
-  Auth       → Bearer 토큰 → UserContext (선택적 모드)
+  Auth       → Bearer 토큰 → UserContext(role_code, scope_type) (선택적 모드)
   History    → API 이력 DB 저장
   Handler    → 실제 API 로직
 ```
@@ -749,29 +856,45 @@ app.include_router(auth.router)          # ← 추가
 
 ## 7. 검증 체크리스트
 
-### 7.1 단위 검증 (tests/test_auth.py)
+### 7.1 단위 검증 항목
 
-- [ ] `auth_service.authenticate` — 올바른 비밀번호 → 성공
-- [ ] `auth_service.authenticate` — 틀린 비밀번호 → UNAUTHORIZED
-- [ ] `auth_service.authenticate` — 존재하지 않는 ID → UNAUTHORIZED
-- [ ] `auth_service.create_session` — TokenResponse 형식 확인
-- [ ] `auth_service.get_user_with_permissions` — roles/permissions 포함 확인
-- [ ] `auth_service.refresh_access_token` — 유효한 Refresh Token → 새 Access Token
-- [ ] `auth_service.change_password` — 비밀번호 변경 후 새 비밀번호로 로그인 성공
+- [ ] `auth_service.authenticate()` — 올바른 비밀번호 → 성공
+- [ ] `auth_service.authenticate()` — 틀린 비밀번호 → UNAUTHORIZED
+- [ ] `auth_service.authenticate()` — 존재하지 않는 ID → UNAUTHORIZED
+- [ ] `auth_service.authenticate()` — 비활성 계정 → UNAUTHORIZED
+- [ ] `auth_service.authenticate()` — 5회 실패 → ACCOUNT_LOCKED
+- [ ] `auth_service.authenticate()` — 잠금 해제 시간 경과 후 → 잠금 자동 해제
+- [ ] `auth_service.create_session()` — TokenResponse에 `user.role_code` (단일 문자열) 포함 확인
+- [ ] `auth_service.create_session()` — TokenResponse에 `user.menus` (List[MenuPermission]) 포함 확인
+- [ ] `auth_service.create_session()` — TokenResponse에 `user.landing_page` 포함 확인
+- [ ] `auth_service.get_user_with_permissions()` — `role_code`, `scope_type`, `landing_page` 반환 확인
+- [ ] `auth_service.get_user_with_permissions()` — `menus` 리스트에 `can_create`~`can_export` CRUD 포함 확인
+- [ ] `auth_service.get_user_with_permissions()` — admin 사용자 → 메뉴 14개 확인
+- [ ] `auth_service.get_user_with_permissions()` — user01 사용자 → 메뉴 4개 확인
+- [ ] `auth_service.refresh_access_token()` — 유효한 Refresh Token → 새 Access Token
+- [ ] `auth_service.refresh_access_token()` — 만료된 Refresh Token → SESSION_EXPIRED
+- [ ] `auth_service.change_password()` — 변경 후 새 비밀번호로 로그인 성공
 
 ### 7.2 통합 검증 (curl)
 
 ```bash
-# 1. 로그인
+# 1. 로그인 — role_code, landing_page, menus 포함 확인
 curl -X POST http://localhost:19090/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"login_id": "admin", "password": "admin123!"}'
 
-# 2. 내 정보 조회
+# 응답 확인 포인트:
+# - user.role_code = "SYSTEM_ADMIN" (단일 문자열, 배열 아님)
+# - user.landing_page = "/admin/dashboard"
+# - user.menus = [{menu_code: "DASHBOARD", can_read: true, ...}, ...]
+# - user.menus 개수 = 14 (admin 계정)
+# - roles, role_names, permissions 필드 없음
+
+# 2. 내 정보 조회 — 최신 메뉴 권한
 curl http://localhost:19090/api/v1/auth/me \
   -H "Authorization: Bearer <access_token>"
 
-# 3. 토큰 갱신
+# 3. 토큰 갱신 — 최신 role_code/menus 반영
 curl -X POST http://localhost:19090/api/v1/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "<refresh_token>"}'
@@ -779,23 +902,124 @@ curl -X POST http://localhost:19090/api/v1/auth/refresh \
 # 4. 로그아웃
 curl -X POST http://localhost:19090/api/v1/auth/logout \
   -H "Authorization: Bearer <access_token>"
+
+# 5. 비밀번호 변경
+curl -X PUT http://localhost:19090/api/v1/auth/me/password \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"current_password": "admin123!", "new_password": "NewAdmin1!"}'
 ```
 
 ### 7.3 기존 API 하위호환 확인
 
 ```bash
-# 기존 API가 토큰 없이도 정상 동작하는지 확인
+# 인증 미들웨어 선택적 모드 확인 — 토큰 없이 기존 API 정상 동작
 curl -X POST http://localhost:19090/api/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query": "재택근무 정책", "mode": "rag"}'
+
+# Agent API도 토큰 없이 동작 확인
+curl -X POST http://localhost:19090/api/v1/agent/search \
+  -H "Content-Type: application/json" \
+  -d '{"question": "2024년 입사자는 몇 명이야?"}'
+```
+
+### 7.4 계정별 메뉴 수 확인
+
+| 계정 | 역할 | 예상 메뉴 수 | 확인 |
+|------|------|:---:|:---:|
+| admin | SYSTEM_ADMIN | 14 | [ ] |
+| tenant_admin | TENANT_ADMIN | 9 | [ ] |
+| user01 | USER | 4 | [ ] |
+
+---
+
+## 8. 다음 단계
+
+### 8.1 Phase 4 Preview: 관리 API (CRUD)
+
+Phase 4에서는 **사용자/역할/메뉴/테넌트 관리 API**를 v2.0으로 마이그레이션합니다:
+
+| 작업 | 설명 |
+|------|------|
+| `user_service.py` | 사용자 CRUD + `tb_user_menu` 메뉴 권한 할당 (v1.0 → v2.0) |
+| `role_service.py` | 역할 CRUD (v1.0 `tb_role_permission` 제거) |
+| `menu_service.py` | ★ 신규: 메뉴 트리 CRUD |
+| `tenant_service.py` | 이미 v2.0 완료 |
+| `routes/users.py` | `require_permission` → `require_menu_permission` 전환 |
+| `routes/roles.py` | 권한 할당 API 제거, 메뉴 트리 연동 |
+| `routes/menus.py` | ★ 신규: 메뉴 관리 API |
+
+### 8.2 Phase 의존 관계
+
+```
+Phase 1: DB 테이블 + Pydantic 모델 (v2.0)
+    │
+    ▼
+Phase 2: Core Security (JWT, Dependencies, Permission v2.0)
+    │
+    ▼
+Phase 3: Auth API + Auth Middleware (v2.0)     ← 현재 문서
+    │
+    ├───────────────────────┐
+    ▼                       ▼
+Phase 4:                Phase 5:
+관리 API (CRUD)         NL2SQL 필터 +
++ 메뉴 관리             프론트엔드
 ```
 
 ---
 
-## 8. 다음 단계 (Phase 4 Preview)
+## 부록 A: v1.0에서 제거되는 코드
 
-Phase 4에서는 **사용자/역할/테넌트 관리 API (CRUD)**를 구현합니다:
-- 사용자 CRUD (admin:users 권한 필요)
-- 역할 CRUD (admin:roles 권한 필요)
-- 테넌트 CRUD (admin:tenants 권한 필요)
-- 기존 API에 권한 적용 (require_permission 의존성 사용)
+### auth_service.py에서 제거
+
+| 위치 | 제거 코드 | 대체 |
+|------|----------|------|
+| `get_user_with_permissions()` | `tb_user_role` JOIN | `tb_user.role_id` → `tb_role` 직접 JOIN |
+| `get_user_with_permissions()` | `tb_role_permission` JOIN | 삭제 (메뉴 권한은 `tb_user_menu`) |
+| `get_user_with_permissions()` | `tb_permission` JOIN | 삭제 |
+| `get_user_with_permissions()` | `roles: Set[str]`, `role_names: Set[str]` | `role_code: str` (단일) |
+| `get_user_with_permissions()` | `permissions: Set[str]` | `menus: List[MenuPermission]` |
+| `get_user_with_permissions()` | `_SCOPE_PRIORITY` 기반 max_scope 계산 | 불필요 (역할이 1개이므로 scope_type 직접 사용) |
+| `create_session()` | `token_data["roles"]`, `["role_names"]`, `["permissions"]` | `token_data["role_code"]` |
+| `create_session()` | `UserInfo(roles=..., role_names=..., permissions=...)` | `UserInfo(role_code=..., landing_page=..., menus=...)` |
+| `refresh_access_token()` | 동일 변경 | 동일 변경 |
+
+### middleware/auth.py에서 제거
+
+| 위치 | 제거 코드 | 대체 |
+|------|----------|------|
+| `process_request()` | `UserContext(roles=..., permissions=...)` | `UserContext(role_code=..., scope_type=...)` |
+
+### routes/auth.py에서 제거
+
+| 위치 | 제거 코드 | 대체 |
+|------|----------|------|
+| `get_me()` | `UserInfo(roles=..., role_names=..., permissions=...)` | `UserInfo(role_code=..., landing_page=..., menus=...)` |
+
+## 부록 B: 파일별 import 변경
+
+### auth_service.py
+
+```python
+# v1.0 (변경 전)
+from app.models.auth import TokenResponse, UserInfo
+
+# v2.0 (변경 후) — MenuPermission 추가
+from app.models.auth import MenuPermission, TokenResponse, UserInfo
+```
+
+### middleware/auth.py
+
+```python
+# 변경 없음 (UserContext import 유지, 내부 필드만 변경)
+from app.models.auth import UserContext
+```
+
+### routes/auth.py
+
+```python
+# 변경 없음 (import 동일, UserInfo 생성 필드만 변경)
+from app.models.auth import LoginRequest, RefreshRequest, PasswordChangeRequest, UserContext, UserInfo
+```

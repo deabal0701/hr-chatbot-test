@@ -1,22 +1,24 @@
-# Phase 2 구현 가이드: Core Security 모듈 (JWT + 비밀번호 + 의존성)
+# Phase 2 구현 가이드: Core Security 모듈 (JWT + 비밀번호 + 의존성) v2.0
 
-> **문서 버전**: 1.0
+> **문서 버전**: 2.1
 > **작성일**: 2026-02-12
-> **상위 문서**: `docs/design/user_permission_system.md`
-> **선행 조건**: Phase 1 완료 (DB 테이블 DDL + Pydantic 모델)
-> **목적**: Phase 2(Core Security 모듈)의 실제 구현 절차를 코드 레벨에서 상세 설명
+> **수정일**: 2026-02-13
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **선행 조건**: Phase 1 완료 (DB 테이블 DDL + Pydantic 모델 v2.0 마이그레이션)
+> **목적**: Phase 2(Core Security 모듈)의 v1.0 → v2.0 마이그레이션 절차를 코드 레벨에서 상세 설명
 
 ---
 
 ## 목차
 
 1. [Phase 2 개요](#1-phase-2-개요)
-2. [Step 1: `app/core/security/password.py` — 비밀번호 해싱](#2-step-1-password)
-3. [Step 2: `app/core/security/jwt.py` — JWT 토큰 관리](#3-step-2-jwt)
-4. [Step 3: `app/core/security/dependencies.py` — FastAPI 의존성 주입](#4-step-3-dependencies)
-5. [Step 4: `app/core/security/permission.py` — 권한 검사](#5-step-4-permission)
-6. [검증 체크리스트](#6-검증-체크리스트)
-7. [다음 단계 (Phase 3 Preview)](#7-다음-단계)
+2. [현행 코드 상태 분석](#2-현행-코드-상태-분석)
+3. [Step 1: `app/core/security/password.py` — 비밀번호 해싱 (완료)](#3-step-1-password)
+4. [Step 2: `app/core/security/jwt.py` — JWT 토큰 관리 (v1.0→v2.0)](#4-step-2-jwt)
+5. [Step 3: `app/core/security/dependencies.py` — FastAPI 의존성 주입 (v1.0→v2.0)](#5-step-3-dependencies)
+6. [Step 4: `app/core/security/permission.py` — 권한 검사 (v1.0→v2.0)](#6-step-4-permission)
+7. [검증 체크리스트](#7-검증-체크리스트)
+8. [다음 단계 (Phase 3 Preview)](#8-다음-단계)
 
 ---
 
@@ -24,88 +26,158 @@
 
 ### 1.1 무엇을 하는가
 
-Phase 2는 인증/인가의 **핵심 유틸리티**를 구현하는 단계입니다.
+Phase 2는 인증/인가의 **핵심 유틸리티**를 v2.0으로 마이그레이션하는 단계입니다.
 
 ```
 Phase 2 산출물:
-  [NEW] app/core/security/__init__.py       ← 빈 파일
-  [NEW] app/core/security/password.py       ← bcrypt 해싱/검증
-  [NEW] app/core/security/jwt.py            ← JWT 토큰 생성/검증
-  [NEW] app/core/security/dependencies.py   ← FastAPI Depends (get_current_user)
-  [NEW] app/core/security/permission.py     ← 권한 검사 의존성 팩토리
+  [OK]  app/core/security/__init__.py       ← 빈 파일 (이미 존재)
+  [OK]  app/core/security/password.py       ← bcrypt 해싱/검증 (이미 v2.0 완료)
+  [MOD] app/core/security/jwt.py            ← TokenPayload: roles/permissions → role_code
+  [MOD] app/core/security/dependencies.py   ← UserContext 생성: roles/permissions 제거
+  [MOD] app/core/security/permission.py     ← require_permission → require_menu_permission (★ 핵심)
 ```
 
-### 1.2 왜 필요한가
+### 1.2 v1.0 → v2.0 핵심 변경 요약
 
-| 모듈 | 없으면 어떻게 되는가 |
-|------|---------------------|
-| `password.py` | 비밀번호를 평문으로 저장하거나 매번 해싱 코드를 중복 작성해야 함 |
-| `jwt.py` | 로그인 성공 후 상태를 유지할 수 없음 (세션 쿠키 방식은 SPA에 부적합) |
-| `dependencies.py` | 모든 API 핸들러에서 직접 토큰을 파싱해야 함 → 코드 중복 |
-| `permission.py` | 권한 검사를 각 핸들러마다 if문으로 작성해야 함 → 누락 위험 |
+| 모듈 | v1.0 (현행) | v2.0 (목표) | 변경 이유 |
+|------|------------|------------|----------|
+| `password.py` | bcrypt 직접 사용 | **변경 없음** ✅ | 비밀번호 처리는 권한 체계와 무관 |
+| `jwt.py` | `roles: List[str]`, `permissions: List[str]` | `role_code: str` | M:N → 1:N 전환, permission 코드 폐기 |
+| `dependencies.py` | `UserContext(roles=..., permissions=...)` | `UserContext(role_code=...)` | auth.py 모델 변경 연쇄 |
+| `permission.py` | `require_permission("admin:users")` → `has_all_permissions()` | `require_menu_permission("USER_MGMT", "read")` → **DB 조회** | 메뉴 기반 권한 체크 전환 (★) |
 
 ### 1.3 핵심 설계 결정
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  get_current_user = JWT 페이로드만으로 UserContext 생성              │
-│                                                                     │
-│  JWT payload에 roles, permissions, scope_type이 포함되어 있으므로   │
-│  매 요청마다 DB를 조회할 필요 없음                                   │
-│                                                                     │
-│  장점: 성능 (DB round-trip 없음), 무상태(stateless)                 │
-│  단점: 권한 변경 시 최대 30분 지연 (Access Token 만료까지)           │
-│        → Refresh 시점에 DB에서 최신 권한을 다시 로드                 │
-└─────────────────────────────────────────────────────────────────────┘
+v1.0 설계:
+┌──────────────────────────────────────────────────────────────────┐
+│  get_current_user = JWT 페이로드의 roles/permissions로 권한 체크  │
+│  모든 권한 정보가 JWT에 포함 → DB 조회 없이 체크 가능             │
+│  단점: 권한 변경 시 Access Token 만료까지 반영 안 됨 (최대 30분)  │
+└──────────────────────────────────────────────────────────────────┘
+
+v2.0 설계:
+┌──────────────────────────────────────────────────────────────────┐
+│  get_current_user = JWT에서 role_code + scope_type만 추출         │
+│                                                                   │
+│  메뉴 CRUD 권한은 require_menu_permission()에서 DB 실시간 조회    │
+│  → 관리자가 권한 변경하면 즉시 반영 (DB 기반)                     │
+│                                                                   │
+│  장점: 권한 변경 즉시 반영, 메뉴 단위 세밀한 CRUD 제어            │
+│  단점: 보호된 API 호출 시 DB 1회 조회 필요                        │
+│        → 캐시 도입으로 해소 가능 (Phase 5)                        │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.4 파일 간 의존 관계
 
 ```
-password.py         (standalone — passlib만 사용)
+password.py         (standalone — bcrypt만 사용)
                      ↑ 없음
 jwt.py              → app.config (settings)
                     → app.core.errors (APIException, ErrorCode)
                      ↑
 dependencies.py     → jwt.py (verify_token)
-                    → app.models.auth (UserContext)
+                    → app.models.auth (UserContext)  ← Phase 1에서 v2.0으로 변경됨
                     → app.core.errors (APIException, ErrorCode)
                      ↑
 permission.py       → dependencies.py (get_current_active_user)
                     → app.models.auth (UserContext)
                     → app.core.errors (APIException, ErrorCode)
+                    → app.core.database.connection (db_manager)  ← ★ v2.0 신규 의존
 
 ※ 순환 import 없음
 ```
 
 ### 1.5 Phase 1에서 사용하는 항목
 
-| Phase 1 산출물 | Phase 2에서 사용하는 곳 |
-|---------------|----------------------|
-| `UserContext` (app/models/auth.py) | dependencies.py, permission.py |
-| `settings.secret_key` (app/config.py) | jwt.py |
-| `settings.algorithm` | jwt.py |
-| `settings.access_token_expire_minutes` | jwt.py |
-| `settings.jwt_refresh_token_expire_days` | jwt.py |
-| `ErrorCode.UNAUTHORIZED` (app/core/errors/) | jwt.py, dependencies.py |
-| `ErrorCode.FORBIDDEN` | permission.py |
+| Phase 1 산출물 | Phase 2에서 사용하는 곳 | 비고 |
+|---------------|----------------------|------|
+| `UserContext` (app/models/auth.py) | dependencies.py, permission.py | v2.0: `role_code` 단일, `permissions` 제거 |
+| `settings.secret_key` (app/config.py) | jwt.py | 변경 없음 |
+| `settings.algorithm` | jwt.py | 변경 없음 |
+| `settings.access_token_expire_minutes` | jwt.py | 변경 없음 |
+| `settings.jwt_refresh_token_expire_days` | jwt.py | 변경 없음 |
+| `ErrorCode.UNAUTHORIZED` (app/core/errors/) | jwt.py, dependencies.py | 변경 없음 |
+| `ErrorCode.FORBIDDEN` | permission.py | 변경 없음 |
+| `db_manager` (app/core/database/) | permission.py | ★ v2.0 신규 — 메뉴 권한 DB 조회 |
 
 ---
 
-## 2. Step 1: `app/core/security/password.py`
+## 2. 현행 코드 상태 분석
 
-### 2.1 이 파일의 역할
+### 2.1 파일별 현행 상태
 
+| # | 파일 | 현재 버전 | 상태 | 필요 작업 |
+|---|------|-----------|------|----------|
+| 1 | `app/core/security/__init__.py` | — | ✅ 완료 | 빈 파일, 변경 없음 |
+| 2 | `app/core/security/password.py` | v2.0 | ✅ 완료 | bcrypt 직접 사용, 변경 없음 |
+| 3 | `app/core/security/jwt.py` | **v1.0** | ❌ 마이그레이션 필요 | `TokenPayload`에서 `roles`/`permissions` → `role_code` |
+| 4 | `app/core/security/dependencies.py` | **v1.0** | ❌ 마이그레이션 필요 | `UserContext` 생성부 수정 |
+| 5 | `app/core/security/permission.py` | **v1.0** | ❌ 전면 재작성 필요 | 메뉴 기반 권한 체크 (DB 조회) |
+
+### 2.2 현행 v1.0 코드의 문제점
+
+#### jwt.py — permission 코드 배열 포함 (v1.0)
+
+```python
+# 현행 (v1.0): roles/permissions 리스트 보유
+class TokenPayload(BaseModel):
+    roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
+    permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
 ```
-목적: 비밀번호의 안전한 해싱(저장)과 검증(로그인)
-사용처:
-  - Phase 3의 auth_service.py: 로그인 시 verify_password()
-  - Phase 4의 user_service.py: 사용자 생성 시 hash_password()
-의존성: bcrypt (requirements.txt에 이미 존재)
-비고: passlib은 bcrypt 5.x와 호환 문제가 있어 bcrypt를 직접 사용
+
+**문제**: `tb_permission`, `tb_role_permission` 테이블이 v2.0 DDL에서 삭제되어 permissions 배열을 채울 수 없음. roles도 M:N에서 1:N으로 변경되어 배열이 아닌 단일 값이어야 함.
+
+#### dependencies.py — v1.0 UserContext 생성 (v1.0)
+
+```python
+# 현행 (v1.0): roles/permissions 매핑
+return UserContext(
+    ...,
+    roles=payload.roles,           # ← v2.0 UserContext에 없는 필드
+    permissions=payload.permissions, # ← v2.0 UserContext에 없는 필드
+)
 ```
 
-### 2.2 전체 소스코드
+**문제**: Phase 1에서 `UserContext`가 v2.0으로 변경되면(`roles`/`permissions` 제거, `role_code` 추가), 이 코드가 즉시 런타임 에러 발생.
+
+#### permission.py — permission 코드 기반 체크 (v1.0)
+
+```python
+# 현행 (v1.0): permission 코드로 권한 체크
+def require_permission(*required_permissions: str):
+    if not current_user.has_all_permissions(*required_permissions):
+        raise APIException(ErrorCode.FORBIDDEN, ...)
+
+def require_any_permission(*required_permissions: str):
+    if not current_user.has_any_permission(*required_permissions):
+        raise APIException(ErrorCode.FORBIDDEN, ...)
+```
+
+**문제**: v2.0 `UserContext`에서 `has_all_permissions()`, `has_any_permission()` 메서드가 제거되어 호출 불가. `tb_permission` 테이블도 삭제되어 permission 코드 자체가 존재하지 않음.
+
+### 2.3 v1.0 → v2.0 변경 요약
+
+| 구분 | v1.0 (현행) | v2.0 (목표) |
+|------|:---:|:---:|
+| JWT payload 권한 | `roles: ["SYSTEM_ADMIN"]`, `permissions: ["admin:users"]` | `role_code: "SYSTEM_ADMIN"` (단일) |
+| UserContext 생성 | `roles=payload.roles, permissions=payload.permissions` | `role_code=payload.role_code` |
+| 권한 체크 방식 | `has_all_permissions("admin:users")` (JWT에서 체크) | `require_menu_permission("USER_MGMT", "read")` (**DB 조회**) |
+| 권한 체크 대상 | permission 코드 문자열 | 메뉴 코드 + CRUD 액션 |
+| superuser bypass | `UserContext.has_permission()` 내부 | `require_menu_permission()` 내부 |
+
+---
+
+## 3. Step 1: `app/core/security/password.py`
+
+### 3.1 현행 상태
+
+**이미 v2.0 완료. 변경 불필요.** ✅
+
+비밀번호 해싱/검증은 권한 체계와 무관하므로, v1.0 → v2.0 전환에 영향이 없습니다.
+
+### 3.2 현행 소스코드
 
 ```python
 """
@@ -132,51 +204,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password_bytes, hashed_bytes)
 ```
 
-### 2.3 코드 상세 설명
+### 3.3 코드 설명
 
-#### 2.3.1 bcrypt 직접 사용
-
-```python
-import bcrypt
-```
-
-- **passlib 대신 bcrypt 직접 사용**: passlib은 bcrypt 5.x와 호환성 문제가 있음 (`AttributeError: module 'bcrypt' has no attribute '__about__'`)
-- bcrypt 라이브러리를 직접 사용하면 버전 호환 문제 없이 안정적으로 동작
-- `bcrypt.gensalt(rounds=12)`: cost factor 12 (2^12 = 4096 라운드)
-- `bcrypt.hashpw()`: salt + password → hash
-- `bcrypt.checkpw()`: password + hash → True/False
-
-#### 2.3.2 hash_password
-
-```python
-def hash_password(plain_password: str) -> str:
-    password_bytes = plain_password.encode("utf-8")
-    salt = bcrypt.gensalt(rounds=12)
-    hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode("utf-8")
-```
-
-- `encode("utf-8")` / `decode("utf-8")`: bcrypt는 bytes로 동작하므로 str ↔ bytes 변환 필요
-- `bcrypt.gensalt(rounds=12)`: 랜덤 salt 생성. rounds=12는 보안과 성능의 균형점
-- `bcrypt.hashpw()`: 내부적으로 salt를 포함하여 해시 수행
-- 반환값: `$2b$12$...` 형태의 60자 문자열
-  - `$2b$`: bcrypt 알고리즘 식별자
-  - `12$`: cost factor (2^12 = 4096 라운드)
-  - 나머지: salt(22자) + hash(31자)
+- **bcrypt 직접 사용**: passlib은 bcrypt 5.x와 호환성 문제가 있어(`AttributeError: module 'bcrypt' has no attribute '__about__'`) bcrypt 라이브러리를 직접 사용
+- **cost factor 12**: `bcrypt.gensalt(rounds=12)` → 2^12 = 4096 라운드. 보안과 성능의 균형점
+- **반환값**: `$2b$12$...` 형태의 60자 문자열 (salt 22자 + hash 31자 포함)
 - **같은 비밀번호라도 매번 다른 해시 생성** (salt가 다르므로)
 
-#### 2.3.3 verify_password
-
-```python
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-```
-
-- `pwd_context.verify()`: 해시에서 salt를 추출하여 평문을 동일하게 해싱 후 비교
-- 반환: `True` (일치) 또는 `False` (불일치)
-- **예외를 발생시키지 않음** — 호출자(auth_service)가 False일 때 적절한 에러 반환 결정
-
-#### 2.3.4 DB 매핑
+### 3.4 사용처
 
 ```
 사용자 생성 (Phase 4):
@@ -188,28 +223,20 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 ---
 
-## 3. Step 2: `app/core/security/jwt.py`
+## 4. Step 2: `app/core/security/jwt.py`
 
-### 3.1 이 파일의 역할
+### 4.1 현행 상태와 변경 사유
 
-```
-목적: JWT 토큰의 생성(인코딩)과 검증(디코딩)
-사용처:
-  - Phase 3의 auth_service.py: 로그인 성공 시 create_access_token(), create_refresh_token()
-  - Phase 2의 dependencies.py: 매 요청마다 verify_token()
-의존성: python-jose[cryptography] (requirements.txt에 이미 존재)
-```
+| 구분 | 현행 (v1.0) | 목표 (v2.0) | 변경 이유 |
+|------|------------|------------|----------|
+| `TokenPayload.roles` | `List[str]` | **제거** | M:N → 1:N 전환 |
+| `TokenPayload.permissions` | `List[str]` | **제거** | `tb_permission` 테이블 삭제 |
+| (없음) | — | `role_code: str` 추가 | 단일 역할 코드 |
+| `create_access_token` | `roles`, `permissions` 포함 | `role_code` 포함 | payload 구조 변경 |
+| `create_refresh_token` | 변경 없음 | 변경 없음 | minimal payload 유지 |
+| `verify_token` | 변경 없음 | 변경 없음 | Pydantic이 자동 처리 |
 
-### 3.2 이 파일이 필요한 이유
-
-| 함수/클래스 | 사용처 | 없으면 어떻게 되는가 |
-|-------------|--------|---------------------|
-| `TokenPayload` | `verify_token()` 반환값 | JWT 디코딩 결과를 dict로 다뤄야 하며 타입 안전성 없음 |
-| `create_access_token()` | Phase 3 auth_service | 토큰 생성 로직을 서비스마다 중복 작성 |
-| `create_refresh_token()` | Phase 3 auth_service | Refresh Token의 minimal payload 규칙 관리 불가 |
-| `verify_token()` | dependencies.py | 토큰 검증 + 에러 처리를 매번 작성 |
-
-### 3.3 전체 소스코드
+### 4.2 v2.0 전체 소스코드
 
 ```python
 """
@@ -219,7 +246,7 @@ JWT 토큰 생성 및 검증 유틸리티
 python-jose를 사용한 Access/Refresh Token 관리
 """
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Optional
 
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -233,14 +260,13 @@ from app.core.errors import APIException, ErrorCode
 # ===================================
 
 class TokenPayload(BaseModel):
-    """JWT 토큰 디코딩 결과"""
+    """JWT 토큰 디코딩 결과 (v2.0 - 메뉴 기반)"""
     sub: str = Field(..., description="Subject (user_id 문자열)")
     login_id: str = Field(default="", description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="테넌트 ID")
+    role_code: str = Field(default="USER", description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
     scope_type: str = Field(default="USER", description="데이터 범위")
-    roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
-    permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
     exp: Optional[int] = Field(None, description="만료 시간 (Unix timestamp)")
     iat: Optional[int] = Field(None, description="발급 시간 (Unix timestamp)")
@@ -286,143 +312,78 @@ def verify_token(token: str) -> TokenPayload:
         raise APIException(ErrorCode.UNAUTHORIZED, "유효하지 않은 토큰입니다")
 ```
 
-### 3.4 코드 상세 설명
+### 4.3 v1.0 → v2.0 핵심 변경 포인트
 
-#### 3.4.1 TokenPayload — JWT 내부 모델
+#### 4.3.1 TokenPayload 변경 (diff)
 
-```python
-class TokenPayload(BaseModel):
-    sub: str = Field(..., description="Subject (user_id 문자열)")
-    token_type: str = Field(default="access", description="토큰 타입 (access, refresh)")
-    session_id: Optional[str] = Field(None, description="세션 ID (refresh token only)")
+```diff
+ class TokenPayload(BaseModel):
+-    """JWT 토큰 디코딩 결과"""
++    """JWT 토큰 디코딩 결과 (v2.0 - 메뉴 기반)"""
+     sub: str = Field(..., description="Subject (user_id 문자열)")
+     login_id: str = Field(default="", description="로그인 ID")
+     display_name: Optional[str] = Field(None, description="표시 이름")
+     tenant_id: Optional[int] = Field(None, description="테넌트 ID")
+-    scope_type: str = Field(default="USER", description="데이터 범위")
+-    roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
+-    permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
++    role_code: str = Field(default="USER", description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
++    scope_type: str = Field(default="USER", description="데이터 범위")
+     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
 ```
 
-- **JWT 표준**: `sub` (subject), `exp` (expiration), `iat` (issued at)은 RFC 7519 표준 클레임
-- **`sub`가 문자열인 이유**: JWT 표준은 `sub`을 문자열로 정의. `user_id`(int)를 `str(user_id)`로 변환하여 저장
-- **`token_type`**: Access Token과 Refresh Token을 구분. Refresh Token을 Access Token 대신 사용하는 공격 방지
-- **`session_id`**: Refresh Token에만 포함. `tb_user_session.session_id`와 매핑하여 개별 세션 관리
-- **app/models/auth.py의 UserInfo와 차이**: `TokenPayload`는 JWT 내부 표현(sub 문자열, exp/iat 포함), `UserInfo`는 API 응답용(user_id 정수, 만료 정보 없음)
+- `roles: List[str]` → **제거**: 사용자당 역할이 하나이므로 `role_code: str`로 대체
+- `permissions: List[str]` → **제거**: permission 코드 체계가 메뉴 기반으로 전환, JWT에 포함하지 않음
+- `role_code: str` → **추가**: 단일 역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)
 
-#### 3.4.2 create_access_token — Access Token 생성
+#### 4.3.2 import 변경
 
-```python
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    now = datetime.now(timezone.utc)
-    expire = now + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
-    to_encode.update({"exp": expire, "iat": now, "token_type": "access"})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+```diff
+-from typing import List, Optional
++from typing import Optional
 ```
 
-- **`data.copy()`**: 원본 dict 변경 방지 (exp, iat 추가 시 원본이 오염되면 안 됨)
-- **`datetime.now(timezone.utc)`**: JWT 타임스탬프는 항상 UTC. DB는 Asia/Seoul이지만 토큰은 UTC 기준
-- **`settings.access_token_expire_minutes`**: .env의 `ACCESS_TOKEN_EXPIRE_MINUTES=30`에서 로드
-- **`jwt.encode()`**: python-jose 함수. payload dict → JWT 문자열 (Header.Payload.Signature)
-- **`settings.secret_key`**: .env의 `SECRET_KEY`. 이 키가 유출되면 모든 토큰을 위조할 수 있으므로 프로덕션에서 강력한 랜덤값 사용 필수
+- `List` import 제거: `roles`/`permissions` 필드가 없으므로 더 이상 필요 없음
 
-**Phase 3에서의 호출 예시**:
+#### 4.3.3 create_access_token/create_refresh_token/verify_token
+
+이 세 함수는 **코드 변경 없음**. `data` dict를 받아서 그대로 인코딩하므로, 호출자(Phase 3 auth_service.py)가 전달하는 데이터가 바뀌면 자동으로 반영됨.
+
+### 4.4 Phase 3에서의 호출 예시
+
 ```python
-# auth_service.py (Phase 3에서 구현)
+# auth_service.py (Phase 3에서 v2.0으로 변경)
 access_token = create_access_token({
-    "sub": str(user.user_id),
-    "login_id": user.login_id,
-    "display_name": user.display_name,
-    "tenant_id": user.tenant_id,
-    "scope_type": role.scope_type,  # DB에서 조회한 최고 권한 역할의 scope_type
-    "roles": ["SYSTEM_ADMIN"],       # DB에서 조회한 역할 코드 목록
-    "permissions": ["nl2sql:execute", "admin:settings"],  # DB에서 조회
-    "is_superuser": user.is_superuser,
+    "sub": str(user_id),
+    "login_id": user_info["login_id"],
+    "display_name": user_info["display_name"],
+    "tenant_id": user_info["tenant_id"],
+    "role_code": user_info["role_code"],         # ★ v2.0: 단일 역할 코드
+    "scope_type": user_info["scope_type"],
+    "is_superuser": user_info["is_superuser"],
+    # roles, permissions → 제거됨
 })
-```
 
-#### 3.4.3 create_refresh_token — Refresh Token 생성
-
-```python
-def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    now = datetime.now(timezone.utc)
-    expire = now + (expires_delta or timedelta(days=settings.jwt_refresh_token_expire_days))
-    to_encode.update({"exp": expire, "iat": now, "token_type": "refresh"})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
-```
-
-- **Minimal payload**: Refresh Token에는 `sub`(user_id)와 `session_id`만 포함
-- **roles/permissions 미포함**: Refresh로 새 Access Token 발급 시 DB에서 **최신 권한을 다시 조회**하므로, Refresh Token에 권한 정보를 넣을 필요 없음
-- **`token_type: "refresh"`**: Access Token으로 사용하는 것을 방지
-
-**Phase 3에서의 호출 예시**:
-```python
-# auth_service.py (Phase 3에서 구현)
-session_id = str(uuid.uuid4())
+# Refresh Token은 변경 없음 (minimal payload)
 refresh_token = create_refresh_token({
-    "sub": str(user.user_id),
+    "sub": str(user_id),
     "session_id": session_id,
 })
-# tb_user_session에 session_id, refresh_token, expires_at 저장
 ```
-
-#### 3.4.4 verify_token — 토큰 검증
-
-```python
-def verify_token(token: str) -> TokenPayload:
-    try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        sub: str = payload.get("sub")
-        if sub is None:
-            raise APIException(ErrorCode.UNAUTHORIZED, "유효하지 않은 토큰입니다")
-        return TokenPayload(**payload)
-    except JWTError:
-        raise APIException(ErrorCode.UNAUTHORIZED, "유효하지 않은 토큰입니다")
-```
-
-- **`jwt.decode()`**: 서명 검증 + 만료 시간 검증을 자동 수행
-  - 서명 불일치 → `JWTError` 발생
-  - `exp` 만료 → `ExpiredSignatureError` (JWTError의 하위 클래스) 발생
-- **`algorithms=[settings.algorithm]`**: 리스트로 전달 (보안: algorithm confusion attack 방지)
-- **`sub` 검증**: JWT 표준에서 sub는 필수는 아니지만, 이 시스템에서는 user_id를 담으므로 필수로 검증
-- **`TokenPayload(**payload)`**: dict를 Pydantic 모델로 변환. 누락된 필드는 기본값 사용
-- **에러 메시지 통일**: 만료, 변조, 형식 오류 모두 같은 메시지 반환 (보안: 공격자에게 구체적 원인을 알려주지 않음)
-
-#### 3.4.5 python-jose vs PyJWT
-
-```python
-# python-jose (이 프로젝트에서 사용)
-from jose import jwt, JWTError
-jwt.encode(payload, key, algorithm="HS256")
-jwt.decode(token, key, algorithms=["HS256"])
-
-# PyJWT (다른 라이브러리 — 사용하지 않음)
-import jwt
-jwt.encode(payload, key, algorithm="HS256")
-jwt.decode(token, key, algorithms=["HS256"])
-```
-
-- 두 라이브러리의 API가 거의 동일하지만, **import 경로가 다름**: `from jose import jwt` vs `import jwt`
-- requirements.txt에 `python-jose[cryptography]`가 명시되어 있으므로 jose 사용
 
 ---
 
-## 4. Step 3: `app/core/security/dependencies.py`
+## 5. Step 3: `app/core/security/dependencies.py`
 
-### 4.1 이 파일의 역할
+### 5.1 현행 상태와 변경 사유
 
-```
-목적: HTTP 요청에서 JWT를 추출하여 UserContext로 변환하는 FastAPI 의존성
-사용처:
-  - Phase 4의 라우트 핸들러: Depends(get_current_user)
-  - Phase 3의 인증 미들웨어: get_optional_user()로 선택적 인증
-특징: 프로젝트 최초의 FastAPI Depends 사용
-```
+| 함수 | 현행 (v1.0) | 목표 (v2.0) | 변경 이유 |
+|------|------------|------------|----------|
+| `get_current_user` | `UserContext(roles=..., permissions=...)` | `UserContext(role_code=...)` | Phase 1 `UserContext` v2.0 연쇄 |
+| `get_current_active_user` | pass-through | **변경 없음** | |
+| `get_optional_user` | `UserContext(roles=..., permissions=...)` | `UserContext(role_code=...)` | Phase 1 `UserContext` v2.0 연쇄 |
 
-### 4.2 이 파일이 필요한 이유
-
-| 함수 | 사용처 | 없으면 어떻게 되는가 |
-|------|--------|---------------------|
-| `get_current_user` | Phase 4 API 핸들러 | 모든 핸들러에서 직접 Authorization 헤더 파싱 필요 |
-| `get_current_active_user` | permission.py | 비활성 사용자 체크를 각 핸들러에서 개별 구현 |
-| `get_optional_user` | Phase 3 인증 미들웨어 (선택적 모드) | 기존 API가 인증 도입 시 즉시 깨짐 |
-
-### 4.3 전체 소스코드
+### 5.2 v2.0 전체 소스코드
 
 ```python
 """
@@ -461,16 +422,15 @@ async def get_current_user(
         display_name=payload.display_name,
         tenant_id=payload.tenant_id,
         is_superuser=payload.is_superuser,
+        role_code=payload.role_code,
         scope_type=payload.scope_type,
-        roles=payload.roles,
-        permissions=payload.permissions,
     )
 
 
 async def get_current_active_user(
     current_user: UserContext = Depends(get_current_user),
 ) -> UserContext:
-    """활성 사용자 검증 (Phase 3에서 확장 예정)"""
+    """활성 사용자 검증"""
     return current_user
 
 
@@ -490,180 +450,146 @@ async def get_optional_user(
             display_name=payload.display_name,
             tenant_id=payload.tenant_id,
             is_superuser=payload.is_superuser,
+            role_code=payload.role_code,
             scope_type=payload.scope_type,
-            roles=payload.roles,
-            permissions=payload.permissions,
         )
     except Exception:
         return None
 ```
 
-### 4.4 코드 상세 설명
+### 5.3 v1.0 → v2.0 핵심 변경 포인트
 
-#### 4.4.1 HTTPBearer — FastAPI 보안 스키마
+#### 5.3.1 get_current_user 변경 (diff)
+
+```diff
+     return UserContext(
+         user_id=int(payload.sub),
+         login_id=payload.login_id,
+         display_name=payload.display_name,
+         tenant_id=payload.tenant_id,
+         is_superuser=payload.is_superuser,
++        role_code=payload.role_code,
+         scope_type=payload.scope_type,
+-        roles=payload.roles,
+-        permissions=payload.permissions,
+     )
+```
+
+- `roles=payload.roles` → **제거**: v2.0 `UserContext`에 `roles` 필드 없음
+- `permissions=payload.permissions` → **제거**: v2.0 `UserContext`에 `permissions` 필드 없음
+- `role_code=payload.role_code` → **추가**: v2.0 `UserContext`에 추가된 단일 역할 코드
+
+#### 5.3.2 get_optional_user 변경
+
+`get_current_user`와 동일한 변경 적용 (`roles`/`permissions` → `role_code`).
+
+#### 5.3.3 get_current_active_user
+
+**변경 없음**. pass-through 함수이므로 UserContext 구조 변경의 영향을 받지 않음.
+
+### 5.4 코드 상세 설명
+
+#### HTTPBearer — FastAPI 보안 스키마
 
 ```python
 _bearer_scheme = HTTPBearer(auto_error=True)
 _bearer_scheme_optional = HTTPBearer(auto_error=False)
 ```
 
-- **`HTTPBearer`**: FastAPI의 내장 보안 스키마. `Authorization: Bearer <token>` 헤더에서 토큰을 자동 추출
-- **`auto_error=True`**: 토큰이 없으면 FastAPI가 자동으로 403 반환. 우리 코드까지 도달하지 않음
-- **`auto_error=False`**: 토큰이 없어도 `None`을 반환하고 우리 코드에서 처리 가능 (선택적 인증)
-- **OpenAPI 문서**: `HTTPBearer`를 사용하면 Swagger UI에 "Authorize" 버튼이 자동 생성되어 토큰 입력 가능
+- **`auto_error=True`**: 토큰이 없으면 FastAPI가 자동으로 403 반환
+- **`auto_error=False`**: 토큰이 없어도 `None` 반환 (선택적 인증)
+- **OpenAPI 문서**: Swagger UI에 "Authorize" 버튼 자동 생성
 
-**왜 `OAuth2PasswordBearer`를 쓰지 않는가?**:
-```python
-# OAuth2PasswordBearer — 사용하지 않음
-# 이유: OAuth2 password flow에 특화, /token 엔드포인트를 OpenAPI에 노출
-# HTTPBearer가 순수 JWT Bearer 인증에 더 적합
+#### Depends 실행 흐름
+
 ```
-
-#### 4.4.2 get_current_user — 핵심 인증 함수
-
-```python
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
-) -> UserContext:
-```
-
-- **`async def`**: FastAPI의 Depends 체인에서 비동기 함수를 지원하기 위해 async로 선언. 현재 DB 접근이 없어 실제로 await하는 것은 없지만, Phase 3 확장 시 async DB 조회 가능
-- **`Depends(_bearer_scheme)`**: FastAPI가 요청의 Authorization 헤더에서 Bearer 토큰을 자동 추출하여 `credentials` 파라미터에 주입
-- **`credentials.credentials`**: `HTTPAuthorizationCredentials` 객체의 `.credentials` 속성이 실제 토큰 문자열
-
-```python
-    payload = verify_token(credentials.credentials)
-
-    if payload.token_type != "access":
-        raise APIException(ErrorCode.UNAUTHORIZED, "Access Token이 필요합니다")
-```
-
-- **token_type 검증**: Refresh Token이 Access Token 대신 사용되는 것을 방지
-- **보안 원칙**: Access Token은 짧은 수명(30분) + 풍부한 payload, Refresh Token은 긴 수명(7일) + 최소 payload
-
-```python
-    return UserContext(
-        user_id=int(payload.sub),    # 문자열 → 정수 변환
-        login_id=payload.login_id,
-        ...
-    )
-```
-
-- **`int(payload.sub)`**: JWT의 sub는 문자열(RFC 표준), UserContext의 user_id는 정수
-- **DB 조회 없음**: JWT payload의 모든 필드를 직접 UserContext에 매핑
-
-#### 4.4.3 get_current_active_user — 활성 사용자 검증
-
-```python
-async def get_current_active_user(
-    current_user: UserContext = Depends(get_current_user),
-) -> UserContext:
-    return current_user
-```
-
-- **Depends 체인**: `get_current_active_user`는 `get_current_user`에 의존
-  ```
-  HTTP 요청 → HTTPBearer(토큰 추출) → get_current_user(검증) → get_current_active_user(활성 확인)
-  ```
-- **Phase 2에서는 pass-through**: 현재는 추가 검증 없이 바로 반환
-- **Phase 3에서 확장**: 비활성 계정, 잠금 계정 등의 추가 검증을 여기에 구현 예정
-
-#### 4.4.4 get_optional_user — 선택적 인증
-
-```python
-async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme_optional),
-) -> Optional[UserContext]:
-    if credentials is None:
-        return None       # 토큰 없음 → anonymous
-    try:
-        ...
-        return UserContext(...)
-    except Exception:
-        return None       # 토큰 유효하지 않음 → anonymous
-```
-
-- **왜 필요한가**: Phase 3에서 인증 미들웨어를 "선택적 모드"로 도입할 때 사용
-  ```
-  Phase 3a (선택적 모드): 토큰 있으면 검증, 없으면 anonymous → 기존 클라이언트 영향 없음
-  Phase 3b (필수 모드):   토큰 없으면 401 → 프론트엔드 인증 완료 후 전환
-  ```
-- **try-except**: 유효하지 않은 토큰이라도 예외를 던지지 않고 None 반환 (graceful degradation)
-
-#### 4.4.5 FastAPI Depends 패턴 설명
-
-```python
-# Phase 4에서의 사용 예시 (라우트 핸들러):
-
-from app.core.security.dependencies import get_current_user
-
-@router.get("/me")
-async def get_my_info(
-    current_user: UserContext = Depends(get_current_user)
-):
-    # current_user가 자동으로 주입됨
-    # Authorization: Bearer <token> 헤더가 없으면 401 자동 반환
-    return success_response(current_user.model_dump())
-```
-
-**Depends 실행 흐름**:
-```
-1. 클라이언트가 요청: GET /api/v1/auth/me (Authorization: Bearer eyJ...)
-2. FastAPI가 _bearer_scheme 실행 → credentials 추출
-3. FastAPI가 get_current_user(credentials) 호출 → UserContext 반환
-4. FastAPI가 get_my_info(current_user=UserContext) 호출
-5. 핸들러 로직 실행
+1. 클라이언트 요청: GET /api/v1/auth/me (Authorization: Bearer eyJ...)
+2. FastAPI → _bearer_scheme → credentials 추출
+3. FastAPI → get_current_user(credentials) → verify_token() → TokenPayload
+4. TokenPayload → UserContext(role_code="SYSTEM_ADMIN", scope_type="GLOBAL")
+5. FastAPI → get_current_active_user(current_user) → UserContext 반환
+6. 핸들러 실행
 ```
 
 ---
 
-## 5. Step 4: `app/core/security/permission.py`
+## 6. Step 4: `app/core/security/permission.py`
 
-### 5.1 이 파일의 역할
+### 6.1 현행 상태와 변경 사유
 
-```
-목적: 권한 검사를 Depends로 제공하는 의존성 팩토리
-사용처: Phase 4의 관리 API에서 엔드포인트별 권한 제어
-패턴: "의존성 팩토리" — 함수가 callable을 반환하고, 반환된 callable이 Depends에서 사용됨
-```
+| 함수 | 현행 (v1.0) | 목표 (v2.0) | 변경 이유 |
+|------|------------|------------|----------|
+| `require_permission()` | `has_all_permissions()` 코드 기반 | **제거** | `has_all_permissions()` 메서드 삭제 |
+| `require_any_permission()` | `has_any_permission()` 코드 기반 | **제거** | `has_any_permission()` 메서드 삭제 |
+| `require_superuser()` | superuser 체크 | **유지** (변경 없음) | superuser bypass는 v2.0에서도 동일 |
+| (없음) | — | `require_menu_permission()` ★ 신규 | 메뉴 + CRUD 기반 DB 조회 권한 체크 |
 
-### 5.2 전체 소스코드
+**이 파일이 Phase 2의 가장 큰 변경점**입니다. permission 코드 기반에서 메뉴 기반으로 완전히 전환됩니다.
+
+### 6.2 v2.0 전체 소스코드
 
 ```python
 """
-권한 검사 의존성 팩토리
+권한 검사 의존성 팩토리 (v2.0 - 메뉴 기반)
 
 위치: app/core/security/permission.py
-FastAPI Depends로 사용하는 권한 검사 함수 생성기
+메뉴 코드 + CRUD 액션 기반 권한 검사 (DB 실시간 조회)
 """
 from fastapi import Depends
 
+from app.core.database.connection import db_manager
 from app.core.errors import APIException, ErrorCode
 from app.core.security.dependencies import get_current_active_user
 from app.models.auth import UserContext
 
 
-def require_permission(*required_permissions: str):
-    """권한 검사 의존성 (AND 조건 — 모든 권한 필요)"""
+def require_menu_permission(menu_code: str, action: str = "read"):
+    """
+    메뉴 기반 권한 검사 의존성 팩토리
+
+    Args:
+        menu_code: 메뉴 코드 (예: "USER_MGMT", "DASHBOARD", "NL2SQL")
+        action: CRUD 액션 (create, read, update, delete, export)
+
+    Usage:
+        @router.get("/users")
+        async def list_users(
+            current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
+        ): ...
+
+        @router.post("/users")
+        async def create_user(
+            current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "create")),
+        ): ...
+    """
+    valid_actions = ("create", "read", "update", "delete", "export")
+    if action not in valid_actions:
+        raise ValueError(f"action은 {valid_actions} 중 하나여야 합니다: {action}")
 
     async def permission_checker(
         current_user: UserContext = Depends(get_current_active_user),
     ) -> UserContext:
-        if not current_user.has_all_permissions(*required_permissions):
-            raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다", detail=f"필요 권한: {', '.join(required_permissions)}")
-        return current_user
+        # superuser bypass
+        if current_user.is_superuser:
+            return current_user
 
-    return permission_checker
+        # DB에서 메뉴 권한 조회
+        with db_manager.get_cursor() as cur:
+            cur.execute(
+                "SELECT can_create, can_read, can_update, can_delete, can_export "
+                "FROM tb_user_menu um "
+                "JOIN tb_menu m ON m.menu_id = um.menu_id "
+                "WHERE um.user_id = %s AND m.menu_code = %s AND m.is_active = true",
+                (current_user.user_id, menu_code),
+            )
+            row = cur.fetchone()
 
+        if not row:
+            raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다", detail=f"메뉴 권한 없음: {menu_code}")
 
-def require_any_permission(*required_permissions: str):
-    """권한 검사 의존성 (OR 조건 — 하나라도 있으면 통과)"""
+        if not row[f"can_{action}"]:
+            raise APIException(ErrorCode.FORBIDDEN, "해당 작업 권한이 없습니다", detail=f"메뉴: {menu_code}, 필요 권한: {action}")
 
-    async def permission_checker(
-        current_user: UserContext = Depends(get_current_active_user),
-    ) -> UserContext:
-        if not current_user.has_any_permission(*required_permissions):
-            raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다", detail=f"필요 권한 중 하나: {', '.join(required_permissions)}")
         return current_user
 
     return permission_checker
@@ -682,154 +608,200 @@ def require_superuser():
     return superuser_checker
 ```
 
-### 5.3 코드 상세 설명
+### 6.3 v1.0 → v2.0 핵심 변경 포인트
 
-#### 5.3.1 의존성 팩토리 패턴
+#### 6.3.1 제거된 함수
+
+| v1.0 함수 | 제거 이유 |
+|-----------|----------|
+| `require_permission(*required_permissions)` | `has_all_permissions()` 메서드 삭제, permission 코드 체계 폐기 |
+| `require_any_permission(*required_permissions)` | `has_any_permission()` 메서드 삭제 |
+
+#### 6.3.2 신규 함수: `require_menu_permission()`
+
+**v2.0의 핵심 함수**입니다. 기존 permission 코드 체크를 완전히 대체합니다.
 
 ```python
-def require_permission(*required_permissions: str):      # 팩토리 함수
-    async def permission_checker(...) -> UserContext:      # 내부 함수 (실제 검사)
-        ...
-    return permission_checker                              # callable 반환
+# v1.0 → v2.0 사용 변경
+# Before (v1.0):
+Depends(require_permission("admin:users"))     # permission 코드 기반
+Depends(require_any_permission("admin:users", "admin:settings"))
+
+# After (v2.0):
+Depends(require_menu_permission("USER_MGMT", "read"))    # 메뉴 코드 + CRUD 액션
+Depends(require_menu_permission("USER_MGMT", "create"))
+Depends(require_menu_permission("SETTINGS", "update"))
 ```
 
-**왜 이 패턴이 필요한가?**:
+#### 6.3.3 DB 조회 쿼리
+
+```sql
+SELECT can_create, can_read, can_update, can_delete, can_export
+FROM tb_user_menu um
+JOIN tb_menu m ON m.menu_id = um.menu_id
+WHERE um.user_id = %s AND m.menu_code = %s AND m.is_active = true
+```
+
+- `tb_user_menu`과 `tb_menu`을 JOIN하여 해당 사용자의 메뉴 CRUD 권한 조회
+- `is_active = true`: 비활성 메뉴는 권한이 있더라도 접근 불가
+- 결과가 없으면 → "접근 권한이 없습니다" (메뉴 자체에 접근 불가)
+- 결과가 있지만 `can_{action}`이 false → "해당 작업 권한이 없습니다" (메뉴 접근 가능하나 특정 CRUD 불가)
+
+#### 6.3.4 superuser bypass
 
 ```python
-# 문제: Depends에 인자를 전달할 수 없음
-@router.get("/users")
+if current_user.is_superuser:
+    return current_user
+```
+
+- v1.0에서는 `UserContext.has_permission()` 내부에서 superuser 체크
+- v2.0에서는 `require_menu_permission()` 내부에서 직접 체크
+- superuser는 DB 조회 없이 즉시 통과
+
+#### 6.3.5 신규 import
+
+```diff
++from app.core.database.connection import db_manager
+```
+
+- v1.0에서는 DB 접근 없이 JWT payload만으로 권한 체크
+- v2.0에서는 `tb_user_menu` 테이블에서 실시간 권한 조회 → `db_manager` import 필요
+
+### 6.4 Phase 4에서의 사용 예시
+
+```python
+# app/api/routes/users.py (Phase 4에서 v2.0으로 변경)
+
+from app.core.security.permission import require_menu_permission, require_superuser
+
+# 사용자 목록 조회 — USER_MGMT 메뉴 read 권한 필요
+@router.get("")
 async def list_users(
-    user: UserContext = Depends(check_permission("admin:users"))  # ← 인자 전달 필요
-):
-    ...
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
+): ...
 
-# 해결: 팩토리 함수가 인자를 받고, Depends 가능한 callable을 반환
-require_permission("admin:users")
-# → permission_checker 함수 반환
-# → Depends(permission_checker) 로 사용 가능
-```
+# 사용자 생성 — USER_MGMT 메뉴 create 권한 필요
+@router.post("")
+async def create_user(
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "create")),
+): ...
 
-**실행 흐름**:
-```
-1. Python이 라우터 데코레이터 처리 시:
-   require_permission("admin:users") 호출 → permission_checker 함수 반환
+# 사용자 수정 — USER_MGMT 메뉴 update 권한 필요
+@router.put("/{user_id}")
+async def update_user(
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "update")),
+): ...
 
-2. HTTP 요청 수신 시:
-   Depends(permission_checker) → get_current_active_user() → get_current_user() → HTTPBearer
-   → UserContext 생성 → 권한 검사 → 통과 또는 403
+# 사용자 삭제 — USER_MGMT 메뉴 delete 권한 필요
+@router.delete("/{user_id}")
+async def delete_user(
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "delete")),
+): ...
 
-3. 핸들러 실행:
-   current_user 파라미터에 검증된 UserContext 주입
-```
+# 메뉴 관리 — MENU_MGMT 메뉴 (SYSTEM_ADMIN만 접근 가능하도록 DDL에서 설정)
+@router.get("/menus")
+async def list_menus(
+    current_user: UserContext = Depends(require_menu_permission("MENU_MGMT", "read")),
+): ...
 
-#### 5.3.2 UserContext 메서드 활용
-
-```python
-if not current_user.has_all_permissions(*required_permissions):
-    raise APIException(ErrorCode.FORBIDDEN, ...)
-```
-
-- **`has_all_permissions()`**: Phase 1에서 구현한 UserContext 메서드. `is_superuser=True`이면 항상 True 반환
-- **`has_any_permission()`**: OR 조건. 하나라도 있으면 True
-- **superuser bypass**: `has_permission()`, `has_any_permission()`, `has_all_permissions()` 모두 내부에서 `if self.is_superuser: return True` 처리
-
-#### 5.3.3 Phase 4에서의 사용 예시
-
-```python
-# app/api/routes/users.py (Phase 4에서 구현)
-
-from app.core.security.permission import require_permission, require_superuser
-
-@router.get("/")
-async def list_users(
-    current_user: UserContext = Depends(require_permission("admin:users")),
-):
-    """사용자 목록 조회 — admin:users 권한 필요"""
-    # SYSTEM_ADMIN: 전체 사용자
-    # TENANT_ADMIN: 자기 테넌트 사용자 (scope_type으로 서비스에서 제한)
-    ...
-
-@router.put("/{user_id}/roles")
-async def assign_roles(
-    user_id: int,
+# 시스템 관리자 전용 기능 (메뉴 기반이 아닌 경우)
+@router.delete("/system/cache")
+async def clear_system_cache(
     current_user: UserContext = Depends(require_superuser()),
-):
-    """역할 할당 — 시스템 관리자만 가능"""
-    ...
-
-@router.get("/{user_id}")
-async def get_user(
-    user_id: int,
-    current_user: UserContext = Depends(require_any_permission("admin:users", "admin:settings")),
-):
-    """사용자 상세 — admin:users 또는 admin:settings 중 하나만 있으면 접근 가능"""
-    ...
+): ...
 ```
+
+### 6.5 메뉴 코드 → 라우트 매핑 참고
+
+| 메뉴 코드 | 라우트 | 설명 |
+|-----------|--------|------|
+| `DASHBOARD` | `/api/admin/v1/dashboard` | 대시보드 |
+| `CHAT` | `/api/admin/v1/agent` | AI 채팅 |
+| `NL2SQL` | `/api/v1/nl2sql` | NL2SQL 실행 |
+| `RAG` | `/api/v1/rag` | RAG 검색 |
+| `DOC_MGMT` | `/api/admin/v1/documents` | 문서 관리 |
+| `HISTORY` | `/api/admin/v1/history` | 이력 조회 |
+| `USER_MGMT` | `/api/admin/v1/users` | 사용자 관리 |
+| `ROLE_MGMT` | `/api/admin/v1/roles` | 역할 관리 |
+| `TENANT_MGMT` | `/api/admin/v1/tenants` | 테넌트 관리 |
+| `MENU_MGMT` | `/api/admin/v1/menus` | 메뉴 관리 |
+| `SETTINGS` | `/api/admin/v1/settings` | 설정 관리 |
+| `CODE_MGMT` | `/api/admin/v1/codes` | 코드 관리 |
 
 ---
 
-## 6. 검증 체크리스트
+## 7. 검증 체크리스트
 
-### 6.1 파일 존재 확인
+### 7.1 파일 존재 및 버전 확인
 
 - [ ] `app/core/security/__init__.py` 존재 (빈 파일)
-- [ ] `app/core/security/password.py` 존재
-- [ ] `app/core/security/jwt.py` 존재
-- [ ] `app/core/security/dependencies.py` 존재
-- [ ] `app/core/security/permission.py` 존재
+- [ ] `app/core/security/password.py` 존재 (v2.0 완료, 변경 없음)
+- [ ] `app/core/security/jwt.py` 존재 (v2.0으로 변경 완료)
+- [ ] `app/core/security/dependencies.py` 존재 (v2.0으로 변경 완료)
+- [ ] `app/core/security/permission.py` 존재 (v2.0으로 재작성 완료)
 
-### 6.2 Python import 테스트
+### 7.2 Python import 테스트
 
 ```python
 # Conda 환경 활성화 후 실행
 conda activate penv3.13-nlq
 
-# 1. password.py import
+# 1. password.py import (변경 없음)
 from app.core.security.password import hash_password, verify_password
 hashed = hash_password("admin123!")
 print(f"Hash: {hashed}")
 print(f"Verify correct: {verify_password('admin123!', hashed)}")  # True
 print(f"Verify wrong: {verify_password('wrong', hashed)}")        # False
 
-# 2. jwt.py import
+# 2. jwt.py import (v2.0)
 from app.core.security.jwt import create_access_token, create_refresh_token, verify_token, TokenPayload
 token = create_access_token({
     "sub": "1",
     "login_id": "admin",
     "tenant_id": None,
+    "role_code": "SYSTEM_ADMIN",          # ★ v2.0: 단일 역할 코드
     "scope_type": "GLOBAL",
-    "roles": ["SYSTEM_ADMIN"],
-    "permissions": ["admin:settings", "nl2sql:execute"],
     "is_superuser": True,
+    # roles, permissions → 제거됨
 })
 print(f"Token: {token[:50]}...")
 payload = verify_token(token)
-print(f"sub={payload.sub}, type={payload.token_type}, permissions={payload.permissions}")
+print(f"sub={payload.sub}, type={payload.token_type}, role_code={payload.role_code}")
 
 # 3. dependencies.py import
 from app.core.security.dependencies import get_current_user, get_current_active_user, get_optional_user
 print("dependencies.py import OK")
 
-# 4. permission.py import
-from app.core.security.permission import require_permission, require_any_permission, require_superuser
-checker = require_permission("admin:users")
-print(f"require_permission returns: {type(checker).__name__}")  # function
+# 4. permission.py import (v2.0)
+from app.core.security.permission import require_menu_permission, require_superuser
+checker = require_menu_permission("USER_MGMT", "read")
+print(f"require_menu_permission returns: {type(checker).__name__}")  # function
 
-# 5. 통합 테스트: JWT → UserContext
+# v1.0 잔존 확인 (이것들이 ImportError 나면 정상)
+# from app.core.security.permission import require_permission      → ImportError ✅
+# from app.core.security.permission import require_any_permission  → ImportError ✅
+
+# 5. 통합 테스트: JWT → UserContext (v2.0)
 from app.models.auth import UserContext
 user_ctx = UserContext(
     user_id=int(payload.sub),
     login_id=payload.login_id,
+    role_code=payload.role_code,          # ★ v2.0
     scope_type=payload.scope_type,
     is_superuser=payload.is_superuser,
-    roles=payload.roles,
-    permissions=payload.permissions,
+    # roles, permissions → 없음
 )
-print(f"has admin:settings: {user_ctx.has_permission('admin:settings')}")  # True
-print(f"is_global: {user_ctx.is_global}")  # True
+print(f"role_code: {user_ctx.role_code}")    # SYSTEM_ADMIN
+print(f"is_global: {user_ctx.is_global}")    # True
+print(f"scope_type: {user_ctx.scope_type}")  # GLOBAL
+
+# 6. v1.0 잔존 필드 확인 (AttributeError 나면 정상)
+# print(user_ctx.roles)            → AttributeError ✅
+# print(user_ctx.permissions)      → AttributeError ✅
+# print(user_ctx.has_permission)   → AttributeError ✅
 ```
 
-### 6.3 검증 항목 요약
+### 7.3 검증 항목 요약
 
 | 항목 | 검증 방법 | 기대 결과 |
 |------|----------|----------|
@@ -839,74 +811,86 @@ print(f"is_global: {user_ctx.is_global}")  # True
 | salt 동작 | 같은 입력 2회 해싱 | 서로 다른 해시 |
 | access token 생성 | `create_access_token({...})` | JWT 문자열 |
 | token 검증 | `verify_token(token)` | TokenPayload 객체 |
+| **role_code 포함** | `payload.role_code` | `"SYSTEM_ADMIN"` |
+| **roles 필드 없음** | `hasattr(payload, 'roles')` | `False` |
+| **permissions 필드 없음** | `hasattr(payload, 'permissions')` | `False` |
 | 만료 토큰 | 만료된 토큰으로 verify_token | APIException(UNAUTHORIZED) |
 | 변조 토큰 | 변경된 토큰으로 verify_token | APIException(UNAUTHORIZED) |
 | token_type 구분 | access vs refresh | 각각 다른 token_type 포함 |
 | dependencies import | 3개 함수 import | 오류 없음 |
-| permission import | 3개 팩토리 import | 오류 없음 |
-| 팩토리 반환 타입 | `require_permission(...)` | callable(function) |
+| **permission import** | `require_menu_permission`, `require_superuser` | 오류 없음 |
+| **v1.0 permission 제거** | `require_permission`, `require_any_permission` import | ImportError |
+| 팩토리 반환 타입 | `require_menu_permission("USER_MGMT", "read")` | callable(function) |
+| **잘못된 action** | `require_menu_permission("X", "invalid")` | ValueError 발생 |
 
 ---
 
-## 7. 다음 단계 (Phase 3 Preview)
+## 8. 다음 단계 (Phase 3 Preview)
 
-Phase 2 완료 후 **Phase 3: 인증 API + 인증 미들웨어**를 진행합니다.
+Phase 2 완료 후 **Phase 3: 인증 서비스 + 인증 API v2.0 마이그레이션**을 진행합니다.
 
-Phase 3에서 생성할 파일:
+### 8.1 Phase 3에서 수정할 파일
+
 ```
-app/api/services/auth_service.py   ← 인증 비즈니스 로직 (DB 접근)
-app/api/routes/auth.py             ← 인증 API 엔드포인트 (5개)
-app/middleware/auth.py             ← 인증 미들웨어 (선택적 모드)
-[MOD] app/main.py                  ← 미들웨어 + 라우터 등록
+[MOD] app/api/services/auth_service.py   ← 쿼리 전면 재작성 (★ 가장 큰 변경)
+[MOD] app/api/routes/auth.py             ← UserInfo(role_code=..., menus=...) 생성
 ```
 
-Phase 3는 Phase 2의 모듈을 import하여 사용합니다:
+### 8.2 auth_service.py 주요 변경 (Preview)
+
 ```python
-# Phase 3의 auth_service.py에서 Phase 2 모듈 사용
-from app.core.security.password import hash_password, verify_password
-from app.core.security.jwt import create_access_token, create_refresh_token, verify_token
-from app.core.security.dependencies import get_current_user, get_optional_user
+# 현행 (v1.0): tb_user_role, tb_role_permission, tb_permission JOIN
+cur.execute(
+    "SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code "
+    "FROM tb_user_role ur "
+    "JOIN tb_role r ON ur.role_id = r.role_id "
+    "LEFT JOIN tb_role_permission rp ON r.role_id = rp.role_id "
+    "LEFT JOIN tb_permission p ON rp.permission_id = p.permission_id "
+    "WHERE ur.user_id = %s", (user_id,))
+
+# 목표 (v2.0): tb_user.role_id → tb_role 직접 JOIN + tb_user_menu 별도 조회
+cur.execute(
+    "SELECT u.user_id, u.login_id, u.display_name, u.tenant_id, u.is_superuser, "
+    "r.role_code, r.role_name, r.scope_type, r.landing_page "
+    "FROM tb_user u "
+    "JOIN tb_role r ON r.role_id = u.role_id "
+    "WHERE u.user_id = %s", (user_id,))
+
+# 메뉴 권한 별도 조회 (로그인 응답용)
+cur.execute(
+    "SELECT m.menu_code, m.menu_name, m.menu_path, m.menu_type, m.icon, "
+    "m.depth, m.sort_order, pm.menu_code AS parent_menu_code, "
+    "um.can_create, um.can_read, um.can_update, um.can_delete, um.can_export "
+    "FROM tb_user_menu um "
+    "JOIN tb_menu m ON m.menu_id = um.menu_id "
+    "LEFT JOIN tb_menu pm ON pm.menu_id = m.parent_menu_id "
+    "WHERE um.user_id = %s AND m.is_active = true "
+    "ORDER BY m.depth, m.sort_order", (user_id,))
+```
+
+### 8.3 Phase 의존 관계 (전체)
+
+```
+Phase 1: DB 테이블 + Pydantic 모델 (v2.0)
+    │
+    ▼
+Phase 2: Core Security (JWT, Dependencies, Permission v2.0)  ← 현재 문서
+    │
+    ▼
+Phase 3: Auth Service + Auth API (v2.0 모델 + 쿼리 재작성)
+    │
+    ├───────────────────────┐
+    ▼                       ▼
+Phase 4:                Phase 5:
+관리 API (CRUD)         NL2SQL 필터 +
++ 메뉴 관리             프론트엔드
 ```
 
 ---
 
-## 부록 A: 기존 프로젝트 패턴과의 일관성
+## 부록 A: JWT 토큰 구조 참고
 
-### A.1 __init__.py 정책
-
-| 모듈 | 형태 | 이유 |
-|------|------|------|
-| `app/core/security/__init__.py` | **빈 파일** | CLAUDE.md 규칙 준수 |
-| `app/core/errors/__init__.py` | import 있음 | 예외 (에러 처리는 프로젝트 전반에서 빈번하게 import) |
-
-### A.2 에러 처리 패턴
-
-```python
-# 기존 프로젝트 패턴 (app/core/errors/handlers.py):
-raise APIException(ErrorCode.UNAUTHORIZED, "인증이 필요합니다")
-raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
-
-# Phase 2에서 동일 패턴 사용:
-raise APIException(ErrorCode.UNAUTHORIZED, "유효하지 않은 토큰입니다")
-raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다", detail="필요 권한: admin:users")
-```
-
-### A.3 Settings 접근 패턴
-
-```python
-# 기존 패턴:
-from app.config import settings
-value = settings.database_url
-
-# Phase 2 동일 패턴:
-from app.config import settings
-key = settings.secret_key
-algo = settings.algorithm
-```
-
-## 부록 B: JWT 토큰 구조 참고
-
-### Access Token 페이로드 예시
+### A.1 Access Token 페이로드 예시 (v2.0)
 
 ```json
 {
@@ -914,9 +898,8 @@ algo = settings.algorithm
   "login_id": "admin",
   "display_name": "시스템 관리자",
   "tenant_id": null,
+  "role_code": "SYSTEM_ADMIN",
   "scope_type": "GLOBAL",
-  "roles": ["SYSTEM_ADMIN"],
-  "permissions": ["nl2sql:execute", "nl2sql:view_all", "rag:search", "document:read", "document:write", "document:delete", "admin:settings", "admin:users", "admin:tenants"],
   "is_superuser": true,
   "exp": 1739350800,
   "iat": 1739349000,
@@ -924,7 +907,26 @@ algo = settings.algorithm
 }
 ```
 
-### Refresh Token 페이로드 예시
+**v1.0과의 차이**:
+```diff
+ {
+   "sub": "1",
+   "login_id": "admin",
+-  "scope_type": "GLOBAL",
+-  "roles": ["SYSTEM_ADMIN"],
+-  "permissions": ["nl2sql:execute", "nl2sql:view_all", "rag:search", "document:read", ...],
++  "role_code": "SYSTEM_ADMIN",
++  "scope_type": "GLOBAL",
+   "is_superuser": true,
+   ...
+ }
+```
+
+- `roles` 배열 → `role_code` 단일 문자열 (1:N 전환)
+- `permissions` 배열 → **완전 제거** (메뉴 기반 DB 조회로 대체)
+- JWT payload 크기가 크게 감소 (permissions 배열이 없어짐)
+
+### A.2 Refresh Token 페이로드 예시 (변경 없음)
 
 ```json
 {
@@ -935,3 +937,72 @@ algo = settings.algorithm
   "token_type": "refresh"
 }
 ```
+
+Refresh Token은 minimal payload이므로 v1.0 → v2.0 변경 없음.
+
+---
+
+## 부록 B: v1.0에서 제거된 항목
+
+### B.1 jwt.py
+
+| v1.0 필드/타입 | 제거 이유 |
+|---------------|----------|
+| `TokenPayload.roles: List[str]` | `role_code: str`로 대체 (1:N) |
+| `TokenPayload.permissions: List[str]` | 메뉴 기반 DB 조회로 대체 |
+| `from typing import List` | `List` 사용처 없음 |
+
+### B.2 dependencies.py
+
+| v1.0 코드 | 제거 이유 |
+|-----------|----------|
+| `roles=payload.roles` | v2.0 UserContext에 `roles` 필드 없음 |
+| `permissions=payload.permissions` | v2.0 UserContext에 `permissions` 필드 없음 |
+
+### B.3 permission.py
+
+| v1.0 함수 | 제거 이유 |
+|-----------|----------|
+| `require_permission(*required_permissions)` | `has_all_permissions()` 메서드 삭제 |
+| `require_any_permission(*required_permissions)` | `has_any_permission()` 메서드 삭제 |
+
+---
+
+## 부록 C: 기존 프로젝트 패턴과의 일관성
+
+### C.1 __init__.py 정책
+
+| 모듈 | 형태 | 이유 |
+|------|------|------|
+| `app/core/security/__init__.py` | **빈 파일** | CLAUDE.md 규칙 준수 |
+| `app/core/errors/__init__.py` | import 있음 | 예외 (에러 처리는 프로젝트 전반에서 빈번하게 import) |
+
+### C.2 에러 처리 패턴
+
+```python
+# v2.0에서도 동일 패턴 유지:
+raise APIException(ErrorCode.UNAUTHORIZED, "유효하지 않은 토큰입니다")
+raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다", detail="메뉴 권한 없음: USER_MGMT")
+```
+
+### C.3 Settings 접근 패턴
+
+```python
+# 변경 없음:
+from app.config import settings
+key = settings.secret_key
+algo = settings.algorithm
+```
+
+### C.4 DB 접근 패턴 (★ Phase 2 신규)
+
+```python
+# permission.py에서 신규 사용:
+from app.core.database.connection import db_manager
+
+with db_manager.get_cursor() as cur:
+    cur.execute("SELECT ... FROM tb_user_menu um JOIN tb_menu m ...", (user_id, menu_code))
+    row = cur.fetchone()
+```
+
+기존 서비스 레이어(`auth_service.py`, `user_service.py`)에서 사용하는 동일한 DB 접근 패턴을 security 모듈에서도 사용합니다.
