@@ -35,15 +35,14 @@ async def get_current_user(
         tenant_id=payload.tenant_id,
         is_superuser=payload.is_superuser,
         scope_type=payload.scope_type,
-        roles=payload.roles,
-        permissions=payload.permissions,
+        role_code=payload.role_code,
     )
 
 
 async def get_current_active_user(
     current_user: UserContext = Depends(get_current_user),
 ) -> UserContext:
-    """활성 사용자 검증 (Phase 3에서 확장 예정)"""
+    """활성 사용자 검증"""
     return current_user
 
 
@@ -64,8 +63,7 @@ async def get_optional_user(
             tenant_id=payload.tenant_id,
             is_superuser=payload.is_superuser,
             scope_type=payload.scope_type,
-            roles=payload.roles,
-            permissions=payload.permissions,
+            role_code=payload.role_code,
         )
     except Exception:
         return None

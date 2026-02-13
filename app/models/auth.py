@@ -1,5 +1,5 @@
 """
-인증(Authentication) 스키마
+인증(Authentication) 스키마 (v2.0 - 메뉴 기반)
 
 위치: app/models/auth.py
 로그인, 토큰, 사용자 컨텍스트 관련 모델
@@ -10,12 +10,33 @@ from pydantic import BaseModel, Field, field_validator
 
 
 # ===================================
+# 메뉴 권한 (로그인 응답용)
+# ===================================
+
+class MenuPermission(BaseModel):
+    """사용자가 접근 가능한 메뉴 + CRUD 권한 (로그인 응답에 포함)"""
+    menu_code: str = Field(..., description="메뉴 코드")
+    menu_name: str = Field(..., description="메뉴 표시명")
+    menu_path: Optional[str] = Field(None, description="프론트엔드 URL 경로")
+    menu_type: str = Field(..., description="메뉴 타입 (DIRECTORY, PAGE, API)")
+    icon: Optional[str] = Field(None, description="아이콘 클래스")
+    parent_menu_code: Optional[str] = Field(None, description="상위 메뉴 코드")
+    depth: int = Field(default=0, description="트리 깊이")
+    sort_order: int = Field(default=0, description="정렬 순서")
+    can_create: bool = Field(default=False, description="등록 권한")
+    can_read: bool = Field(default=True, description="조회 권한")
+    can_update: bool = Field(default=False, description="수정 권한")
+    can_delete: bool = Field(default=False, description="삭제 권한")
+    can_export: bool = Field(default=False, description="내보내기 권한")
+
+
+# ===================================
 # 로그인 요청/응답
 # ===================================
 
 class LoginRequest(BaseModel):
     """로그인 요청"""
-    login_id: str = Field(..., min_length=5, max_length=100, description="로그인 ID")
+    login_id: str = Field(..., min_length=1, max_length=100, description="로그인 ID")
     password: str = Field(..., min_length=1, description="비밀번호")
 
     model_config = {
@@ -29,24 +50,24 @@ class LoginRequest(BaseModel):
 
 
 class UserInfo(BaseModel):
-    """로그인 응답에 포함되는 사용자 정보 (JWT payload의 일부)"""
+    """로그인 응답에 포함되는 사용자 정보"""
     user_id: int = Field(..., description="사용자 ID")
     login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
+    role_code: str = Field(..., description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
     scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
-    roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
-    role_names: List[str] = Field(default_factory=list, description="역할 이름 목록")
-    permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
+    landing_page: str = Field(..., description="로그인 후 랜딩 페이지")
+    menus: List[MenuPermission] = Field(default_factory=list, description="접근 가능 메뉴 + CRUD 권한")
 
 
 class TokenResponse(BaseModel):
-    """로그인 성공 응답 (JWT 토큰 + 사용자 정보)"""
+    """로그인 성공 응답 (JWT 토큰 + 사용자 정보 + 메뉴 목록)"""
     access_token: str = Field(..., description="JWT Access Token")
     refresh_token: str = Field(..., description="JWT Refresh Token")
     token_type: str = Field(default="Bearer", description="토큰 타입")
     expires_in: int = Field(..., description="Access Token 만료 시간 (초)")
-    user: UserInfo = Field(..., description="사용자 정보")
+    user: UserInfo = Field(..., description="사용자 정보 + 메뉴 권한")
 
     model_config = {
         "json_schema_extra": {
@@ -60,9 +81,25 @@ class TokenResponse(BaseModel):
                     "login_id": "admin",
                     "display_name": "시스템 관리자",
                     "tenant_id": None,
+                    "role_code": "SYSTEM_ADMIN",
                     "scope_type": "GLOBAL",
-                    "roles": ["SYSTEM_ADMIN"],
-                    "permissions": ["nl2sql:execute", "admin:settings"]
+                    "landing_page": "/admin/dashboard",
+                    "menus": [
+                        {
+                            "menu_code": "DASHBOARD",
+                            "menu_name": "대시보드",
+                            "menu_path": "/admin/dashboard",
+                            "menu_type": "PAGE",
+                            "icon": "dashboard",
+                            "depth": 1,
+                            "sort_order": 1,
+                            "can_create": False,
+                            "can_read": True,
+                            "can_update": False,
+                            "can_delete": False,
+                            "can_export": False
+                        }
+                    ]
                 }
             }
         }
@@ -116,37 +153,21 @@ class PasswordChangeRequest(BaseModel):
 
 class UserContext(BaseModel):
     """
-    인증된 사용자 컨텍스트
+    인증된 사용자 컨텍스트 (v2.0 - 메뉴 기반)
 
     인증 미들웨어가 JWT를 검증한 후 생성하여 request.state.current_user에 저장.
     모든 API 핸들러에서 현재 사용자 정보를 참조할 때 사용.
+
+    v2.0 변경: permissions 리스트 제거 → role_code + scope_type만 보유.
+    메뉴 권한 체크는 require_menu_permission()에서 DB 조회로 수행.
     """
     user_id: int = Field(..., description="사용자 ID")
     login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
+    role_code: str = Field(default="USER", description="역할 코드")
     scope_type: str = Field(default="USER", description="데이터 범위 (GLOBAL, TENANT, USER)")
-    roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
-    permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
-
-    def has_permission(self, permission_code: str) -> bool:
-        """특정 권한 보유 여부 확인"""
-        if self.is_superuser:
-            return True
-        return permission_code in self.permissions
-
-    def has_any_permission(self, *permission_codes: str) -> bool:
-        """주어진 권한 중 하나라도 보유하는지 확인 (OR 조건)"""
-        if self.is_superuser:
-            return True
-        return any(p in self.permissions for p in permission_codes)
-
-    def has_all_permissions(self, *permission_codes: str) -> bool:
-        """주어진 권한을 모두 보유하는지 확인 (AND 조건)"""
-        if self.is_superuser:
-            return True
-        return all(p in self.permissions for p in permission_codes)
 
     @property
     def is_global(self) -> bool:

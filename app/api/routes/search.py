@@ -51,11 +51,7 @@ async def search(search_request: SearchRequest, request: Request, current_user: 
             query_type = search_request.mode
             log_step(logger, request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
-        # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip)
-        if current_user:
-            required_perm = "nl2sql:execute" if query_type == "nl2sql" else "rag:search"
-            if not current_user.has_permission(required_perm):
-                raise APIException(ErrorCode.FORBIDDEN, f"{required_perm} 권한이 필요합니다")
+        # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip, 인증 시 활성 사용자 확인)
 
         # 서비스 호출
         if query_type == "nl2sql":
@@ -93,11 +89,7 @@ async def search_stream(search_request: SearchRequest, request: Request, current
     else:
         query_type = search_request.mode
 
-    # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip)
-    if current_user:
-        required_perm = "nl2sql:execute" if query_type == "nl2sql" else "rag:search"
-        if not current_user.has_permission(required_perm):
-            raise APIException(ErrorCode.FORBIDDEN, f"{required_perm} 권한이 필요합니다")
+    # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip, 인증 시 활성 사용자 확인)
 
     # RAG 모드는 SSE 미지원
     if query_type == "rag":

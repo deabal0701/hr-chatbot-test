@@ -4,7 +4,7 @@ LLM 제공자, 모델, 임베딩 모델 등 코드성 데이터 관리를 위한
 """
 from fastapi import APIRouter, Depends, status
 
-from app.core.security.permission import require_permission
+from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
 from app.models.codes import (
     CodeItem,
@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("/codes/groups", tags=["codes"])
-async def get_code_groups(current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def get_code_groups(current_user: UserContext = Depends(require_menu_permission("CODES", "read"))):
     """모든 코드 그룹 목록 조회"""
     try:
         groups = code_service.get_code_groups()
@@ -34,7 +34,7 @@ async def get_code_groups(current_user: UserContext = Depends(require_permission
 
 
 @router.get("/codes/{code_group}", tags=["codes"])
-async def get_codes(code_group: str, include_inactive: bool = False, current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def get_codes(code_group: str, include_inactive: bool = False, current_user: UserContext = Depends(require_menu_permission("CODES", "read"))):
     """특정 그룹의 코드 목록 조회"""
     try:
         codes = code_service.get_codes_by_group(code_group, include_inactive)
@@ -50,7 +50,7 @@ async def get_codes(code_group: str, include_inactive: bool = False, current_use
 
 
 @router.get("/codes/item/{code_id}", tags=["codes"])
-async def get_code(code_id: int, current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def get_code(code_id: int, current_user: UserContext = Depends(require_menu_permission("CODES", "read"))):
     """코드 단건 조회"""
     try:
         code = code_service.get_code_by_id(code_id)
@@ -66,7 +66,7 @@ async def get_code(code_id: int, current_user: UserContext = Depends(require_per
 
 
 @router.post("/codes", status_code=status.HTTP_201_CREATED, tags=["codes"])
-async def create_code(request: CodeCreateRequest, current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def create_code(request: CodeCreateRequest, current_user: UserContext = Depends(require_menu_permission("CODES", "create"))):
     """코드 생성 (사용자 코드만, is_system=False)"""
     try:
         code_data = request.model_dump(exclude_none=True)
@@ -82,7 +82,7 @@ async def create_code(request: CodeCreateRequest, current_user: UserContext = De
 
 
 @router.put("/codes/{code_id}", tags=["codes"])
-async def update_code(code_id: int, request: CodeUpdateRequest, current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def update_code(code_id: int, request: CodeUpdateRequest, current_user: UserContext = Depends(require_menu_permission("CODES", "update"))):
     """코드 수정"""
     try:
         code_data = request.model_dump(exclude_none=True)
@@ -98,7 +98,7 @@ async def update_code(code_id: int, request: CodeUpdateRequest, current_user: Us
 
 
 @router.delete("/codes/{code_id}", tags=["codes"])
-async def delete_code(code_id: int, current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def delete_code(code_id: int, current_user: UserContext = Depends(require_menu_permission("CODES", "delete"))):
     """코드 삭제 (시스템 코드는 삭제 불가)"""
     try:
         code_service.delete_code(code_id)
@@ -112,7 +112,7 @@ async def delete_code(code_id: int, current_user: UserContext = Depends(require_
 
 
 @router.post("/codes/{code_group}/reorder", tags=["codes"])
-async def reorder_codes(code_group: str, request: CodeReorderRequest, current_user: UserContext = Depends(require_permission("admin:settings"))):
+async def reorder_codes(code_group: str, request: CodeReorderRequest, current_user: UserContext = Depends(require_menu_permission("CODES", "update"))):
     """코드 순서 변경 (일괄 업데이트)"""
     try:
         code_service.reorder_codes(code_group, request.code_ids)

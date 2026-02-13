@@ -1,24 +1,21 @@
-"""인증 서비스
+"""인증 서비스 (v2.0 - 메뉴 기반)
 
 위치: app/api/services/auth_service.py
 로그인, 세션 관리, 토큰 갱신, 비밀번호 변경 비즈니스 로직
 """
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from app.config import settings
 from app.core.database.connection import db_manager
 from app.core.errors import APIException, ErrorCode
 from app.core.security.jwt import create_access_token, create_refresh_token, verify_token
 from app.core.security.password import hash_password, verify_password
-from app.models.auth import TokenResponse, UserInfo
+from app.models.auth import MenuPermission, TokenResponse, UserInfo
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
-
-# scope_type 우선순위 (숫자가 클수록 넓은 범위)
-_SCOPE_PRIORITY = {"USER": 1, "TENANT": 2, "GLOBAL": 3}
 
 
 class AuthService:
@@ -92,16 +89,14 @@ class AuthService:
         session_id = str(uuid.uuid4())
         expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
 
-        # JWT 토큰 데이터 구성
+        # JWT 토큰 데이터 구성 (v2.0: role_code 단일, menus는 JWT에 포함하지 않음)
         token_data = {
             "sub": str(user_id),
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
             "scope_type": user_info["scope_type"],
-            "roles": user_info["roles"],
-            "role_names": user_info["role_names"],
-            "permissions": user_info["permissions"],
+            "role_code": user_info["role_code"],
             "is_superuser": user_info["is_superuser"],
         }
         access_token = create_access_token(token_data)
@@ -129,10 +124,10 @@ class AuthService:
                 login_id=user_info["login_id"],
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
+                role_code=user_info["role_code"],
                 scope_type=user_info["scope_type"],
-                roles=user_info["roles"],
-                role_names=user_info["role_names"],
-                permissions=user_info["permissions"],
+                landing_page=user_info["landing_page"],
+                menus=user_info["menus"],
             ),
         )
 
@@ -175,9 +170,7 @@ class AuthService:
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
             "scope_type": user_info["scope_type"],
-            "roles": user_info["roles"],
-            "role_names": user_info["role_names"],
-            "permissions": user_info["permissions"],
+            "role_code": user_info["role_code"],
             "is_superuser": user_info["is_superuser"],
         }
         new_access_token = create_access_token(token_data)
@@ -194,10 +187,10 @@ class AuthService:
                 login_id=user_info["login_id"],
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
+                role_code=user_info["role_code"],
                 scope_type=user_info["scope_type"],
-                roles=user_info["roles"],
-                role_names=user_info["role_names"],
-                permissions=user_info["permissions"],
+                landing_page=user_info["landing_page"],
+                menus=user_info["menus"],
             ),
         )
 
@@ -211,12 +204,16 @@ class AuthService:
         return deleted
 
     def get_user_with_permissions(self, user_id: int, request_id: str = "") -> Dict[str, Any]:
-        """사용자 정보 + 역할 + 권한 일괄 조회"""
-        # 1. 사용자 기본 정보
+        """사용자 정보 + 역할 + 메뉴 권한 일괄 조회 (v2.0)"""
+        # 1. 사용자 + 역할 정보 (tb_user.role_id → tb_role 직접 JOIN)
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT user_id, login_id, email, display_name, tenant_id, is_superuser, is_active "
-                "FROM tb_user WHERE user_id = %s",
+                "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
+                "u.is_superuser, u.is_active, "
+                "r.role_code, r.role_name, r.scope_type, r.landing_page "
+                "FROM tb_user u "
+                "JOIN tb_role r ON r.role_id = u.role_id "
+                "WHERE u.user_id = %s",
                 (user_id,),
             )
             user_row = cur.fetchone()
@@ -228,41 +225,42 @@ class AuthService:
         if not user["is_active"]:
             raise APIException(ErrorCode.UNAUTHORIZED, "비활성화된 계정입니다")
 
-        # 2. 역할 + 권한 조회
+        # 2. 메뉴 권한 조회 (tb_user_menu + tb_menu)
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code "
-                "FROM tb_user_role ur "
-                "JOIN tb_role r ON ur.role_id = r.role_id "
-                "LEFT JOIN tb_role_permission rp ON r.role_id = rp.role_id "
-                "LEFT JOIN tb_permission p ON rp.permission_id = p.permission_id "
-                "WHERE ur.user_id = %s",
+                "SELECT m.menu_code, m.menu_name, m.menu_path, m.menu_type, m.icon, "
+                "m.depth, m.sort_order, pm.menu_code AS parent_menu_code, "
+                "um.can_create, um.can_read, um.can_update, um.can_delete, um.can_export "
+                "FROM tb_user_menu um "
+                "JOIN tb_menu m ON m.menu_id = um.menu_id "
+                "LEFT JOIN tb_menu pm ON pm.menu_id = m.parent_menu_id "
+                "WHERE um.user_id = %s AND m.is_active = true "
+                "ORDER BY m.depth, m.sort_order",
                 (user_id,),
             )
-            rows = cur.fetchall()
+            menu_rows = cur.fetchall()
 
-        roles = set()
-        role_names = set()
-        permissions = set()
-        max_scope = "USER"
+        menus: List[MenuPermission] = []
+        for row in menu_rows:
+            menus.append(MenuPermission(
+                menu_code=row["menu_code"],
+                menu_name=row["menu_name"],
+                menu_path=row["menu_path"],
+                menu_type=row["menu_type"],
+                icon=row["icon"],
+                parent_menu_code=row["parent_menu_code"],
+                depth=row["depth"],
+                sort_order=row["sort_order"],
+                can_create=row["can_create"],
+                can_read=row["can_read"],
+                can_update=row["can_update"],
+                can_delete=row["can_delete"],
+                can_export=row["can_export"],
+            ))
 
-        for row in rows:
-            if row["role_code"]:
-                roles.add(row["role_code"])
-            if row["role_name"]:
-                role_names.add(row["role_name"])
-            if row["permission_code"]:
-                permissions.add(row["permission_code"])
-            row_scope = row["scope_type"] or "USER"
-            if _SCOPE_PRIORITY.get(row_scope, 0) > _SCOPE_PRIORITY.get(max_scope, 0):
-                max_scope = row_scope
+        user["menus"] = menus
 
-        user["roles"] = sorted(roles)
-        user["role_names"] = sorted(role_names)
-        user["permissions"] = sorted(permissions)
-        user["scope_type"] = max_scope
-
-        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, roles=len(roles), perms=len(permissions), scope=max_scope)
+        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus), scope=user["scope_type"])
         return user
 
     def change_password(self, user_id: int, current_password: str, new_password: str, request_id: str = "") -> bool:

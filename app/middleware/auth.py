@@ -44,8 +44,7 @@ class AuthMiddleware(BaseMiddleware):
                         tenant_id=payload.tenant_id,
                         is_superuser=payload.is_superuser,
                         scope_type=payload.scope_type,
-                        roles=payload.roles,
-                        permissions=payload.permissions,
+                        role_code=payload.role_code,
                     )
             except Exception:
                 pass

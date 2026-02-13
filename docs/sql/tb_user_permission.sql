@@ -266,7 +266,7 @@ INSERT INTO tb_tenant (tenant_code, tenant_name, metadata) VALUES
 -- 비밀번호: admin123! → bcrypt 해시 (실 운영 시 반드시 변경)
 INSERT INTO tb_user (login_id, email, password_hash, display_name, role_id, is_superuser, is_active)
 SELECT 'admin', 'admin@system.local',
-       '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G6E9SiEO6oM9Oy',
+       '$2b$12$LzCrXdBqNOyeBaSts14cXOWmt/B8DB0E5UsnuqkKk3QTkn91uSuHW',
        '시스템 관리자',
        r.role_id, true, true
 FROM tb_role r WHERE r.role_code = 'SYSTEM_ADMIN';
@@ -290,7 +290,7 @@ AND m.menu_type IN ('PAGE', 'API');
 -- ==========================================
 INSERT INTO tb_user (login_id, email, password_hash, display_name, tenant_id, role_id, is_active)
 SELECT 'tenant_admin', 'tenant_admin@demo.local',
-       '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G6E9SiEO6oM9Oy',
+       '$2b$12$LzCrXdBqNOyeBaSts14cXOWmt/B8DB0E5UsnuqkKk3QTkn91uSuHW',
        '데모 테넌트 관리자',
        t.tenant_id, r.role_id, true
 FROM tb_tenant t, tb_role r
@@ -342,7 +342,7 @@ AND m.menu_code IN ('AGENT_API', 'RAG_API', 'NL2SQL_API');
 -- ==========================================
 INSERT INTO tb_user (login_id, email, password_hash, display_name, tenant_id, role_id, is_active)
 SELECT 'user01', 'user01@demo.local',
-       '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G6E9SiEO6oM9Oy',
+       '$2b$12$LzCrXdBqNOyeBaSts14cXOWmt/B8DB0E5UsnuqkKk3QTkn91uSuHW',
        '테스트 사용자',
        t.tenant_id, r.role_id, true
 FROM tb_tenant t, tb_role r

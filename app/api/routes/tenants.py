@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.api.services.tenant_service import tenant_service
 from app.core.errors import success_response
-from app.core.security.permission import require_permission
+from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
 from app.models.tenant import TenantCreate, TenantUpdate
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/admin/v1/tenants", tags=["admin-tenants"])
 @router.get("")
 async def list_tenants(
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:tenants")),
+    current_user: UserContext = Depends(require_menu_permission("TENANT_MGMT", "read")),
 ):
     """테넌트 목록 조회"""
     request_id = getattr(request.state, "request_id", "")
@@ -29,7 +29,7 @@ async def list_tenants(
 async def create_tenant(
     data: TenantCreate,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:tenants")),
+    current_user: UserContext = Depends(require_menu_permission("TENANT_MGMT", "create")),
 ):
     """테넌트 생성"""
     request_id = getattr(request.state, "request_id", "")
@@ -41,7 +41,7 @@ async def create_tenant(
 async def get_tenant(
     tenant_id: int,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:tenants")),
+    current_user: UserContext = Depends(require_menu_permission("TENANT_MGMT", "read")),
 ):
     """테넌트 상세 조회"""
     request_id = getattr(request.state, "request_id", "")
@@ -54,7 +54,7 @@ async def update_tenant(
     tenant_id: int,
     data: TenantUpdate,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:tenants")),
+    current_user: UserContext = Depends(require_menu_permission("TENANT_MGMT", "update")),
 ):
     """테넌트 수정"""
     request_id = getattr(request.state, "request_id", "")
@@ -66,7 +66,7 @@ async def update_tenant(
 async def delete_tenant(
     tenant_id: int,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:tenants")),
+    current_user: UserContext = Depends(require_menu_permission("TENANT_MGMT", "delete")),
 ):
     """테넌트 삭제 (소속 사용자 있으면 비활성화)"""
     request_id = getattr(request.state, "request_id", "")

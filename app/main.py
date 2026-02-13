@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants
+from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants, menus
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.api.services.history_service import history_service
@@ -93,6 +93,7 @@ app.include_router(export.router)  # Excel 내보내기 라우터
 app.include_router(users.router)    # 사용자 관리 라우터 (Phase 4)
 app.include_router(roles.router)    # 역할 관리 라우터 (Phase 4)
 app.include_router(tenants.router)  # 테넌트 관리 라우터 (Phase 4)
+app.include_router(menus.router)    # 메뉴 관리 라우터 (Phase 4)
 
 
 # 기본 엔드포인트
@@ -211,18 +212,22 @@ async def api_info():
                 "POST /api/admin/v1/users": "사용자 생성",
                 "GET /api/admin/v1/users/{user_id}": "사용자 상세 조회",
                 "PUT /api/admin/v1/users/{user_id}": "사용자 수정",
-                "DELETE /api/admin/v1/users/{user_id}": "사용자 삭제",
-                "PUT /api/admin/v1/users/{user_id}/roles": "사용자 역할 할당",
-                "GET /api/admin/v1/users/{user_id}/permissions": "사용자 권한 조회"
+                "DELETE /api/admin/v1/users/{user_id}": "사용자 삭제"
             },
             "admin_roles": {
                 "GET /api/admin/v1/roles": "역할 목록 조회",
                 "POST /api/admin/v1/roles": "역할 생성",
+                "GET /api/admin/v1/roles/default-menus/{role_code}": "역할별 기본 메뉴 권한 조회",
                 "GET /api/admin/v1/roles/{role_id}": "역할 상세 조회",
                 "PUT /api/admin/v1/roles/{role_id}": "역할 수정",
-                "DELETE /api/admin/v1/roles/{role_id}": "역할 삭제",
-                "PUT /api/admin/v1/roles/{role_id}/permissions": "역할 권한 할당",
-                "GET /api/admin/v1/roles/permissions": "전체 권한 목록 조회"
+                "DELETE /api/admin/v1/roles/{role_id}": "역할 삭제"
+            },
+            "admin_menus": {
+                "GET /api/admin/v1/menus": "메뉴 트리 조회",
+                "POST /api/admin/v1/menus": "메뉴 추가",
+                "GET /api/admin/v1/menus/{menu_id}": "메뉴 상세 조회",
+                "PUT /api/admin/v1/menus/{menu_id}": "메뉴 수정",
+                "DELETE /api/admin/v1/menus/{menu_id}": "메뉴 삭제"
             },
             "admin_tenants": {
                 "GET /api/admin/v1/tenants": "테넌트 목록 조회",

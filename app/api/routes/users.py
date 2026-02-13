@@ -1,7 +1,7 @@
-"""사용자 관리 API 라우터
+"""사용자 관리 API 라우터 (v2.0 - 메뉴 기반)
 
 위치: app/api/routes/users.py
-사용자 CRUD + 역할 할당 + 권한 조회
+사용자 CRUD + 메뉴 권한 할당/조회
 """
 from typing import Optional
 
@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, Query, Request
 from app.api.services.user_service import user_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_current_active_user
-from app.core.security.permission import require_permission
+from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
-from app.models.user import UserCreate, UserUpdate, UserRoleAssign
+from app.models.menu import UserMenuAssign
+from app.models.user import UserCreate, UserUpdate
 
 router = APIRouter(prefix="/api/admin/v1/users", tags=["admin-users"])
 
@@ -25,7 +26,7 @@ async def list_users(
     tenant_id: Optional[int] = Query(None, description="테넌트 필터 (GLOBAL만)"),
     is_active: Optional[bool] = Query(None, description="활성화 필터"),
     keyword: Optional[str] = Query(None, description="이름/로그인ID 검색"),
-    current_user: UserContext = Depends(require_permission("admin:users")),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
 ):
     """사용자 목록 조회"""
     request_id = getattr(request.state, "request_id", "")
@@ -37,7 +38,7 @@ async def list_users(
 async def create_user(
     data: UserCreate,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:users")),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "create")),
 ):
     """사용자 생성"""
     request_id = getattr(request.state, "request_id", "")
@@ -51,8 +52,8 @@ async def get_user(
     request: Request,
     current_user: UserContext = Depends(get_current_active_user),
 ):
-    """사용자 상세 조회 (본인 또는 admin:users 권한)"""
-    if current_user.user_id != user_id and not current_user.has_permission("admin:users"):
+    """사용자 상세 조회 (본인 또는 USER_MGMT:read 권한)"""
+    if current_user.user_id != user_id and not current_user.is_superuser:
         raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
     request_id = getattr(request.state, "request_id", "")
     result = user_service.get_user(user_id, current_user, request_id)
@@ -64,7 +65,7 @@ async def update_user(
     user_id: int,
     data: UserUpdate,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:users")),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "update")),
 ):
     """사용자 수정"""
     request_id = getattr(request.state, "request_id", "")
@@ -76,7 +77,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:users")),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "delete")),
 ):
     """사용자 삭제"""
     request_id = getattr(request.state, "request_id", "")
@@ -84,28 +85,28 @@ async def delete_user(
     return success_response({"message": "사용자가 삭제되었습니다"})
 
 
-@router.put("/{user_id}/roles")
-async def assign_roles(
+@router.put("/{user_id}/menus")
+async def assign_menus(
     user_id: int,
-    data: UserRoleAssign,
+    data: UserMenuAssign,
     request: Request,
-    current_user: UserContext = Depends(require_permission("admin:users")),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "update")),
 ):
-    """역할 할당 (GLOBAL만 가능)"""
+    """사용자 메뉴 권한 할당 (replace 방식)"""
     request_id = getattr(request.state, "request_id", "")
-    result = user_service.assign_roles(user_id, data.role_ids, current_user, request_id)
+    result = user_service.assign_menus(user_id, data.menus, current_user, request_id)
     return success_response(result)
 
 
-@router.get("/{user_id}/permissions")
-async def get_user_permissions(
+@router.get("/{user_id}/menus")
+async def get_user_menus(
     user_id: int,
     request: Request,
     current_user: UserContext = Depends(get_current_active_user),
 ):
-    """사용자 권한 조회 (본인 또는 admin:users 권한)"""
-    if current_user.user_id != user_id and not current_user.has_permission("admin:users"):
+    """사용자 메뉴 권한 조회 (본인 또는 관리자)"""
+    if current_user.user_id != user_id and not current_user.is_superuser:
         raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
     request_id = getattr(request.state, "request_id", "")
-    result = user_service.get_user_permissions(user_id, current_user, request_id)
+    result = user_service.get_user_menus(user_id, current_user, request_id)
     return success_response(result)

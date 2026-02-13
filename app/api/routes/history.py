@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.services.history_service import history_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_optional_user
-from app.core.security.permission import require_permission
+from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger
 
@@ -276,7 +276,7 @@ async def get_history_detail(request_id: str, current_user: Optional[UserContext
 async def cleanup_old_records(
     days: int = Query(90, ge=7, le=365, description="보관 기간 (일)"),
     tenant_id: Optional[str] = Query(None, description="테넌트 ID (지정 시 해당 테넌트만 정리)"),
-    current_user: UserContext = Depends(require_permission("admin:settings")),
+    current_user: UserContext = Depends(require_menu_permission("HISTORY", "delete")),
 ):
     """
     오래된 이력 정리 (관리자용, admin:settings 권한 필요)
