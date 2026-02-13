@@ -328,14 +328,6 @@ SELECT u.user_id, m.menu_id, true, true, false, false, false
 FROM tb_user u, tb_menu m WHERE u.login_id = 'tenant_admin' AND m.menu_code = 'USER_CHAT';
 
 
-
--- 
-
-
-
-INSERT INOT 
-
-
 -- API 접근: CR (Agent, RAG, NL2SQL)
 INSERT INTO tb_user_menu (user_id, menu_id, can_create, can_read, can_update, can_delete, can_export)
 SELECT u.user_id, m.menu_id, true, true, false, false, false
