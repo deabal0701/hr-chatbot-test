@@ -1,7 +1,7 @@
 """메뉴 관리 API 라우터
 
 위치: app/api/routes/menus.py
-메뉴 트리 CRUD (MENU_MGMT 권한 필요)
+메뉴 트리 CRUD + 순서 변경 (MENU_MGMT 권한 필요)
 """
 from fastapi import APIRouter, Depends, Request
 
@@ -9,7 +9,7 @@ from app.api.services.menu_service import menu_service
 from app.core.errors import success_response
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
-from app.models.menu import MenuCreate, MenuUpdate
+from app.models.menu import MenuCreate, MenuReorderRequest, MenuUpdate
 
 router = APIRouter(prefix="/api/admin/v1/menus", tags=["admin-menus"])
 
@@ -37,6 +37,18 @@ async def create_menu(
     return success_response(result)
 
 
+@router.put("/reorder")
+async def reorder_menus(
+    data: MenuReorderRequest,
+    request: Request,
+    current_user: UserContext = Depends(require_menu_permission("MENU_MGMT", "update")),
+):
+    """메뉴 순서 일괄 변경 (드래그앤드롭용)"""
+    request_id = getattr(request.state, "request_id", "")
+    result = menu_service.reorder_menus(data.items, request_id)
+    return success_response(result)
+
+
 @router.get("/{menu_id}")
 async def get_menu(
     menu_id: int,
@@ -56,9 +68,9 @@ async def update_menu(
     request: Request,
     current_user: UserContext = Depends(require_menu_permission("MENU_MGMT", "update")),
 ):
-    """메뉴 수정"""
+    """메뉴 수정 (parent_menu_id 변경 시 depth 자동 재계산)"""
     request_id = getattr(request.state, "request_id", "")
-    result = menu_service.update_menu(menu_id, data.model_dump(exclude_none=True), current_user, request_id)
+    result = menu_service.update_menu(menu_id, data.model_dump(exclude_unset=True), current_user, request_id)
     return success_response(result)
 
 

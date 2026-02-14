@@ -8,7 +8,7 @@
       <span v-if="!isCollapsed" class="logo-text">MUREUM</span>
     </div>
 
-    <!-- 메뉴 (v2.0 — user.menus[]에서 동적 렌더링) -->
+    <!-- 메뉴 (v2.2 — 트리 기반 계층 구조: 최상위 DIRECTORY 펼침 + 중간 DIRECTORY → sub-menu) -->
     <el-menu
       :default-active="activeMenu"
       :collapse="isCollapsed"
@@ -18,14 +18,36 @@
       :active-text-color="menuActiveColor"
       router
     >
-      <el-menu-item
-        v-for="item in visibleMenuItems"
-        :key="item.menu_code"
-        :index="item.menu_path"
-      >
-        <el-icon><component :is="resolveIcon(item.icon)" /></el-icon>
-        <template #title>{{ item.menu_name }}</template>
-      </el-menu-item>
+      <template v-for="item in sidebarMenuItems">
+        <!-- DIRECTORY with children → el-sub-menu -->
+        <el-sub-menu
+          v-if="item.children && item.children.length"
+          :key="'dir-' + item.menu_code"
+          :index="item.menu_code"
+        >
+          <template #title>
+            <el-icon><component :is="resolveIcon(item.icon)" /></el-icon>
+            <span>{{ item.menu_name }}</span>
+          </template>
+          <el-menu-item
+            v-for="child in item.children"
+            :key="child.menu_code"
+            :index="child.menu_path"
+          >
+            <el-icon><component :is="resolveIcon(child.icon)" /></el-icon>
+            <template #title>{{ child.menu_name }}</template>
+          </el-menu-item>
+        </el-sub-menu>
+        <!-- PAGE without parent DIRECTORY → flat el-menu-item -->
+        <el-menu-item
+          v-else
+          :key="'page-' + item.menu_code"
+          :index="item.menu_path"
+        >
+          <el-icon><component :is="resolveIcon(item.icon)" /></el-icon>
+          <template #title>{{ item.menu_name }}</template>
+        </el-menu-item>
+      </template>
     </el-menu>
 
     <!-- 하단 정보 -->
@@ -90,13 +112,54 @@ const resolveIcon = (iconName) => {
   return ICON_MAP[iconName] || Document
 }
 
-// 사용자 메뉴에서 PAGE 타입만 필터링 + sort_order 정렬
-const visibleMenuItems = computed(() => {
+// 트리 기반 계층 메뉴 구성
+// 1) flat 메뉴 리스트 → parent_menu_code 기반 트리 빌드
+// 2) 최상위 DIRECTORY(depth=0)는 자식을 루트 레벨로 승격 (폴더 자체는 숨김)
+// 3) 중간 DIRECTORY(depth>0)는 el-sub-menu로 렌더링
+const sidebarMenuItems = computed(() => {
   if (!isAuthenticated.value) return []
   const menus = store.getters['auth/menus'] || []
-  return menus
-    .filter(m => m.menu_type === 'PAGE' && m.menu_path)
-    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  if (!menus.length) return []
+
+  // 1. 맵 생성: menu_code → { ...menu, children: [] }
+  const menuMap = new Map()
+  menus.forEach(m => {
+    menuMap.set(m.menu_code, { ...m, children: [] })
+  })
+
+  // 2. 트리 빌드: parent_menu_code로 자식 할당
+  const roots = []
+  menuMap.forEach(m => {
+    if (m.parent_menu_code && menuMap.has(m.parent_menu_code)) {
+      menuMap.get(m.parent_menu_code).children.push(m)
+    } else {
+      roots.push(m)
+    }
+  })
+
+  // 3. 재귀 정렬
+  const sortItems = (items) => {
+    items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    items.forEach(item => { if (item.children.length) sortItems(item.children) })
+  }
+  sortItems(roots)
+
+  // 4. 최상위 DIRECTORY 펼침: 자식을 루트 레벨로 승격
+  const result = []
+  for (const root of roots) {
+    if (root.menu_type === 'DIRECTORY') {
+      result.push(...root.children)
+    } else {
+      result.push(root)
+    }
+  }
+
+  // 5. API 타입 제외 (사이드바에 표시하지 않음), children 없는 DIRECTORY 제외
+  return result.filter(m => {
+    if (m.menu_type === 'API') return false
+    if (m.menu_type === 'DIRECTORY' && m.children.length === 0) return false
+    return true
+  })
 })
 
 // 다크모드에 따른 메뉴 색상 (_variables.scss 와 동기화)
@@ -146,6 +209,24 @@ const menuActiveColor = '#409eff'
 
     &.is-active {
       background-color: var(--sidebar-hover-bg) !important;
+    }
+  }
+
+  .el-sub-menu {
+    :deep(.el-sub-menu__title) {
+      &:hover {
+        background-color: var(--sidebar-hover-bg) !important;
+      }
+    }
+
+    .el-menu-item {
+      &:hover {
+        background-color: var(--sidebar-hover-bg) !important;
+      }
+
+      &.is-active {
+        background-color: var(--sidebar-hover-bg) !important;
+      }
     }
   }
 }

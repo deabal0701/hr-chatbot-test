@@ -77,6 +77,20 @@ const menusApi = {
       console.error(`메뉴 삭제 실패 (ID: ${menuId}):`, error)
       throw error
     }
+  },
+
+  /**
+   * 메뉴 순서 일괄 변경 (드래그앤드롭용)
+   * @param {Array} items - [{ menu_id, sort_order }]
+   * @returns {Promise<Object>}
+   */
+  async reorder(items) {
+    try {
+      return await apiClient.put(`${BASE_URL}/reorder`, { items })
+    } catch (error) {
+      console.error('메뉴 순서 변경 실패:', error)
+      throw error
+    }
   }
 }
 

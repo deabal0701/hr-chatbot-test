@@ -219,37 +219,30 @@ INSERT INTO tb_role (role_code, role_name, scope_type, landing_page, is_system, 
 
 
 -- ==========================================
--- 2. 기본 메뉴 트리 (14개)
+-- 2. 기본 메뉴 (모두 flat, depth=0)
 -- ==========================================
+-- DIRECTORY 루트 없이 모든 PAGE/API를 루트 레벨로 배치
+-- 관리자가 필요 시 메뉴 관리에서 DIRECTORY를 생성하여 그룹핑 가능
 
--- 2-1. 루트 디렉토리 (depth=0)
-INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, icon, sort_order, depth, description) VALUES
-('ADMIN',       '관리자',     'DIRECTORY', NULL, 'settings',   1, 0, '관리자 메뉴 그룹'),
-('USER_AREA',   '사용자',     'DIRECTORY', NULL, 'user',       2, 0, '사용자 메뉴 그룹'),
-('API_ACCESS',  'API 접근',   'DIRECTORY', NULL, 'api',        3, 0, 'API 접근 제어 그룹');
-
--- 2-2. 관리자 하위 메뉴 (depth=1, parent=ADMIN)
+-- 2-1. PAGE 메뉴 (depth=0, parent=NULL)
 INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, menu_path, api_pattern, icon, sort_order, depth, description) VALUES
-('DASHBOARD',   '대시보드',       'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/dashboard',  '/api/admin/v1/dashboard',  'dashboard',  1, 1, '대시보드'),
-('CHAT',        '자연어 검색',    'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/chat',       NULL,                        'chat',       2, 1, '관리자 자연어 검색'),
-('DOCUMENTS',   '문서 관리',      'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/documents',  '/api/admin/v1/documents',  'document',   3, 1, '지식문서 관리'),
-('USER_MGMT',   '사용자 관리',    'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/users',      '/api/admin/v1/users',      'users',      4, 1, '사용자 CRUD + 메뉴 권한 할당'),
-('MENU_MGMT',   '메뉴/권한 관리', 'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/menus',      '/api/admin/v1/menus',      'menu',       5, 1, '메뉴 트리 관리'),
-('ROLE_MGMT',   '역할 관리',      'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/roles',      '/api/admin/v1/roles',      'role',       6, 1, '역할 CRUD'),
-('TENANT_MGMT', '테넌트 관리',    'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/tenants',    '/api/admin/v1/tenants',    'tenant',     7, 1, '테넌트 CRUD'),
-('SETTINGS',    '시스템 설정',    'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/settings',   '/api/admin/v1/settings',   'settings',   8, 1, '시스템 설정 관리'),
-('CODES',       '코드 관리',      'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/codes',      '/api/admin/v1/codes',      'code',       9, 1, '코드 관리'),
-('HISTORY',     '검색 이력',      'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'ADMIN'), '/admin/history',    '/api/admin/v1/history',    'history',   10, 1, '검색 이력 조회');
+('DASHBOARD',   '대시보드',       'PAGE', NULL, '/admin/dashboard',  '/api/admin/v1/dashboard',  'dashboard',  1, 0, '대시보드'),
+('CHAT',        '자연어 검색',    'PAGE', NULL, '/admin/chat',       NULL,                        'chat',       2, 0, '관리자 자연어 검색'),
+('DOCUMENTS',   '문서 관리',      'PAGE', NULL, '/admin/documents',  '/api/admin/v1/documents',  'document',   3, 0, '지식문서 관리'),
+('USER_MGMT',   '사용자 관리',    'PAGE', NULL, '/admin/users',      '/api/admin/v1/users',      'users',      4, 0, '사용자 CRUD + 메뉴 권한 할당'),
+('MENU_MGMT',   '메뉴 관리',     'PAGE', NULL, '/admin/menus',      '/api/admin/v1/menus',      'menu',       5, 0, '메뉴 트리 관리'),
+('ROLE_MGMT',   '역할 관리',      'PAGE', NULL, '/admin/roles',      '/api/admin/v1/roles',      'role',       6, 0, '역할 CRUD'),
+('TENANT_MGMT', '테넌트 관리',    'PAGE', NULL, '/admin/tenants',    '/api/admin/v1/tenants',    'tenant',     7, 0, '테넌트 CRUD'),
+('SETTINGS',    '시스템 설정',    'PAGE', NULL, '/admin/settings',   '/api/admin/v1/settings',   'settings',   8, 0, '시스템 설정 관리'),
+('CODES',       '코드 관리',      'PAGE', NULL, '/admin/codes',      '/api/admin/v1/codes',      'code',       9, 0, '코드 관리'),
+('HISTORY',     '검색 이력',      'PAGE', NULL, '/admin/history',    '/api/admin/v1/history',    'history',   10, 0, '검색 이력 조회'),
+('USER_CHAT',   '채팅',           'PAGE', NULL, '/chat',             NULL,                        'chat',      11, 0, '사용자 채팅 화면');
 
--- 2-3. 사용자 하위 메뉴 (depth=1, parent=USER_AREA)
-INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, menu_path, icon, sort_order, depth, description) VALUES
-('USER_CHAT',   '채팅',           'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code = 'USER_AREA'), '/chat', 'chat', 1, 1, '사용자 채팅 화면');
-
--- 2-4. API 접근 메뉴 (depth=1, parent=API_ACCESS)
+-- 2-2. API 메뉴 (depth=0, parent=NULL)
 INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, api_pattern, icon, sort_order, depth, description) VALUES
-('AGENT_API',   'Agent API',   'API', (SELECT menu_id FROM tb_menu WHERE menu_code = 'API_ACCESS'), '/api/v1/agent',  'agent',  1, 1, 'AI Agent 검색 API'),
-('RAG_API',     'RAG API',     'API', (SELECT menu_id FROM tb_menu WHERE menu_code = 'API_ACCESS'), '/api/v1/rag',    'search', 2, 1, 'RAG 문서 검색 API'),
-('NL2SQL_API',  'NL2SQL API',  'API', (SELECT menu_id FROM tb_menu WHERE menu_code = 'API_ACCESS'), '/api/v1/nl2sql', 'sql',    3, 1, 'NL2SQL 자연어→SQL API');
+('AGENT_API',   'Agent API',   'API', NULL, '/api/v1/agent',  'search',  12, 0, 'AI Agent 검색 API'),
+('RAG_API',     'RAG API',     'API', NULL, '/api/v1/rag',    'search',  13, 0, 'RAG 문서 검색 API'),
+('NL2SQL_API',  'NL2SQL API',  'API', NULL, '/api/v1/nl2sql', 'search',  14, 0, 'NL2SQL 자연어→SQL API');
 
 
 -- ==========================================

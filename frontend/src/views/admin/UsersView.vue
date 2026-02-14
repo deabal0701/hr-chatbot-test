@@ -218,7 +218,7 @@
           <el-table v-else :data="allMenus" style="width: 100%" size="small">
             <el-table-column label="메뉴" min-width="160">
               <template #default="{ row }">
-                <span :style="{ paddingLeft: (row.depth - 1) * 16 + 'px' }">
+                <span :style="{ paddingLeft: (row.depth || 0) * 16 + 'px' }">
                   {{ row.menu_name }}
                 </span>
               </template>
@@ -339,7 +339,7 @@ const scopeTagType = (scope) => {
 // 메뉴 트리를 평탄화 (PAGE 타입만)
 const flattenMenuTree = (items, result = []) => {
   for (const item of items) {
-    if (item.menu_type === 'PAGE') {
+    if (item.menu_type !== 'API') {
       result.push(item)
     }
     if (item.children?.length) {

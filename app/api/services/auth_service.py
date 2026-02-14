@@ -225,18 +225,45 @@ class AuthService:
         if not user["is_active"]:
             raise APIException(ErrorCode.UNAUTHORIZED, "비활성화된 계정입니다")
 
-        # 2. 메뉴 권한 조회 (tb_user_menu + tb_menu)
+        # 2. 메뉴 권한 조회 (할당된 메뉴 + DIRECTORY 조상 자동 포함)
+        # 재귀 CTE로 할당 메뉴의 부모 DIRECTORY 체인을 자동 포함하여
+        # 사이드바에서 트리 구조를 정확히 빌드할 수 있도록 함
         with db_manager.get_cursor() as cur:
             cur.execute(
+                "WITH RECURSIVE "
+                "assigned AS ("
+                "  SELECT m.menu_id FROM tb_user_menu um "
+                "  JOIN tb_menu m ON m.menu_id = um.menu_id "
+                "  WHERE um.user_id = %s AND m.is_active = true"
+                "), "
+                "parent_chain AS ("
+                "  SELECT DISTINCT m.parent_menu_id AS menu_id "
+                "  FROM assigned a JOIN tb_menu m ON m.menu_id = a.menu_id "
+                "  WHERE m.parent_menu_id IS NOT NULL"
+                "  UNION "
+                "  SELECT m.parent_menu_id "
+                "  FROM parent_chain pc JOIN tb_menu m ON m.menu_id = pc.menu_id "
+                "  WHERE m.parent_menu_id IS NOT NULL"
+                "), "
+                "all_ids AS ("
+                "  SELECT menu_id FROM assigned "
+                "  UNION "
+                "  SELECT menu_id FROM parent_chain WHERE menu_id IS NOT NULL"
+                ") "
                 "SELECT m.menu_code, m.menu_name, m.menu_path, m.menu_type, m.icon, "
                 "m.depth, m.sort_order, pm.menu_code AS parent_menu_code, "
-                "um.can_create, um.can_read, um.can_update, um.can_delete, um.can_export "
-                "FROM tb_user_menu um "
-                "JOIN tb_menu m ON m.menu_id = um.menu_id "
+                "COALESCE(um.can_create, false) AS can_create, "
+                "COALESCE(um.can_read, false) AS can_read, "
+                "COALESCE(um.can_update, false) AS can_update, "
+                "COALESCE(um.can_delete, false) AS can_delete, "
+                "COALESCE(um.can_export, false) AS can_export "
+                "FROM all_ids ai "
+                "JOIN tb_menu m ON m.menu_id = ai.menu_id "
+                "LEFT JOIN tb_user_menu um ON um.menu_id = m.menu_id AND um.user_id = %s "
                 "LEFT JOIN tb_menu pm ON pm.menu_id = m.parent_menu_id "
-                "WHERE um.user_id = %s AND m.is_active = true "
+                "WHERE m.is_active = true "
                 "ORDER BY m.depth, m.sort_order",
-                (user_id,),
+                (user_id, user_id),
             )
             menu_rows = cur.fetchall()
 

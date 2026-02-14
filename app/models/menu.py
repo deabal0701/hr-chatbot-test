@@ -65,14 +65,27 @@ class MenuCreate(MenuBase):
 
 
 class MenuUpdate(BaseModel):
-    """메뉴 수정 요청 (모든 필드 Optional)"""
+    """메뉴 수정 요청 (모든 필드 Optional, exclude_unset 사용)"""
     menu_name: Optional[str] = Field(None, max_length=100, description="메뉴 표시명")
+    menu_type: Optional[str] = Field(None, description="메뉴 타입 (DIRECTORY, PAGE, API)")
+    parent_menu_id: Optional[int] = Field(None, description="상위 메뉴 ID (null이면 루트로 변경)")
     menu_path: Optional[str] = Field(None, max_length=200, description="프론트엔드 URL 경로")
     api_pattern: Optional[str] = Field(None, max_length=200, description="API 경로 패턴")
     icon: Optional[str] = Field(None, max_length=50, description="아이콘 클래스")
     sort_order: Optional[int] = Field(None, description="정렬 순서")
     is_active: Optional[bool] = Field(None, description="활성 여부")
     description: Optional[str] = Field(None, description="설명")
+
+    @field_validator("menu_type")
+    @classmethod
+    def validate_menu_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        valid = ["DIRECTORY", "PAGE", "API"]
+        v = v.upper()
+        if v not in valid:
+            raise ValueError(f"menu_type은 {valid} 중 하나여야 합니다")
+        return v
 
 
 class MenuResponse(BaseModel):
@@ -115,6 +128,21 @@ class MenuResponse(BaseModel):
 class MenuTreeResponse(BaseModel):
     """메뉴 트리 응답 (전체 트리)"""
     items: List[MenuResponse] = Field(default_factory=list, description="루트 메뉴 목록 (하위 포함)")
+
+
+# ===================================
+# 메뉴 순서 변경 (Reorder)
+# ===================================
+
+class MenuReorderItem(BaseModel):
+    """메뉴 순서 변경 항목"""
+    menu_id: int = Field(..., description="메뉴 ID")
+    sort_order: int = Field(..., description="새 정렬 순서")
+
+
+class MenuReorderRequest(BaseModel):
+    """메뉴 순서 일괄 변경 요청 (드래그앤드롭용)"""
+    items: List[MenuReorderItem] = Field(..., min_length=1, description="순서 변경 목록")
 
 
 # ===================================
