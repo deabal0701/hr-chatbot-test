@@ -61,7 +61,7 @@
           <template #default="{ row }">
             <el-tag
               v-if="row.role"
-              :type="scopeTagType(row.role.scope_type)"
+              :type="roleTagType(row.role.role_code)"
               size="small"
             >
               {{ row.role.role_name }}
@@ -177,7 +177,7 @@
                 <el-option
                   v-for="role in allRoles"
                   :key="role.role_id"
-                  :label="`${role.role_name} (${role.scope_type})`"
+                  :label="`${role.role_name} (${role.role_code})`"
                   :value="role.role_id"
                 />
               </el-select>
@@ -328,10 +328,10 @@ const formRules = {
   ]
 }
 
-// scope_type에 따른 태그 색상
-const scopeTagType = (scope) => {
-  if (scope === 'GLOBAL') return 'danger'
-  if (scope === 'TENANT') return 'warning'
+// role_code에 따른 태그 색상
+const roleTagType = (roleCode) => {
+  if (roleCode === 'GLOBAL') return 'danger'
+  if (roleCode === 'TENANT') return 'warning'
   return 'info'
 }
 

@@ -55,8 +55,8 @@ class UserInfo(BaseModel):
     login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
-    role_code: str = Field(..., description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
-    scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, USER)")
+    role_name: str = Field(default="", description="역할 표시명 (시스템 관리자, 테넌트 관리자 등)")
     landing_page: str = Field(..., description="로그인 후 랜딩 페이지")
     menus: List[MenuPermission] = Field(default_factory=list, description="접근 가능 메뉴 + CRUD 권한")
 
@@ -81,8 +81,8 @@ class TokenResponse(BaseModel):
                     "login_id": "admin",
                     "display_name": "시스템 관리자",
                     "tenant_id": None,
-                    "role_code": "SYSTEM_ADMIN",
-                    "scope_type": "GLOBAL",
+                    "role_code": "GLOBAL",
+                    "role_name": "시스템 관리자",
                     "landing_page": "/admin/dashboard",
                     "menus": [
                         {
@@ -158,7 +158,7 @@ class UserContext(BaseModel):
     인증 미들웨어가 JWT를 검증한 후 생성하여 request.state.current_user에 저장.
     모든 API 핸들러에서 현재 사용자 정보를 참조할 때 사용.
 
-    v2.0 변경: permissions 리스트 제거 → role_code + scope_type만 보유.
+    v3.0 변경: scope_type 제거 → role_code가 데이터 범위를 직접 결정 (GLOBAL/TENANT/USER).
     메뉴 권한 체크는 require_menu_permission()에서 DB 조회로 수행.
     """
     user_id: int = Field(..., description="사용자 ID")
@@ -166,20 +166,19 @@ class UserContext(BaseModel):
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
-    role_code: str = Field(default="USER", description="역할 코드")
-    scope_type: str = Field(default="USER", description="데이터 범위 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, USER)")
 
     @property
     def is_global(self) -> bool:
-        """GLOBAL scope 여부 (전체 데이터 접근)"""
-        return self.is_superuser or self.scope_type == "GLOBAL"
+        """GLOBAL 역할 여부 (전체 데이터 접근)"""
+        return self.is_superuser or self.role_code == "GLOBAL"
 
     @property
     def is_tenant_scope(self) -> bool:
-        """TENANT scope 여부"""
-        return self.scope_type == "TENANT"
+        """TENANT 역할 여부"""
+        return self.role_code == "TENANT"
 
     @property
     def is_user_scope(self) -> bool:
-        """USER scope 여부"""
-        return self.scope_type == "USER"
+        """USER 역할 여부"""
+        return self.role_code == "USER"

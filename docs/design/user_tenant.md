@@ -1,6 +1,6 @@
 # 테넌트 관리 설계서
 
-> **문서 버전**: 2.0
+> **문서 버전**: 3.0
 > **작성일**: 2026-02-14
 > **상태**: Draft
 > **관련 문서**: `docs/design/user_permission_system.md`
@@ -19,23 +19,46 @@ MUREUM 시스템의 멀티테넌트 데이터 격리 체계를 정의합니다.
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  [Tenant 1] System (예약 - 총괄관리 전용)                        │
-│    └── admin        (SYSTEM_ADMIN, GLOBAL, is_superuser=true)   │
+│    └── admin        (GLOBAL, is_superuser=true)                  │
 │                                                                  │
 │  [Tenant 2~N] 업무 테넌트                                        │
-│    ├── tenant_admin (TENANT_ADMIN, TENANT)                      │
-│    └── user01      (USER, USER)                                 │
+│    ├── tenant_admin (TENANT)                                     │
+│    └── user01      (USER)                                        │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.3 역할-스코프 매핑
+### 1.3 역할 정의
 
-| 역할 | role_code | scope_type | tenant_id | 데이터 접근 범위 |
+> **설계 원칙**: `role_code`가 역할 식별자이자 데이터 접근 범위를 겸함.
+> 기존 `scope_type` 컬럼은 `role_code`와 항상 1:1이므로 제거하고 `role_code`로 통합.
+> 메뉴 권한은 사용자별(`tb_user_menu`)로 부여되므로 역할 내 세분화가 불필요.
+
+| 역할 | role_code | role_name | tenant_id | 데이터 접근 범위 |
 |------|-----------|-----------|:---------:|-----------------|
-| 총괄관리자 | SYSTEM_ADMIN | GLOBAL | 1 (System) | **전체 테넌트** |
-| 테넌트관리자 | TENANT_ADMIN | TENANT | 2~N | **자기 테넌트만** |
-| 일반사용자 | USER | USER | 2~N | **본인 데이터만** |
+| 총괄관리자 | GLOBAL | 시스템 관리자 | 1 (System) | **전체 테넌트** |
+| 테넌트관리자 | TENANT | 테넌트 관리자 | 2~N | **자기 테넌트만** |
+| 일반사용자 | USER | 일반 사용자 | 2~N | **본인 데이터만** |
 
-### 1.4 전역 tenant_id 규칙
+**역할과 권한의 관계**:
+- `role_code` = **데이터 범위** 결정 (GLOBAL: 전체, TENANT: 자기 테넌트, USER: 본인)
+- `tb_user_menu` = **기능 권한** 결정 (어떤 메뉴에 CRUD 가능한지는 사용자별 개별 설정)
+- 같은 TENANT 역할이라도 사용자마다 메뉴 권한이 다를 수 있음
+
+### 1.4 두 가지 tenant_id 구분
+
+| 구분 | 의미 | 사용처 | 예시 |
+|------|------|--------|------|
+| **소속 tenant_id** | 사용자가 속한 테넌트 | `current_user.tenant_id` | admin → 1, tenant_admin → 2 |
+| **데이터 소유 tenant_id** | 데이터가 속한 테넌트 | `tb_docs.tenant_id`, `tb_app_settings.tenant_id` | 공용 → '0', 특정 테넌트 → '2' |
+
+**핵심 규칙**: 총괄관리자의 소속 tenant_id(=1)는 **데이터에 절대 사용하지 않음**
+- 문서 등록 시: 드롭다운에서 선택한 값 (기본 '0')
+- 설정 수정 시: 드롭다운에서 선택한 값 (기본 '0')
+- 이력 저장 시: `current_user.tenant_id` = '1' (소속 기록용, 유일한 예외)
+
+**테넌트관리자**는 소속 tenant_id와 데이터 소유 tenant_id가 동일 (자동 부여)
+
+### 1.5 전역 tenant_id 규칙
 
 ```
 tenant_id = '0'   → 전역 (모든 테넌트에 적용되는 기본값/공용 데이터)
@@ -64,18 +87,18 @@ tenant_id = '6'   → 현대B
 | `tb_docs` | O | `varchar` | **X** (항상 NULL → '0'으로 마이그레이션 필요) |
 | `tb_app_settings` | O | `varchar` | **O** ('0' = 전역, 마이그레이션 완료) |
 | `tb_api_history` | O | `varchar` | O (middleware에서 저장) |
-| `tb_code` | O | `varchar` | 전역 관리 (테넌트 격리 불필요) |
+| `tb_code` | O | `varchar` | **O** ('0' = 전역, 마이그레이션 완료, 격리 불필요) |
 | `tb_user_menu` | - | - | user_id 기반 |
 
 ### 2.2 애플리케이션 코드 - 테넌트 필터링 현황
 
 | 기능 | 서비스 파일 | 필터링 적용 | 비고 |
 |------|-----------|:---:|------|
-| 사용자 관리 | `user_service.py` | **O** | `_check_scope_access()` |
-| API 이력 | `history.py` | **O** | `_apply_scope_filter()` |
+| 사용자 관리 | `user_service.py` | **O** | `_check_scope_access()` → `role_code` 기반 필터 |
+| API 이력 | `history.py` | **O** | `_apply_scope_filter()` → `role_code` 기반 필터 |
 | 지식문서 관리 | `document_service.py` | **X** | 전체 문서 노출 |
 | RAG 검색 | `vector_store.py` | **X** | 전체 문서 검색 |
-| 시스템 설정 | `settings_service.py` | **X** | 전체 설정 노출 |
+| 시스템 설정 | `settings_service.py` | **X** | 전체 설정 노출, UPSERT에 tenant_id 컬럼 없음 |
 | 코드 관리 | `code_service.py` | - | 전역 관리 (격리 불필요) |
 | NL2SQL | `nl2sql_service.py` | **X** | 비즈니스 DB에 테넌트 조건 없음 |
 
@@ -89,9 +112,9 @@ tb_tenant:
   6 - HUNDAI_B  (현대B)
 
 tb_user:
-  admin        → tenant_id=1, SYSTEM_ADMIN, GLOBAL, is_superuser=true
-  tenant_admin → tenant_id=2, TENANT_ADMIN, TENANT
-  user01       → tenant_id=2, USER, USER
+  admin        → tenant_id=1, role_code=GLOBAL, is_superuser=true
+  tenant_admin → tenant_id=2, role_code=TENANT
+  user01       → tenant_id=2, role_code=USER
 ```
 
 ---
@@ -108,13 +131,13 @@ tb_user:
 │  1. 메뉴 권한 체크 (tb_user_menu)                               │
 │     └── "이 메뉴에 접근할 수 있는가?" (CRUD)                     │
 │                                                                 │
-│  2. 스코프 기반 데이터 필터 (tb_role.scope_type)                 │
+│  2. 역할 기반 데이터 필터 (tb_role.role_code)                    │
 │     ├── GLOBAL  → 관리화면: 필터 없음 (전체), 채팅검색: 공용('0') 기본│
 │     ├── TENANT  → WHERE tenant_id IN ('N', '0')                │
 │     └── USER    → WHERE tenant_id IN ('N', '0')                │
 │                                                                 │
 │  '0' = 전역 데이터 (모든 테넌트에 적용)                          │
-│  같은 메뉴 권한이라도 scope_type에 따라 데이터 범위가 다름       │
+│  같은 메뉴 권한이라도 role_code에 따라 데이터 범위가 다름        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -194,7 +217,9 @@ LIMIT 1;
 
 #### 3.2.3 API 이력 (tb_api_history)
 
-**현재**: 이미 `tenant_id`, `user_id` 필터링 적용됨 (정상 동작)
+**현재**: 주요 엔드포인트에 `_apply_scope_filter()` 적용됨 (부분 적용)
+- 적용 완료: `list_history()`, `statistics()`, `user_*()` 등
+- 미적용: `list_sessions()`, `get_session_history()`, `delete_session_history()` (Phase 4에서 보완)
 
 #### 3.2.4 코드 관리 (tb_code)
 
@@ -212,31 +237,41 @@ LIMIT 1;
 ### Phase 0: 데이터 마이그레이션 (선행 작업)
 
 ```sql
+-- 0-1. role_code 통합 (scope_type 제거)
+UPDATE tb_role SET role_code = 'GLOBAL' WHERE role_code = 'SYSTEM_ADMIN';
+UPDATE tb_role SET role_code = 'TENANT' WHERE role_code = 'TENANT_ADMIN';
+-- USER는 변경 없음
+
+ALTER TABLE tb_role DROP CONSTRAINT IF EXISTS chk_role_scope;
+DROP INDEX IF EXISTS idx_role_scope;
+ALTER TABLE tb_role DROP COLUMN IF EXISTS scope_type;
+
+-- 0-2. tenant_id NULL → '0' 마이그레이션
 -- tb_app_settings: NULL → '0' (완료)
 UPDATE tb_app_settings SET tenant_id = '0' WHERE tenant_id IS NULL;
+
+-- tb_code: NULL → '0' (완료)
+UPDATE tb_code SET tenant_id = '0' WHERE tenant_id IS NULL;
 
 -- tb_docs: NULL → '0' (TODO)
 UPDATE tb_docs SET tenant_id = '0' WHERE tenant_id IS NULL;
 
--- tb_app_settings: UNIQUE 제약조건 변경 (TODO)
+-- 0-3. tb_app_settings: UNIQUE 제약조건 변경 (TODO)
 ALTER TABLE tb_app_settings DROP CONSTRAINT app_settings_category_key_key;
 ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
     UNIQUE (category, key, tenant_id);
 ```
 
-### Phase 1: 지식문서 테넌트 격리 (핵심)
+### Phase 1: 지식문서 테넌트 격리 (문서 CRUD)
 
-**영향 범위**: 문서 CRUD + RAG 검색
+**영향 범위**: 문서 CRUD (목록 조회, 생성, 수정, 삭제)
 
 #### 백엔드 수정
 
 | 파일 | 수정 내용 |
 |------|----------|
-| `app/api/services/document_service.py` | `list_documents()`, `create_document()` 등에 tenant_id 필터 추가 |
+| `app/api/services/document_service.py` | `list_documents()`, `save_document()`, `update_document()`, `delete_document()`에 tenant_id 필터/설정 추가 |
 | `app/api/routes/documents.py` | `current_user`에서 tenant_id 추출하여 서비스에 전달 |
-| `app/core/vector/vector_store.py` | `search_similar_documents()`에 tenant_id 필터 조건 추가 |
-| `app/graphs/rag/nodes.py` | `retrieve_documents_node()`에서 request의 tenant_id를 벡터 검색에 전달 |
-| `app/api/services/rag_service.py` | 검색 시 current_user의 tenant_id 전달 |
 
 #### 핵심 변경 패턴
 
@@ -245,12 +280,12 @@ ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
 def list_documents(self, current_user: Optional[UserContext] = None, ...):
     conditions = [...]
 
-    # 테넌트 필터링
-    if current_user and current_user.scope_type == "TENANT":
+    # 역할 기반 테넌트 필터링
+    if current_user and current_user.role_code == "TENANT":
         # 자기 테넌트 + 공용 문서
         conditions.append("tenant_id IN (%s, '0')")
         params.append(str(current_user.tenant_id))
-    elif current_user and current_user.scope_type == "USER":
+    elif current_user and current_user.role_code == "USER":
         conditions.append("tenant_id IN (%s, '0')")
         params.append(str(current_user.tenant_id))
     # GLOBAL: 필터 없음
@@ -258,7 +293,7 @@ def list_documents(self, current_user: Optional[UserContext] = None, ...):
 # document_service.py - create_document()
 def create_document(self, data, current_user: Optional[UserContext] = None, ...):
     # 테넌트관리자 → 자동으로 자기 tenant_id 부여
-    if current_user and current_user.scope_type == "TENANT":
+    if current_user and current_user.role_code == "TENANT":
         data["tenant_id"] = str(current_user.tenant_id)
     # GLOBAL → tenant_id는 요청 데이터에서 선택 ('0'=공용)
 
@@ -278,10 +313,29 @@ def search_similar_documents(self, query, ..., tenant_id=None):
 
 ### Phase 2: 시스템 설정 테넌트 격리
 
+#### 현재 코드 문제점 (`settings_service.py` line 136~142)
+
+```python
+# 현재 UPSERT - tenant_id가 전혀 없음
+INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, updated_at)
+VALUES (%s, %s, %s, %s, %s, %s, NOW())
+ON CONFLICT (category, key)
+DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+```
+
+| 문제 | 설명 |
+|------|------|
+| INSERT에 tenant_id 없음 | 새로 등록 시 DB DEFAULT 값 또는 NULL 저장됨 |
+| ON CONFLICT에 tenant_id 없음 | 같은 category+key면 테넌트 구분 없이 덮어쓰기 |
+| `update_setting()` 파라미터에 tenant_id 없음 | 호출자가 테넌트를 지정할 수 없음 |
+
+**마이그레이션으로 기존 64개 row는 tenant_id='0'이지만, 코드 수정 없이는 테넌트별 설정 불가**
+
 #### 백엔드 수정
 
 | 파일 | 수정 내용 |
 |------|----------|
+| `app/api/services/settings_service.py` | `update_setting()`에 tenant_id 파라미터 추가, UPSERT SQL에 tenant_id 포함 |
 | `app/api/services/settings_service.py` | `get_value()` fallback에 tenant_id 우선순위 적용 |
 | `app/api/routes/settings.py` | 테넌트관리자는 자기 테넌트 설정만 조회/수정 |
 | `app/core/config/settings_config.py` | 테넌트별 설정 캐시 분리 |
@@ -305,17 +359,21 @@ def get_value(self, category, key, default, tenant_id='0'):
         return row['value'] if row else default
 ```
 
-### Phase 3: RAG 검색 + Agent 테넌트 격리
+### Phase 3: RAG/NL2SQL/Agent 검색 테넌트 격리
 
 | 파일 | 수정 내용 |
 |------|----------|
+| `app/core/vector/vector_store.py` | `search_similar_documents()`에 tenant_id 필터 조건 추가 |
+| `app/graphs/rag/nodes.py` | `retrieve_documents_node()`에서 tenant_id를 벡터 검색에 전달 |
+| `app/api/services/rag_service.py` | 검색 시 current_user의 tenant_id 전달 |
 | `app/api/routes/search.py` | `get_optional_user()` → 인증 사용자의 tenant_id 전달 |
 | `app/graphs/agent/tools/rag_tool.py` | Agent의 RAG tool에 tenant_id 전달 |
 | `app/graphs/agent/tools/sql_tool.py` | NL2SQL tool에 tenant_id 조건 자동 주입 (비즈니스 DB) |
+| `app/api/services/nl2sql_service.py` | tenant_id로 설정값 조회 (LLM 모델, temperature 등) |
 
 ### Phase 4: 검색이력 테넌트 격리 보완
 
-**현재 상태**: `list_history()`, `statistics()`, `user_*()` 엔드포인트는 이미 scope 필터 적용됨
+**현재 상태**: `list_history()`, `statistics()`, `user_*()` 엔드포인트는 이미 role_code 기반 필터 적용됨
 
 **보완 대상**: 세션 관련 엔드포인트 + 프론트엔드 테넌트 필터
 
@@ -324,16 +382,39 @@ def get_value(self, category, key, default, tenant_id='0'):
 | 파일 | 수정 내용 |
 |------|----------|
 | `app/api/routes/history.py` | `list_sessions()`에 tenant_id/user_id 추가 + `_apply_scope_filter()` 적용 |
-| `app/api/routes/history.py` | `get_session_history()`에 scope 기반 접근 검증 추가 |
-| `app/api/routes/history.py` | `delete_session_history()`에 scope 기반 접근 검증 추가 |
+| `app/api/routes/history.py` | `get_session_history()`에 역할 기반 접근 검증 추가 |
+| `app/api/routes/history.py` | `delete_session_history()`에 역할 기반 접근 검증 추가 |
 | `app/api/services/history_service.py` | `get_session_list()`, `get_session_list_count()`에 tenant_id/user_id 필터 파라미터 추가 |
+
+**핵심 수정: `list_sessions()`**
+```python
+# 변경 전
+@router.get("/sessions")
+async def list_sessions(search, request_type, limit, offset, current_user):
+    items = history_service.get_session_list(
+        search_query=search, request_type=request_type, ...
+    )
+
+# 변경 후
+@router.get("/sessions")
+async def list_sessions(
+    tenant_id: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    search, request_type, limit, offset, current_user
+):
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    items = history_service.get_session_list(
+        tenant_id=tenant_id, user_id=user_id,
+        search_query=search, request_type=request_type, ...
+    )
+```
 
 #### 프론트엔드
 
 | 파일 | 수정 내용 |
 |------|----------|
-| `frontend/src/views/admin/HistoryView.vue` | GLOBAL scope 사용자에게 테넌트 필터 드롭다운 추가 |
-| `frontend/src/views/admin/HistoryView.vue` | GLOBAL scope일 때 테넌트 컬럼 표시 |
+| `frontend/src/views/admin/HistoryView.vue` | GLOBAL 역할 사용자에게 테넌트 필터 드롭다운 추가 |
+| `frontend/src/views/admin/HistoryView.vue` | GLOBAL 역할일 때 테넌트 컬럼 표시 |
 | `frontend/src/api/history.js` | `list()` 호출 시 tenant_id 파라미터 전달 |
 
 ---
@@ -342,18 +423,88 @@ def get_value(self, category, key, default, tenant_id='0'):
 
 ### 5.1 지식문서 관리 화면
 
+#### 5.1.1 역할별 동작 요약
+
 | 역할 | 문서 목록 | 문서 생성 | 문서 수정/삭제 |
 |------|----------|----------|--------------|
-| 총괄관리자 | 전체 문서 (테넌트 필터 드롭다운) | 공용('0') 또는 특정 테넌트 문서 생성 | 모든 문서 |
-| 테넌트관리자 | 자기 테넌트 + 공용 문서 | 자기 테넌트 문서만 생성 | 자기 테넌트 문서만 |
-| 일반사용자 | (메뉴 접근 불가) | - | - |
+| 총괄관리자 (GLOBAL) | 전체 문서 (테넌트 필터 드롭다운) | 테넌트 선택 필수 (공용 또는 특정 테넌트) | 모든 문서 |
+| 테넌트관리자 (TENANT) | 자기 테넌트 + 공용 문서 | 자기 테넌트 문서만 (자동 부여) | 자기 테넌트 문서만 (공용 문서 수정/삭제 불가) |
+| 일반사용자 (USER) | (메뉴 접근 불가) | - | - |
+
+#### 5.1.2 총괄관리자 문서 관리 UI
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  지식문서 관리                                      [+ 문서 등록] │
+│                                                                  │
+│  필터:                                                           │
+│  ┌──────────────┐ ┌──────────┐ ┌──────────┐                     │
+│  │ 테넌트: 전체 ▼│ │ 유형: 전체│ │ 임베딩상태│                     │
+│  │  ├ 전체       │ └──────────┘ └──────────┘                     │
+│  │  ├ 공용 (0)   │   ← 공용 문서만 필터 가능                      │
+│  │  ├ DEMO       │                                               │
+│  │  ├ 현대A      │                                               │
+│  │  └ 현대B      │                                               │
+│  └──────────────┘                                               │
+│                                                                  │
+│  [테이블: ID | 제목 | 유형 | 테넌트 | 임베딩 | 등록일]             │
+│  │  12 │ 재택근무 규정      │ policy │ 공용   │ O │ 2026-02-01 │  │
+│  │  15 │ 현대A 보수규정     │ policy │ 현대A  │ O │ 2026-02-05 │  │
+│  │  18 │ DEMO FAQ          │ faq    │ DEMO   │ X │ 2026-02-10 │  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**문서 등록/수정 폼 (총괄관리자)**:
+```
+┌──────────────────────────────────────────────────────────┐
+│  문서 등록                                                │
+│                                                          │
+│  소속 테넌트: [공용 (기본) ▼]    ← 필수 선택              │
+│               ├ 공용 (기본)      → tenant_id = '0'       │
+│               ├ DEMO             → tenant_id = '2'       │
+│               ├ 현대A            → tenant_id = '5'       │
+│               └ 현대B            → tenant_id = '6'       │
+│                                                          │
+│  제목:    [____________________________]                  │
+│  유형:    [policy ▼]                                      │
+│  내용:    [____________________________]                  │
+│           [____________________________]                  │
+│                                                          │
+│                               [취소]  [저장]              │
+└──────────────────────────────────────────────────────────┘
+
+* 기본값 = 공용('0')
+* 수정 시: 기존 tenant_id 표시 (변경 가능)
+```
+
+**동작 규칙**:
+1. **목록 조회**: 기본 전체 표시, 테넌트 필터로 특정 테넌트 문서만 조회 가능
+2. **문서 등록**: 소속 테넌트 드롭다운 필수 선택 (기본값: 공용)
+3. **문서 수정**: 소속 테넌트 변경 가능 (공용 ↔ 특정 테넌트 이동)
+4. **문서 삭제**: 모든 문서 삭제 가능
+
+#### 5.1.3 테넌트관리자 문서 관리 UI
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  지식문서 관리  (DEMO 테넌트)                        [+ 문서 등록] │
+│                                                                  │
+│  [테이블: ID | 제목 | 유형 | 소속 | 임베딩 | 등록일 | 액션]       │
+│  │  12 │ 재택근무 규정   │ policy │ 공용 │ O │ 2026-02-01 │ -    │  ← 공용: 수정/삭제 불가
+│  │  18 │ DEMO FAQ        │ faq    │ DEMO │ X │ 2026-02-10 │ ✎ ✕ │  ← 자기 테넌트: 수정/삭제 가능
+└──────────────────────────────────────────────────────────────────┘
+
+* 테넌트 필터 없음 (자기 테넌트 + 공용만 표시)
+* 문서 등록 시: tenant_id 자동 부여 (자기 테넌트), 선택 불가
+* 공용 문서(tenant_id='0'): 읽기 전용 (수정/삭제 버튼 없음)
+```
 
 ### 5.2 시스템 설정 화면
 
 | 역할 | 설정 조회 | 설정 수정 |
 |------|----------|----------|
-| 총괄관리자 | 전역 설정 + 테넌트별 설정 (드롭다운 전환) | 전역 설정 수정, 테넌트별 설정 수정 |
-| 테넌트관리자 | 자기 테넌트 설정 (전역 설정은 읽기 전용) | 자기 테넌트 설정만 수정 |
+| 총괄관리자 (GLOBAL) | 전역 설정 + 테넌트별 설정 (드롭다운 전환) | 전역 설정 수정, 테넌트별 설정 수정 |
+| 테넌트관리자 (TENANT) | 자기 테넌트 설정 (전역 설정은 읽기 전용) | 자기 테넌트 설정만 수정 |
 
 #### 5.2.1 총괄관리자 설정 화면 UX
 
@@ -424,6 +575,17 @@ def get_value(self, category, key, default, tenant_id='0'):
 - 전역 기본값 컬럼은 읽기 전용 (수정 불가, 회색 텍스트)
 - 자기 테넌트 설정만 생성/수정/삭제 가능
 
+**주의: SYS_SETTING 메뉴 권한 추가 필요**
+- 현재 DB에 TENANT 역할에 SYS_SETTING 메뉴가 부여되어 있지 않음
+- Phase 2 구현 시 `tb_user_menu`에 TENANT 역할 사용자에게 SYS_SETTING (read, update) 권한 추가 필요
+```sql
+-- Phase 2 마이그레이션: 테넌트관리자에 설정 메뉴 부여
+INSERT INTO tb_user_menu (user_id, menu_code, can_create, can_read, can_update, can_delete)
+SELECT u.user_id, 'SYS_SETTING', false, true, true, false
+FROM tb_user u JOIN tb_role r ON u.role_id = r.role_id
+WHERE r.role_code = 'TENANT';
+```
+
 #### 5.2.3 설정 API 변경
 
 ```
@@ -467,9 +629,9 @@ def get_value(self, category, key, default, tenant_id='0'):
 
 | 역할 | 접근 |
 |------|------|
-| 총괄관리자 | CODE_MGMT 메뉴 부여 → 전체 코드 CRUD |
-| 테넌트관리자 | CODE_MGMT 메뉴 **미부여** → 접근 불가 |
-| 일반사용자 | 접근 불가 |
+| 총괄관리자 (GLOBAL) | CODE_MGMT 메뉴 부여 → 전체 코드 CRUD |
+| 테넌트관리자 (TENANT) | CODE_MGMT 메뉴 **미부여** → 접근 불가 |
+| 일반사용자 (USER) | 접근 불가 |
 
 **사유**: 코드는 "선택 가능한 목록"을 정의하는 시스템 마스터 데이터이므로 전역 관리
 
@@ -477,20 +639,20 @@ def get_value(self, category, key, default, tenant_id='0'):
 
 #### 5.4.1 현재 상태
 
-| 엔드포인트 | scope 필터 | 비고 |
+| 엔드포인트 | 역할 필터 | 비고 |
 |-----------|:---:|------|
 | `GET /history` (목록) | **O** | `_apply_scope_filter()` 적용 |
 | `GET /history/statistics` (통계) | **O** | `_apply_scope_filter()` 적용 |
-| `GET /history/users/{id}` (사용자 요약) | **O** | USER scope → 본인만 |
-| `GET /history/users/{id}/history` (사용자 이력) | **O** | USER scope → 본인만 |
+| `GET /history/users/{id}` (사용자 요약) | **O** | USER 역할 → 본인만 |
+| `GET /history/users/{id}/history` (사용자 이력) | **O** | USER 역할 → 본인만 |
 | `GET /history/sessions` (세션 목록) | **X** | tenant_id/user_id 미전달 |
-| `GET /history/sessions/{key}` (세션 상세) | **X** | scope 필터 없음 |
-| `DELETE /history/sessions/{key}` (세션 삭제) | **X** | scope 필터 없음 |
+| `GET /history/sessions/{key}` (세션 상세) | **X** | 역할 필터 없음 |
+| `DELETE /history/sessions/{key}` (세션 삭제) | **X** | 역할 필터 없음 |
 | `DELETE /history/cleanup` (정리) | O | 메뉴 권한 (SEARCH_HIST, delete) |
 
 **문제점**:
 1. `list_sessions()`: tenant_id/user_id를 서비스에 전달하지 않아 전체 세션 노출
-2. `get_session_history()`, `delete_session_history()`: scope 필터 미적용
+2. `get_session_history()`, `delete_session_history()`: 역할 필터 미적용
 3. 프론트엔드: 총괄관리자용 **테넌트 필터 드롭다운** 없음
 
 #### 5.4.2 백엔드 수정 사항
@@ -498,38 +660,15 @@ def get_value(self, category, key, default, tenant_id='0'):
 | 파일 | 수정 내용 |
 |------|----------|
 | `app/api/routes/history.py` | `list_sessions()`에 tenant_id/user_id 파라미터 추가 + `_apply_scope_filter()` 적용 |
-| `app/api/routes/history.py` | `get_session_history()`에 scope 필터 추가 (세션의 tenant_id 검증) |
-| `app/api/routes/history.py` | `delete_session_history()`에 scope 필터 추가 |
+| `app/api/routes/history.py` | `get_session_history()`에 역할 기반 접근 검증 추가 |
+| `app/api/routes/history.py` | `delete_session_history()`에 역할 기반 접근 검증 추가 |
 | `app/api/services/history_service.py` | `get_session_list()`에 tenant_id/user_id 파라미터 추가 |
-
-**핵심 수정: `list_sessions()`**
-```python
-# 변경 전
-@router.get("/sessions")
-async def list_sessions(search, request_type, limit, offset, current_user):
-    items = history_service.get_session_list(
-        search_query=search, request_type=request_type, ...
-    )
-
-# 변경 후
-@router.get("/sessions")
-async def list_sessions(
-    tenant_id: Optional[str] = Query(None),
-    user_id: Optional[str] = Query(None),
-    search, request_type, limit, offset, current_user
-):
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
-    items = history_service.get_session_list(
-        tenant_id=tenant_id, user_id=user_id,
-        search_query=search, request_type=request_type, ...
-    )
-```
 
 #### 5.4.3 프론트엔드 수정 사항
 
 | 파일 | 수정 내용 |
 |------|----------|
-| `frontend/src/views/admin/HistoryView.vue` | 총괄관리자(GLOBAL)인 경우 테넌트 필터 드롭다운 추가 |
+| `frontend/src/views/admin/HistoryView.vue` | GLOBAL 역할인 경우 테넌트 필터 드롭다운 추가 |
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -540,27 +679,27 @@ async def list_sessions(
 │  │ 테넌트: 전체 ▼│ │ 타입: 전체│ │ 성공/실패 │ │ 날짜범위         ││
 │  │  ├ 전체       │ └──────────┘ └──────────┘ └──────────────────┘│
 │  │  ├ DEMO       │                                               │
-│  │  ├ 현대A      │   ← GLOBAL scope일 때만 표시                  │
+│  │  ├ 현대A      │   ← GLOBAL 역할일 때만 표시                   │
 │  │  └ 현대B      │                                               │
 │  └──────────────┘                                               │
 │                                                                  │
 │  [테이블: ID | 질문 | 요청ID | 타입 | 사용자 | 테넌트 | 성공 | 시간]│
-│  ※ 테넌트 컬럼도 GLOBAL scope일 때만 표시                         │
+│  ※ 테넌트 컬럼도 GLOBAL 역할일 때만 표시                          │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 **표시 규칙**:
-- 총괄관리자(GLOBAL): 테넌트 필터 드롭다운 + 테넌트 컬럼 표시
-- 테넌트관리자(TENANT): 테넌트 필터 없음 (자기 테넌트 고정), 테넌트 컬럼 숨김
-- 일반사용자(USER): 본인 이력만 표시
+- 총괄관리자 (GLOBAL): 테넌트 필터 드롭다운 + 테넌트 컬럼 표시
+- 테넌트관리자 (TENANT): 테넌트 필터 없음 (자기 테넌트 고정), 테넌트 컬럼 숨김
+- 일반사용자 (USER): 본인 이력만 표시
 
 #### 5.4.4 역할별 동작 정의
 
 | 역할 | 이력 목록 | 통계 | 세션 조회 | 이력 삭제 |
 |------|----------|------|----------|----------|
-| 총괄관리자 | 전체 이력 (테넌트 필터 드롭다운) | 전체 통계 | 전체 세션 | 모든 이력 |
-| 테넌트관리자 | 자기 테넌트 이력만 | 자기 테넌트 통계 | 자기 테넌트 세션만 | 자기 테넌트 이력만 |
-| 일반사용자 | 본인 이력만 | 본인 통계 | 본인 세션만 | 본인 이력만 |
+| 총괄관리자 (GLOBAL) | 전체 이력 (테넌트 필터 드롭다운) | 전체 통계 | 전체 세션 | 모든 이력 |
+| 테넌트관리자 (TENANT) | 자기 테넌트 이력만 | 자기 테넌트 통계 | 자기 테넌트 세션만 | 자기 테넌트 이력만 |
+| 일반사용자 (USER) | 본인 이력만 | 본인 통계 | 본인 세션만 | 본인 이력만 |
 
 ### 5.5 채팅 검색 (RAG / NL2SQL / Agent)
 
@@ -580,10 +719,10 @@ async def list_sessions(
 
 | 역할 | 기본 컨텍스트 | 테넌트 선택 | RAG 검색 범위 | NL2SQL 설정 |
 |------|:---:|:---:|------------|-----------|
-| 총괄관리자 | **공용('0')** | O (드롭다운) | 공용 문서만 | 전역 설정('0') |
+| 총괄관리자 (GLOBAL) | **공용('0')** | O (드롭다운) | 공용 문서만 | 전역 설정('0') |
 | 총괄관리자 (테넌트 선택 시) | 선택된 테넌트 | O | 선택 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
-| 테넌트관리자 | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
-| 일반사용자 | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
+| 테넌트관리자 (TENANT) | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
+| 일반사용자 (USER) | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
 
 #### 5.5.3 관리자 채팅 UI
 
@@ -629,8 +768,8 @@ async def list_sessions(
 
 | 역할 | 사용자 목록 | 사용자 생성 | 역할/테넌트 선택 |
 |------|-----------|-----------|---------------|
-| 총괄관리자 | 전체 사용자 (테넌트 필터) | 모든 역할/테넌트 선택 가능 | 모든 옵션 표시 |
-| 테넌트관리자 | 자기 테넌트 사용자만 | TENANT_ADMIN, USER만 | 자기 테넌트 고정 |
+| 총괄관리자 (GLOBAL) | 전체 사용자 (테넌트 필터) | 모든 역할/테넌트 선택 가능 | 모든 옵션 표시 |
+| 테넌트관리자 (TENANT) | 자기 테넌트 사용자만 | TENANT, USER만 | 자기 테넌트 고정 |
 
 ---
 
@@ -649,7 +788,7 @@ async def list_sessions(
 
 ```
 tb_tenant (1) ──┬── (N) tb_user
-                │          ├── tb_user.role_id → tb_role (1:N)
+                │          ├── tb_user.role_id → tb_role (1:N, role_code=GLOBAL/TENANT/USER)
                 │          └── tb_user_menu (사용자별 메뉴 CRUD)
                 │
                 ├── (N) tb_docs          (tenant_id: varchar, '0'=공용)
@@ -669,17 +808,50 @@ ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
     UNIQUE (category, key, tenant_id);
 ```
 
+### 6.4 tb_role 스키마 변경 (scope_type 제거)
+
+```sql
+-- 변경 전
+CREATE TABLE tb_role (
+    role_id SERIAL PRIMARY KEY,
+    role_code VARCHAR(50) UNIQUE NOT NULL,    -- SYSTEM_ADMIN, TENANT_ADMIN, USER
+    role_name VARCHAR(100) NOT NULL,
+    scope_type VARCHAR(20) NOT NULL,          -- GLOBAL, TENANT, USER (제거 대상)
+    landing_page VARCHAR(200),
+    is_system BOOLEAN DEFAULT false,
+    ...
+);
+
+-- 변경 후
+CREATE TABLE tb_role (
+    role_id SERIAL PRIMARY KEY,
+    role_code VARCHAR(50) UNIQUE NOT NULL,    -- GLOBAL, TENANT, USER (scope 겸용)
+    role_name VARCHAR(100) NOT NULL,
+    -- scope_type 제거: role_code가 데이터 범위를 직접 결정
+    landing_page VARCHAR(200),
+    is_system BOOLEAN DEFAULT false,
+    ...
+);
+
+-- 마이그레이션
+UPDATE tb_role SET role_code = 'GLOBAL' WHERE role_code = 'SYSTEM_ADMIN';
+UPDATE tb_role SET role_code = 'TENANT' WHERE role_code = 'TENANT_ADMIN';
+ALTER TABLE tb_role DROP CONSTRAINT IF EXISTS chk_role_scope;
+DROP INDEX IF EXISTS idx_role_scope;
+ALTER TABLE tb_role DROP COLUMN IF EXISTS scope_type;
+```
+
 ---
 
 ## 7. 구현 우선순위
 
 | 순서 | Phase | 난이도 | 영향도 | 비고 |
 |:---:|-------|:---:|:---:|------|
-| 0 | 데이터 마이그레이션 | 낮음 | - | NULL → '0' 변환, UNIQUE 변경 |
+| 0 | 데이터 마이그레이션 + scope_type 제거 | 낮음 | - | role_code 변경, scope_type 삭제, NULL → '0', UNIQUE 변경 |
 | 1 | 지식문서 테넌트 격리 | 중 | **높음** | 문서 CRUD + RAG 검색 |
 | 2 | 시스템 설정 테넌트 격리 | 중 | 중 | fallback chain 변경 |
 | 3 | RAG/Agent 검색 격리 | 중 | **높음** | 벡터 검색 + Agent tool |
-| 4 | 검색이력 테넌트 격리 보완 | **낮음** | 중 | 세션 엔드포인트 scope 보완 + 프론트 필터 |
+| 4 | 검색이력 테넌트 격리 보완 | **낮음** | 중 | 세션 엔드포인트 역할 필터 보완 + 프론트 필터 |
 
 ---
 
@@ -700,7 +872,8 @@ ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
 
 3. RAG 검색
    → 테넌트관리자가 검색: 공용('0') + 자기 테넌트('2') 문서에서만 검색
-   → 총괄관리자가 검색: 전체 문서에서 검색
+   → 총괄관리자가 기본 검색: 공용('0') 문서에서만 검색
+   → 총괄관리자가 테넌트 선택 후 검색: 해당 테넌트 + 공용('0') 문서에서 검색
 ```
 
 ### 8.2 설정 격리 검증
@@ -712,3 +885,65 @@ ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
 4. 테넌트 B 사용자가 검색 → gpt-4o 사용 (전역 설정 '0' fallback)
 5. 테넌트 A 관리자가 오버라이드 삭제 → gpt-4o 사용 (전역 복원)
 ```
+
+---
+
+## 부록 A: scope_type 제거 코드 리팩토링 계획
+
+> Phase 0 마이그레이션과 함께 수행하는 코드 변경 목록
+
+### A.1 DB 마이그레이션
+
+**파일**: `docs/sql/migration_role_scope.sql` (신규)
+```sql
+-- role_code 변경
+UPDATE tb_role SET role_code = 'GLOBAL' WHERE role_code = 'SYSTEM_ADMIN';
+UPDATE tb_role SET role_code = 'TENANT' WHERE role_code = 'TENANT_ADMIN';
+
+-- scope_type 컬럼 삭제
+ALTER TABLE tb_role DROP CONSTRAINT IF EXISTS chk_role_scope;
+DROP INDEX IF EXISTS idx_role_scope;
+ALTER TABLE tb_role DROP COLUMN IF EXISTS scope_type;
+```
+
+**파일**: `docs/sql/tb_user_permission.sql` (수정)
+- `tb_role` 테이블 정의에서 `scope_type` 컬럼, CHECK, INDEX 제거
+- INSERT문: `SYSTEM_ADMIN` → `GLOBAL`, `TENANT_ADMIN` → `TENANT`
+
+### A.2 Backend 모델 (4개 파일)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `app/models/auth.py` | `UserInfo`, `UserContext`에서 `scope_type` 필드 제거. `is_global`/`is_tenant_scope`/`is_user_scope` property를 `role_code` 기반으로 변경 |
+| `app/models/user.py` | `RoleSimple`, `RoleCreate`, `RoleUpdate`, `RoleResponse`에서 `scope_type` 필드 및 validator 제거 |
+| `app/core/security/jwt.py` | `TokenPayload`에서 `scope_type` 필드 제거 |
+| `app/core/security/dependencies.py` | UserContext 생성 시 `scope_type=` 제거 |
+
+### A.3 Backend 서비스/라우트 (6개 파일)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `app/api/services/auth_service.py` | 토큰/UserInfo 생성에서 `scope_type` 제거, SQL에서 `r.scope_type` 제거 |
+| `app/api/services/role_service.py` | SQL에서 `scope_type` 제거, `_DEFAULT_MENUS` 키: `SYSTEM_ADMIN` → `GLOBAL`, `TENANT_ADMIN` → `TENANT` |
+| `app/api/services/user_service.py` | `scope_type` → `role_code` 비교, SQL에서 `scope_type` 제거 |
+| `app/api/routes/history.py` | `_apply_scope_filter()`에서 `scope_type` → `role_code` |
+| `app/api/routes/auth.py` | UserInfo 생성에서 `scope_type=` 제거 |
+| `app/middleware/auth.py` | UserContext 생성에서 `scope_type=` 제거 |
+
+### A.4 Frontend (4개 파일)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `frontend/src/store/modules/auth.js` | `scopeType` getter 제거 또는 `roleCode` getter로 대체 |
+| `frontend/src/views/admin/RolesView.vue` | scope_type 컬럼/폼/함수 제거 |
+| `frontend/src/views/admin/UsersView.vue` | `role.scope_type` → `role.role_code` 참조 변경 |
+| `frontend/src/components/layout/AppHeader.vue` | 역할명 매핑: `SYSTEM_ADMIN` → `GLOBAL`, `TENANT_ADMIN` → `TENANT` |
+
+### A.5 테스트 (4개 파일)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `tests/test_security.py` | `SYSTEM_ADMIN` → `GLOBAL`, `scope_type` 제거 |
+| `tests/test_models.py` | scope_type 관련 테스트 제거, role_code 값 변경 |
+| `tests/test_user_management.py` | `SYSTEM_ADMIN` → `GLOBAL`, `TENANT_ADMIN` → `TENANT`, `scope_type` 제거 |
+| `tests/test_auth_service.py` | `scope_type` assertion 제거 |

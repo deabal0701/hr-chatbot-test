@@ -19,10 +19,10 @@ class UserService:
     """사용자 관리 비즈니스 로직 (v2.0)"""
 
     def _check_scope_access(self, target_tenant_id: Optional[int], current_user: UserContext) -> None:
-        """scope_type에 따른 접근 범위 검증"""
+        """role_code에 따른 접근 범위 검증"""
         if current_user.is_global:
             return
-        if current_user.scope_type == "TENANT":
+        if current_user.role_code == "TENANT":
             if target_tenant_id != current_user.tenant_id:
                 raise APIException(ErrorCode.FORBIDDEN, "다른 테넌트의 데이터에 접근할 수 없습니다")
             return
@@ -33,8 +33,8 @@ class UserService:
         conditions = []
         params: list = []
 
-        # scope 제한
-        if current_user.scope_type == "TENANT":
+        # scope 제한 (role_code 기반)
+        if current_user.role_code == "TENANT":
             conditions.append("u.tenant_id = %s")
             params.append(current_user.tenant_id)
         elif not current_user.is_global:
@@ -62,7 +62,7 @@ class UserService:
             cur.execute(
                 f"SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 f"t.tenant_name, u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
-                f"r.role_id, r.role_code, r.role_name, r.scope_type, r.landing_page, "
+                f"r.role_id, r.role_code, r.role_name, r.landing_page, "
                 f"(SELECT COUNT(*) FROM tb_user_menu um WHERE um.user_id = u.user_id) as menu_count "
                 f"FROM tb_user u "
                 f"LEFT JOIN tb_tenant t ON u.tenant_id = t.tenant_id "
@@ -80,12 +80,11 @@ class UserService:
                 "role_id": user.pop("role_id"),
                 "role_code": user.pop("role_code"),
                 "role_name": user.pop("role_name"),
-                "scope_type": user.pop("scope_type"),
                 "landing_page": user.pop("landing_page"),
             } if user.get("role_id") else None
             items.append(user)
 
-        log_step(logger, request_id, "USER", "1", "LIST", "사용자 목록 조회", total=total, scope=current_user.scope_type)
+        log_step(logger, request_id, "USER", "1", "LIST", "사용자 목록 조회", total=total, role=current_user.role_code)
         return {"total": total, "items": items, "limit": limit, "offset": offset}
 
     def get_user(self, user_id: int, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
@@ -94,7 +93,7 @@ class UserService:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 "t.tenant_name, u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
-                "r.role_id, r.role_code, r.role_name, r.scope_type, r.landing_page, "
+                "r.role_id, r.role_code, r.role_name, r.landing_page, "
                 "(SELECT COUNT(*) FROM tb_user_menu um WHERE um.user_id = u.user_id) as menu_count "
                 "FROM tb_user u "
                 "LEFT JOIN tb_tenant t ON u.tenant_id = t.tenant_id "
@@ -118,7 +117,6 @@ class UserService:
             "role_id": user.pop("role_id"),
             "role_code": user.pop("role_code"),
             "role_name": user.pop("role_name"),
-            "scope_type": user.pop("scope_type"),
             "landing_page": user.pop("landing_page"),
         } if user.get("role_id") else None
 
@@ -127,9 +125,9 @@ class UserService:
 
     def create_user(self, data: Dict[str, Any], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """사용자 생성 (v2.0: role_id 단일 + 메뉴 권한)"""
-        # TENANT scope → 자기 테넌트로 강제
+        # TENANT role → 자기 테넌트로 강제
         tenant_id = data.get("tenant_id")
-        if current_user.scope_type == "TENANT":
+        if current_user.role_code == "TENANT":
             tenant_id = current_user.tenant_id
 
         password_hashed = hash_password(data["password"])
@@ -303,7 +301,7 @@ class UserService:
     def get_role_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """역할 선택 옵션 (드롭다운용 경량 데이터)"""
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT role_id, role_code, role_name, scope_type FROM tb_role ORDER BY sort_order, role_id")
+            cur.execute("SELECT role_id, role_code, role_name FROM tb_role ORDER BY sort_order, role_id")
             rows = cur.fetchall()
         items = [dict(row) for row in rows]
         log_step(logger, request_id, "USER", "OPT", "ROLES", "역할 옵션 조회", total=len(items))
@@ -313,7 +311,7 @@ class UserService:
         """테넌트 선택 옵션 (드롭다운용 경량 데이터)"""
         conditions = ["t.is_active = true"]
         params: list = []
-        if current_user.scope_type == "TENANT":
+        if current_user.role_code == "TENANT":
             conditions.append("t.tenant_id = %s")
             params.append(current_user.tenant_id)
         where_clause = " AND ".join(conditions)

@@ -65,14 +65,13 @@ def test_all():
         from app.core.security.jwt import create_access_token, create_refresh_token, verify_token, TokenPayload
         from app.core.errors import APIException
 
-        # 2-1. Access Token 생성 (v2.0: role_code, scope_type)
+        # 2-1. Access Token 생성 (v3.0: role_code가 데이터 범위 겸용)
         token_data = {
             "sub": "1",
             "login_id": "admin",
             "display_name": "시스템 관리자",
             "tenant_id": None,
-            "scope_type": "GLOBAL",
-            "role_code": "SYSTEM_ADMIN",
+            "role_code": "GLOBAL",
             "is_superuser": True,
         }
         access_token = create_access_token(token_data)
@@ -84,8 +83,7 @@ def test_all():
         assert isinstance(payload, TokenPayload)
         assert payload.sub == "1"
         assert payload.login_id == "admin"
-        assert payload.scope_type == "GLOBAL"
-        assert payload.role_code == "SYSTEM_ADMIN"
+        assert payload.role_code == "GLOBAL"
         assert payload.token_type == "access"
         assert payload.is_superuser is True
         ok(f"verify_token: sub={payload.sub}, role_code={payload.role_code}, type={payload.token_type}")
@@ -177,14 +175,13 @@ def test_all():
         from app.core.security.jwt import create_access_token, verify_token
         from app.models.auth import UserContext
 
-        # 5-1. SYSTEM_ADMIN UserContext
+        # 5-1. GLOBAL UserContext
         token = create_access_token({
             "sub": "1",
             "login_id": "admin",
             "display_name": "시스템 관리자",
             "tenant_id": None,
-            "scope_type": "GLOBAL",
-            "role_code": "SYSTEM_ADMIN",
+            "role_code": "GLOBAL",
             "is_superuser": True,
         })
         payload = verify_token(token)
@@ -194,22 +191,19 @@ def test_all():
             display_name=payload.display_name,
             tenant_id=payload.tenant_id,
             is_superuser=payload.is_superuser,
-            scope_type=payload.scope_type,
             role_code=payload.role_code,
         )
         assert user_ctx.is_global is True
         assert user_ctx.is_superuser is True
-        assert user_ctx.role_code == "SYSTEM_ADMIN"
-        assert user_ctx.scope_type == "GLOBAL"
-        ok(f"SYSTEM_ADMIN: is_global={user_ctx.is_global}, role_code={user_ctx.role_code}")
+        assert user_ctx.role_code == "GLOBAL"
+        ok(f"GLOBAL: is_global={user_ctx.is_global}, role_code={user_ctx.role_code}")
 
-        # 5-2. TENANT_ADMIN UserContext
+        # 5-2. TENANT UserContext
         tenant_token = create_access_token({
             "sub": "2",
             "login_id": "tenant_admin",
             "tenant_id": 1,
-            "scope_type": "TENANT",
-            "role_code": "TENANT_ADMIN",
+            "role_code": "TENANT",
             "is_superuser": False,
         })
         t_payload = verify_token(tenant_token)
@@ -218,20 +212,18 @@ def test_all():
             login_id=t_payload.login_id,
             tenant_id=t_payload.tenant_id,
             is_superuser=t_payload.is_superuser,
-            scope_type=t_payload.scope_type,
             role_code=t_payload.role_code,
         )
         assert tenant_user.is_global is False
         assert tenant_user.is_tenant_scope is True
-        assert tenant_user.role_code == "TENANT_ADMIN"
-        ok(f"TENANT_ADMIN: is_tenant_scope={tenant_user.is_tenant_scope}, tenant_id={tenant_user.tenant_id}")
+        assert tenant_user.role_code == "TENANT"
+        ok(f"TENANT: is_tenant_scope={tenant_user.is_tenant_scope}, tenant_id={tenant_user.tenant_id}")
 
         # 5-3. USER UserContext
         normal_token = create_access_token({
             "sub": "3",
             "login_id": "user01",
             "tenant_id": 1,
-            "scope_type": "USER",
             "role_code": "USER",
             "is_superuser": False,
         })
@@ -241,7 +233,6 @@ def test_all():
             login_id=n_payload.login_id,
             tenant_id=n_payload.tenant_id,
             is_superuser=n_payload.is_superuser,
-            scope_type=n_payload.scope_type,
             role_code=n_payload.role_code,
         )
         assert normal_user.is_global is False
@@ -298,13 +289,13 @@ def test_all():
         assert menu.can_create is False
         ok("MenuPermission: DASHBOARD with CRUD flags")
 
-        # 6-4. UserInfo (v2.0: role_code, landing_page, menus)
+        # 6-4. UserInfo (v3.0: role_code가 데이터 범위 겸용)
         user_info = UserInfo(
             user_id=1, login_id="admin", display_name="시스템 관리자",
-            tenant_id=None, role_code="SYSTEM_ADMIN",
-            scope_type="GLOBAL", landing_page="/admin/dashboard", menus=[menu],
+            tenant_id=None, role_code="GLOBAL",
+            landing_page="/admin/dashboard", menus=[menu],
         )
-        assert user_info.role_code == "SYSTEM_ADMIN"
+        assert user_info.role_code == "GLOBAL"
         assert len(user_info.menus) == 1
         ok(f"UserInfo: role_code={user_info.role_code}, menus={len(user_info.menus)}")
 
@@ -364,10 +355,9 @@ def test_all():
                 user_info = auth_service.get_user_with_permissions(admin["user_id"], "test-sec")
                 assert user_info["login_id"] == "admin"
                 assert "role_code" in user_info
-                assert "scope_type" in user_info
                 assert "landing_page" in user_info
                 assert isinstance(user_info["menus"], list)
-                ok(f"get_user_with_permissions: role_code={user_info['role_code']}, menus={len(user_info['menus'])}, scope={user_info['scope_type']}")
+                ok(f"get_user_with_permissions: role_code={user_info['role_code']}, menus={len(user_info['menus'])}")
             except Exception as e:
                 fail(f"get_user_with_permissions: {e}")
 

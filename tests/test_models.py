@@ -170,28 +170,17 @@ def test_all():
     except Exception as e:
         fail(f"UserCreate with menus: {e}")
 
-    # 6-5. RoleCreate scope_type auto-uppercase
+    # 6-5. RoleCreate (v3.0: scope_type 제거)
     try:
         from app.models.user import RoleCreate
         r = RoleCreate(
-            role_code="TEST_ROLE", role_name="테스트",
-            scope_type="tenant"
+            role_code="TEST_ROLE", role_name="테스트"
         )
-        assert r.scope_type == "TENANT"
-        ok("RoleCreate: scope_type auto-uppercase passed")
+        assert r.role_code == "TEST_ROLE"
+        assert r.landing_page == "/chat"  # default
+        ok("RoleCreate: basic validation passed (no scope_type)")
     except Exception as e:
         fail(f"RoleCreate validation: {e}")
-
-    # 6-6. RoleCreate invalid scope_type
-    try:
-        from app.models.user import RoleCreate
-        try:
-            RoleCreate(role_code="BAD", role_name="Bad", scope_type="INVALID")
-            fail("RoleCreate: invalid scope_type should raise ValueError")
-        except ValueError:
-            ok("RoleCreate: invalid scope_type raises ValueError")
-    except Exception as e:
-        fail(f"RoleCreate scope_type validation: {e}")
 
     # 6-7. MenuCreate validation
     try:
@@ -240,13 +229,12 @@ def test_all():
     except Exception as e:
         fail(f"UserMenuAssign empty: {e}")
 
-    # 6-11. UserContext (v2.0)
+    # 6-11. UserContext (v3.0: scope_type 제거, role_code가 데이터 범위 겸용)
     try:
         from app.models.auth import UserContext
         ctx = UserContext(
             user_id=1, login_id="admin",
-            is_superuser=True, role_code="SYSTEM_ADMIN",
-            scope_type="GLOBAL"
+            is_superuser=True, role_code="GLOBAL"
         )
         assert ctx.is_global is True
         assert ctx.is_tenant_scope is False
@@ -255,8 +243,7 @@ def test_all():
 
         ctx2 = UserContext(
             user_id=2, login_id="tenant_admin",
-            tenant_id=1, role_code="TENANT_ADMIN",
-            scope_type="TENANT"
+            tenant_id=1, role_code="TENANT"
         )
         assert ctx2.is_global is False
         assert ctx2.is_tenant_scope is True

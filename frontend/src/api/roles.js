@@ -81,7 +81,7 @@ const rolesApi = {
 
   /**
    * 역할별 기본 메뉴 권한 조회
-   * @param {string} roleCode - 역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)
+   * @param {string} roleCode - 역할 코드 (GLOBAL, TENANT, USER)
    * @returns {Promise<Array>} 기본 메뉴 권한 목록
    */
   async getDefaultMenus(roleCode) {

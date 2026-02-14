@@ -58,7 +58,7 @@ async def get_me(request: Request, current_user: UserContext = Depends(get_curre
         display_name=user_data["display_name"],
         tenant_id=user_data["tenant_id"],
         role_code=user_data["role_code"],
-        scope_type=user_data["scope_type"],
+        role_name=user_data.get("role_name", ""),
         landing_page=user_data["landing_page"],
         menus=user_data["menus"],
     )

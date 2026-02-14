@@ -23,12 +23,12 @@ router = APIRouter(prefix="/api/v1/history", tags=["history"])
 
 
 def _apply_scope_filter(current_user: Optional[UserContext], tenant_id: Optional[str], user_id: Optional[str]):
-    """scope_type에 따라 tenant_id/user_id 필터를 강제 적용 (Phase 3a: 미인증 시 skip)"""
+    """role_code에 따라 tenant_id/user_id 필터를 강제 적용 (Phase 3a: 미인증 시 skip)"""
     if not current_user:
         return tenant_id, user_id
-    if current_user.scope_type == "TENANT":
+    if current_user.role_code == "TENANT":
         tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
-    elif current_user.scope_type == "USER":
+    elif current_user.role_code == "USER":
         tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
         user_id = str(current_user.user_id)
     return tenant_id, user_id
@@ -122,7 +122,7 @@ async def get_user_summary(
 ):
     """사용자별 이력 요약 (본인 또는 scope 범위 내)"""
     # USER scope → 본인 이력만
-    if current_user and current_user.scope_type == "USER" and str(current_user.user_id) != user_id:
+    if current_user and current_user.role_code == "USER" and str(current_user.user_id) != user_id:
         raise APIException(ErrorCode.FORBIDDEN, "본인의 이력만 조회할 수 있습니다")
     tenant_id, _ = _apply_scope_filter(current_user, tenant_id, None)
     try:
@@ -146,7 +146,7 @@ async def get_user_history(
     current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
     """사용자별 이력 상세 조회 (본인 또는 scope 범위 내)"""
-    if current_user and current_user.scope_type == "USER" and str(current_user.user_id) != user_id:
+    if current_user and current_user.role_code == "USER" and str(current_user.user_id) != user_id:
         raise APIException(ErrorCode.FORBIDDEN, "본인의 이력만 조회할 수 있습니다")
     tenant_id, _ = _apply_scope_filter(current_user, tenant_id, None)
     try:

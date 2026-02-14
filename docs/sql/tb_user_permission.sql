@@ -1,13 +1,13 @@
 -- ============================================================
--- 사용자 및 메뉴 기반 권한 관리 테이블 DDL (v2.0)
+-- 사용자 및 메뉴 기반 권한 관리 테이블 DDL (v3.0)
 -- 파일: docs/sql/tb_user_permission.sql
 -- 작성일: 2026-02-06
 -- 수정일: 2026-02-14
--- 변경: permission 코드 기반 → 메뉴 기반 권한 관리 체계 전면 전환
+-- 변경: scope_type 제거, role_code가 데이터 범위를 직접 결정 (GLOBAL/TENANT/USER)
 --
 -- 테이블 구성 (6개):
 --   tb_tenant       : 테넌트(고객사)
---   tb_role         : 역할 (scope_type + landing_page)
+--   tb_role         : 역할 (role_code가 데이터 범위 겸용)
 --   tb_user         : 사용자 (role_id FK 직접 보유, 1:N)
 --   tb_menu         : 메뉴 트리 (parent_menu_id 자기참조)
 --   tb_user_menu    : 사용자별 메뉴 CRUD 권한 (★ 유일한 권한 체크 테이블)
@@ -59,25 +59,20 @@ CREATE INDEX idx_tenant_active ON tb_tenant(is_active);
 -- ==========================================
 CREATE TABLE tb_role (
     role_id         BIGSERIAL PRIMARY KEY,
-    role_code       VARCHAR(50) UNIQUE NOT NULL,    -- SYSTEM_ADMIN, TENANT_ADMIN, USER
+    role_code       VARCHAR(50) UNIQUE NOT NULL,    -- GLOBAL, TENANT, USER (데이터 범위 겸용)
     role_name       VARCHAR(100) NOT NULL,
     description     TEXT,
-    scope_type      VARCHAR(20) NOT NULL,           -- GLOBAL, TENANT, USER (데이터 범위)
     landing_page    VARCHAR(200) NOT NULL DEFAULT '/chat',  -- 로그인 후 랜딩 페이지
     is_system       BOOLEAN DEFAULT false,          -- 시스템 기본 역할 (삭제 불가)
     sort_order      INT DEFAULT 0,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT chk_role_scope CHECK (scope_type IN ('GLOBAL', 'TENANT', 'USER'))
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 COMMENT ON TABLE tb_role IS '역할 정의';
-COMMENT ON COLUMN tb_role.role_code IS '역할 코드 (시스템 내부 식별자)';
-COMMENT ON COLUMN tb_role.scope_type IS '데이터 범위: GLOBAL(전체), TENANT(테넌트), USER(사용자) - 서비스 레이어에서 NL2SQL WHERE 조건 유도';
+COMMENT ON COLUMN tb_role.role_code IS '역할 코드: GLOBAL(전체), TENANT(테넌트), USER(사용자) - 데이터 범위를 직접 결정';
 COMMENT ON COLUMN tb_role.landing_page IS '로그인 후 랜딩 페이지 URL';
 COMMENT ON COLUMN tb_role.is_system IS '시스템 기본 역할 (삭제 불가)';
-
-CREATE INDEX idx_role_scope ON tb_role(scope_type);
 
 
 -- ==========================================
@@ -208,14 +203,14 @@ CREATE INDEX idx_session_refresh ON tb_user_session(refresh_token);
 -- ==========================================
 -- 1. 기본 역할 (3개)
 -- ==========================================
--- scope_type: NL2SQL 데이터 필터 범위를 서비스 레이어에서 유도
+-- role_code가 데이터 필터 범위를 직접 결정 (서비스 레이어에서 유도)
 --   GLOBAL → 필터 없음 (전체 데이터)
 --   TENANT → WHERE tenant_id = ?
 --   USER   → WHERE tenant_id = ? AND emp_id = ?
-INSERT INTO tb_role (role_code, role_name, scope_type, landing_page, is_system, sort_order, description) VALUES
-('SYSTEM_ADMIN', '시스템 관리자', 'GLOBAL', '/admin/dashboard', true, 1, '전체 시스템 관리 (모든 메뉴, 모든 데이터)'),
-('TENANT_ADMIN', '테넌트 관리자', 'TENANT', '/admin/dashboard', true, 2, '테넌트 내 관리 (제한된 메뉴, 테넌트 데이터)'),
-('USER',         '일반 사용자',   'USER',   '/chat',             true, 3, '일반 사용자 (채팅만, 본인 데이터)');
+INSERT INTO tb_role (role_code, role_name, landing_page, is_system, sort_order, description) VALUES
+('GLOBAL', '시스템 관리자', '/admin/dashboard', true, 1, '전체 시스템 관리 (모든 메뉴, 모든 데이터)'),
+('TENANT', '테넌트 관리자', '/admin/dashboard', true, 2, '테넌트 내 관리 (제한된 메뉴, 테넌트 데이터)'),
+('USER',   '일반 사용자',   '/chat',             true, 3, '일반 사용자 (채팅만, 본인 데이터)');
 
 
 -- ==========================================
@@ -277,11 +272,11 @@ SELECT 'admin', 'admin@system.local',
        '$2b$12$LzCrXdBqNOyeBaSts14cXOWmt/B8DB0E5UsnuqkKk3QTkn91uSuHW',
        '시스템 관리자',
        r.role_id, true, true
-FROM tb_role r WHERE r.role_code = 'SYSTEM_ADMIN';
+FROM tb_role r WHERE r.role_code = 'GLOBAL';
 
 
 -- ==========================================
--- 5. 관리자 메뉴 권한 (SYSTEM_ADMIN → 전체 메뉴)
+-- 5. 관리자 메뉴 권한 (GLOBAL → 전체 메뉴)
 -- ==========================================
 -- 시스템 관리자: 모든 PAGE/API 메뉴에 전체 CRUD 권한
 INSERT INTO tb_user_menu (user_id, menu_id, can_create, can_read, can_update, can_delete, can_export)
@@ -302,7 +297,7 @@ SELECT 'tenant_admin', 'tenant_admin@demo.local',
        '데모 테넌트 관리자',
        t.tenant_id, r.role_id, true
 FROM tb_tenant t, tb_role r
-WHERE t.tenant_code = 'DEMO' AND r.role_code = 'TENANT_ADMIN';
+WHERE t.tenant_code = 'DEMO' AND r.role_code = 'TENANT';
 
 -- 테넌트 관리자 메뉴 권한: 제한된 메뉴만
 -- 대시보드: R
@@ -379,14 +374,14 @@ AND m.menu_code IN ('AGENT_API', 'RAG_API', 'NL2SQL_API');
 -- SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'tb_%' ORDER BY tablename;
 
 -- 역할 목록
--- SELECT role_id, role_code, role_name, scope_type, landing_page FROM tb_role ORDER BY sort_order;
+-- SELECT role_id, role_code, role_name, landing_page FROM tb_role ORDER BY sort_order;
 
 -- 메뉴 트리 (depth 순 정렬)
 -- SELECT menu_id, REPEAT('  ', depth) || menu_name AS menu_tree, menu_code, menu_type, menu_path, depth
 -- FROM tb_menu ORDER BY depth, sort_order;
 
 -- 사용자별 메뉴 권한 확인
--- SELECT u.login_id, u.display_name, r.role_code, r.scope_type,
+-- SELECT u.login_id, u.display_name, r.role_code,
 --        m.menu_code, m.menu_name,
 --        um.can_create AS c, um.can_read AS r, um.can_update AS u, um.can_delete AS d, um.can_export AS e
 -- FROM tb_user_menu um
@@ -410,8 +405,8 @@ AND m.menu_code IN ('AGENT_API', 'RAG_API', 'NL2SQL_API');
 -- 1. tb_user_menu = 유일한 런타임 권한 체크 테이블
 --    프론트엔드 메뉴 렌더링 + 백엔드 API 권한 체크 모두 이 테이블만 조회
 --
--- 2. tb_role.scope_type = 데이터 범위 결정
---    서비스 레이어에서 scope_type을 읽어 NL2SQL WHERE 조건 코드로 유도
+-- 2. tb_role.role_code = 데이터 범위 결정
+--    서비스 레이어에서 role_code를 읽어 NL2SQL WHERE 조건 코드로 유도
 --    GLOBAL → 필터 없음 | TENANT → tenant_id = ? | USER → tenant_id = ? AND emp_id = ?
 --
 -- 3. 사용자 1명 = 역할 1개 (tb_user.role_id FK, 1:N)

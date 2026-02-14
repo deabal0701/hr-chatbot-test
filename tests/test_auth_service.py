@@ -137,11 +137,10 @@ def test_all():
                 user_info = auth_service.get_user_with_permissions(admin["user_id"], "test-auth")
                 assert user_info["login_id"] == "admin"
                 assert "role_code" in user_info, "role_code 필드 없음"
-                assert "scope_type" in user_info, "scope_type 필드 없음"
                 assert "landing_page" in user_info, "landing_page 필드 없음"
                 assert isinstance(user_info["menus"], list), "menus가 list가 아님"
                 assert len(user_info["menus"]) > 0, "admin에게 메뉴 권한이 없음"
-                ok(f"get_user_with_permissions: role_code={user_info['role_code']}, menus={len(user_info['menus'])}, scope={user_info['scope_type']}")
+                ok(f"get_user_with_permissions: role_code={user_info['role_code']}, menus={len(user_info['menus'])}")
             except Exception as e:
                 fail(f"get_user_with_permissions: {e}")
 

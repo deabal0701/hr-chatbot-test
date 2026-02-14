@@ -2,7 +2,7 @@
  * 인증 상태 관리 (Vuex Module) — v2.0 메뉴 기반
  *
  * State:
- *   user        — UserInfo (user_id, login_id, display_name, role_code, scope_type, landing_page, menus[])
+ *   user        — UserInfo (user_id, login_id, display_name, role_code, landing_page, menus[])
  *   accessToken — JWT Access Token
  *   refreshToken — JWT Refresh Token
  *
@@ -94,7 +94,7 @@ export default {
     // v2.0 메뉴 기반 권한 헬퍼
     menus: (state) => state.user?.menus || [],
     roleCode: (state) => state.user?.role_code || 'USER',
-    scopeType: (state) => state.user?.scope_type || 'USER',
+    roleName: (state) => state.user?.role_name || '',
     landingPage: (state) => state.user?.landing_page || '/chat',
 
     /**

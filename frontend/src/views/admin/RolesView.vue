@@ -32,14 +32,6 @@
 
         <el-table-column prop="role_name" label="역할명" width="120" sortable />
 
-        <el-table-column prop="scope_type" label="데이터 범위" width="120" align="center">
-          <template #default="{ row }">
-            <el-tag :type="scopeTagType(row.scope_type)" size="small">
-              {{ scopeLabel(row.scope_type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
         <el-table-column prop="landing_page" label="랜딩 페이지" width="150" show-overflow-tooltip />
 
         <el-table-column prop="user_count" label="사용자수" width="120" align="center" sortable>
@@ -101,32 +93,13 @@
           />
         </el-form-item>
 
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="데이터 범위" prop="scope_type">
-              <el-select
-                v-model="formData.scope_type"
-                placeholder="범위 선택"
-                style="width: 100%"
-                :disabled="isSystemRole"
-              >
-                <el-option label="전체 (GLOBAL)" value="GLOBAL" />
-                <el-option label="테넌트 (TENANT)" value="TENANT" />
-                <el-option label="본인 (USER)" value="USER" />
-              </el-select>
-              <div v-if="isSystemRole" class="form-help">시스템 역할의 범위는 변경할 수 없습니다</div>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="랜딩 페이지" prop="landing_page">
-              <el-select v-model="formData.landing_page" style="width: 100%">
-                <el-option label="/admin/dashboard" value="/admin/dashboard" />
-                <el-option label="/admin/chat" value="/admin/chat" />
-                <el-option label="/chat" value="/chat" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <el-form-item label="랜딩 페이지" prop="landing_page">
+          <el-select v-model="formData.landing_page" style="width: 100%">
+            <el-option label="/admin/dashboard" value="/admin/dashboard" />
+            <el-option label="/admin/chat" value="/admin/chat" />
+            <el-option label="/chat" value="/chat" />
+          </el-select>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -236,23 +209,11 @@ const formData = reactive({
   role_code: '',
   role_name: '',
   description: '',
-  scope_type: 'USER',
   landing_page: '/chat'
 })
 
 // 시스템 역할 여부 (수정 시)
 const isSystemRole = ref(false)
-
-// scope_type 라벨 및 태그 타입
-const scopeLabel = (scope) => {
-  const labels = { GLOBAL: '전체', TENANT: '테넌트', USER: '본인' }
-  return labels[scope] || scope
-}
-
-const scopeTagType = (scope) => {
-  const types = { GLOBAL: 'danger', TENANT: 'warning', USER: '' }
-  return types[scope] || 'info'
-}
 
 // 폼 검증 규칙
 const formRules = {
@@ -262,9 +223,6 @@ const formRules = {
   ],
   role_name: [
     { required: true, message: '역할명을 입력하세요', trigger: 'blur' }
-  ],
-  scope_type: [
-    { required: true, message: '데이터 범위를 선택하세요', trigger: 'change' }
   ]
 }
 
@@ -299,7 +257,6 @@ const openEditDialog = (row) => {
   formData.role_code = row.role_code
   formData.role_name = row.role_name
   formData.description = row.description || ''
-  formData.scope_type = row.scope_type
   formData.landing_page = row.landing_page || '/chat'
   dialogVisible.value = true
 
@@ -313,7 +270,6 @@ const resetForm = () => {
   formData.role_code = ''
   formData.role_name = ''
   formData.description = ''
-  formData.scope_type = 'USER'
   formData.landing_page = '/chat'
   if (formRef.value) formRef.value.clearValidate()
 }
@@ -331,7 +287,6 @@ const handleSubmit = async () => {
         role_code: formData.role_code,
         role_name: formData.role_name,
         description: formData.description || undefined,
-        scope_type: formData.scope_type,
         landing_page: formData.landing_page
       })
       ElMessage.success('역할이 생성되었습니다')
@@ -339,7 +294,6 @@ const handleSubmit = async () => {
       await rolesApi.update(currentRoleId.value, {
         role_name: formData.role_name,
         description: formData.description || undefined,
-        scope_type: isSystemRole.value ? undefined : formData.scope_type,
         landing_page: formData.landing_page
       })
       ElMessage.success('역할이 수정되었습니다')

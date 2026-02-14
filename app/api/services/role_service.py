@@ -20,7 +20,7 @@ class RoleService:
         """역할 목록 조회 (사용자 수 포함)"""
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT r.role_id, r.role_code, r.role_name, r.description, r.scope_type, "
+                "SELECT r.role_id, r.role_code, r.role_name, r.description, "
                 "r.landing_page, r.is_system, r.sort_order, r.created_at, r.updated_at, "
                 "(SELECT COUNT(*) FROM tb_user u WHERE u.role_id = r.role_id) as user_count "
                 "FROM tb_role r ORDER BY r.sort_order, r.role_id"
@@ -35,7 +35,7 @@ class RoleService:
         """역할 상세 조회"""
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT r.role_id, r.role_code, r.role_name, r.description, r.scope_type, "
+                "SELECT r.role_id, r.role_code, r.role_name, r.description, "
                 "r.landing_page, r.is_system, r.sort_order, r.created_at, r.updated_at, "
                 "(SELECT COUNT(*) FROM tb_user u WHERE u.role_id = r.role_id) as user_count "
                 "FROM tb_role r WHERE r.role_id = %s",
@@ -55,9 +55,9 @@ class RoleService:
         try:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute(
-                    "INSERT INTO tb_role (role_code, role_name, description, scope_type, landing_page, sort_order) "
-                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING role_id",
-                    (data["role_code"], data["role_name"], data.get("description"), data["scope_type"], data.get("landing_page", "/chat"), data.get("sort_order", 0)),
+                    "INSERT INTO tb_role (role_code, role_name, description, landing_page, sort_order) "
+                    "VALUES (%s, %s, %s, %s, %s) RETURNING role_id",
+                    (data["role_code"], data["role_name"], data.get("description"), data.get("landing_page", "/chat"), data.get("sort_order", 0)),
                 )
                 new_role_id = cur.fetchone()["role_id"]
         except Exception as e:
@@ -71,20 +71,15 @@ class RoleService:
     def update_role(self, role_id: int, data: Dict[str, Any], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """역할 수정"""
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT role_id, is_system, role_code, scope_type FROM tb_role WHERE role_id = %s", (role_id,))
+            cur.execute("SELECT role_id, is_system, role_code FROM tb_role WHERE role_id = %s", (role_id,))
             existing = cur.fetchone()
 
         if not existing:
             raise APIException(ErrorCode.NOT_FOUND, "역할을 찾을 수 없습니다")
 
-        # 시스템 역할: scope_type 변경 불가
-        if existing["is_system"] and "scope_type" in data and data["scope_type"] is not None:
-            if data["scope_type"] != existing["scope_type"]:
-                raise APIException(ErrorCode.BAD_REQUEST, "시스템 역할의 scope_type은 변경할 수 없습니다")
-
         fields = []
         params: list = []
-        for key in ("role_name", "description", "scope_type", "landing_page"):
+        for key in ("role_name", "description", "landing_page"):
             if key in data and data[key] is not None:
                 fields.append(f"{key} = %s")
                 params.append(data[key])
@@ -127,10 +122,10 @@ class RoleService:
 
     # 역할 코드별 기본 메뉴 템플릿
     _DEFAULT_MENUS: Dict[str, Dict[str, dict]] = {
-        "SYSTEM_ADMIN": {
+        "GLOBAL": {
             "__all_pages__": {"can_create": True, "can_read": True, "can_update": True, "can_delete": True, "can_export": True},
         },
-        "TENANT_ADMIN": {
+        "TENANT": {
             "DASHBOARD": {"can_read": True},
             "CHAT":      {"can_create": True, "can_read": True},
             "DOCUMENTS": {"can_create": True, "can_read": True, "can_update": True, "can_delete": True, "can_export": True},

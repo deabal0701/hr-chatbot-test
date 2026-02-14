@@ -34,7 +34,6 @@ async def get_current_user(
         display_name=payload.display_name,
         tenant_id=payload.tenant_id,
         is_superuser=payload.is_superuser,
-        scope_type=payload.scope_type,
         role_code=payload.role_code,
     )
 
@@ -62,7 +61,6 @@ async def get_optional_user(
             display_name=payload.display_name,
             tenant_id=payload.tenant_id,
             is_superuser=payload.is_superuser,
-            scope_type=payload.scope_type,
             role_code=payload.role_code,
         )
     except Exception:

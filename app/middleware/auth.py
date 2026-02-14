@@ -43,7 +43,6 @@ class AuthMiddleware(BaseMiddleware):
                         display_name=payload.display_name,
                         tenant_id=payload.tenant_id,
                         is_superuser=payload.is_superuser,
-                        scope_type=payload.scope_type,
                         role_code=payload.role_code,
                     )
             except Exception:

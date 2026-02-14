@@ -103,15 +103,9 @@ const isDarkMode = computed(() => store.getters['app/isDarkMode'])
 const toggleDarkMode = () => store.dispatch('app/toggleDarkMode')
 const currentUser = computed(() => store.getters['auth/currentUser'])
 const displayName = computed(() => store.getters['auth/displayName'])
-// 역할 코드 → 한국어 라벨 매핑
-const ROLE_LABELS = {
-  SYSTEM_ADMIN: '시스템 관리자',
-  TENANT_ADMIN: '테넌트 관리자',
-  USER: '일반 사용자'
-}
+// 서버에서 내려온 역할 표시명 사용
 const roleName = computed(() => {
-  const code = store.getters['auth/roleCode']
-  return ROLE_LABELS[code] || code || '-'
+  return store.getters['auth/roleName'] || store.getters['auth/roleCode'] || '-'
 })
 
 const pageTitle = computed(() => {

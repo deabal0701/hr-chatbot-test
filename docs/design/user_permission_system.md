@@ -22,7 +22,7 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 | 로그인/인증 | JWT 기반 토큰 인증 |
 | 메뉴 기반 권한 | 메뉴 트리 + 사용자별 CRUD 권한 |
 | 역할 (1:N) | 사용자는 정확히 하나의 역할에 소속 |
-| NL2SQL 데이터 필터 | scope_type 기반 SQL 조건 자동 주입 |
+| NL2SQL 데이터 필터 | role_code 기반 SQL 조건 자동 주입 |
 
 ### 1.3 v1.0 → v2.0 변경 요약
 
@@ -31,7 +31,7 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 | 권한 단위 | `permission_code` (코드) | **`tb_menu` (메뉴)** |
 | 사용자-역할 | M:N (`tb_user_role`) | **1:N** (`tb_user.role_id` FK) |
 | 권한 매핑 | `tb_role_permission` | **`tb_user_menu`** (사용자별 직접) |
-| 데이터 필터 | `tb_data_filter` 테이블 | **`tb_role.scope_type`** → 코드에서 유도 |
+| 데이터 필터 | `tb_data_filter` 테이블 | **`tb_role.role_code`** → 코드에서 유도 |
 | 관리 UI | permission 코드 체크박스 | **메뉴 트리 + CRUD 체크박스** |
 | 제거 테이블 | - | `tb_permission`, `tb_role_permission`, `tb_user_role`, `tb_data_filter` |
 
@@ -40,9 +40,9 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  tb_user_menu = "어떤 메뉴에 무엇을 할 수 있는가"  (기능 접근)      │
-│  tb_role.scope_type = "어디까지 볼 수 있는가"      (데이터 범위)     │
+│  tb_role.role_code = "어디까지 볼 수 있는가"       (데이터 범위 겸용)│
 │                                                                     │
-│  같은 메뉴 권한이라도 scope_type에 따라 보이는 데이터가 다름         │
+│  같은 메뉴 권한이라도 role_code에 따라 보이는 데이터가 다름          │
 │  예: 사용자 관리 메뉴 Read 권한 + TENANT → 자기 테넌트 사용자만     │
 │      사용자 관리 메뉴 Read 권한 + GLOBAL → 전체 사용자              │
 └─────────────────────────────────────────────────────────────────────┘
@@ -56,16 +56,16 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  [시스템 관리자]         모든 메뉴 접근, 전체 CRUD, 전체 데이터             │
-│        │                scope_type: GLOBAL | 메뉴: 전체                     │
+│        │                role_code: GLOBAL | 메뉴: 전체                      │
 │        │                landing_page: /admin/dashboard                      │
 │        ▼                                                                    │
 │  [테넌트 관리자]         제한된 메뉴, 테넌트 내 데이터                      │
-│        │                scope_type: TENANT | 메뉴: 일부                     │
+│        │                role_code: TENANT | 메뉴: 일부                      │
 │        │                landing_page: /admin/dashboard                      │
 │        │                NL2SQL 조건: WHERE tenant_id = ?                    │
 │        ▼                                                                    │
 │  [일반 사용자]           채팅 메뉴만, 본인 데이터                           │
-│                         scope_type: USER | 메뉴: 채팅만                     │
+│                         role_code: USER | 메뉴: 채팅만                      │
 │                         landing_page: /chat                                 │
 │                         NL2SQL 조건: WHERE tenant_id = ? AND emp_id = ?    │
 │                                                                             │
@@ -76,8 +76,7 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 
 | 구분 | 시스템 관리자 | 테넌트 관리자 | 일반 사용자 |
 |------|:---:|:---:|:---:|
-| `role_code` | SYSTEM_ADMIN | TENANT_ADMIN | USER |
-| `scope_type` | GLOBAL | TENANT | USER |
+| `role_code` | GLOBAL | TENANT | USER |
 | `landing_page` | /admin/dashboard | /admin/dashboard | /chat |
 | `is_superuser` | true | false | false |
 | `tenant_id` | NULL | 소속 테넌트 | 소속 테넌트 |
@@ -110,12 +109,12 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 │ menu_id (PK)  │    │ user_id (PK)         │        │ role_id (PK)           │
 │ parent_menu_id│    │ login_id (UK)        │        │ role_code (UK)         │
 │   (FK,self)   │    │ email (UK)           │        │ role_name              │
-│ menu_code(UK) │    │ password_hash        │        │ scope_type             │
-│ menu_name     │    │ display_name         │        │ landing_page           │
-│ menu_type     │    │ tenant_id (FK)       │        │ is_system              │
-│ menu_path     │    │ role_id (FK,NOT NULL) │       │ description            │
-│ api_pattern   │    │ is_superuser         │        │ sort_order             │
-│ icon          │    │ is_active            │        └────────────────────────┘
+│ menu_code(UK) │    │ password_hash        │        │ landing_page           │
+│ menu_name     │    │ display_name         │        │ is_system              │
+│ menu_type     │    │ tenant_id (FK)       │        │ description            │
+│ menu_path     │    │ role_id (FK,NOT NULL) │       │ sort_order             │
+│ api_pattern   │    │ is_superuser         │        └────────────────────────┘
+│ icon          │    │ is_active            │
 │ sort_order    │    │ last_login_at        │
 │ depth         │    │ login_fail_count     │
 │ is_active     │    │ locked_until         │
@@ -160,29 +159,28 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 | 컬럼명 | 타입 | 필수 | 설명 |
 |--------|------|------|------|
 | role_id | BIGSERIAL | PK | 역할 고유 ID |
-| role_code | VARCHAR(50) | UK, NOT NULL | 역할 코드 |
+| role_code | VARCHAR(50) | UK, NOT NULL | 역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용 |
 | role_name | VARCHAR(100) | NOT NULL | 역할명 |
 | description | TEXT | NULL | 설명 |
-| scope_type | VARCHAR(20) | NOT NULL | 데이터 범위 (GLOBAL, TENANT, USER) |
 | landing_page | VARCHAR(200) | NOT NULL | 로그인 후 랜딩 페이지 |
 | is_system | BOOLEAN | DEFAULT false | 시스템 기본 역할 (삭제 불가) |
 | sort_order | INT | DEFAULT 0 | 정렬 순서 |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | 생성일시 |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() | 수정일시 |
 
-> **scope_type 역할**: NL2SQL 실행 시 데이터 필터 범위를 결정합니다.
-> 서비스 레이어에서 `scope_type`을 읽어 WHERE 조건을 코드로 주입합니다.
+> **role_code의 데이터 범위 겸용**: role_code가 역할 식별과 NL2SQL 데이터 필터 범위를 동시에 결정합니다.
+> 서비스 레이어에서 `role_code`를 읽어 WHERE 조건을 코드로 주입합니다.
 > - GLOBAL → 필터 없음
 > - TENANT → `WHERE tenant_id = ?`
 > - USER → `WHERE tenant_id = ? AND emp_id = ?`
 
 **기본 역할**:
 
-| role_code | role_name | scope_type | landing_page |
-|-----------|-----------|------------|--------------|
-| SYSTEM_ADMIN | 시스템 관리자 | GLOBAL | /admin/dashboard |
-| TENANT_ADMIN | 테넌트 관리자 | TENANT | /admin/dashboard |
-| USER | 일반 사용자 | USER | /chat |
+| role_code | role_name | landing_page |
+|-----------|-----------|--------------|
+| GLOBAL | 시스템 관리자 | /admin/dashboard |
+| TENANT | 테넌트 관리자 | /admin/dashboard |
+| USER | 일반 사용자 | /chat |
 
 #### 2.2.3 tb_user (사용자)
 
@@ -193,7 +191,7 @@ MUREUM 시스템에 사용자 인증 및 **메뉴 기반 권한 관리** 기능�
 | email | VARCHAR(255) | UK, NOT NULL | 이메일 |
 | password_hash | VARCHAR(255) | NOT NULL | 비밀번호 해시 (bcrypt) |
 | display_name | VARCHAR(100) | NULL | 표시 이름 |
-| tenant_id | BIGINT | FK, NULL | 소속 테넌트 ID (시스템 관리자는 NULL) |
+| tenant_id | BIGINT | FK, NULL | 소속 테넌트 ID (GLOBAL 역할은 NULL) |
 | role_id | BIGINT | FK, NOT NULL | 역할 ID (**사용자는 하나의 역할에 소속**) |
 | is_active | BOOLEAN | DEFAULT true | 활성화 여부 |
 | is_superuser | BOOLEAN | DEFAULT false | 시스템 관리자 비상 안전장치 |
@@ -278,7 +276,7 @@ ROOT
 
 **역할별 기본 메뉴 할당 (사용자 생성 시 복사)**:
 
-| 메뉴 | SYSTEM_ADMIN | TENANT_ADMIN | USER |
+| 메뉴 | GLOBAL | TENANT | USER |
 |------|:---:|:---:|:---:|
 | 대시보드 | CRUDE | R | - |
 | 자연어 검색 | CR | CR | - |
@@ -316,7 +314,7 @@ ROOT
 | `tb_permission` | `tb_menu`로 대체 (메뉴 자체가 권한 단위) |
 | `tb_role_permission` | `tb_user_menu`로 대체 (사용자별 직접 권한) |
 | `tb_user_role` | `tb_user.role_id` FK로 대체 (1:N) |
-| `tb_data_filter` | `tb_role.scope_type` + 서비스 레이어 코드로 대체 |
+| `tb_data_filter` | `tb_role.role_code` + 서비스 레이어 코드로 대체 |
 
 ---
 
@@ -348,8 +346,7 @@ ROOT
 │         "user_id": 1,                                                │
 │         "login_id": "user@company.com",                              │
 │         "tenant_id": 5,                                             │
-│         "role_code": "TENANT_ADMIN",                                │
-│         "scope_type": "TENANT",                                     │
+│         "role_code": "TENANT",                                      │
 │         "landing_page": "/admin/dashboard",                         │
 │         "menus": [                                                   │
 │           {"menu_code":"DASHBOARD","menu_name":"대시보드",            │
@@ -380,15 +377,14 @@ ROOT
   "sub": "user_id",
   "login_id": "user@company.com",
   "tenant_id": 5,
-  "role_code": "TENANT_ADMIN",
-  "scope_type": "TENANT",
+  "role_code": "TENANT",
   "is_superuser": false,
   "exp": 1707264000,
   "iat": 1707263100
 }
 ```
 
-> **v2.0 변경**: `permissions` 배열 대신 `role_code`와 `scope_type`만 포함.
+> **v2.0 변경**: `permissions` 배열 대신 `role_code`만 포함 (role_code가 데이터 범위 겸용).
 > 메뉴 권한은 JWT에 포함하지 않고, 필요시 DB 조회 또는 로그인 응답의 `menus` 배열 사용.
 
 **Refresh Token Payload**:
@@ -457,7 +453,7 @@ ROOT
 │     DELETE → can_delete 확인                                        │
 │                         │                                           │
 │                         ▼                                           │
-│  5. 권한 있음 → scope_type으로 데이터 범위 필터                       │
+│  5. 권한 있음 → role_code로 데이터 범위 필터                          │
 │     권한 없음 → 403 Forbidden                                       │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -502,26 +498,26 @@ async def list_users(
 
 > ⚠️ **현행 상태 (2026-02-14)**: 이 섹션은 **설계 사양**입니다. `inject_permission_filter` 메서드는 아직 구현되지 않았습니다.
 > 현재 SQL 실행 시 기본 보안(위험 키워드 차단, SELECT 전용, 타임아웃)만 적용됩니다.
-> scope_type 기반 WHERE 자동 주입은 Phase 5 구현 시 추가 예정입니다.
+> role_code 기반 WHERE 자동 주입은 Phase 5 구현 시 추가 예정입니다.
 
-### 5.1 scope_type 기반 필터 (코드 레벨) — 설계 사양
+### 5.1 role_code 기반 필터 (코드 레벨) — 설계 사양
 
 > **v2.0 변경**: `tb_data_filter` 테이블 삭제.
-> `scope_type`만으로 서비스 레이어에서 WHERE 조건을 유도합니다.
+> `role_code`만으로 서비스 레이어에서 WHERE 조건을 유도합니다 (role_code가 데이터 범위 겸용).
 
 ```python
 # app/core/database/sql_executor.py
 def inject_permission_filter(self, sql: str, user_context: UserContext) -> str:
-    """scope_type 기반 SQL WHERE 조건 자동 주입"""
+    """role_code 기반 SQL WHERE 조건 자동 주입 (role_code가 데이터 범위 겸용)"""
 
-    if user_context.scope_type == "GLOBAL":
+    if user_context.role_code == "GLOBAL":
         return sql  # 전체 데이터
 
-    if user_context.scope_type == "TENANT":
+    if user_context.role_code == "TENANT":
         # 테넌트 필터
         return self._add_where(sql, f"tenant_id = {user_context.tenant_id}")
 
-    if user_context.scope_type == "USER":
+    if user_context.role_code == "USER":
         # 테넌트 + 사용자 필터
         return self._add_where(sql,
             f"tenant_id = {user_context.tenant_id} AND emp_id = {user_context.user_id}")
@@ -549,7 +545,7 @@ LLM 생성 SQL:
   WHERE hire_date >= '2024-01-01' AND tenant_id = 5 AND emp_id = 123
 ```
 
-### 5.3 서비스 레이어 scope_type 제한
+### 5.3 서비스 레이어 role_code 기반 데이터 범위 제한
 
 | 서비스 | GLOBAL | TENANT | USER |
 |--------|--------|--------|------|
@@ -573,7 +569,7 @@ LLM 생성 SQL:
 │                                                           │
 │  ② 테넌트 선택                                             │
 │                                                           │
-│  ③ 역할 선택 (SYSTEM_ADMIN / TENANT_ADMIN / USER)          │
+│  ③ 역할 선택 (GLOBAL / TENANT / USER)                      │
 │     → 선택 시 해당 역할의 기본 메뉴가 자동 체크됨            │
 │                                                           │
 │  ④ 메뉴 권한 설정 (체크박스 테이블)                          │
@@ -629,9 +625,9 @@ class UserService:
 ### 6.3 역할 변경 시
 
 ```
-사용자의 역할을 TENANT_ADMIN → SYSTEM_ADMIN으로 변경:
+사용자의 역할을 TENANT → GLOBAL으로 변경:
   ① tb_user.role_id 업데이트
-  ② 관리자가 메뉴 권한 재설정 (UI에서 SYSTEM_ADMIN 기본값 자동 체크)
+  ② 관리자가 메뉴 권한 재설정 (UI에서 GLOBAL 기본값 자동 체크)
   ③ tb_user_menu DELETE → 새 메뉴 권한 INSERT
 ```
 
@@ -647,8 +643,7 @@ class UserService:
   user: {
     user_id: 5,
     login_id: "tenant_admin@demo.com",
-    role_code: "TENANT_ADMIN",
-    scope_type: "TENANT",
+    role_code: "TENANT",
     landing_page: "/admin/dashboard",
     menus: [
       {
@@ -838,7 +833,7 @@ frontend/src/
 
 | 작업 | 설명 | 상태 |
 |------|------|------|
-| jwt.py | JWT 생성/검증 (TokenPayload에 role_code, scope_type 포함) | ✅ |
+| jwt.py | JWT 생성/검증 (TokenPayload에 role_code 포함, 데이터 범위 겸용) | ✅ |
 | password.py | bcrypt 직접 사용 (cost factor 12) | ✅ |
 | dependencies.py | get_current_user, get_optional_user (FastAPI Depends) | ✅ |
 | permission.py | require_menu_permission (메뉴 권한 체크, DB 조회) | ✅ |
@@ -875,19 +870,19 @@ frontend/src/
 
 ### 10.5 Phase 5: NL2SQL 데이터 필터 ⚠️ 부분 구현
 
-> **목적**: scope_type 기반 NL2SQL 데이터 필터링
+> **목적**: role_code 기반 NL2SQL 데이터 필터링
 > **선행**: Phase 3, 4
-> **상태**: ⚠️ 부분 구현 — SQL 인젝션 보호는 존재하나 scope 기반 WHERE 주입 미구현
+> **상태**: ⚠️ 부분 구현 — SQL 인젝션 보호는 존재하나 role_code 기반 WHERE 주입 미구현
 
 | 작업 | 설명 | 상태 |
 |------|------|------|
-| sql_executor 확장 | scope_type 기반 WHERE 주입 (`inject_permission_filter`) | ❌ 미구현 |
+| sql_executor 확장 | role_code 기반 WHERE 주입 (`inject_permission_filter`) | ❌ 미구현 |
 | NL2SQL 노드에 UserContext 전달 | NL2SQL 그래프에서 사용자 컨텍스트 활용 | ❌ 미구현 |
 | prompt_build_node scope 반영 | LLM 프롬프트에 scope 정보 포함 | ❌ 미구현 |
 | SQL 인젝션 보호 | DROP/DELETE 등 위험 키워드 차단, SELECT only | ✅ 기존 구현 |
 
 > **비고**: SQL 실행 시 기본 보안(위험 키워드 차단, SELECT 전용, 타임아웃)은 구현되어 있으나,
-> scope_type에 따른 자동 WHERE 조건 주입(`inject_permission_filter`)은 미구현 상태입니다.
+> role_code에 따른 자동 WHERE 조건 주입(`inject_permission_filter`)은 미구현 상태입니다.
 
 ### 10.6 Phase 6: 프론트엔드 ✅ 구현 완료
 

@@ -60,7 +60,7 @@ v1.0 설계:
 
 v2.0 설계:
 ┌──────────────────────────────────────────────────────────────────┐
-│  get_current_user = JWT에서 role_code + scope_type만 추출         │
+│  get_current_user = JWT에서 role_code만 추출 (데이터 범위 겸용)     │
 │                                                                   │
 │  메뉴 CRUD 권한은 require_menu_permission()에서 DB 실시간 조회    │
 │  → 관리자가 권한 변경하면 즉시 반영 (DB 기반)                     │
@@ -163,7 +163,7 @@ def require_any_permission(*required_permissions: str):
 
 | 구분 | v1.0 (현행) | v2.0 (목표) |
 |------|:---:|:---:|
-| JWT payload 권한 | `roles: ["SYSTEM_ADMIN"]`, `permissions: ["admin:users"]` | `role_code: "SYSTEM_ADMIN"` (단일) |
+| JWT payload 권한 | `roles: ["GLOBAL"]`, `permissions: ["admin:users"]` | `role_code: "GLOBAL"` (단일, 데이터 범위 겸용) |
 | UserContext 생성 | `roles=payload.roles, permissions=payload.permissions` | `role_code=payload.role_code` |
 | 권한 체크 방식 | `has_all_permissions("admin:users")` (JWT에서 체크) | `require_menu_permission("USER_MGMT", "read")` (**DB 조회**) |
 | 권한 체크 대상 | permission 코드 문자열 | 메뉴 코드 + CRUD 액션 |
@@ -267,8 +267,7 @@ class TokenPayload(BaseModel):
     login_id: str = Field(default="", description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="테넌트 ID")
-    role_code: str = Field(default="USER", description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
-    scope_type: str = Field(default="USER", description="데이터 범위")
+    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
     exp: Optional[int] = Field(None, description="만료 시간 (Unix timestamp)")
     iat: Optional[int] = Field(None, description="발급 시간 (Unix timestamp)")
@@ -329,14 +328,13 @@ def verify_token(token: str) -> TokenPayload:
 -    scope_type: str = Field(default="USER", description="데이터 범위")
 -    roles: List[str] = Field(default_factory=list, description="역할 코드 목록")
 -    permissions: List[str] = Field(default_factory=list, description="권한 코드 목록")
-+    role_code: str = Field(default="USER", description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
-+    scope_type: str = Field(default="USER", description="데이터 범위")
++    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용")
      is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
 ```
 
 - `roles: List[str]` → **제거**: 사용자당 역할이 하나이므로 `role_code: str`로 대체
 - `permissions: List[str]` → **제거**: permission 코드 체계가 메뉴 기반으로 전환, JWT에 포함하지 않음
-- `role_code: str` → **추가**: 단일 역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)
+- `role_code: str` → **추가**: 단일 역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용
 
 #### 4.3.2 import 변경
 
@@ -360,8 +358,7 @@ access_token = create_access_token({
     "login_id": user_info["login_id"],
     "display_name": user_info["display_name"],
     "tenant_id": user_info["tenant_id"],
-    "role_code": user_info["role_code"],         # ★ v2.0: 단일 역할 코드
-    "scope_type": user_info["scope_type"],
+    "role_code": user_info["role_code"],         # ★ v2.0: 단일 역할 코드 (데이터 범위 겸용)
     "is_superuser": user_info["is_superuser"],
     # roles, permissions → 제거됨
 })
@@ -425,7 +422,6 @@ async def get_current_user(
         tenant_id=payload.tenant_id,
         is_superuser=payload.is_superuser,
         role_code=payload.role_code,
-        scope_type=payload.scope_type,
     )
 
 
@@ -471,7 +467,6 @@ async def get_optional_user(
          tenant_id=payload.tenant_id,
          is_superuser=payload.is_superuser,
 +        role_code=payload.role_code,
-         scope_type=payload.scope_type,
 -        roles=payload.roles,
 -        permissions=payload.permissions,
      )
@@ -508,7 +503,7 @@ _bearer_scheme_optional = HTTPBearer(auto_error=False)
 1. 클라이언트 요청: GET /api/v1/auth/me (Authorization: Bearer eyJ...)
 2. FastAPI → _bearer_scheme → credentials 추출
 3. FastAPI → get_current_user(credentials) → verify_token() → TokenPayload
-4. TokenPayload → UserContext(role_code="SYSTEM_ADMIN", scope_type="GLOBAL")
+4. TokenPayload → UserContext(role_code="GLOBAL")
 5. FastAPI → get_current_active_user(current_user) → UserContext 반환
 6. 핸들러 실행
 ```
@@ -700,7 +695,7 @@ async def delete_user(
     current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "delete")),
 ): ...
 
-# 메뉴 관리 — MENU_MGMT 메뉴 (SYSTEM_ADMIN만 접근 가능하도록 DDL에서 설정)
+# 메뉴 관리 — MENU_MGMT 메뉴 (GLOBAL 역할만 접근 가능하도록 DDL에서 설정)
 @router.get("/menus")
 async def list_menus(
     current_user: UserContext = Depends(require_menu_permission("MENU_MGMT", "read")),
@@ -761,8 +756,7 @@ token = create_access_token({
     "sub": "1",
     "login_id": "admin",
     "tenant_id": None,
-    "role_code": "SYSTEM_ADMIN",          # ★ v2.0: 단일 역할 코드
-    "scope_type": "GLOBAL",
+    "role_code": "GLOBAL",                # ★ v2.0: 단일 역할 코드 (데이터 범위 겸용)
     "is_superuser": True,
     # roles, permissions → 제거됨
 })
@@ -788,14 +782,12 @@ from app.models.auth import UserContext
 user_ctx = UserContext(
     user_id=int(payload.sub),
     login_id=payload.login_id,
-    role_code=payload.role_code,          # ★ v2.0
-    scope_type=payload.scope_type,
+    role_code=payload.role_code,          # ★ v2.0: 데이터 범위 겸용
     is_superuser=payload.is_superuser,
     # roles, permissions → 없음
 )
-print(f"role_code: {user_ctx.role_code}")    # SYSTEM_ADMIN
+print(f"role_code: {user_ctx.role_code}")    # GLOBAL
 print(f"is_global: {user_ctx.is_global}")    # True
-print(f"scope_type: {user_ctx.scope_type}")  # GLOBAL
 
 # 6. v1.0 잔존 필드 확인 (AttributeError 나면 정상)
 # print(user_ctx.roles)            → AttributeError ✅
@@ -813,7 +805,7 @@ print(f"scope_type: {user_ctx.scope_type}")  # GLOBAL
 | salt 동작 | 같은 입력 2회 해싱 | 서로 다른 해시 |
 | access token 생성 | `create_access_token({...})` | JWT 문자열 |
 | token 검증 | `verify_token(token)` | TokenPayload 객체 |
-| **role_code 포함** | `payload.role_code` | `"SYSTEM_ADMIN"` |
+| **role_code 포함** | `payload.role_code` | `"GLOBAL"` |
 | **roles 필드 없음** | `hasattr(payload, 'roles')` | `False` |
 | **permissions 필드 없음** | `hasattr(payload, 'permissions')` | `False` |
 | 만료 토큰 | 만료된 토큰으로 verify_token | APIException(UNAUTHORIZED) |
@@ -843,7 +835,7 @@ Phase 2 완료 후 **Phase 3: 인증 서비스 + 인증 API v2.0 마이그레이
 ```python
 # 현행 (v1.0): tb_user_role, tb_role_permission, tb_permission JOIN
 cur.execute(
-    "SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code "
+    "SELECT DISTINCT r.role_code, r.role_name, p.permission_code "
     "FROM tb_user_role ur "
     "JOIN tb_role r ON ur.role_id = r.role_id "
     "LEFT JOIN tb_role_permission rp ON r.role_id = rp.role_id "
@@ -853,7 +845,7 @@ cur.execute(
 # 목표 (v2.0): tb_user.role_id → tb_role 직접 JOIN + tb_user_menu 별도 조회
 cur.execute(
     "SELECT u.user_id, u.login_id, u.display_name, u.tenant_id, u.is_superuser, "
-    "r.role_code, r.role_name, r.scope_type, r.landing_page "
+    "r.role_code, r.role_name, r.landing_page "
     "FROM tb_user u "
     "JOIN tb_role r ON r.role_id = u.role_id "
     "WHERE u.user_id = %s", (user_id,))
@@ -900,8 +892,7 @@ Phase 4:                Phase 5:
   "login_id": "admin",
   "display_name": "시스템 관리자",
   "tenant_id": null,
-  "role_code": "SYSTEM_ADMIN",
-  "scope_type": "GLOBAL",
+  "role_code": "GLOBAL",
   "is_superuser": true,
   "exp": 1739350800,
   "iat": 1739349000,
@@ -915,10 +906,9 @@ Phase 4:                Phase 5:
    "sub": "1",
    "login_id": "admin",
 -  "scope_type": "GLOBAL",
--  "roles": ["SYSTEM_ADMIN"],
+-  "roles": ["GLOBAL"],
 -  "permissions": ["nl2sql:execute", "nl2sql:view_all", "rag:search", "document:read", ...],
-+  "role_code": "SYSTEM_ADMIN",
-+  "scope_type": "GLOBAL",
++  "role_code": "GLOBAL",
    "is_superuser": true,
    ...
  }

@@ -89,13 +89,12 @@ class AuthService:
         session_id = str(uuid.uuid4())
         expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
 
-        # JWT 토큰 데이터 구성 (v2.0: role_code 단일, menus는 JWT에 포함하지 않음)
+        # JWT 토큰 데이터 구성 (v3.0: role_code가 데이터 범위 겸용, scope_type 제거)
         token_data = {
             "sub": str(user_id),
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
-            "scope_type": user_info["scope_type"],
             "role_code": user_info["role_code"],
             "is_superuser": user_info["is_superuser"],
         }
@@ -125,7 +124,7 @@ class AuthService:
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
                 role_code=user_info["role_code"],
-                scope_type=user_info["scope_type"],
+                role_name=user_info.get("role_name", ""),
                 landing_page=user_info["landing_page"],
                 menus=user_info["menus"],
             ),
@@ -169,7 +168,6 @@ class AuthService:
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
-            "scope_type": user_info["scope_type"],
             "role_code": user_info["role_code"],
             "is_superuser": user_info["is_superuser"],
         }
@@ -188,7 +186,7 @@ class AuthService:
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
                 role_code=user_info["role_code"],
-                scope_type=user_info["scope_type"],
+                role_name=user_info.get("role_name", ""),
                 landing_page=user_info["landing_page"],
                 menus=user_info["menus"],
             ),
@@ -210,7 +208,7 @@ class AuthService:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 "u.is_superuser, u.is_active, "
-                "r.role_code, r.role_name, r.scope_type, r.landing_page "
+                "r.role_code, r.role_name, r.landing_page "
                 "FROM tb_user u "
                 "JOIN tb_role r ON r.role_id = u.role_id "
                 "WHERE u.user_id = %s",
@@ -287,7 +285,7 @@ class AuthService:
 
         user["menus"] = menus
 
-        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus), scope=user["scope_type"])
+        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus))
         return user
 
     def change_password(self, user_id: int, current_password: str, new_password: str, request_id: str = "") -> bool:

@@ -84,7 +84,7 @@ Step 6: config.py                    → 이미 v2.0 완료 ✅
 ```python
 # 현행 (v1.0): roles/permissions 리스트 기반
 class UserInfo(BaseModel):
-    roles: List[str]           # ["SYSTEM_ADMIN"]
+    roles: List[str]           # ["GLOBAL"]
     role_names: List[str]      # ["시스템 관리자"]
     permissions: List[str]     # ["nl2sql:execute", "admin:users"]
 
@@ -122,7 +122,7 @@ class PermissionResponse(BaseModel):    # tb_permission 전용
 | 권한 단위 | `permission_code` (코드) | **`tb_menu` (메뉴)** |
 | 사용자-역할 | M:N (`tb_user_role`) | **1:N** (`tb_user.role_id` FK) |
 | 권한 매핑 | `tb_role_permission` | **`tb_user_menu`** (사용자별 직접) |
-| 데이터 필터 | `tb_data_filter` 테이블 | **`tb_role.scope_type`** → 코드에서 유도 |
+| 데이터 필터 | `tb_data_filter` 테이블 | **`tb_role.role_code`** → 코드에서 유도 |
 | 관리 UI | permission 코드 체크박스 | **메뉴 트리 + CRUD 체크박스** |
 
 ---
@@ -157,7 +157,7 @@ psql "postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb" -f 
 | # | 테이블명 | 용도 | 비고 |
 |---|---------|------|------|
 | 1 | `tb_tenant` | 테넌트(고객사) | |
-| 2 | `tb_role` | 역할 정의 | `landing_page` 추가, `scope_type` CHECK |
+| 2 | `tb_role` | 역할 정의 | `landing_page` 추가, `role_code`가 데이터 범위 겸용 |
 | 3 | `tb_user` | 사용자 계정 | `role_id` FK 직접 보유 (1:N) |
 | 4 | `tb_menu` | **메뉴 트리** | ★ 신규 (self-reference) |
 | 5 | `tb_user_menu` | **사용자별 메뉴 CRUD 권한** | ★ 신규 (유일한 권한 테이블) |
@@ -170,16 +170,16 @@ psql "postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb" -f 
 | `tb_permission` | `tb_menu`로 대체 |
 | `tb_role_permission` | `tb_user_menu`로 대체 |
 | `tb_user_role` | `tb_user.role_id` FK로 대체 |
-| `tb_data_filter` | `tb_role.scope_type` + 서비스 코드로 대체 |
+| `tb_data_filter` | `tb_role.role_code` + 서비스 코드로 대체 |
 
 #### 초기 데이터
 
 | 데이터 | 내용 |
 |--------|------|
-| 역할 3개 | SYSTEM_ADMIN (GLOBAL), TENANT_ADMIN (TENANT), USER (USER) |
+| 역할 3개 | GLOBAL (시스템 관리자), TENANT (테넌트 관리자), USER (일반 사용자) |
 | 메뉴 14개 | 루트 3 + 관리자 PAGE 10 + 사용자 PAGE 1 + API 3 = 17 (루트 DIRECTORY 3 + 하위 14) |
 | 테넌트 2개 | SYSTEM (내부), DEMO (테스트) |
-| 계정 3개 | admin (SYSTEM_ADMIN), tenant_admin (TENANT_ADMIN), user01 (USER) |
+| 계정 3개 | admin (GLOBAL), tenant_admin (TENANT), user01 (USER) |
 | 메뉴 권한 | admin→전체 CRUDE, tenant_admin→9개 메뉴, user01→4개 메뉴(채팅+API) |
 
 ### 3.4 실행 후 검증 쿼리
@@ -200,7 +200,7 @@ WHERE table_schema = 'public'
   AND table_name IN ('tb_permission', 'tb_role_permission', 'tb_user_role', 'tb_data_filter');
 
 -- 3) 역할 확인 (landing_page 포함)
-SELECT role_code, role_name, scope_type, landing_page FROM tb_role ORDER BY sort_order;
+SELECT role_code, role_name, landing_page FROM tb_role ORDER BY sort_order;
 
 -- 4) 메뉴 트리 확인
 SELECT menu_id, REPEAT('  ', depth) || menu_name AS menu_tree,
@@ -208,7 +208,7 @@ SELECT menu_id, REPEAT('  ', depth) || menu_name AS menu_tree,
 FROM tb_menu ORDER BY depth, sort_order;
 
 -- 5) 사용자 + 역할 확인 (role_id FK 직접 조인)
-SELECT u.login_id, u.display_name, u.is_superuser, r.role_code, r.scope_type
+SELECT u.login_id, u.display_name, u.is_superuser, r.role_code
 FROM tb_user u
 JOIN tb_role r ON r.role_id = u.role_id
 ORDER BY u.user_id;
@@ -238,10 +238,10 @@ ORDER BY u.login_id;
 
 ```
 tb_user_menu = "어떤 메뉴에 무엇을 할 수 있는가" (기능 접근, CRUD)
-tb_role.scope_type = "어디까지 볼 수 있는가" (데이터 범위)
+tb_role.role_code = "어디까지 볼 수 있는가" (데이터 범위 겸용)
 
-예: 사용자 관리 메뉴 Read 권한 + scope_type=TENANT → 자기 테넌트 사용자만
-    사용자 관리 메뉴 Read 권한 + scope_type=GLOBAL → 전체 사용자
+예: 사용자 관리 메뉴 Read 권한 + role_code=TENANT → 자기 테넌트 사용자만
+    사용자 관리 메뉴 Read 권한 + role_code=GLOBAL → 전체 사용자
 ```
 
 ---
@@ -253,7 +253,7 @@ tb_role.scope_type = "어디까지 볼 수 있는가" (데이터 범위)
 | 구분 | 현행 (v1.0) | 목표 (v2.0) | 변경 이유 |
 |------|------------|------------|----------|
 | `UserInfo` | `roles: List[str]`, `permissions: List[str]` | `role_code: str`, `menus: List[MenuPermission]` | M:N→1:N, 메뉴 기반 전환 |
-| `UserContext` | `roles`, `permissions`, `has_permission()` | `role_code`, `scope_type` (메뉴 권한은 DB) | Permission 코드 체크 폐기 |
+| `UserContext` | `roles`, `permissions`, `has_permission()` | `role_code` (데이터 범위 겸용, 메뉴 권한은 DB) | Permission 코드 체크 폐기 |
 | `TokenResponse` | `permissions` 포함 | `menus` 배열 포함 | 프론트엔드 메뉴 렌더링용 |
 | `LoginRequest` | `min_length=5` | `min_length=1` | 로그인 ID 5자 제한 해제 |
 | (없음) | — | `MenuPermission` 추가 | 로그인 응답에 메뉴 CRUD 포함 |
@@ -318,8 +318,7 @@ class UserInfo(BaseModel):
     login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
-    role_code: str = Field(..., description="역할 코드 (SYSTEM_ADMIN, TENANT_ADMIN, USER)")
-    scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용")
     landing_page: str = Field(..., description="로그인 후 랜딩 페이지")
     menus: List[MenuPermission] = Field(default_factory=list, description="접근 가능 메뉴 + CRUD 권한")
 
@@ -344,8 +343,7 @@ class TokenResponse(BaseModel):
                     "login_id": "admin",
                     "display_name": "시스템 관리자",
                     "tenant_id": None,
-                    "role_code": "SYSTEM_ADMIN",
-                    "scope_type": "GLOBAL",
+                    "role_code": "GLOBAL",
                     "landing_page": "/admin/dashboard",
                     "menus": [
                         {
@@ -421,7 +419,7 @@ class UserContext(BaseModel):
     인증 미들웨어가 JWT를 검증한 후 생성하여 request.state.current_user에 저장.
     모든 API 핸들러에서 현재 사용자 정보를 참조할 때 사용.
 
-    v2.0 변경: permissions 리스트 제거 → role_code + scope_type만 보유.
+    v2.0 변경: permissions 리스트 제거 → role_code만 보유 (데이터 범위 겸용).
     메뉴 권한 체크는 require_menu_permission()에서 DB 조회로 수행.
     """
     user_id: int = Field(..., description="사용자 ID")
@@ -429,23 +427,22 @@ class UserContext(BaseModel):
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
-    role_code: str = Field(default="USER", description="역할 코드")
-    scope_type: str = Field(default="USER", description="데이터 범위 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용")
 
     @property
     def is_global(self) -> bool:
         """GLOBAL scope 여부 (전체 데이터 접근)"""
-        return self.is_superuser or self.scope_type == "GLOBAL"
+        return self.is_superuser or self.role_code == "GLOBAL"
 
     @property
     def is_tenant_scope(self) -> bool:
         """TENANT scope 여부"""
-        return self.scope_type == "TENANT"
+        return self.role_code == "TENANT"
 
     @property
     def is_user_scope(self) -> bool:
         """USER scope 여부"""
-        return self.scope_type == "USER"
+        return self.role_code == "USER"
 ```
 
 ### 4.3 v1.0 → v2.0 핵심 변경 요약
@@ -700,7 +697,7 @@ children: List["MenuResponse"] = Field(default_factory=list)
 |------|------------|------------|----------|
 | `UserCreate` | `role_ids: List[int]` (M:N) | `role_id: int` + `menus: List[UserMenuPermission]` | 1:N + 메뉴 권한 직접 지정 |
 | `UserResponse` | `roles: List[RoleSimple]` | `role: RoleSimple` (단수) + `menu_count: int` | 1:N 반영 |
-| `RoleSimple` | `scope_type`만 | + `landing_page: str` | 랜딩 페이지 추가 |
+| `RoleSimple` | `scope_type` 별도 | `role_code`가 데이터 범위 겸용 + `landing_page: str` | scope_type 제거 |
 | `RoleCreate` | `permission_ids: List[int]` | `landing_page: str` | permission 제거 |
 | `RoleResponse` | `permissions: List[PermissionSimple]` | `landing_page`, `user_count` | permission 제거 |
 | 제거 대상 | `PermissionSimple`, `PermissionResponse`, `UserRoleAssign`, `RolePermissionAssign`, `DataFilterResponse` | — | v1.0 전용 모델 |
@@ -731,34 +728,31 @@ class RoleSimple(BaseModel):
     role_id: int = Field(..., description="역할 ID")
     role_code: str = Field(..., description="역할 코드")
     role_name: str = Field(..., description="역할명")
-    scope_type: str = Field(..., description="데이터 범위")
     landing_page: str = Field(..., description="랜딩 페이지")
 
 
 class RoleCreate(BaseModel):
     """역할 생성 요청"""
-    role_code: str = Field(..., min_length=1, max_length=50, description="역할 코드")
+    role_code: str = Field(..., min_length=1, max_length=50, description="역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용")
     role_name: str = Field(..., min_length=1, max_length=100, description="역할명")
     description: Optional[str] = Field(None, description="설명")
-    scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
     landing_page: str = Field(default="/chat", max_length=200, description="로그인 후 랜딩 페이지")
 
-    @field_validator("scope_type")
+    @field_validator("role_code")
     @classmethod
-    def validate_scope_type(cls, v: str) -> str:
+    def validate_role_code(cls, v: str) -> str:
         valid = ["GLOBAL", "TENANT", "USER"]
         v = v.upper()
         if v not in valid:
-            raise ValueError(f"scope_type은 {valid} 중 하나여야 합니다")
+            raise ValueError(f"role_code는 {valid} 중 하나여야 합니다")
         return v
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "role_code": "DEPT_ADMIN",
+                "role_code": "TENANT",
                 "role_name": "부서 관리자",
                 "description": "부서 내 데이터만 접근",
-                "scope_type": "TENANT",
                 "landing_page": "/admin/dashboard"
             }
         }
@@ -769,27 +763,15 @@ class RoleUpdate(BaseModel):
     """역할 수정 요청 (모든 필드 Optional)"""
     role_name: Optional[str] = Field(None, max_length=100, description="역할명")
     description: Optional[str] = Field(None, description="설명")
-    scope_type: Optional[str] = Field(None, description="데이터 범위")
     landing_page: Optional[str] = Field(None, max_length=200, description="랜딩 페이지")
-
-    @field_validator("scope_type")
-    @classmethod
-    def validate_scope_type(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None:
-            valid = ["GLOBAL", "TENANT", "USER"]
-            v = v.upper()
-            if v not in valid:
-                raise ValueError(f"scope_type은 {valid} 중 하나여야 합니다")
-        return v
 
 
 class RoleResponse(BaseModel):
     """역할 상세 응답"""
     role_id: int = Field(..., description="역할 ID")
-    role_code: str = Field(..., description="역할 코드")
+    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용")
     role_name: str = Field(..., description="역할명")
     description: Optional[str] = Field(None, description="설명")
-    scope_type: str = Field(..., description="데이터 범위")
     landing_page: str = Field(..., description="랜딩 페이지")
     is_system: bool = Field(..., description="시스템 기본 역할 여부")
     sort_order: int = Field(0, description="정렬 순서")
@@ -801,9 +783,8 @@ class RoleResponse(BaseModel):
         "json_schema_extra": {
             "example": {
                 "role_id": 1,
-                "role_code": "SYSTEM_ADMIN",
+                "role_code": "GLOBAL",
                 "role_name": "시스템 관리자",
-                "scope_type": "GLOBAL",
                 "landing_page": "/admin/dashboard",
                 "is_system": True,
                 "user_count": 1,
@@ -908,9 +889,8 @@ class UserResponse(BaseModel):
                 "tenant_name": None,
                 "role": {
                     "role_id": 1,
-                    "role_code": "SYSTEM_ADMIN",
+                    "role_code": "GLOBAL",
                     "role_name": "시스템 관리자",
-                    "scope_type": "GLOBAL",
                     "landing_page": "/admin/dashboard"
                 },
                 "is_active": True,
@@ -938,7 +918,7 @@ class UserListResponse(BaseModel):
 | `PermissionResponse` | `tb_permission` 테이블 삭제 |
 | `UserRoleAssign` | `tb_user_role` M:N 삭제 → `UserUpdate.role_id`로 대체 |
 | `RolePermissionAssign` | `tb_role_permission` 삭제 → `UserMenuAssign`으로 대체 |
-| `DataFilterResponse` | `tb_data_filter` 삭제 → `scope_type` 코드 유도 |
+| `DataFilterResponse` | `tb_data_filter` 삭제 → `role_code` 코드 유도 |
 | `RoleBase` | 불필요 (RoleCreate 직접 정의) |
 
 ---
@@ -1056,7 +1036,7 @@ def require_menu_permission(menu_code: str, action: str):
 ```python
 # 현행 (v1.0): tb_user_role, tb_role_permission, tb_permission JOIN
 cur.execute(
-    "SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code "
+    "SELECT DISTINCT r.role_code, r.role_name, p.permission_code "
     "FROM tb_user_role ur "
     "JOIN tb_role r ON ur.role_id = r.role_id "
     "LEFT JOIN tb_role_permission rp ON r.role_id = rp.role_id "
@@ -1066,7 +1046,7 @@ cur.execute(
 # 목표 (v2.0): tb_user.role_id → tb_role 직접 JOIN + tb_user_menu
 cur.execute(
     "SELECT u.user_id, u.login_id, u.display_name, u.tenant_id, u.is_superuser, "
-    "r.role_code, r.role_name, r.scope_type, r.landing_page "
+    "r.role_code, r.role_name, r.landing_page "
     "FROM tb_user u "
     "JOIN tb_role r ON r.role_id = u.role_id "
     "WHERE u.user_id = %s", (user_id,))
@@ -1188,11 +1168,11 @@ from app.models.tenant import (
 
 # 5. v2.0 인스턴스 생성 테스트
 user_ctx = UserContext(
-    user_id=1, login_id="admin", role_code="SYSTEM_ADMIN",
-    scope_type="GLOBAL", is_superuser=True
+    user_id=1, login_id="admin", role_code="GLOBAL",
+    is_superuser=True
 )
 print(user_ctx.is_global)    # True
-print(user_ctx.role_code)    # "SYSTEM_ADMIN"
+print(user_ctx.role_code)    # "GLOBAL"
 
 # 6. v1.0 잔존 확인 (이것들이 import 에러 나면 정상)
 # from app.models.user import PermissionSimple    → ImportError ✅
@@ -1282,7 +1262,7 @@ Phase 4:                Phase 5:
 | `PermissionResponse` | user.py | `tb_permission` 삭제 |
 | `UserRoleAssign` | user.py | `tb_user_role` M:N 삭제 → `UserUpdate.role_id`로 대체 |
 | `RolePermissionAssign` | user.py | `tb_role_permission` 삭제 → `UserMenuAssign`으로 대체 |
-| `DataFilterResponse` | user.py | `tb_data_filter` 삭제 → `scope_type` 코드 유도 |
+| `DataFilterResponse` | user.py | `tb_data_filter` 삭제 → `role_code` 코드 유도 |
 | `RoleBase` | user.py | `RoleCreate`에서 직접 정의 |
 | `UserInfo.roles` | auth.py | `role_code: str` 단일로 대체 |
 | `UserInfo.role_names` | auth.py | 제거 (불필요) |

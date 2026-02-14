@@ -5,7 +5,7 @@
   - Import 검증 (모델, 서비스, 라우터)
   - Pydantic 모델 validation
   - DB 연동 CRUD: 테넌트 → 역할 → 사용자 → 메뉴 권한 할당 → 삭제
-  - scope_type 기반 접근 제한
+  - role_code 기반 접근 제한
   - 역할별 기본 메뉴 템플릿 (get_default_menus)
 """
 import sys
@@ -157,15 +157,10 @@ def test_all():
 
     try:
         from app.models.user import RoleCreate
-        role = RoleCreate(role_code="TEST_ROLE", role_name="테스트 역할", scope_type="tenant")
-        assert role.scope_type == "TENANT"
-        ok("RoleCreate: scope_type auto-uppercase")
-
-        try:
-            RoleCreate(role_code="TEST", role_name="테스트", scope_type="INVALID")
-            fail("RoleCreate should reject invalid scope_type")
-        except Exception:
-            ok("RoleCreate: invalid scope_type rejected")
+        role = RoleCreate(role_code="TEST_ROLE", role_name="테스트 역할")
+        assert role.role_code == "TEST_ROLE"
+        assert role.landing_page == "/chat"
+        ok("RoleCreate: basic validation passed (v3.0, no scope_type)")
     except Exception as e:
         fail(f"RoleCreate validation: {e}")
 
@@ -225,17 +220,16 @@ def test_all():
         db_manager.initialize()
         ok("db_manager initialized")
 
-        # admin UserContext 생성 (v2.0: role_code, scope_type만 사용)
+        # admin UserContext 생성 (v3.0: role_code가 데이터 범위 겸용)
         admin_ctx = UserContext(
             user_id=1,
             login_id="admin",
             display_name="시스템 관리자",
             tenant_id=None,
             is_superuser=True,
-            role_code="SYSTEM_ADMIN",
-            scope_type="GLOBAL",
+            role_code="GLOBAL",
         )
-        ok(f"admin UserContext: scope={admin_ctx.scope_type}, is_global={admin_ctx.is_global}")
+        ok(f"admin UserContext: role_code={admin_ctx.role_code}, is_global={admin_ctx.is_global}")
 
         # 3-1. 테넌트 목록 조회
         try:
@@ -253,23 +247,22 @@ def test_all():
             assert "items" in result
             for item in result["items"]:
                 assert "user_count" in item, f"역할 {item.get('role_code')}에 user_count 없음"
-                assert "scope_type" in item, f"역할 {item.get('role_code')}에 scope_type 없음"
             ok(f"role_service.list_roles: total={result['total']}, roles={[r['role_code'] for r in result['items']]}")
         except Exception as e:
             fail(f"role_service.list_roles: {e}")
 
         # 3-3. 역할별 기본 메뉴 템플릿 조회
         try:
-            default_menus = role_service.get_default_menus("SYSTEM_ADMIN", "test-mgmt")
+            default_menus = role_service.get_default_menus("GLOBAL", "test-mgmt")
             assert isinstance(default_menus, list)
             assert len(default_menus) > 0
-            # SYSTEM_ADMIN은 모든 PAGE/API 메뉴에 전체 권한
+            # GLOBAL은 모든 PAGE/API 메뉴에 전체 권한
             checked = [m for m in default_menus if m.get("checked")]
-            ok(f"role_service.get_default_menus(SYSTEM_ADMIN): total={len(default_menus)}, checked={len(checked)}")
+            ok(f"role_service.get_default_menus(GLOBAL): total={len(default_menus)}, checked={len(checked)}")
 
-            tenant_menus = role_service.get_default_menus("TENANT_ADMIN", "test-mgmt")
+            tenant_menus = role_service.get_default_menus("TENANT", "test-mgmt")
             tenant_checked = [m for m in tenant_menus if m.get("checked")]
-            ok(f"role_service.get_default_menus(TENANT_ADMIN): total={len(tenant_menus)}, checked={len(tenant_checked)}")
+            ok(f"role_service.get_default_menus(TENANT): total={len(tenant_menus)}, checked={len(tenant_checked)}")
 
             user_menus = role_service.get_default_menus("USER", "test-mgmt")
             user_checked = [m for m in user_menus if m.get("checked")]
@@ -293,7 +286,7 @@ def test_all():
             user = user_service.get_user(1, admin_ctx, "test-mgmt")
             assert user["login_id"] == "admin"
             assert "role" in user
-            assert user["role"]["role_code"] == "SYSTEM_ADMIN"
+            assert user["role"]["role_code"] == "GLOBAL"
             ok(f"user_service.get_user(1): role_code={user['role']['role_code']}")
         except Exception as e:
             fail(f"user_service.get_user: {e}")
@@ -332,7 +325,7 @@ def test_all():
         # 4-2. 역할 생성
         try:
             role = role_service.create_role(
-                {"role_code": "TEST_MGMT_ROLE", "role_name": "관리 테스트 역할", "scope_type": "TENANT"},
+                {"role_code": "TEST_MGMT_ROLE", "role_name": "관리 테스트 역할"},
                 admin_ctx, "test-mgmt",
             )
             test_role_id = role["role_id"]
@@ -426,7 +419,7 @@ def test_all():
                 tenant_ctx = UserContext(
                     user_id=9999, login_id="tenant_scope_test",
                     tenant_id=test_tenant_id, is_superuser=False,
-                    role_code="TENANT_ADMIN", scope_type="TENANT",
+                    role_code="TENANT",
                 )
                 # TENANT scope로 사용자 목록 조회 → 자기 테넌트만
                 result = user_service.list_users(tenant_ctx, "test-mgmt", limit=100)
@@ -451,7 +444,7 @@ def test_all():
         # 4-9. 시스템 역할 삭제 방어
         try:
             with db_manager.get_cursor() as cur:
-                cur.execute("SELECT role_id FROM tb_role WHERE role_code = 'SYSTEM_ADMIN'")
+                cur.execute("SELECT role_id FROM tb_role WHERE role_code = 'GLOBAL'")
                 sys_role = cur.fetchone()
             if sys_role:
                 role_service.delete_role(sys_role["role_id"], admin_ctx, "test-mgmt")

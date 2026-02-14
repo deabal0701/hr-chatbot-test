@@ -19,36 +19,24 @@ from app.models.menu import UserMenuPermission
 class RoleSimple(BaseModel):
     """역할 간략 정보 (UserResponse에 포함용)"""
     role_id: int = Field(..., description="역할 ID")
-    role_code: str = Field(..., description="역할 코드")
+    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, USER)")
     role_name: str = Field(..., description="역할명")
-    scope_type: str = Field(..., description="데이터 범위")
     landing_page: str = Field(..., description="랜딩 페이지")
 
 
 class RoleCreate(BaseModel):
     """역할 생성 요청"""
-    role_code: str = Field(..., min_length=1, max_length=50, description="역할 코드")
+    role_code: str = Field(..., min_length=1, max_length=50, description="역할 코드 (GLOBAL, TENANT, USER)")
     role_name: str = Field(..., min_length=1, max_length=100, description="역할명")
     description: Optional[str] = Field(None, description="설명")
-    scope_type: str = Field(..., description="데이터 범위 (GLOBAL, TENANT, USER)")
     landing_page: str = Field(default="/chat", max_length=200, description="로그인 후 랜딩 페이지")
-
-    @field_validator("scope_type")
-    @classmethod
-    def validate_scope_type(cls, v: str) -> str:
-        valid = ["GLOBAL", "TENANT", "USER"]
-        v = v.upper()
-        if v not in valid:
-            raise ValueError(f"scope_type은 {valid} 중 하나여야 합니다")
-        return v
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "role_code": "DEPT_ADMIN",
-                "role_name": "부서 관리자",
-                "description": "부서 내 데이터만 접근",
-                "scope_type": "TENANT",
+                "role_code": "TENANT",
+                "role_name": "테넌트 관리자",
+                "description": "테넌트 내 데이터만 접근",
                 "landing_page": "/admin/dashboard"
             }
         }
@@ -59,27 +47,15 @@ class RoleUpdate(BaseModel):
     """역할 수정 요청 (모든 필드 Optional)"""
     role_name: Optional[str] = Field(None, max_length=100, description="역할명")
     description: Optional[str] = Field(None, description="설명")
-    scope_type: Optional[str] = Field(None, description="데이터 범위")
     landing_page: Optional[str] = Field(None, max_length=200, description="랜딩 페이지")
-
-    @field_validator("scope_type")
-    @classmethod
-    def validate_scope_type(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None:
-            valid = ["GLOBAL", "TENANT", "USER"]
-            v = v.upper()
-            if v not in valid:
-                raise ValueError(f"scope_type은 {valid} 중 하나여야 합니다")
-        return v
 
 
 class RoleResponse(BaseModel):
     """역할 상세 응답"""
     role_id: int = Field(..., description="역할 ID")
-    role_code: str = Field(..., description="역할 코드")
+    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, USER)")
     role_name: str = Field(..., description="역할명")
     description: Optional[str] = Field(None, description="설명")
-    scope_type: str = Field(..., description="데이터 범위")
     landing_page: str = Field(..., description="랜딩 페이지")
     is_system: bool = Field(..., description="시스템 기본 역할 여부")
     sort_order: int = Field(0, description="정렬 순서")
@@ -91,9 +67,8 @@ class RoleResponse(BaseModel):
         "json_schema_extra": {
             "example": {
                 "role_id": 1,
-                "role_code": "SYSTEM_ADMIN",
+                "role_code": "GLOBAL",
                 "role_name": "시스템 관리자",
-                "scope_type": "GLOBAL",
                 "landing_page": "/admin/dashboard",
                 "is_system": True,
                 "user_count": 1,
@@ -198,9 +173,8 @@ class UserResponse(BaseModel):
                 "tenant_name": None,
                 "role": {
                     "role_id": 1,
-                    "role_code": "SYSTEM_ADMIN",
+                    "role_code": "GLOBAL",
                     "role_name": "시스템 관리자",
-                    "scope_type": "GLOBAL",
                     "landing_page": "/admin/dashboard"
                 },
                 "is_active": True,
