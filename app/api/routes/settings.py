@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api/admin/v1/settings", tags=["admin-settings"])
 # ============================================
 
 @router.get("")
-async def get_all_settings(current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def get_all_settings(current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """전체 설정 조회 (마스킹 적용)"""
     try:
         all_settings = settings_service.get_all_settings_masked()
@@ -49,7 +49,7 @@ async def get_all_settings(current_user: UserContext = Depends(require_menu_perm
 
 
 @router.get("/{category}")
-async def get_category_settings(category: str, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def get_category_settings(category: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """카테고리별 설정 조회 (마스킹 적용)"""
     try:
         if not settings_service.is_valid_category(category):
@@ -70,7 +70,7 @@ async def get_category_settings(category: str, current_user: UserContext = Depen
 # ============================================
 
 @router.get("/prompt/history")
-async def get_prompt_history(limit: int = 100, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def get_prompt_history(limit: int = 100, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """전체 프롬프트 변경 이력 조회"""
     try:
         history = settings_service.get_prompt_history(limit)
@@ -81,7 +81,7 @@ async def get_prompt_history(limit: int = 100, current_user: UserContext = Depen
 
 
 @router.get("/prompt/history/{category}/{key}")
-async def get_prompt_history_by_key(category: str, key: str, limit: int = 50, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def get_prompt_history_by_key(category: str, key: str, limit: int = 50, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """특정 프롬프트의 변경 이력 조회"""
     try:
         history = settings_service.get_prompt_history_by_key(category, key, limit)
@@ -92,7 +92,7 @@ async def get_prompt_history_by_key(category: str, key: str, limit: int = 50, cu
 
 
 @router.post("/prompt/restore/{history_id}")
-async def restore_prompt_from_history(history_id: int, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "update"))):
+async def restore_prompt_from_history(history_id: int, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
     """프롬프트 원복"""
     try:
         success = settings_service.restore_prompt_from_history(history_id, changed_by='admin')
@@ -108,7 +108,7 @@ async def restore_prompt_from_history(history_id: int, current_user: UserContext
 
 
 @router.get("/{category}/{key}")
-async def get_setting(category: str, key: str, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def get_setting(category: str, key: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """단일 설정 조회 (마스킹 적용)"""
     try:
         setting = settings_service.get_setting(category, key, masked=True)
@@ -124,7 +124,7 @@ async def get_setting(category: str, key: str, current_user: UserContext = Depen
 
 
 @router.get("/{category}/{key}/reveal")
-async def reveal_setting(category: str, key: str, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def reveal_setting(category: str, key: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """단일 설정 조회 (마스킹 없이)"""
     try:
         setting = settings_service.get_setting(category, key, masked=False)
@@ -144,7 +144,7 @@ async def reveal_setting(category: str, key: str, current_user: UserContext = De
 # ============================================
 
 @router.put("/{category}/{key}")
-async def update_setting(category: str, key: str, request: SettingUpdateRequest, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "update"))):
+async def update_setting(category: str, key: str, request: SettingUpdateRequest, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
     """단일 설정 수정"""
     try:
         if not settings_service.is_valid_category(category):
@@ -167,7 +167,7 @@ async def update_setting(category: str, key: str, request: SettingUpdateRequest,
 
 
 @router.put("/{category}")
-async def update_category_settings(category: str, request: SettingsBulkUpdateRequest, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "update"))):
+async def update_category_settings(category: str, request: SettingsBulkUpdateRequest, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
     """카테고리별 설정 일괄 수정"""
     try:
         if not settings_service.is_valid_category(category):
@@ -192,7 +192,7 @@ async def update_category_settings(category: str, request: SettingsBulkUpdateReq
 # ============================================
 
 @router.post("/{category}/reset")
-async def reset_category_settings(category: str, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "update"))):
+async def reset_category_settings(category: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
     """카테고리 설정 초기화"""
     try:
         if not settings_service.is_valid_category(category):
@@ -216,7 +216,7 @@ async def reset_category_settings(category: str, current_user: UserContext = Dep
 # ============================================
 
 @router.post("/validate-api-key")
-async def validate_api_key(request: ApiKeyValidationRequest, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def validate_api_key(request: ApiKeyValidationRequest, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """OpenAI API 키 검증"""
     result = await settings_service.validate_openai_api_key(request.api_key)
     response = ApiKeyValidationResponse(**result)
@@ -228,7 +228,7 @@ async def validate_api_key(request: ApiKeyValidationRequest, current_user: UserC
 # ============================================
 
 @router.post("/refresh-cache")
-async def refresh_settings_cache(current_user: UserContext = Depends(require_menu_permission("SETTINGS", "update"))):
+async def refresh_settings_cache(current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
     """설정 캐시 새로고침"""
     try:
         settings_service.refresh_cache()
@@ -244,7 +244,7 @@ async def refresh_settings_cache(current_user: UserContext = Depends(require_men
 # ============================================
 
 @router.post("/external-database/test")
-async def test_external_database_connection(request: dict, current_user: UserContext = Depends(require_menu_permission("SETTINGS", "read"))):
+async def test_external_database_connection(request: dict, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
     """외부 비즈니스 데이터베이스 연결 테스트"""
     result = settings_service.test_external_db_connection(
         db_type=request.get("db_type", "postgresql"),

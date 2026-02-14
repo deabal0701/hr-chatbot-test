@@ -43,55 +43,55 @@ const routes = [
         path: 'chat',
         name: 'AdminChat',
         component: () => import('@/views/admin/ChatView.vue'),
-        meta: { title: '자연어 검색', menuCode: 'CHAT' }
+        meta: { title: '자연어 검색', menuCode: 'AI_SEARCH' }
       },
       {
         path: 'documents',
         name: 'AdminDocuments',
         component: () => import('@/views/admin/DocumentsView.vue'),
-        meta: { title: '지식문서 관리', menuCode: 'DOCUMENTS' }
+        meta: { title: '지식문서 관리', menuCode: 'DOC_MGMT' }
       },
       {
         path: 'documents/new',
         name: 'AdminDocumentNew',
         component: () => import('@/views/admin/DocumentEditView.vue'),
-        meta: { title: '새 문서 등록', menuCode: 'DOCUMENTS' }
+        meta: { title: '새 문서 등록', menuCode: 'DOC_MGMT' }
       },
       {
         path: 'documents/:id',
         name: 'AdminDocumentDetail',
         component: () => import('@/views/admin/DocumentDetailView.vue'),
-        meta: { title: '문서 상세', menuCode: 'DOCUMENTS' }
+        meta: { title: '문서 상세', menuCode: 'DOC_MGMT' }
       },
       {
         path: 'documents/:id/edit',
         name: 'AdminDocumentEdit',
         component: () => import('@/views/admin/DocumentEditView.vue'),
-        meta: { title: '문서 수정', menuCode: 'DOCUMENTS' }
+        meta: { title: '문서 수정', menuCode: 'DOC_MGMT' }
       },
       {
         path: 'settings',
         name: 'AdminSettings',
         component: () => import('@/views/admin/SettingsView.vue'),
-        meta: { title: '시스템 설정', menuCode: 'SETTINGS' }
+        meta: { title: '시스템 설정', menuCode: 'SYS_SETTING' }
       },
       {
         path: 'codes',
         name: 'AdminCodes',
         component: () => import('@/views/admin/CodesView.vue'),
-        meta: { title: '코드 관리', menuCode: 'CODES' }
+        meta: { title: '코드 관리', menuCode: 'CODE_MGMT' }
       },
       {
         path: 'history',
         name: 'AdminHistory',
         component: () => import('@/views/admin/HistoryView.vue'),
-        meta: { title: '검색 이력', menuCode: 'HISTORY' }
+        meta: { title: '검색 이력', menuCode: 'SEARCH_HIST' }
       },
       {
         path: 'history/:requestId',
         name: 'AdminHistoryDetail',
         component: () => import('@/views/admin/HistoryDetailView.vue'),
-        meta: { title: '요청 상세', menuCode: 'HISTORY' }
+        meta: { title: '요청 상세', menuCode: 'SEARCH_HIST' }
       },
       {
         path: 'users',

@@ -150,9 +150,9 @@ def test_all():
         assert callable(checker)
         ok(f"require_menu_permission('USER_MGMT', 'read') returns callable")
 
-        checker2 = require_menu_permission("SETTINGS", "update")
+        checker2 = require_menu_permission("SYS_SETTING", "update")
         assert callable(checker2)
-        ok(f"require_menu_permission('SETTINGS', 'update') returns callable")
+        ok(f"require_menu_permission('SYS_SETTING', 'update') returns callable")
 
         # 잘못된 action 검증
         try:

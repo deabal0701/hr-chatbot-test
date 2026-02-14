@@ -276,7 +276,7 @@ async def get_history_detail(request_id: str, current_user: Optional[UserContext
 async def cleanup_old_records(
     days: int = Query(90, ge=7, le=365, description="보관 기간 (일)"),
     tenant_id: Optional[str] = Query(None, description="테넌트 ID (지정 시 해당 테넌트만 정리)"),
-    current_user: UserContext = Depends(require_menu_permission("HISTORY", "delete")),
+    current_user: UserContext = Depends(require_menu_permission("SEARCH_HIST", "delete")),
 ):
     """
     오래된 이력 정리 (관리자용, admin:settings 권한 필요)
