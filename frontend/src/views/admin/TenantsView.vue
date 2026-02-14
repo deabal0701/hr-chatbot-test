@@ -23,7 +23,7 @@
         style="width: 100%; margin-top: 16px"
         :default-sort="{ prop: 'tenant_id', order: 'ascending' }"
       >
-        <el-table-column prop="tenant_id" label="ID" width="60" sortable />
+        <el-table-column prop="tenant_id" label="ID" width="70" sortable />
 
         <el-table-column prop="tenant_code" label="테넌트 코드" width="160" sortable />
 

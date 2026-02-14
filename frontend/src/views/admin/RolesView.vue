@@ -42,7 +42,7 @@
 
         <el-table-column prop="landing_page" label="랜딩 페이지" width="150" show-overflow-tooltip />
 
-        <el-table-column prop="user_count" label="사용자수" width="110" align="center" sortable>
+        <el-table-column prop="user_count" label="사용자수" width="120" align="center" sortable>
           <template #default="{ row }">
             <el-tag size="small" :type="row.user_count > 0 ? '' : 'info'">{{ row.user_count }}</el-tag>
           </template>

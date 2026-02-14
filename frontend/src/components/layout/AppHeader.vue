@@ -8,6 +8,13 @@
 
     <!-- 우측: 액션 버튼들 -->
     <div class="header-right">
+      <!-- 테마 토글 -->
+      <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
+        <el-button circle size="small" @click="toggleDarkMode" class="theme-toggle-btn">
+          <el-icon><Sunny v-if="isDarkMode" /><Moon v-else /></el-icon>
+        </el-button>
+      </el-tooltip>
+
       <!-- API 상태 표시 -->
       <el-tooltip :content="apiHealthy ? 'API 연결됨' : 'API 연결 안됨'" placement="bottom">
         <el-tag :type="apiHealthy ? 'success' : 'danger'" size="small" effect="plain">
@@ -84,7 +91,7 @@ import { computed, reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
-import { Connection, Menu, ArrowDown, Lock, SwitchButton, UserFilled } from '@element-plus/icons-vue'
+import { Connection, Menu, ArrowDown, Lock, SwitchButton, UserFilled, Sunny, Moon } from '@element-plus/icons-vue'
 import apiClient from '@/api'
 
 const route = useRoute()
@@ -92,6 +99,8 @@ const router = useRouter()
 const store = useStore()
 
 const apiHealthy = computed(() => store.state.app.apiHealthy)
+const isDarkMode = computed(() => store.getters['app/isDarkMode'])
+const toggleDarkMode = () => store.dispatch('app/toggleDarkMode')
 const currentUser = computed(() => store.getters['auth/currentUser'])
 const displayName = computed(() => store.getters['auth/displayName'])
 // 역할 코드 → 한국어 라벨 매핑
@@ -271,6 +280,18 @@ onMounted(() => {
     font-size: 13px;
     color: var(--text-color-primary);
     font-weight: 500;
+  }
+}
+
+.theme-toggle-btn {
+  border: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--text-color-regular);
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
   }
 }
 

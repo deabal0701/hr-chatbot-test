@@ -14,14 +14,12 @@
         </div>
       </div>
       <div class="header-right">
-        <!-- 테마 토글 버튼 - 추후 사용 예정 (다크모드 기본 고정)
         <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
           <button class="theme-toggle-btn" @click="toggleDarkMode">
             <el-icon v-if="isDarkMode"><Sunny /></el-icon>
             <el-icon v-else><Moon /></el-icon>
           </button>
         </el-tooltip>
-        -->
         <!-- 관리자 링크 주석처리 (로그인 기능 없음) -->
         <!-- <el-button text class="header-btn" @click="goToAdmin">
           <el-icon><Setting /></el-icon>

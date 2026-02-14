@@ -636,7 +636,6 @@ const handleSubmit = async () => {
       flex: 1;
 
       :deep(.el-textarea__inner) {
-        font-family: 'Pretendard', sans-serif;
         font-size: 14px;
         line-height: 1.8;
       }
