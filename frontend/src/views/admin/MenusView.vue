@@ -25,6 +25,7 @@
 
           <!-- 메뉴 트리 -->
           <el-tree
+            :key="treeVersion"
             ref="treeRef"
             v-loading="isLoading"
             :data="menuTree"
@@ -309,6 +310,7 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const isApplying = ref(false)
 const menuTree = ref([])
+const treeVersion = ref(0)
 const treeRef = ref(null)
 const formRef = ref(null)
 const contextMenuRef = ref(null)
@@ -405,6 +407,7 @@ const loadMenuTree = async () => {
   try {
     const result = await menusApi.getTree()
     menuTree.value = result.items || []
+    treeVersion.value++
   } catch {
     ElMessage.error('메뉴 트리 로드 실패')
   } finally {
@@ -573,8 +576,8 @@ const handleAllowDrag = () => true
 
 // 드롭 가능 여부
 const handleAllowDrop = (draggingNode, dropNode, type) => {
-  // API 타입은 하위 메뉴를 가질 수 없음
-  if (type === 'inner' && dropNode.data.menu_type === 'API') return false
+  // inner(하위 편입)는 DIRECTORY 타입만 허용 — PAGE, API는 자식을 가질 수 없음
+  if (type === 'inner' && dropNode.data.menu_type !== 'DIRECTORY') return false
   // 최대 depth 5 제한
   if (type === 'inner') {
     const targetDepth = (dropNode.data.depth || 0) + 1
@@ -595,53 +598,98 @@ const getMaxChildDepth = (data) => {
   return max
 }
 
-// 드롭 완료 처리
+// 트리 데이터를 flat 배열로 변환
+const flattenTree = (items) => {
+  const result = []
+  const walk = (list) => {
+    for (const item of list) {
+      result.push(item)
+      if (item.children?.length) walk(item.children)
+    }
+  }
+  walk(items)
+  return result
+}
+
+// 드롭 완료 처리 — 서버 데이터 기반 계산 (el-tree 내부 상태에 의존하지 않음)
 const handleNodeDrop = async (draggingNode, dropNode, dropType) => {
   try {
-    const dragData = draggingNode.data
+    const dragId = draggingNode.data.menu_id
+    const dropId = dropNode.data.menu_id
+    const oldParentId = draggingNode.data.parent_menu_id ?? null
 
-    // 1. parent_menu_id 결정
+    // 1. 새 parent_menu_id 결정
     let newParentId = null
     if (dropType === 'inner') {
-      newParentId = dropNode.data.menu_id
+      newParentId = dropId
     } else {
-      // before/after → 대상 노드의 부모
-      newParentId = dropNode.data.parent_menu_id || null
+      newParentId = dropNode.data.parent_menu_id ?? null
     }
 
-    // 2. parent 변경이 필요하면 update 호출
-    if (dragData.parent_menu_id !== newParentId) {
-      await menusApi.update(dragData.menu_id, { parent_menu_id: newParentId })
+    const parentChanged = oldParentId !== newParentId
+
+    // 2. parent 변경 시 update 호출
+    if (parentChanged) {
+      await menusApi.update(dragId, { parent_menu_id: newParentId })
     }
 
-    // 3. 같은 부모의 형제들 sort_order 재계산
-    const siblings = getSiblings(draggingNode)
-    if (siblings.length > 0) {
-      const reorderItems = siblings.map((sib, idx) => ({
-        menu_id: sib.data.menu_id,
-        sort_order: idx + 1
-      }))
-      await menusApi.reorder(reorderItems)
+    // 3. 서버에서 최신 트리 조회 (el-tree 내부 상태 대신 DB 기준)
+    const freshTree = await menusApi.getTree()
+    const allMenus = flattenTree(freshTree.items || [])
+
+    // 4. 새 부모의 형제 목록 (드래그 항목 제외) — DB sort_order 순
+    const siblings = allMenus
+      .filter(m => (m.parent_menu_id ?? null) === newParentId && m.menu_id !== dragId)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+
+    // 5. 드롭 위치에 따라 삽입 인덱스 계산
+    let insertIdx
+    if (dropType === 'inner') {
+      insertIdx = siblings.length
+    } else {
+      const dropIdx = siblings.findIndex(s => s.menu_id === dropId)
+      insertIdx = dropIdx === -1
+        ? siblings.length
+        : dropType === 'before' ? dropIdx : dropIdx + 1
     }
 
+    // 6. 드래그 항목을 계산된 위치에 삽입
+    siblings.splice(insertIdx, 0, { menu_id: dragId })
+
+    // 7. sort_order 1,2,3... 일괄 업데이트
+    const reorderItems = siblings.map((s, idx) => ({
+      menu_id: s.menu_id,
+      sort_order: idx + 1
+    }))
+    await menusApi.reorder(reorderItems)
+
+    // 8. parent 변경 시 이전 부모의 남은 형제도 재정렬
+    if (parentChanged) {
+      const oldSiblings = allMenus
+        .filter(m => (m.parent_menu_id ?? null) === oldParentId && m.menu_id !== dragId)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      if (oldSiblings.length > 0) {
+        const oldReorderItems = oldSiblings.map((s, idx) => ({
+          menu_id: s.menu_id,
+          sort_order: idx + 1
+        }))
+        await menusApi.reorder(oldReorderItems)
+      }
+    }
+
+    // 9. 트리 리로드
     await loadMenuTree()
 
     // 이동된 메뉴 재선택
-    if (selectedMenuId.value === dragData.menu_id) {
+    if (selectedMenuId.value === dragId) {
       nextTick(() => {
-        if (treeRef.value) treeRef.value.setCurrentKey(dragData.menu_id)
+        if (treeRef.value) treeRef.value.setCurrentKey(dragId)
       })
     }
   } catch (error) {
     ElMessage.error(error.message || '메뉴 이동 실패')
     await loadMenuTree()
   }
-}
-
-// 노드의 형제 목록 가져오기
-const getSiblings = (node) => {
-  const parent = node.parent
-  return parent?.childNodes || []
 }
 
 // ===== 펼치기/접기 =====

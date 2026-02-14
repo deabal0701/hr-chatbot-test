@@ -191,18 +191,22 @@ class MenuService:
                 current_id = row["parent_menu_id"] if row else None
 
     def _recalculate_children_depth(self, parent_menu_id: int) -> None:
-        """하위 메뉴의 depth를 재귀적으로 재계산"""
+        """하위 메뉴의 depth를 재귀적으로 재계산 (단일 커서로 처리)"""
         with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("SELECT menu_id, depth FROM tb_menu WHERE menu_id = %s", (parent_menu_id,))
-            parent = cur.fetchone()
-            if not parent:
-                return
-            parent_depth = parent["depth"]
-            cur.execute("SELECT menu_id FROM tb_menu WHERE parent_menu_id = %s", (parent_menu_id,))
-            children = cur.fetchall()
-            for child in children:
-                cur.execute("UPDATE tb_menu SET depth = %s, updated_at = NOW() WHERE menu_id = %s", (parent_depth + 1, child["menu_id"]))
-                self._recalculate_children_depth(child["menu_id"])
+            self._recalc_depth_recursive(cur, parent_menu_id)
+
+    def _recalc_depth_recursive(self, cur, parent_menu_id: int) -> None:
+        """단일 커서 내에서 재귀적으로 depth 재계산"""
+        cur.execute("SELECT menu_id, depth FROM tb_menu WHERE menu_id = %s", (parent_menu_id,))
+        parent = cur.fetchone()
+        if not parent:
+            return
+        parent_depth = parent["depth"]
+        cur.execute("SELECT menu_id FROM tb_menu WHERE parent_menu_id = %s", (parent_menu_id,))
+        children = cur.fetchall()
+        for child in children:
+            cur.execute("UPDATE tb_menu SET depth = %s, updated_at = NOW() WHERE menu_id = %s", (parent_depth + 1, child["menu_id"]))
+            self._recalc_depth_recursive(cur, child["menu_id"])
 
 
 menu_service = MenuService()
