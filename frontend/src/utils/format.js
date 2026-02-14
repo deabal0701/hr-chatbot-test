@@ -56,3 +56,14 @@ export function formatResponseTime(ms) {
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }
+
+/**
+ * 텍스트 잘라내기 (말줄임)
+ * @param {string|null} text - 원본 텍스트
+ * @param {number} maxLength - 최대 길이
+ * @returns {string} 잘린 텍스트 또는 원본
+ */
+export function truncateText(text, maxLength) {
+  if (!text) return ''
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+}

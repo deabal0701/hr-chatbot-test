@@ -205,6 +205,7 @@ import ChartBuilder from '../chart/ChartBuilder.vue'
 import searchApi from '@/api/search'
 import { ElMessage } from 'element-plus'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
+import { truncateText } from '@/utils/format'
 
 const props = defineProps({
   message: {
@@ -271,10 +272,6 @@ const turnInfo = computed(() => {
   return null
 })
 
-const truncateText = (text, length) => {
-  if (!text) return ''
-  return text.length > length ? text.substring(0, length) + '...' : text
-}
 
 const getModeLabel = (mode) => {
   const labels = {

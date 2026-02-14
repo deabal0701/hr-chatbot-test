@@ -2,7 +2,7 @@ import apiClient from './index'
 
 const BASE_URL = '/api/admin/v1/settings'
 
-export default {
+const settingsApi = {
   /**
    * 전체 설정 조회
    */
@@ -119,3 +119,5 @@ export default {
     return apiClient.post(`${BASE_URL}/prompt/restore/${historyId}`)
   }
 }
+
+export default settingsApi

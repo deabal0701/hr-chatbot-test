@@ -500,11 +500,6 @@ const getTypeLabel = (type) => {
 }
 
 
-const truncateText = (text, maxLength) => {
-  if (!text) return ''
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
-}
-
 // URL 쿼리 파라미터 감시 (session_id 직접 감시)
 watch(() => route.query.session_id, (newSessionId) => {
   filters.session_id = newSessionId || ''

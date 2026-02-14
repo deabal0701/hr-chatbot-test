@@ -1,7 +1,7 @@
 import apiClient from './index'
 
 // API 이력 관리 API
-export default {
+const historyApi = {
   /**
    * 이력 목록 조회
    * @param {Object} params - 조회 파라미터
@@ -88,3 +88,5 @@ export default {
     return apiClient.delete('/api/v1/history/cleanup', { params })
   }
 }
+
+export default historyApi

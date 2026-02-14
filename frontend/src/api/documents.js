@@ -1,7 +1,7 @@
 import apiClient from './index'
 
 // 문서 관리 API
-export default {
+const documentsApi = {
   /**
    * 문서 목록 조회
    * @param {Object} params - 조회 파라미터
@@ -96,3 +96,5 @@ export default {
     })
   }
 }
+
+export default documentsApi

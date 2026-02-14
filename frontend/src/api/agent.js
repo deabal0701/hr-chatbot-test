@@ -92,7 +92,7 @@ export const agentSearchStream = ({ question, sessionId = null }, callbacks) => 
   )
 }
 
-export default {
+const agentApi = {
   agentSearch,
   agentSearchStream,
   listSessions,
@@ -101,3 +101,5 @@ export default {
   getSessionMetrics,
   listTools
 }
+
+export default agentApi

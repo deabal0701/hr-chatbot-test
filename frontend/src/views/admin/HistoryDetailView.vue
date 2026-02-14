@@ -271,7 +271,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowDown, CopyDocument, DataLine, Delete } from '@element-plus/icons-vue'
 import historyApi from '@/api/history'
-import { formatDateTime, formatResponseTime } from '@/utils/format'
+import { formatDateTime, formatResponseTime, truncateText } from '@/utils/format'
 
 const router = useRouter()
 const route = useRoute()
@@ -369,11 +369,6 @@ const getTypeLabel = (type) => {
   return labels[type] || type
 }
 
-
-const truncateText = (text, maxLength) => {
-  if (!text) return ''
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
-}
 
 const formatJson = (data) => {
   if (!data) return '-'

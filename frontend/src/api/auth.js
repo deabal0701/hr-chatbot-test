@@ -12,7 +12,7 @@ import apiClient from './index'
 
 const AUTH_BASE = '/api/v1/auth'
 
-export default {
+const authApi = {
   login(loginId, password) {
     return apiClient.post(`${AUTH_BASE}/login`, {
       login_id: loginId,
@@ -41,3 +41,5 @@ export default {
     })
   }
 }
+
+export default authApi

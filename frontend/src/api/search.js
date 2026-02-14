@@ -3,7 +3,7 @@ import apiClient from './index'
 import { streamSSE } from './sse'
 
 // 검색 API
-export default {
+const searchApi = {
   /**
    * 통합 검색
    * @param {Object} params - 검색 파라미터
@@ -111,3 +111,5 @@ export default {
     return filename
   }
 }
+
+export default searchApi
