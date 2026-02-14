@@ -42,7 +42,7 @@
         style="width: 100%; margin-top: 16px"
         :default-sort="{ prop: 'user_id', order: 'ascending' }"
       >
-        <el-table-column prop="user_id" label="ID" width="60" sortable />
+        <el-table-column prop="user_id" label="ID" width="70" sortable />
 
         <el-table-column prop="login_id" label="로그인 ID" min-width="110" sortable />
 
@@ -76,7 +76,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="tenant_name" label="테넌트" min-width="90">
+        <el-table-column prop="tenant_name" label="테넌트" min-width="110">
           <template #default="{ row }">
             {{ row.tenant_name || '-' }}
           </template>
@@ -96,7 +96,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="동작" width="120" fixed="right">
+        <el-table-column label="동작" width="140">
           <template #default="{ row }">
             <span class="action-cell">
               <el-button link type="primary" size="small" :icon="Edit" @click="openEditDialog(row)">수정</el-button>

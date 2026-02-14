@@ -23,14 +23,14 @@
         style="width: 100%; margin-top: 16px"
         :default-sort="{ prop: 'sort_order', order: 'ascending' }"
       >
-        <el-table-column prop="role_code" label="역할 코드" width="160" sortable>
+        <el-table-column prop="role_code" label="역할 코드" min-width="180" sortable>
           <template #default="{ row }">
             <span>{{ row.role_code }}</span>
             <el-tag v-if="row.is_system" type="info" size="small" style="margin-left: 6px">시스템</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="role_name" label="역할명" min-width="140" sortable />
+        <el-table-column prop="role_name" label="역할명" width="120" sortable />
 
         <el-table-column prop="scope_type" label="데이터 범위" width="120" align="center">
           <template #default="{ row }">
@@ -42,15 +42,15 @@
 
         <el-table-column prop="landing_page" label="랜딩 페이지" width="150" show-overflow-tooltip />
 
-        <el-table-column prop="user_count" label="사용자 수" width="100" align="center" sortable>
+        <el-table-column prop="user_count" label="사용자수" width="110" align="center" sortable>
           <template #default="{ row }">
             <el-tag size="small" :type="row.user_count > 0 ? '' : 'info'">{{ row.user_count }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="description" label="설명" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="description" label="설명" min-width="160" show-overflow-tooltip />
 
-        <el-table-column label="동작" width="180" fixed="right">
+        <el-table-column label="동작" width="190" align="center">
           <template #default="{ row }">
             <span class="action-cell">
               <el-button link type="primary" size="small" :icon="View" @click="openDefaultMenus(row)">메뉴</el-button>

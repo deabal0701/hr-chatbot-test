@@ -197,7 +197,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="작업" width="70" align="center" fixed="right">
+        <el-table-column label="작업" width="70" align="center">
           <template #default="{ row }">
             <el-button
               type="danger"

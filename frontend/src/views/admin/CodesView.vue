@@ -95,7 +95,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="동작" width="150" fixed="right">
+        <el-table-column label="동작" width="150">
           <template #default="{ row }">
             <el-button
               link
@@ -242,7 +242,7 @@
         </el-table-column>
         <el-table-column prop="code_name" label="표시명" width="180" />
         <el-table-column prop="description" label="설명" min-width="200" show-overflow-tooltip />
-        <el-table-column label="동작" width="120" fixed="right">
+        <el-table-column label="동작" width="120">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openCategoryEditDialog(row)">수정</el-button>
             <el-button link type="danger" size="small" @click="handleDeleteCategory(row)" :disabled="row.is_system">삭제</el-button>

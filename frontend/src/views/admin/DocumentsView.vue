@@ -147,7 +147,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="작업" width="150" fixed="right">
+        <el-table-column label="작업" width="150">
           <template #default="{ row }">
             <el-button-group>
               <el-button size="small" text :icon="Edit" @click="showEditForm(row)">

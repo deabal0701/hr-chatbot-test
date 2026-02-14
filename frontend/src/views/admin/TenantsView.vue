@@ -29,7 +29,7 @@
 
         <el-table-column prop="tenant_name" label="테넌트명" min-width="180" sortable />
 
-        <el-table-column prop="user_count" label="사용자 수" width="100" align="center" sortable>
+        <el-table-column prop="user_count" label="사용자수" width="100" align="center" sortable>
           <template #default="{ row }">
             <el-tag size="small" :type="row.user_count > 0 ? '' : 'info'">{{ row.user_count }}</el-tag>
           </template>
@@ -56,13 +56,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="created_at" label="생성일" width="160">
+        <el-table-column prop="created_at" label="생성일시" width="160">
           <template #default="{ row }">
             {{ formatDateTime(row.created_at) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="동작" width="120" fixed="right">
+        <el-table-column label="동작" width="140">
           <template #default="{ row }">
             <span class="action-cell">
               <el-button link type="primary" size="small" :icon="Edit" @click="openEditDialog(row)">수정</el-button>
@@ -145,6 +145,7 @@ import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete } from '@element-plus/icons-vue'
 import tenantsApi from '@/api/tenants'
+import { formatDateTime } from '@/utils/format'
 
 // 상태
 const isLoading = ref(false)
@@ -166,12 +167,6 @@ const formData = reactive({
   is_active: true
 })
 const metadataJson = ref('')
-
-// 날짜 포맷
-const formatDateTime = (dt) => {
-  if (!dt) return '-'
-  return new Date(dt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
 
 // 폼 검증 규칙
 const formRules = {
