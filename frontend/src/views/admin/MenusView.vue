@@ -31,6 +31,7 @@
               <el-button :icon="Refresh" size="small" circle @click="loadMenuTree" :loading="isLoading" />
             </el-tooltip>
           </div>
+          <el-divider class="tree-divider" />
 
           <!-- 메뉴 트리 -->
           <el-tree
@@ -873,11 +874,14 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 8px;
     align-items: center;
-    margin-bottom: 12px;
 
     .toolbar-spacer {
       flex: 1;
     }
+  }
+
+  .tree-divider {
+    margin: 12px 0;
   }
 
   // 트리 노드 커스텀
