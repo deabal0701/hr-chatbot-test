@@ -363,7 +363,8 @@ class VectorStoreService:
         content_hash: Optional[str],
         chunk_index: int,
         total_chunks: int,
-        parent_doc_id: Optional[int]
+        parent_doc_id: Optional[int],
+        usage_type: str = "rag_knowledge"
     ) -> int:
         """단일 문서 삽입 (내부용)"""
         embedding = self.embed_text(content)
@@ -376,14 +377,16 @@ class VectorStoreService:
                     title, doc_type, language, content, metadata,
                     embedding, embedding_model, indexed,
                     source_type, source_file, content_hash,
-                    chunk_index, total_chunks, parent_doc_id, embedded_at
+                    chunk_index, total_chunks, parent_doc_id, embedded_at,
+                    usage_type
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 title, doc_type, language, content, psycopg.types.json.Json(metadata or {}),
                 embedding_array, self.embedding_model, True, source_type, source_file, content_hash,
-                chunk_index, total_chunks, parent_doc_id, datetime.now()
+                chunk_index, total_chunks, parent_doc_id, datetime.now(),
+                usage_type
             ))
 
             result = cur.fetchone()
@@ -479,12 +482,12 @@ class VectorStoreService:
         chunk_ids = []
 
         with db_manager.get_cursor(commit=True) as cur:
-            # 첫 번째 청크: 원본 문서 업데이트
+            # 첫 번째 청크: 원본 문서 업데이트 (usage_type도 rag_knowledge로 보장)
             first_embedding = np.array(embeddings[0])
             cur.execute("""
                 UPDATE tb_docs
                 SET title = %s, content = %s, original_content = %s, embedding = %s, embedding_model = %s,
-                    indexed = true, chunk_index = 0, total_chunks = %s, embedded_at = %s
+                    indexed = true, chunk_index = 0, total_chunks = %s, embedded_at = %s, usage_type = 'rag_knowledge'
                 WHERE id = %s
             """, (
                 f"{original_title} (1/{total_chunks})", chunks[0].content, content,
@@ -493,7 +496,7 @@ class VectorStoreService:
             parent_id = doc_id
             chunk_ids.append(doc_id)
 
-            # 나머지 청크: 새 문서로 삽입
+            # 나머지 청크: 새 문서로 삽입 (usage_type = 'rag_knowledge'로 통일)
             for i, chunk in enumerate(chunks[1:], start=1):
                 embedding_array = np.array(embeddings[i])
                 cur.execute("""
@@ -501,15 +504,17 @@ class VectorStoreService:
                         title, doc_type, language, content, metadata,
                         embedding, embedding_model, indexed,
                         source_type, source_file, content_hash,
-                        chunk_index, total_chunks, parent_doc_id, embedded_at
+                        chunk_index, total_chunks, parent_doc_id, embedded_at,
+                        usage_type
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     f"{original_title} ({i + 1}/{total_chunks})", doc['doc_type'], doc['language'],
                     chunk.content, psycopg.types.json.Json(doc['metadata'] or {}),
                     embedding_array, self.embedding_model, True, doc['source_type'], doc['source_file'],
-                    None, chunk.chunk_index, total_chunks, parent_id, datetime.now()
+                    None, chunk.chunk_index, total_chunks, parent_id, datetime.now(),
+                    'rag_knowledge'
                 ))
                 chunk_id = cur.fetchone()['id']
                 chunk_ids.append(chunk_id)
