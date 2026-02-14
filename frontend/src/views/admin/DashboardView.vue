@@ -10,7 +10,7 @@
     <el-row :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #ecf5ff">
+          <div class="stat-icon is-primary">
             <el-icon :size="24" color="#409eff"><Document /></el-icon>
           </div>
           <div class="stat-content">
@@ -22,7 +22,7 @@
 
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #f0f9eb">
+          <div class="stat-icon is-success">
             <el-icon :size="24" color="#67c23a"><CircleCheck /></el-icon>
           </div>
           <div class="stat-content">
@@ -34,7 +34,7 @@
 
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #fdf6ec">
+          <div class="stat-icon is-warning">
             <el-icon :size="24" color="#e6a23c"><Clock /></el-icon>
           </div>
           <div class="stat-content">
@@ -46,7 +46,7 @@
 
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #f4f4f5">
+          <div class="stat-icon is-info">
             <el-icon :size="24" color="#909399"><ChatDotSquare /></el-icon>
           </div>
           <div class="stat-content">

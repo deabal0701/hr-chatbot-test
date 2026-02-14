@@ -15,7 +15,7 @@
     <el-row v-if="showStats" :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #ecf5ff">
+          <div class="stat-icon is-primary">
             <el-icon :size="24" color="#409eff"><List /></el-icon>
           </div>
           <div class="stat-content">
@@ -27,7 +27,7 @@
 
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #f0f9eb">
+          <div class="stat-icon is-success">
             <el-icon :size="24" color="#67c23a"><CircleCheck /></el-icon>
           </div>
           <div class="stat-content">
@@ -39,7 +39,7 @@
 
       <el-col :xs="24" :sm="12" :lg="6">
         <div class="stat-card">
-          <div class="stat-icon" style="background-color: #fdf6ec">
+          <div class="stat-icon is-warning">
             <el-icon :size="24" color="#e6a23c"><Timer /></el-icon>
           </div>
           <div class="stat-content">
@@ -79,7 +79,6 @@
           v-model="filters.request_type"
           placeholder="요청 타입"
           clearable
-          style="width: 120px"
           @change="handleFilterChange"
         >
           <el-option label="Agent" value="agent" />
@@ -91,7 +90,6 @@
           v-model="filters.success_only"
           placeholder="성공/실패"
           clearable
-          style="width: 120px"
           @change="handleFilterChange"
         >
           <el-option label="성공" :value="true" />
@@ -105,7 +103,6 @@
           start-placeholder="시작일"
           end-placeholder="종료일"
           value-format="YYYY-MM-DDTHH:mm:ss"
-          style="width: 280px"
           @change="handleDateRangeChange"
         />
 
@@ -129,7 +126,6 @@
           v-model="filters.session_id"
           placeholder="세션 ID 검색"
           clearable
-          style="width: 180px"
           @clear="handleFilterChange"
           @keyup.enter="handleFilterChange"
         >
@@ -238,7 +234,7 @@
             :max="365"
             :step="30"
           />
-          <span style="margin-left: 8px">일</span>
+          <span class="unit-label">일</span>
         </el-form-item>
         <el-alert
           type="warning"
@@ -581,6 +577,10 @@ onMounted(() => {
       .flex-1 {
         flex: 1;
       }
+
+      .el-select { width: 120px; }
+      .el-date-editor { width: 280px; }
+      .el-input { width: 180px; }
     }
   }
 
@@ -599,6 +599,10 @@ onMounted(() => {
 
   .pagination-wrapper {
     @include mx.pagination-wrapper;
+  }
+
+  .unit-label {
+    margin-left: 8px;
   }
 }
 </style>

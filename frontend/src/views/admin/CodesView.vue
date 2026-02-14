@@ -83,7 +83,7 @@
             >
               보기
             </el-button>
-            <span v-else style="color: #999">없음</span>
+            <span v-else style="color: var(--text-color-secondary)">없음</span>
           </template>
         </el-table-column>
 

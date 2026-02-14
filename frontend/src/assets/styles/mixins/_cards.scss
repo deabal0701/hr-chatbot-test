@@ -20,6 +20,11 @@
     align-items: center;
     justify-content: center;
     margin-right: 16px;
+
+    &.is-primary { background-color: var(--el-color-primary-light-9); }
+    &.is-success { background-color: var(--el-color-success-light-9); }
+    &.is-warning { background-color: var(--el-color-warning-light-9); }
+    &.is-info { background-color: var(--el-color-info-light-9); }
   }
 
   .stat-content {
