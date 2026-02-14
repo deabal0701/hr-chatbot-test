@@ -271,6 +271,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowDown, CopyDocument, DataLine, Delete } from '@element-plus/icons-vue'
 import historyApi from '@/api/history'
+import { formatDateTime, formatResponseTime } from '@/utils/format'
 
 const router = useRouter()
 const route = useRoute()
@@ -368,24 +369,6 @@ const getTypeLabel = (type) => {
   return labels[type] || type
 }
 
-const formatResponseTime = (ms) => {
-  if (!ms) return '-'
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
-}
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
 
 const truncateText = (text, maxLength) => {
   if (!text) return ''

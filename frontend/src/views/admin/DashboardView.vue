@@ -168,6 +168,7 @@ import {
   Upload
 } from '@element-plus/icons-vue'
 import documentApi from '@/api/documents'
+import { formatDate } from '@/utils/format'
 
 const router = useRouter()
 const store = useStore()
@@ -217,12 +218,6 @@ const loadDashboardData = async () => {
 // 임베딩 대기 문서로 이동
 const goToPendingDocuments = () => {
   router.push('/admin/documents?indexed=false')
-}
-
-// 날짜 포맷
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('ko-KR')
 }
 
 onMounted(() => {

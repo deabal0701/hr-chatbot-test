@@ -209,6 +209,7 @@ import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Edit, Delete, Upload, CopyDocument } from '@element-plus/icons-vue'
+import { formatDateTime, formatNumber } from '@/utils/format'
 
 const store = useStore()
 const router = useRouter()
@@ -371,14 +372,6 @@ const getDocTypeTag = (type) => {
   return types[type] || 'info'
 }
 
-const formatNumber = (num) => {
-  return num?.toLocaleString() || '0'
-}
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('ko-KR')
-}
 </script>
 
 <style lang="scss" scoped>

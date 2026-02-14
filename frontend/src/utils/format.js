@@ -36,3 +36,23 @@ export function formatDate(dateStr) {
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}.${month}.${day}`
 }
+
+/**
+ * 숫자 포맷 (1,234,567)
+ * @param {number|null} num - 숫자
+ * @returns {string} 천단위 콤마 포맷 문자열
+ */
+export function formatNumber(num) {
+  return (num || 0).toLocaleString()
+}
+
+/**
+ * 응답시간 포맷 (123ms / 1.5s)
+ * @param {number|null} ms - 밀리초
+ * @returns {string} 포맷된 응답시간 문자열
+ */
+export function formatResponseTime(ms) {
+  if (!ms) return '-'
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}

@@ -264,6 +264,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
+import { formatDate, formatNumber } from '@/utils/format'
 
 const store = useStore()
 const router = useRouter()
@@ -541,15 +542,6 @@ const handleSubmit = async () => {
   }
 }
 
-// 유틸리티
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('ko-KR')
-}
-
-const formatNumber = (num) => {
-  return num?.toLocaleString() || '0'
-}
 </script>
 
 <style lang="scss" scoped>

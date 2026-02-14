@@ -185,6 +185,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
+import { formatDate, formatNumber } from '@/utils/format'
 
 const store = useStore()
 const router = useRouter()
@@ -372,14 +373,6 @@ const getDocTypeTag = (type) => {
   return found?.metadata?.tag_type || 'info'
 }
 
-const formatNumber = (num) => {
-  return num?.toLocaleString() || '0'
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('ko-KR')
-}
 </script>
 
 <style lang="scss" scoped>
