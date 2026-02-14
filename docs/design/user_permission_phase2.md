@@ -1,9 +1,11 @@
 # Phase 2 구현 가이드: Core Security 모듈 (JWT + 비밀번호 + 의존성) v2.0
 
-> **문서 버전**: 2.1
+> **문서 버전**: 2.2
 > **작성일**: 2026-02-12
-> **수정일**: 2026-02-13
-> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **수정일**: 2026-02-14
+> **상태**: ✅ 구현 완료
+> **현행화**: 2026-02-14 (실제 구현 코드 기반 상태 반영)
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.1)
 > **선행 조건**: Phase 1 완료 (DB 테이블 DDL + Pydantic 모델 v2.0 마이그레이션)
 > **목적**: Phase 2(Core Security 모듈)의 v1.0 → v2.0 마이그레이션 절차를 코드 레벨에서 상세 설명
 
@@ -108,13 +110,13 @@ permission.py       → dependencies.py (get_current_active_user)
 
 ### 2.1 파일별 현행 상태
 
-| # | 파일 | 현재 버전 | 상태 | 필요 작업 |
-|---|------|-----------|------|----------|
+| # | 파일 | 현재 버전 | 상태 | 비고 |
+|---|------|-----------|------|------|
 | 1 | `app/core/security/__init__.py` | — | ✅ 완료 | 빈 파일, 변경 없음 |
 | 2 | `app/core/security/password.py` | v2.0 | ✅ 완료 | bcrypt 직접 사용, 변경 없음 |
-| 3 | `app/core/security/jwt.py` | **v1.0** | ❌ 마이그레이션 필요 | `TokenPayload`에서 `roles`/`permissions` → `role_code` |
-| 4 | `app/core/security/dependencies.py` | **v1.0** | ❌ 마이그레이션 필요 | `UserContext` 생성부 수정 |
-| 5 | `app/core/security/permission.py` | **v1.0** | ❌ 전면 재작성 필요 | 메뉴 기반 권한 체크 (DB 조회) |
+| 3 | `app/core/security/jwt.py` | v2.0 | ✅ 구현 완료 | `role_code` 기반 토큰 페이로드 전환 완료 |
+| 4 | `app/core/security/dependencies.py` | v2.0 | ✅ 구현 완료 | `UserContext` v2.0 생성부 구현 완료 |
+| 5 | `app/core/security/permission.py` | v2.0 | ✅ 구현 완료 | 메뉴 기반 권한 체크 (DB 조회) 구현 완료 |
 
 ### 2.2 현행 v1.0 코드의 문제점
 
@@ -734,11 +736,11 @@ async def clear_system_cache(
 
 ### 7.1 파일 존재 및 버전 확인
 
-- [ ] `app/core/security/__init__.py` 존재 (빈 파일)
-- [ ] `app/core/security/password.py` 존재 (v2.0 완료, 변경 없음)
-- [ ] `app/core/security/jwt.py` 존재 (v2.0으로 변경 완료)
-- [ ] `app/core/security/dependencies.py` 존재 (v2.0으로 변경 완료)
-- [ ] `app/core/security/permission.py` 존재 (v2.0으로 재작성 완료)
+- [x] `app/core/security/__init__.py` 존재 (빈 파일)
+- [x] `app/core/security/password.py` 존재 (v2.0 완료, 변경 없음)
+- [x] `app/core/security/jwt.py` 존재 (v2.0으로 변경 완료)
+- [x] `app/core/security/dependencies.py` 존재 (v2.0으로 변경 완료)
+- [x] `app/core/security/permission.py` 존재 (v2.0으로 재작성 완료)
 
 ### 7.2 Python import 테스트
 

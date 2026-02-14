@@ -1,8 +1,11 @@
 # Phase 4 구현 가이드: 관리 API (메뉴 기반 CRUD)
 
-> **문서 버전**: 2.0
+> **문서 버전**: 2.1
 > **작성일**: 2026-02-13
-> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **수정일**: 2026-02-14
+> **상태**: ✅ 구현 완료
+> **현행화**: 2026-02-14 (실제 구현 코드 기반 상태 반영)
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.1)
 > **선행 조건**: Phase 3 완료 (인증 API + 인증 미들웨어)
 > **목적**: v2.0 메뉴 기반 권한 체계에 맞춰 사용자/역할/메뉴/테넌트 관리 API를 구현
 
@@ -1389,55 +1392,55 @@ app.include_router(tenants.router)    # /api/admin/v1/tenants
 
 ### 13.1 사용자 관리
 
-- [ ] 사용자 목록 조회 (GLOBAL: 전체, TENANT: 자기 테넌트)
-- [ ] 사용자 생성 (role_id 필수, menu_permissions 포함)
-- [ ] 사용자 상세 조회 (역할 정보 JOIN, 본인 허용)
-- [ ] 사용자 수정 (role_id 변경 가능)
-- [ ] 사용자 삭제 (superuser/자기 자신 불가)
-- [ ] 메뉴 권한 조회 (`GET /users/{id}/menus`)
-- [ ] 메뉴 권한 할당 (`PUT /users/{id}/menus` — replace 방식)
+- [x] 사용자 목록 조회 (GLOBAL: 전체, TENANT: 자기 테넌트)
+- [x] 사용자 생성 (role_id 필수, menu_permissions 포함)
+- [x] 사용자 상세 조회 (역할 정보 JOIN, 본인 허용)
+- [x] 사용자 수정 (role_id 변경 가능)
+- [x] 사용자 삭제 (superuser/자기 자신 불가)
+- [x] 메뉴 권한 조회 (`GET /users/{id}/menus`)
+- [x] 메뉴 권한 할당 (`PUT /users/{id}/menus` — replace 방식)
 
 ### 13.2 역할 관리
 
-- [ ] 역할 목록 조회 (user_count 포함, permissions 없음)
-- [ ] 역할 생성 (landing_page 포함)
-- [ ] 역할 상세 조회
-- [ ] 역할 수정 (시스템 역할 scope_type 변경 불가)
-- [ ] 역할 삭제 (시스템 역할/사용 중 불가)
-- [ ] 기본 메뉴 목록 (`GET /roles/default-menus/{role_code}`)
+- [x] 역할 목록 조회 (user_count 포함, permissions 없음)
+- [x] 역할 생성 (landing_page 포함)
+- [x] 역할 상세 조회
+- [x] 역할 수정 (시스템 역할 scope_type 변경 불가)
+- [x] 역할 삭제 (시스템 역할/사용 중 불가)
+- [x] 기본 메뉴 목록 (`GET /roles/default-menus/{role_code}`)
 
 ### 13.3 메뉴 관리
 
-- [ ] 메뉴 트리 조회 (계층 구조 응답)
-- [ ] 메뉴 생성 (depth 자동 계산)
-- [ ] 메뉴 상세 조회
-- [ ] 메뉴 수정
-- [ ] 메뉴 삭제 (하위 메뉴 존재 시 불가)
+- [x] 메뉴 트리 조회 (계층 구조 응답)
+- [x] 메뉴 생성 (depth 자동 계산)
+- [x] 메뉴 상세 조회
+- [x] 메뉴 수정
+- [x] 메뉴 삭제 (하위 메뉴 존재 시 불가)
 
 ### 13.4 테넌트 관리
 
-- [ ] 테넌트 목록 조회 (user_count 포함)
-- [ ] 테넌트 생성 (metadata JSONB)
-- [ ] 테넌트 상세 조회
-- [ ] 테넌트 수정
-- [ ] 테넌트 삭제 (사용자 있으면 비활성화)
+- [x] 테넌트 목록 조회 (user_count 포함)
+- [x] 테넌트 생성 (metadata JSONB)
+- [x] 테넌트 상세 조회
+- [x] 테넌트 수정
+- [x] 테넌트 삭제 (사용자 있으면 비활성화)
 
 ### 13.5 권한 체크
 
-- [ ] `require_menu_permission` 정상 동작 (DB 조회)
-- [ ] superuser는 모든 메뉴 접근 허용
-- [ ] 권한 없는 메뉴 접근 시 403 Forbidden
-- [ ] documents.py — DOCUMENTS 메뉴 권한 체크
-- [ ] settings.py — SETTINGS 메뉴 권한 체크
-- [ ] search.py / agent.py — 토큰 없이 동작 (Phase 3a 유지)
+- [x] `require_menu_permission` 정상 동작 (DB 조회)
+- [x] superuser는 모든 메뉴 접근 허용
+- [x] 권한 없는 메뉴 접근 시 403 Forbidden
+- [x] documents.py — DOCUMENTS 메뉴 권한 체크
+- [x] settings.py — SETTINGS 메뉴 권한 체크
+- [x] search.py / agent.py — 토큰 없이 동작 (Phase 3a 유지)
 
 ### 13.6 통합 시나리오
 
-- [ ] SYSTEM_ADMIN → 모든 관리 API 정상
-- [ ] TENANT_ADMIN → USER_MGMT 메뉴 CRU 가능, D 불가
-- [ ] TENANT_ADMIN → ROLE_MGMT, MENU_MGMT, TENANT_MGMT → 403
-- [ ] USER → USER_CHAT, API만 접근 가능, 관리 메뉴 → 403
-- [ ] 역할 선택 → 기본 메뉴 자동 로드 → 관리자 커스터마이즈 → 저장
+- [x] SYSTEM_ADMIN → 모든 관리 API 정상
+- [x] TENANT_ADMIN → USER_MGMT 메뉴 CRU 가능, D 불가
+- [x] TENANT_ADMIN → ROLE_MGMT, MENU_MGMT, TENANT_MGMT → 403
+- [x] USER → USER_CHAT, API만 접근 가능, 관리 메뉴 → 403
+- [x] 역할 선택 → 기본 메뉴 자동 로드 → 관리자 커스터마이즈 → 저장
 
 ---
 

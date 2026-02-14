@@ -1,11 +1,12 @@
 # Phase 6: 프론트엔드 메뉴 기반 권한 UI 구현 설계서
 
-> **문서 버전**: 2.0
+> **문서 버전**: 2.1
 > **작성일**: 2026-02-12
-> **수정일**: 2026-02-13
-> **상태**: Draft
+> **수정일**: 2026-02-14
+> **상태**: ✅ 구현 완료
+> **현행화**: 2026-02-14 (실제 구현 코드 기반 상태 반영)
 > **선행 조건**: Phase 2 (Core Security), Phase 3 (인증 API + 미들웨어), Phase 4 (관리 CRUD API) 완료
-> **참조**: `docs/design/user_permission_system.md` (v2.0 - 메뉴 기반 권한)
+> **참조**: `docs/design/user_permission_system.md` (v2.1 - 메뉴 기반 권한)
 > **변경 사유**: v1.0 permission 코드 기반 → v2.0 메뉴 기반 권한 체계 전면 전환
 
 ---
@@ -99,23 +100,23 @@ v2.0 메뉴 기반 권한 체계에 맞춰 프론트엔드를 전면 전환합�
 
 ### 2.1 프론트엔드 현황
 
-| 파일 | 현재 상태 | v2.0 변경 필요 |
-|------|----------|---------------|
-| `api/auth.js` | ✅ 구현 완료 (5개 엔드포인트) | 응답 구조 변경 반영 (`menus` 처리) |
-| `api/users.js` | ✅ 구현 완료 (CRUD + assignRoles) | `assignRoles` → `assignMenus` 전환 |
-| `api/menus.js` | ❌ **미존재** | ★ 신규 생성 (메뉴 CRUD + 사용자 메뉴 권한) |
-| `api/tenants.js` | ✅ 구현 완료 (CRUD) | 변경 없음 |
-| `api/index.js` | ✅ 인터셉터 활성화 | 변경 없음 |
-| `store/modules/auth.js` | ✅ 구현 완료 | **v2.0 전환 필요** (permissions → menus) |
-| `store/index.js` | ✅ auth 모듈 등록 | 변경 없음 |
-| `views/LoginView.vue` | ✅ 구현 완료 | 랜딩 페이지 로직 변경 (`landing_page` 사용) |
-| `views/admin/UsersView.vue` | ✅ 구현 완료 (v1.0) | **v2.0 전환 필요** (role_id 단일 + 메뉴 권한) |
-| `views/admin/RolesView.vue` | ⚠️ 스텁 | 구현 필요 |
-| `views/admin/TenantsView.vue` | ⚠️ 스텁 | 구현 필요 |
-| `views/admin/MenusView.vue` | ❌ **미존재** | ★ 신규 생성 |
-| `components/layout/AppSidebar.vue` | ✅ 하드코딩 메뉴 + permission 필터 | **v2.0 전환 필요** (DB 동적 메뉴) |
-| `components/layout/AppHeader.vue` | ✅ 구현 완료 (사용자 드롭다운) | `role_code` 표시로 변경 |
-| `router/index.js` | ✅ 로그인 라우트 + auth 가드 | 메뉴 기반 라우트 가드로 전환 |
+| 파일 | 현재 상태 | 비고 |
+|------|----------|------|
+| `api/auth.js` | ✅ 구현 완료 | `menus` 응답 구조 반영 완료 |
+| `api/users.js` | ✅ 구현 완료 | `assignMenus` 전환 완료 |
+| `api/menus.js` | ✅ 구현 완료 | 메뉴 CRUD + 사용자 메뉴 권한 구현 완료 |
+| `api/tenants.js` | ✅ 구현 완료 | CRUD 완료 |
+| `api/index.js` | ✅ 구현 완료 | 인터셉터 + 토큰 갱신 활성화 |
+| `store/modules/auth.js` | ✅ 구현 완료 | menus 기반 v2.0 전환 완료 |
+| `store/index.js` | ✅ 구현 완료 | auth 모듈 등록 |
+| `views/LoginView.vue` | ✅ 구현 완료 | `landing_page` 기반 리다이렉트 구현 완료 |
+| `views/admin/UsersView.vue` | ✅ 구현 완료 | role_id 단일 + 메뉴 권한 할당 v2.0 전환 완료 |
+| `views/admin/RolesView.vue` | ✅ 구현 완료 | 역할 관리 CRUD 구현 완료 |
+| `views/admin/TenantsView.vue` | ✅ 구현 완료 | 테넌트 관리 CRUD 구현 완료 |
+| `views/admin/MenusView.vue` | ✅ 구현 완료 | 메뉴 트리 관리 구현 완료 |
+| `components/layout/AppSidebar.vue` | ✅ 구현 완료 | DB 동적 메뉴 렌더링 v2.0 전환 완료 |
+| `components/layout/AppHeader.vue` | ✅ 구현 완료 | `role_code` 표시 + 로그아웃 구현 완료 |
+| `router/index.js` | ✅ 구현 완료 | 메뉴 기반 라우트 가드 전환 완료 |
 
 ### 2.2 백엔드 현황 (Phase 4 완료 기준)
 

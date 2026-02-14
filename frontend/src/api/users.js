@@ -124,6 +124,32 @@ const usersApi = {
       console.error('역할 목록 조회 실패:', error)
       throw error
     }
+  },
+
+  /**
+   * 역할 선택 옵션 (USER_MGMT 권한으로 접근 가능)
+   * @returns {Promise<{total, items}>}
+   */
+  async getRoleOptions() {
+    try {
+      return await apiClient.get(`${BASE_URL}/options/roles`)
+    } catch (error) {
+      console.error('역할 옵션 조회 실패:', error)
+      throw error
+    }
+  },
+
+  /**
+   * 테넌트 선택 옵션 (USER_MGMT 권한으로 접근 가능)
+   * @returns {Promise<{total, items}>}
+   */
+  async getTenantOptions() {
+    try {
+      return await apiClient.get(`${BASE_URL}/options/tenants`)
+    } catch (error) {
+      console.error('테넌트 옵션 조회 실패:', error)
+      throw error
+    }
   }
 }
 

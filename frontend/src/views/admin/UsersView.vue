@@ -271,7 +271,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete, Search } from '@element-plus/icons-vue'
 import usersApi from '@/api/users'
 import rolesApi from '@/api/roles'
-import tenantsApi from '@/api/tenants'
 import menusApi from '@/api/menus'
 import { formatDateTime } from '@/utils/format'
 
@@ -432,21 +431,21 @@ const loadUsers = async () => {
   }
 }
 
-// 역할 목록 로드
+// 역할 목록 로드 (USER_MGMT 권한으로 접근 가능한 옵션 API 사용)
 const loadRoles = async () => {
   try {
-    const result = await usersApi.listRoles()
+    const result = await usersApi.getRoleOptions()
     allRoles.value = result.items || []
   } catch {
     allRoles.value = []
   }
 }
 
-// 테넌트 목록 로드
+// 테넌트 목록 로드 (USER_MGMT 권한으로 접근 가능한 옵션 API 사용)
 const loadTenants = async () => {
   try {
-    const result = await tenantsApi.list()
-    allTenants.value = result.items || result || []
+    const result = await usersApi.getTenantOptions()
+    allTenants.value = result.items || []
   } catch {
     allTenants.value = []
   }

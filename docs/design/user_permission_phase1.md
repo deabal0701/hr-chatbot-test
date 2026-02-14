@@ -1,10 +1,12 @@
 # Phase 1 구현 가이드: DB 테이블 + Pydantic 모델 (v2.0)
 
-> **문서 버전**: 2.1
+> **문서 버전**: 2.2
 > **작성일**: 2026-02-12
-> **수정일**: 2026-02-13
-> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **수정일**: 2026-02-14
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.1)
+> **상태**: ✅ 구현 완료
 > **목적**: Phase 1(기반 구축)의 실제 구현 절차 — 현행 코드 상태 반영 + 마이그레이션 가이드
+> **현행화**: 2026-02-14 — 모든 Step 구현 완료 확인됨
 
 ---
 
@@ -66,12 +68,12 @@ Step 6: config.py                    → 이미 v2.0 완료 ✅
 
 ### 2.1 파일별 현행 상태
 
-| # | 대상 | 현재 버전 | 상태 | 필요 작업 |
-|---|------|-----------|------|----------|
-| 1 | `docs/sql/tb_user_permission.sql` | v2.0 | ⚠️ SQL 오류 | 336행 `INSERT INOT` 오타 수정 |
-| 2 | `app/models/auth.py` | **v1.0** | ❌ 마이그레이션 필요 | `roles`/`permissions` → `role_code`/`menus` 전환 |
-| 3 | `app/models/menu.py` | **미생성** | ❌ 신규 생성 필요 | 메뉴 트리 + 사용자 메뉴 권한 모델 |
-| 4 | `app/models/user.py` | **v1.0** | ❌ 마이그레이션 필요 | `role_ids` → `role_id`, Permission 관련 제거 |
+| # | 대상 | 현재 버전 | 상태 | 비고 |
+|---|------|-----------|------|------|
+| 1 | `docs/sql/tb_user_permission.sql` | v2.0 | ✅ 구현 완료 | SQL 오류 수정 완료 |
+| 2 | `app/models/auth.py` | v2.0 | ✅ 구현 완료 | `role_code`/`menus` 기반으로 전환 완료 |
+| 3 | `app/models/menu.py` | v2.0 | ✅ 구현 완료 | 메뉴 트리 + 사용자 메뉴 권한 모델 생성 완료 |
+| 4 | `app/models/user.py` | v2.0 | ✅ 구현 완료 | `role_id` 단일 FK, Permission 관련 제거 완료 |
 | 5 | `app/models/tenant.py` | v2.0 | ✅ 완료 | 변경 없음 |
 | 6 | `app/config.py` | v2.0 | ✅ 완료 | 변경 없음 |
 
@@ -1147,13 +1149,13 @@ Phase 1 완료 후 아래 항목을 확인합니다.
 
 ### 10.1 DB 검증
 
-- [ ] 6개 테이블 모두 생성 확인 (`tb_tenant, tb_role, tb_user, tb_menu, tb_user_menu, tb_user_session`)
-- [ ] v1.0 잔존 테이블 삭제 확인 (`tb_permission, tb_role_permission, tb_user_role, tb_data_filter` 없음)
-- [ ] 3개 역할 정상 INSERT + `landing_page` 확인
-- [ ] 메뉴 트리 정상 확인 (루트 3 + 하위 14)
-- [ ] 3개 계정 존재 + `role_id` FK 정상 확인
-- [ ] 사용자별 메뉴 권한 정상 확인 (admin=14, tenant_admin=9, user01=4)
-- [ ] DDL 336행 SQL 오류 수정 확인
+- [x] 6개 테이블 모두 생성 확인 (`tb_tenant, tb_role, tb_user, tb_menu, tb_user_menu, tb_user_session`)
+- [x] v1.0 잔존 테이블 삭제 확인 (`tb_permission, tb_role_permission, tb_user_role, tb_data_filter` 없음)
+- [x] 3개 역할 정상 INSERT + `landing_page` 확인
+- [x] 메뉴 트리 정상 확인 (루트 3 + 하위 14)
+- [x] 3개 계정 존재 + `role_id` FK 정상 확인
+- [x] 사용자별 메뉴 권한 정상 확인 (admin=14, tenant_admin=9, user01=4)
+- [x] DDL 336행 SQL 오류 수정 확인
 
 ### 10.2 Pydantic 모델 검증
 
@@ -1209,11 +1211,11 @@ print(f"role_id={user.role_id}, menus={len(user.menus)}")
 
 ### 10.3 최종 확인
 
-- [ ] `app/models/__init__.py`는 빈 파일 유지 (CLAUDE.md 규칙)
-- [ ] `app/models/menu.py` 신규 생성 확인
-- [ ] `app/models/auth.py`에서 `roles`, `permissions` 필드 완전 제거 확인
-- [ ] `app/models/user.py`에서 `PermissionSimple`, `UserRoleAssign`, `DataFilterResponse` 완전 제거 확인
-- [ ] v1.0 전용 모델 제거로 인한 import 오류 발생 파일 목록 확인 (→ Phase 2에서 수정)
+- [x] `app/models/__init__.py`는 빈 파일 유지 (CLAUDE.md 규칙)
+- [x] `app/models/menu.py` 신규 생성 확인
+- [x] `app/models/auth.py`에서 `roles`, `permissions` 필드 완전 제거 확인
+- [x] `app/models/user.py`에서 `PermissionSimple`, `UserRoleAssign`, `DataFilterResponse` 완전 제거 확인
+- [x] v1.0 전용 모델 제거로 인한 import 오류 발생 파일 목록 확인 (→ Phase 2에서 수정 완료)
 
 ---
 

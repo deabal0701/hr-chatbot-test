@@ -18,6 +18,28 @@ from app.models.user import UserCreate, UserUpdate
 router = APIRouter(prefix="/api/admin/v1/users", tags=["admin-users"])
 
 
+@router.get("/options/roles")
+async def get_role_options(
+    request: Request,
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
+):
+    """역할 선택 옵션 (사용자 생성/수정 폼용, USER_MGMT:read 권한으로 접근)"""
+    request_id = getattr(request.state, "request_id", "")
+    result = user_service.get_role_options(current_user, request_id)
+    return success_response(result)
+
+
+@router.get("/options/tenants")
+async def get_tenant_options(
+    request: Request,
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
+):
+    """테넌트 선택 옵션 (사용자 생성/수정 폼용, USER_MGMT:read 권한으로 접근)"""
+    request_id = getattr(request.state, "request_id", "")
+    result = user_service.get_tenant_options(current_user, request_id)
+    return success_response(result)
+
+
 @router.get("")
 async def list_users(
     request: Request,

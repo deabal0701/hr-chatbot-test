@@ -1,10 +1,11 @@
 # 사용자 및 메뉴 기반 권한 관리 시스템 설계서
 
-> **문서 버전**: 2.0
+> **문서 버전**: 2.1
 > **작성일**: 2026-02-06
-> **수정일**: 2026-02-13
-> **상태**: Draft
+> **수정일**: 2026-02-14
+> **상태**: ✅ 구현 완료 (Phase 1~4, 6), ⚠️ 부분 구현 (Phase 5)
 > **변경 사유**: permission 코드 기반 → 메뉴 기반 권한 관리 체계로 전면 전환
+> **현행화 일자**: 2026-02-14 — 실제 구현 코드 기반으로 문서 현행화
 
 ---
 
@@ -499,7 +500,11 @@ async def list_users(
 
 ## 5. NL2SQL 권한 조건 주입
 
-### 5.1 scope_type 기반 필터 (코드 레벨)
+> ⚠️ **현행 상태 (2026-02-14)**: 이 섹션은 **설계 사양**입니다. `inject_permission_filter` 메서드는 아직 구현되지 않았습니다.
+> 현재 SQL 실행 시 기본 보안(위험 키워드 차단, SELECT 전용, 타임아웃)만 적용됩니다.
+> scope_type 기반 WHERE 자동 주입은 Phase 5 구현 시 추가 예정입니다.
+
+### 5.1 scope_type 기반 필터 (코드 레벨) — 설계 사양
 
 > **v2.0 변경**: `tb_data_filter` 테이블 삭제.
 > `scope_type`만으로 서비스 레이어에서 WHERE 조건을 유도합니다.
@@ -811,83 +816,117 @@ frontend/src/
 
 ## 10. 구현 계획
 
-### 10.1 Phase 1: 기반 구축 — DB 테이블 + Pydantic 모델
+### 10.1 Phase 1: 기반 구축 — DB 테이블 + Pydantic 모델 ✅ 구현 완료
 
 > **목적**: 데이터 구조 확립
 > **산출물**: DB 테이블 6개 + Pydantic 모델
+> **상태**: ✅ 구현 완료
+> **구현 파일**: `docs/sql/tb_user_permission.sql`, `app/models/auth.py`, `app/models/user.py`, `app/models/menu.py`, `app/models/tenant.py`
 
-| 작업 | 설명 |
-|------|------|
-| DB 테이블 생성 | `tb_user_permission.sql` 실행 |
-| 초기 데이터 | 역할 3개, 메뉴 14개, 관리자 계정, 관리자 메뉴 권한 |
-| Pydantic 모델 | auth.py, user.py, menu.py, tenant.py |
+| 작업 | 설명 | 상태 |
+|------|------|------|
+| DB 테이블 생성 | `tb_user_permission.sql` 실행 | ✅ |
+| 초기 데이터 | 역할 3개, 메뉴 14개, 관리자 계정, 관리자 메뉴 권한 | ✅ |
+| Pydantic 모델 | auth.py, user.py, menu.py, tenant.py | ✅ |
 
-### 10.2 Phase 2: Core Security 모듈
+### 10.2 Phase 2: Core Security 모듈 ✅ 구현 완료
 
 > **목적**: 인증/인가 핵심 유틸리티
 > **선행**: Phase 1
+> **상태**: ✅ 구현 완료
+> **구현 파일**: `app/core/security/jwt.py`, `app/core/security/password.py`, `app/core/security/dependencies.py`, `app/core/security/permission.py`
 
-| 작업 | 설명 |
-|------|------|
-| jwt.py | JWT 생성/검증 |
-| password.py | bcrypt 해싱 |
-| dependencies.py | get_current_user (FastAPI Depends) |
-| permission.py | require_menu_permission (메뉴 권한 체크) |
-| config.py 확장 | JWT 설정 필드 추가 |
+| 작업 | 설명 | 상태 |
+|------|------|------|
+| jwt.py | JWT 생성/검증 (TokenPayload에 role_code, scope_type 포함) | ✅ |
+| password.py | bcrypt 직접 사용 (cost factor 12) | ✅ |
+| dependencies.py | get_current_user, get_optional_user (FastAPI Depends) | ✅ |
+| permission.py | require_menu_permission (메뉴 권한 체크, DB 조회) | ✅ |
+| config.py 확장 | JWT 설정 필드 추가 | ✅ |
 
-### 10.3 Phase 3: 인증 API + 미들웨어
+### 10.3 Phase 3: 인증 API + 미들웨어 ✅ 구현 완료
 
 > **목적**: 로그인/로그아웃/토큰갱신
 > **선행**: Phase 2
+> **상태**: ✅ 구현 완료
+> **구현 파일**: `app/api/services/auth_service.py`, `app/api/routes/auth.py`, `app/middleware/auth.py`
 
-| 작업 | 설명 |
-|------|------|
-| auth_service.py | 인증 + 메뉴 목록 반환 |
-| auth.py (route) | 인증 API 5개 |
-| auth.py (middleware) | JWT 검증 미들웨어 |
-| main.py 수정 | 미들웨어 + 라우터 등록 |
+| 작업 | 설명 | 상태 |
+|------|------|------|
+| auth_service.py | 인증 + 재귀 CTE로 메뉴 트리 로드 | ✅ |
+| auth.py (route) | 인증 API 5개 (login, logout, refresh, me, password) | ✅ |
+| auth.py (middleware) | JWT 검증 미들웨어 (선택적 인증 모드) | ✅ |
+| main.py 수정 | 미들웨어 + 라우터 등록 | ✅ |
 
-### 10.4 Phase 4: 관리 API (CRUD)
+### 10.4 Phase 4: 관리 API (CRUD) ✅ 구현 완료
 
 > **목적**: 사용자/역할/메뉴/테넌트 관리
 > **선행**: Phase 3
+> **상태**: ✅ 구현 완료
+> **구현 파일**: `app/api/services/user_service.py`, `app/api/services/menu_service.py`, `app/api/services/role_service.py`, `app/api/services/tenant_service.py`, `app/api/routes/users.py`, `app/api/routes/menus.py`, `app/api/routes/roles.py`, `app/api/routes/tenants.py`
 
-| 작업 | 설명 |
-|------|------|
-| user_service.py | 사용자 CRUD + 메뉴 권한 할당 |
-| menu_service.py | 메뉴 트리 CRUD |
-| role_service.py | 역할 CRUD |
-| tenant_service.py | 테넌트 CRUD |
-| 기존 API 권한 적용 | 모든 라우트에 require_menu_permission 추가 |
+| 작업 | 설명 | 상태 |
+|------|------|------|
+| user_service.py | 사용자 CRUD + tb_user_menu 메뉴 권한 할당 | ✅ |
+| menu_service.py | 메뉴 트리 CRUD + 순서 변경 | ✅ |
+| role_service.py | 역할 CRUD | ✅ |
+| tenant_service.py | 테넌트 CRUD | ✅ |
+| 기존 API 권한 적용 | 라우트에 require_menu_permission 적용 | ✅ |
 
-### 10.5 Phase 5: NL2SQL 필터 + 프론트엔드
+### 10.5 Phase 5: NL2SQL 데이터 필터 ⚠️ 부분 구현
 
-> **목적**: 데이터 필터 + 사용자 화면
+> **목적**: scope_type 기반 NL2SQL 데이터 필터링
 > **선행**: Phase 3, 4
+> **상태**: ⚠️ 부분 구현 — SQL 인젝션 보호는 존재하나 scope 기반 WHERE 주입 미구현
 
-| 작업 | 설명 |
-|------|------|
-| sql_executor 확장 | scope_type 기반 WHERE 주입 |
-| LoginView.vue | 로그인 화면 |
-| 사이드바 수정 | 메뉴 목록 동적 생성 |
-| 관리 화면 | Users, Menus, Roles, Tenants 뷰 |
+| 작업 | 설명 | 상태 |
+|------|------|------|
+| sql_executor 확장 | scope_type 기반 WHERE 주입 (`inject_permission_filter`) | ❌ 미구현 |
+| NL2SQL 노드에 UserContext 전달 | NL2SQL 그래프에서 사용자 컨텍스트 활용 | ❌ 미구현 |
+| prompt_build_node scope 반영 | LLM 프롬프트에 scope 정보 포함 | ❌ 미구현 |
+| SQL 인젝션 보호 | DROP/DELETE 등 위험 키워드 차단, SELECT only | ✅ 기존 구현 |
 
-### 10.6 Phase 의존 관계
+> **비고**: SQL 실행 시 기본 보안(위험 키워드 차단, SELECT 전용, 타임아웃)은 구현되어 있으나,
+> scope_type에 따른 자동 WHERE 조건 주입(`inject_permission_filter`)은 미구현 상태입니다.
+
+### 10.6 Phase 6: 프론트엔드 ✅ 구현 완료
+
+> **목적**: 인증 UI + 메뉴 기반 권한 프론트엔드
+> **선행**: Phase 3, 4
+> **상태**: ✅ 구현 완료
+> **구현 파일**: `frontend/src/store/modules/auth.js`, `frontend/src/views/LoginView.vue`, `frontend/src/components/layout/AppSidebar.vue`, `frontend/src/router/index.js`, `frontend/src/views/admin/UsersView.vue`, `frontend/src/api/auth.js`, `frontend/src/api/users.js`
+
+| 작업 | 설명 | 상태 |
+|------|------|------|
+| auth.js (store) | Vuex 인증 상태 관리, menus 기반, hasMenuPermission getter | ✅ |
+| LoginView.vue | 로그인 화면 + landing_page 리디렉트 | ✅ |
+| AppSidebar.vue | 메뉴 목록 동적 생성 (auth/menus 기반) | ✅ |
+| router/index.js | 메뉴 기반 라우트 가드 | ✅ |
+| UsersView.vue | 사용자 관리 + 메뉴 권한 할당 UI | ✅ |
+| auth.js (API) | 인증 API 클라이언트 | ✅ |
+| users.js (API) | 사용자 API 클라이언트 | ✅ |
+
+### 10.7 Phase 의존 관계 및 구현 현황
 
 ```
-Phase 1: DB 테이블 + Pydantic 모델
+Phase 1: DB 테이블 + Pydantic 모델              ✅ 구현 완료
     │
     ▼
-Phase 2: Core Security (JWT, Password, Dependencies)
+Phase 2: Core Security (JWT, Password, Deps)    ✅ 구현 완료
     │
     ▼
-Phase 3: Auth API + Auth Middleware
+Phase 3: Auth API + Auth Middleware              ✅ 구현 완료
     │
     ├───────────────────────┐
     ▼                       ▼
 Phase 4:                Phase 5:
-관리 API                NL2SQL 필터 +
-(CRUD)                  프론트엔드
+관리 API (CRUD)          NL2SQL 필터
+✅ 구현 완료              ⚠️ 부분 구현
+    │
+    ▼
+Phase 6:
+프론트엔드
+✅ 구현 완료
 ```
 
 ---

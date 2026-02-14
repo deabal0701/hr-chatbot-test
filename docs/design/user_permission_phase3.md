@@ -1,8 +1,11 @@
 # Phase 3 구현 가이드: 인증 API + 인증 미들웨어 (v2.0)
 
-> **문서 버전**: 2.0
+> **문서 버전**: 2.1
 > **작성일**: 2026-02-13
-> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **수정일**: 2026-02-14
+> **상태**: ✅ 구현 완료
+> **현행화**: 2026-02-14 (실제 구현 코드 기반 상태 반영)
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.1)
 > **선행 조건**: Phase 1 (DB + Models v2.0), Phase 2 (Core Security v2.0) 완료
 > **목적**: 인증 API + 인증 미들웨어를 v2.0 메뉴 기반 권한 체계에 맞게 구현
 
@@ -140,12 +143,12 @@ Phase 3 시작 전 아래 Phase 1~2 산출물이 v2.0으로 완료되어야 합�
 
 ### 2.1 파일별 현행 상태
 
-| # | 파일 | 현행 버전 | 상태 | v2.0 변경 내용 |
-|---|------|-----------|------|---------------|
-| 1 | `app/api/services/auth_service.py` | v1.0 | ⚠️ 쿼리 재작성 필요 | `tb_user_role` JOIN → `tb_user.role_id` + `tb_user_menu` |
-| 2 | `app/api/routes/auth.py` | v1.0 | ⚠️ 모델 참조 변경 | `UserInfo(roles=...)` → `UserInfo(role_code=..., menus=...)` |
-| 3 | `app/middleware/auth.py` | v1.0 | ⚠️ UserContext 변경 | `UserContext(roles=..., permissions=...)` → `UserContext(role_code=...)` |
-| 4 | `app/main.py` | v2.0 | ✅ 변경 불필요 | 미들웨어 + 라우터 이미 등록 |
+| # | 파일 | 현재 버전 | 상태 | 비고 |
+|---|------|-----------|------|------|
+| 1 | `app/api/services/auth_service.py` | v2.0 | ✅ 구현 완료 | `tb_user.role_id` + `tb_user_menu` 기반 쿼리 재작성 완료 |
+| 2 | `app/api/routes/auth.py` | v2.0 | ✅ 구현 완료 | `UserInfo(role_code=..., menus=...)` 전환 완료 |
+| 3 | `app/middleware/auth.py` | v2.0 | ✅ 구현 완료 | `UserContext(role_code=..., scope_type=...)` 전환 완료 |
+| 4 | `app/main.py` | v2.0 | ✅ 완료 | 미들웨어 + 라우터 이미 등록 |
 
 ### 2.2 auth_service.py — 현행 v1.0 문제점
 
@@ -858,22 +861,22 @@ app.include_router(auth.router)          # ← 이미 등록
 
 ### 7.1 단위 검증 항목
 
-- [ ] `auth_service.authenticate()` — 올바른 비밀번호 → 성공
-- [ ] `auth_service.authenticate()` — 틀린 비밀번호 → UNAUTHORIZED
-- [ ] `auth_service.authenticate()` — 존재하지 않는 ID → UNAUTHORIZED
-- [ ] `auth_service.authenticate()` — 비활성 계정 → UNAUTHORIZED
-- [ ] `auth_service.authenticate()` — 5회 실패 → ACCOUNT_LOCKED
-- [ ] `auth_service.authenticate()` — 잠금 해제 시간 경과 후 → 잠금 자동 해제
-- [ ] `auth_service.create_session()` — TokenResponse에 `user.role_code` (단일 문자열) 포함 확인
-- [ ] `auth_service.create_session()` — TokenResponse에 `user.menus` (List[MenuPermission]) 포함 확인
-- [ ] `auth_service.create_session()` — TokenResponse에 `user.landing_page` 포함 확인
-- [ ] `auth_service.get_user_with_permissions()` — `role_code`, `scope_type`, `landing_page` 반환 확인
-- [ ] `auth_service.get_user_with_permissions()` — `menus` 리스트에 `can_create`~`can_export` CRUD 포함 확인
-- [ ] `auth_service.get_user_with_permissions()` — admin 사용자 → 메뉴 14개 확인
-- [ ] `auth_service.get_user_with_permissions()` — user01 사용자 → 메뉴 4개 확인
-- [ ] `auth_service.refresh_access_token()` — 유효한 Refresh Token → 새 Access Token
-- [ ] `auth_service.refresh_access_token()` — 만료된 Refresh Token → SESSION_EXPIRED
-- [ ] `auth_service.change_password()` — 변경 후 새 비밀번호로 로그인 성공
+- [x] `auth_service.authenticate()` — 올바른 비밀번호 → 성공
+- [x] `auth_service.authenticate()` — 틀린 비밀번호 → UNAUTHORIZED
+- [x] `auth_service.authenticate()` — 존재하지 않는 ID → UNAUTHORIZED
+- [x] `auth_service.authenticate()` — 비활성 계정 → UNAUTHORIZED
+- [x] `auth_service.authenticate()` — 5회 실패 → ACCOUNT_LOCKED
+- [x] `auth_service.authenticate()` — 잠금 해제 시간 경과 후 → 잠금 자동 해제
+- [x] `auth_service.create_session()` — TokenResponse에 `user.role_code` (단일 문자열) 포함 확인
+- [x] `auth_service.create_session()` — TokenResponse에 `user.menus` (List[MenuPermission]) 포함 확인
+- [x] `auth_service.create_session()` — TokenResponse에 `user.landing_page` 포함 확인
+- [x] `auth_service.get_user_with_permissions()` — `role_code`, `scope_type`, `landing_page` 반환 확인
+- [x] `auth_service.get_user_with_permissions()` — `menus` 리스트에 `can_create`~`can_export` CRUD 포함 확인
+- [x] `auth_service.get_user_with_permissions()` — admin 사용자 → 메뉴 14개 확인
+- [x] `auth_service.get_user_with_permissions()` — user01 사용자 → 메뉴 4개 확인
+- [x] `auth_service.refresh_access_token()` — 유효한 Refresh Token → 새 Access Token
+- [x] `auth_service.refresh_access_token()` — 만료된 Refresh Token → SESSION_EXPIRED
+- [x] `auth_service.change_password()` — 변경 후 새 비밀번호로 로그인 성공
 
 ### 7.2 통합 검증 (curl)
 

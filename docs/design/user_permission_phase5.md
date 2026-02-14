@@ -1,10 +1,21 @@
 # Phase 5 구현 가이드: NL2SQL 권한 필터 주입 (Row-Level Security)
 
-> **문서 버전**: 3.0 (v2.0 메뉴 기반 체계 반영)
+> **문서 버전**: 3.1
 > **작성일**: 2026-02-13
-> **상위 문서**: `docs/design/user_permission_system.md` (v2.0)
+> **수정일**: 2026-02-14
+> **상태**: ⚠️ 부분 구현 (설계 문서 — 핵심 로직 미구현)
+> **현행화**: 2026-02-14 (실제 구현 코드 기반 상태 반영)
+> **상위 문서**: `docs/design/user_permission_system.md` (v2.1)
 > **선행 조건**: Phase 3 완료 (인증 미들웨어 — UserContext), Phase 4 완료 (관리 API)
 > **목적**: NL2SQL Row-Level Security — LLM 프롬프트(SQL 품질) + App 필터 주입(보안 보장) 하이브리드 방식
+>
+> **⚠️ 구현 상태 요약**:
+> - ✅ 기반 인프라 (Phase 1~4 완료): UserContext, scope_type, 인증 미들웨어
+> - ✅ SQL Injection 보안: sql_executor.py의 기존 보안 체크 (키워드 블랙리스트, SELECT-only, 타임아웃)
+> - ❌ **미구현**: `inject_permission_filter()` 메서드 (scope 기반 WHERE 조건 자동 주입)
+> - ❌ **미구현**: `prompt_build_node` scope awareness (LLM 프롬프트에 scope 정보 주입)
+> - ❌ **미구현**: NL2SQLState `user_context` 필드 추가
+> - ❌ **미구현**: NL2SQL/Agent 라우트에서 UserContext 전파
 
 ---
 
@@ -105,19 +116,21 @@ LLM 생성 SQL:
 
 ### 1.4 산출물
 
+> **⚠️ 아래 산출물은 설계 사양입니다. 현재 미구현 상태입니다.**
+
 ```
-수정 파일:
-  docs/sql/migration_phase5_tenant_id.sql     # tenant_id 컬럼 추가 ALTER
-  app/core/database/sql_executor.py           # inject_permission_filter() 추가 [보안 계층]
-  app/graphs/nl2sql/nodes.py                  # ① prompt_build_node에 scope 주입 [품질 계층]
-                                              # ② execute_sql_node에서 필터 주입 [보안 계층]
-  app/graphs/nl2sql/state.py                  # NL2SQLState에 user_context 필드 추가
-  app/graphs/nl2sql/graph.py                  # _prepare_initial_state에 user_context 전달
-  app/api/services/nl2sql_service.py          # search()에 user_context 파라미터 추가
-  app/api/routes/search.py                    # nl2sql_service 호출 시 user_context 전달
-  app/graphs/agent/tools/sql_tool.py          # SQL 실행 시 user_context 적용
-  app/graphs/agent/state.py                   # AgentState에 user_context 필드 추가
-  app/middleware/history.py                   # request.state.current_user 연동
+수정 파일 (미구현):
+  docs/sql/migration_phase5_tenant_id.sql     # ❌ tenant_id 컬럼 추가 ALTER
+  app/core/database/sql_executor.py           # ❌ inject_permission_filter() 추가 [보안 계층]
+  app/graphs/nl2sql/nodes.py                  # ❌ ① prompt_build_node에 scope 주입 [품질 계층]
+                                              # ❌ ② execute_sql_node에서 필터 주입 [보안 계층]
+  app/graphs/nl2sql/state.py                  # ❌ NL2SQLState에 user_context 필드 추가
+  app/graphs/nl2sql/graph.py                  # ❌ _prepare_initial_state에 user_context 전달
+  app/api/services/nl2sql_service.py          # ❌ search()에 user_context 파라미터 추가
+  app/api/routes/search.py                    # ❌ nl2sql_service 호출 시 user_context 전달
+  app/graphs/agent/tools/sql_tool.py          # ❌ SQL 실행 시 user_context 적용
+  app/graphs/agent/state.py                   # ❌ AgentState에 user_context 필드 추가
+  app/middleware/history.py                   # ✅ request.state.current_user 연동 (이미 구현)
 ```
 
 ---

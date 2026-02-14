@@ -300,5 +300,30 @@ class UserService:
             return [dict(row) for row in cur.fetchall()]
 
 
+    def get_role_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
+        """역할 선택 옵션 (드롭다운용 경량 데이터)"""
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT role_id, role_code, role_name, scope_type FROM tb_role ORDER BY sort_order, role_id")
+            rows = cur.fetchall()
+        items = [dict(row) for row in rows]
+        log_step(logger, request_id, "USER", "OPT", "ROLES", "역할 옵션 조회", total=len(items))
+        return {"total": len(items), "items": items}
+
+    def get_tenant_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
+        """테넌트 선택 옵션 (드롭다운용 경량 데이터)"""
+        conditions = ["t.is_active = true"]
+        params: list = []
+        if current_user.scope_type == "TENANT":
+            conditions.append("t.tenant_id = %s")
+            params.append(current_user.tenant_id)
+        where_clause = " AND ".join(conditions)
+        with db_manager.get_cursor() as cur:
+            cur.execute(f"SELECT t.tenant_id, t.tenant_code, t.tenant_name FROM tb_tenant t WHERE {where_clause} ORDER BY t.tenant_id", params)
+            rows = cur.fetchall()
+        items = [dict(row) for row in rows]
+        log_step(logger, request_id, "USER", "OPT", "TENANTS", "테넌트 옵션 조회", total=len(items))
+        return {"total": len(items), "items": items}
+
+
 # 싱글톤 인스턴스
 user_service = UserService()
