@@ -144,13 +144,12 @@ const sidebarMenuItems = computed(() => {
   }
   sortItems(roots)
 
-  // 4. 최상위 DIRECTORY 펼침: 자식을 루트 레벨로 승격
+  // 4. 관리자 메뉴(DIR_ROOT)의 자식만 루트 레벨로 승격
+  //    DIR_PUBLIC(사용자 메뉴) 등 다른 최상위 DIRECTORY는 사이드바에 표시하지 않음
   const result = []
   for (const root of roots) {
-    if (root.menu_type === 'DIRECTORY') {
+    if (root.menu_type === 'DIRECTORY' && root.menu_code === 'DIR_ROOT') {
       result.push(...root.children)
-    } else {
-      result.push(root)
     }
   }
 

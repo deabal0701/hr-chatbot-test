@@ -808,8 +808,16 @@ const applySidebar = async () => {
 }
 
 // ===== 라이프사이클 =====
-onMounted(() => {
-  loadMenuTree()
+onMounted(async () => {
+  await loadMenuTree()
+  // 첫 로드 시 최상위 루트 메뉴 자동 선택
+  if (menuTree.value.length > 0) {
+    const root = menuTree.value[0]
+    nextTick(() => {
+      if (treeRef.value) treeRef.value.setCurrentKey(root.menu_id)
+      handleNodeClick(root)
+    })
+  }
   document.addEventListener('click', onDocumentClick)
 })
 

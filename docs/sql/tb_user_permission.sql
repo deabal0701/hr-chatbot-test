@@ -229,13 +229,17 @@ INSERT INTO tb_role (role_code, role_name, scope_type, landing_page, is_system, 
 INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, menu_path, icon, sort_order, depth, description) VALUES
 ('DIR_ROOT', '관리', 'DIRECTORY', NULL, NULL, 'settings', 1, 0, '최상위 관리 그룹 (사이드바에서 자식만 표시)');
 
--- 2-2. PAGE 메뉴 (depth=1, parent=DIR_ROOT)
+-- 2-2. 관리자 PAGE 메뉴 (depth=1, parent=DIR_ROOT)
 INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, menu_path, api_pattern, icon, sort_order, depth, description) VALUES
-('DASHBOARD',   '대시보드',   'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/dashboard',  '/api/admin/v1/dashboard',  'dashboard', 1, 1, '대시보드'),
-('AI_CHAT',     'AI 채팅',    'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/chat',             NULL,                        'chat',      2, 1, '사용자 AI 채팅 화면'),
-('AI_SEARCH',   '자연어 검색', 'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/chat',       NULL,                        'search',    3, 1, '관리자 자연어 검색'),
-('DOC_MGMT',    '문서 관리',  'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/documents',  '/api/admin/v1/documents',  'document',  4, 1, '지식문서 관리'),
-('SEARCH_HIST', '검색 이력',  'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/history',    '/api/admin/v1/history',    'history',   5, 1, '검색 이력 조회');
+('DASHBOARD',   '대시보드',    'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/dashboard',  '/api/admin/v1/dashboard',  'dashboard', 1, 1, '대시보드'),
+('AI_SEARCH',   '자연어 검색', 'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/chat',       NULL,                        'search',    2, 1, '관리자 자연어 검색'),
+('DOC_MGMT',    '문서 관리',   'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/documents',  '/api/admin/v1/documents',  'document',  3, 1, '지식문서 관리'),
+('SEARCH_HIST', '검색 이력',   'PAGE', (SELECT menu_id FROM tb_menu WHERE menu_code='DIR_ROOT'), '/admin/history',    '/api/admin/v1/history',    'history',   4, 1, '검색 이력 조회');
+
+-- 2-2b. 사용자 전용 메뉴 (독립 루트, depth=0, 사이드바 미표시)
+-- 사용자 권한 관리용으로 tb_menu에 유지, 사이드바에서는 루트 PAGE를 숨김
+INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, menu_path, icon, sort_order, depth, description) VALUES
+('AI_CHAT', 'AI 채팅', 'PAGE', NULL, '/chat', 'chat', 99, 0, '사용자 AI 채팅 화면 (사이드바 미표시, 직접 접근)');
 
 -- 2-3. 사용자 관리 DIRECTORY (depth=1)
 INSERT INTO tb_menu (menu_code, menu_name, menu_type, parent_menu_id, menu_path, icon, sort_order, depth, description) VALUES
