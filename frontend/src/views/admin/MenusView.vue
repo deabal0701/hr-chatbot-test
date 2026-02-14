@@ -965,10 +965,10 @@ onBeforeUnmount(() => {
 .context-menu {
   position: fixed;
   z-index: 3000;
-  background: var(--bg-color-card, #fff);
-  border: 1px solid var(--border-color-light, #e4e7ed);
+  background: var(--bg-color-card);
+  border: 1px solid var(--border-color-light);
   border-radius: 4px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--box-shadow);
   padding: 4px 0;
   min-width: 160px;
 
@@ -983,7 +983,7 @@ onBeforeUnmount(() => {
     transition: background-color 0.15s;
 
     &:hover:not(.disabled) {
-      background-color: var(--el-fill-color-light, #f5f7fa);
+      background-color: var(--bg-color-hover);
     }
 
     &.disabled {
@@ -993,17 +993,17 @@ onBeforeUnmount(() => {
     }
 
     &.danger:not(.disabled) {
-      color: var(--el-color-danger);
+      color: var(--color-danger);
 
       &:hover {
-        background-color: var(--el-color-danger-light-9, #fef0f0);
+        background-color: rgba(245, 108, 108, 0.1);
       }
     }
   }
 
   .context-menu-divider {
     height: 1px;
-    background-color: var(--border-color-light, #e4e7ed);
+    background-color: var(--border-color-light);
     margin: 4px 0;
   }
 }

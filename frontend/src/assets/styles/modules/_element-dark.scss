@@ -178,4 +178,111 @@
     background-color: var(--color-primary);
     border-color: var(--color-primary);
   }
+
+  // ===== el-tree =====
+  .el-tree {
+    background-color: transparent;
+    color: var(--text-color-primary);
+
+    .el-tree-node__content {
+      &:hover {
+        background-color: var(--bg-color-hover);
+      }
+    }
+
+    .el-tree-node.is-current > .el-tree-node__content {
+      background-color: rgba(64, 158, 255, 0.15);
+    }
+
+    .el-tree-node.is-drop-inner > .el-tree-node__content {
+      background-color: rgba(64, 158, 255, 0.1);
+    }
+
+    .el-tree__empty-text {
+      color: var(--text-color-secondary);
+    }
+  }
+
+  // ===== el-tree-select 팝업 =====
+  .el-tree-select__popper {
+    background-color: var(--bg-color-card) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  // ===== el-select 팝업 (dropdown) =====
+  .el-select-dropdown,
+  .el-popper.is-light {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+
+    .el-select-dropdown__item {
+      color: var(--text-color-primary);
+
+      &.is-hovering {
+        background-color: var(--bg-color-hover);
+      }
+
+      &.is-selected {
+        color: var(--color-primary);
+      }
+
+      &.is-disabled {
+        color: var(--text-color-placeholder);
+      }
+    }
+
+    .el-popper__arrow::before {
+      background-color: var(--bg-color-card);
+      border-color: var(--border-color);
+    }
+  }
+
+  // ===== el-input-number =====
+  .el-input-number {
+    .el-input-number__decrease,
+    .el-input-number__increase {
+      background-color: var(--bg-color-hover);
+      border-color: var(--border-color);
+      color: var(--text-color-primary);
+
+      &:hover {
+        color: var(--color-primary);
+      }
+
+      &.is-disabled {
+        color: var(--text-color-placeholder);
+      }
+    }
+  }
+
+  // ===== el-empty =====
+  .el-empty__description p {
+    color: var(--text-color-secondary);
+  }
+
+  // ===== el-tag =====
+  .el-tag--info {
+    background-color: var(--bg-color-hover);
+    border-color: var(--border-color);
+    color: var(--text-color-secondary);
+  }
+
+  // ===== el-loading =====
+  .el-loading-mask {
+    background-color: var(--loading-overlay-bg);
+  }
+
+  // ===== el-switch (비활성 상태) =====
+  .el-switch:not(.is-checked) {
+    .el-switch__core {
+      background-color: var(--border-color);
+      border-color: var(--border-color);
+    }
+  }
+
+  // ===== el-message =====
+  .el-message {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+  }
 }
