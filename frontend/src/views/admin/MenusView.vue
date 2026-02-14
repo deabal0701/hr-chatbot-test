@@ -48,13 +48,12 @@
               >
                 <el-icon class="node-icon" :size="14">
                   <Folder v-if="data.menu_type === 'DIRECTORY'" />
-                  <Link v-else-if="data.menu_type === 'API'" />
                   <component v-else :is="resolveIcon(data.icon)" />
                 </el-icon>
                 <span class="node-label">{{ data.menu_name }}</span>
                 <el-tag v-if="!data.is_active" size="small" type="info" class="node-tag">비활성</el-tag>
                 <el-button
-                  v-if="data.menu_type !== 'API'"
+                  v-if="data.menu_type === 'DIRECTORY'"
                   class="node-add-btn"
                   :icon="Plus"
                   size="small"
@@ -123,7 +122,6 @@
                     >
                       <el-option label="폴더 (DIRECTORY)" value="DIRECTORY" />
                       <el-option label="화면 (PAGE)" value="PAGE" />
-                      <el-option label="API" value="API" />
                     </el-select>
                   </el-form-item>
                 </el-col>
@@ -147,11 +145,6 @@
               <el-form-item v-if="formData.menu_type === 'PAGE'" label="프론트엔드 경로" prop="menu_path">
                 <el-input v-model="formData.menu_path" placeholder="/admin/example" />
                 <div class="form-help">프론트엔드 라우트 경로 (PAGE 타입)</div>
-              </el-form-item>
-
-              <el-form-item v-if="formData.menu_type === 'API'" label="API 경로 패턴" prop="api_pattern">
-                <el-input v-model="formData.api_pattern" placeholder="/api/admin/v1/example" />
-                <div class="form-help">API 접근 제어용 경로 패턴 (API 타입)</div>
               </el-form-item>
 
               <el-row :gutter="16">
@@ -230,7 +223,7 @@
       :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
     >
       <div
-        v-if="contextMenu.data?.menu_type !== 'API'"
+        v-if="contextMenu.data?.menu_type === 'DIRECTORY'"
         class="context-menu-item"
         @click="ctxAddChild"
       >
@@ -272,7 +265,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'v
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Refresh, Delete, Top, Bottom, Link, Folder, Check,
+  Plus, Refresh, Delete, Top, Bottom, Folder, Check,
   ChatDotSquare, Document, Setting, Grid, Histogram,
   User, Key, OfficeBuilding, Odometer,
   Menu as MenuIcon, List, DataLine
@@ -361,20 +354,19 @@ const contextMenu = reactive({
 
 // ===== Computed =====
 
-// 트리에서 특정 menu_id와 그 하위를 제외 (순환 참조 방지)
-const filterMenuTree = (items, excludeId) => {
+// 트리에서 DIRECTORY만 추출 (자기 자신과 하위 제외 — 순환 참조 방지)
+const filterDirectoryTree = (items, excludeId) => {
   return items
-    .filter(item => item.menu_id !== excludeId)
+    .filter(item => item.menu_type === 'DIRECTORY' && item.menu_id !== excludeId)
     .map(item => ({
       ...item,
-      children: item.children?.length ? filterMenuTree(item.children, excludeId) : []
+      children: item.children?.length ? filterDirectoryTree(item.children, excludeId) : []
     }))
 }
 
-// 상위 메뉴 선택 옵션
+// 상위 메뉴 선택 옵션 — DIRECTORY 타입만 표시
 const parentMenuOptions = computed(() => {
-  if (!selectedMenuId.value) return menuTree.value
-  return filterMenuTree(menuTree.value, selectedMenuId.value)
+  return filterDirectoryTree(menuTree.value, selectedMenuId.value)
 })
 
 // 컨텍스트 메뉴: 위로 이동 가능 여부
@@ -576,7 +568,7 @@ const handleAllowDrag = () => true
 
 // 드롭 가능 여부
 const handleAllowDrop = (draggingNode, dropNode, type) => {
-  // inner(하위 편입)는 DIRECTORY 타입만 허용 — PAGE, API는 자식을 가질 수 없음
+  // inner(하위 편입)는 DIRECTORY 타입만 허용 — PAGE는 자식을 가질 수 없음
   if (type === 'inner' && dropNode.data.menu_type !== 'DIRECTORY') return false
   // 최대 depth 5 제한
   if (type === 'inner') {

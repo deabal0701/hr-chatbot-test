@@ -154,9 +154,8 @@ const sidebarMenuItems = computed(() => {
     }
   }
 
-  // 5. API 타입 제외 (사이드바에 표시하지 않음), children 없는 DIRECTORY 제외
+  // 5. children 없는 DIRECTORY 제외 (빈 폴더 숨김)
   return result.filter(m => {
-    if (m.menu_type === 'API') return false
     if (m.menu_type === 'DIRECTORY' && m.children.length === 0) return false
     return true
   })
