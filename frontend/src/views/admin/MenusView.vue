@@ -17,10 +17,19 @@
         <div class="panel-card">
           <!-- 트리 툴바 -->
           <div class="tree-toolbar">
-            <el-button type="primary" :icon="Plus" size="small" @click="handleAddRoot">메뉴추가</el-button>
-            <el-button size="small" @click="handleExpandAll">펼치기</el-button>
-            <el-button size="small" @click="handleCollapseAll">접기</el-button>
-            <el-button :icon="Refresh" size="small" circle @click="loadMenuTree" :loading="isLoading" />
+            <el-button type="primary" :icon="Plus" size="small" @click="handleAddRoot">추가</el-button>
+            <div class="toolbar-spacer" />
+            <el-button-group size="small">
+              <el-tooltip content="모두 펼치기" placement="top" :show-after="400">
+                <el-button :icon="ArrowDown" @click="handleExpandAll" />
+              </el-tooltip>
+              <el-tooltip content="모두 접기" placement="top" :show-after="400">
+                <el-button :icon="ArrowUp" @click="handleCollapseAll" />
+              </el-tooltip>
+            </el-button-group>
+            <el-tooltip content="새로고침" placement="top" :show-after="400">
+              <el-button :icon="Refresh" size="small" circle @click="loadMenuTree" :loading="isLoading" />
+            </el-tooltip>
           </div>
 
           <!-- 메뉴 트리 -->
@@ -266,6 +275,7 @@ import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Refresh, Delete, Top, Bottom, Folder, Check,
+  ArrowDown, ArrowUp,
   ChatDotSquare, Document, Setting, Grid, Histogram,
   User, Key, OfficeBuilding, Odometer,
   Menu as MenuIcon, List, DataLine
@@ -864,7 +874,10 @@ onBeforeUnmount(() => {
     gap: 8px;
     align-items: center;
     margin-bottom: 12px;
-    flex-wrap: wrap;
+
+    .toolbar-spacer {
+      flex: 1;
+    }
   }
 
   // 트리 노드 커스텀
