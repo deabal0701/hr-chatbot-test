@@ -150,6 +150,19 @@ const usersApi = {
       console.error('테넌트 옵션 조회 실패:', error)
       throw error
     }
+  },
+
+  /**
+   * 메뉴 선택 옵션 (사용자 메뉴 권한 할당용, USER_MGMT 권한으로 접근)
+   * @returns {Promise<{total, items}>}
+   */
+  async getMenuOptions() {
+    try {
+      return await apiClient.get(`${BASE_URL}/options/menus`)
+    } catch (error) {
+      console.error('메뉴 옵션 조회 실패:', error)
+      throw error
+    }
   }
 }
 

@@ -215,10 +215,10 @@
           <div v-if="allMenus.length === 0" class="empty-state">
             <p>메뉴 정보를 불러오는 중...</p>
           </div>
-          <el-table v-else :data="allMenus" style="width: 100%" size="small">
+          <el-table v-else :data="allMenus" style="width: 100%" size="small" :row-class-name="menuRowClassName">
             <el-table-column label="메뉴" min-width="160">
               <template #default="{ row }">
-                <span :style="{ paddingLeft: (row.depth || 0) * 16 + 'px' }">
+                <span :style="{ paddingLeft: (row.depth || 0) * 16 + 'px' }" :class="{ 'text-disabled': !row.assignable }">
                   {{ row.menu_name }}
                 </span>
               </template>
@@ -227,28 +227,29 @@
               <template #default="{ row }">
                 <el-checkbox
                   v-model="menuPermMap[row.menu_id].can_read"
+                  :disabled="!row.assignable"
                   @change="(val) => handleMenuPermChange(row.menu_id, 'can_read', val)"
                 />
               </template>
             </el-table-column>
             <el-table-column label="등록" width="60" align="center">
               <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_create" />
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_create" :disabled="!row.assignable" />
               </template>
             </el-table-column>
             <el-table-column label="수정" width="60" align="center">
               <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_update" />
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_update" :disabled="!row.assignable" />
               </template>
             </el-table-column>
             <el-table-column label="삭제" width="60" align="center">
               <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_delete" />
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_delete" :disabled="!row.assignable" />
               </template>
             </el-table-column>
             <el-table-column label="내보내기" width="80" align="center">
               <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_export" />
+                <el-checkbox v-model="menuPermMap[row.menu_id].can_export" :disabled="!row.assignable" />
               </template>
             </el-table-column>
           </el-table>
@@ -271,7 +272,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete, Search } from '@element-plus/icons-vue'
 import usersApi from '@/api/users'
 import rolesApi from '@/api/roles'
-import menusApi from '@/api/menus'
 import { formatDateTime } from '@/utils/format'
 
 // 상태
@@ -335,19 +335,6 @@ const roleTagType = (roleCode) => {
   return 'info'
 }
 
-// 메뉴 트리를 평탄화 (PAGE 타입만)
-const flattenMenuTree = (items, result = []) => {
-  for (const item of items) {
-    if (item.menu_type !== 'API') {
-      result.push(item)
-    }
-    if (item.children?.length) {
-      flattenMenuTree(item.children, result)
-    }
-  }
-  return result
-}
-
 // menuPermMap 초기화 (모든 메뉴에 대해 기본 false)
 const initMenuPermMap = () => {
   for (const m of allMenus.value) {
@@ -359,6 +346,11 @@ const initMenuPermMap = () => {
       can_export: false
     }
   }
+}
+
+// 할당 불가 메뉴 행 스타일
+const menuRowClassName = ({ row }) => {
+  return row.assignable === false ? 'row-disabled' : ''
 }
 
 // 메뉴 권한 변경 핸들러 (조회 OFF → 나머지도 OFF)
@@ -451,11 +443,11 @@ const loadTenants = async () => {
   }
 }
 
-// 전체 메뉴 목록 로드 (트리 → 평탄화)
+// 전체 메뉴 목록 로드 (USER_MGMT 권한으로 접근 가능한 옵션 API 사용)
 const loadMenus = async () => {
   try {
-    const tree = await menusApi.getTree()
-    allMenus.value = flattenMenuTree(tree.items || tree || [])
+    const result = await usersApi.getMenuOptions()
+    allMenus.value = (result.items || []).filter(m => m.menu_type !== 'API')
     initMenuPermMap()
   } catch {
     allMenus.value = []
@@ -664,6 +656,14 @@ onMounted(async () => {
 
   .pagination-wrapper {
     @include mx.pagination-wrapper;
+  }
+
+  .text-disabled {
+    opacity: 0.4;
+  }
+
+  :deep(.row-disabled) {
+    background-color: var(--el-fill-color-lighter, rgba(0, 0, 0, 0.06)) !important;
   }
 }
 </style>

@@ -40,6 +40,17 @@ async def get_tenant_options(
     return success_response(result)
 
 
+@router.get("/options/menus")
+async def get_menu_options(
+    request: Request,
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
+):
+    """메뉴 선택 옵션 (사용자 메뉴 권한 할당용, USER_MGMT:read 권한으로 접근)"""
+    request_id = getattr(request.state, "request_id", "")
+    result = user_service.get_menu_options(current_user, request_id)
+    return success_response(result)
+
+
 @router.get("")
 async def list_users(
     request: Request,
@@ -124,11 +135,9 @@ async def assign_menus(
 async def get_user_menus(
     user_id: int,
     request: Request,
-    current_user: UserContext = Depends(get_current_active_user),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
 ):
-    """사용자 메뉴 권한 조회 (본인 또는 관리자)"""
-    if current_user.user_id != user_id and not current_user.is_superuser:
-        raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
+    """사용자 메뉴 권한 조회 (USER_MGMT:read 권한)"""
     request_id = getattr(request.state, "request_id", "")
     result = user_service.get_user_menus(user_id, current_user, request_id)
     return success_response(result)

@@ -140,6 +140,15 @@ class UserService:
                 if not cur.fetchone():
                     raise APIException(ErrorCode.BAD_REQUEST, f"존재하지 않는 역할 ID: {role_id}")
 
+        # 권한 상승 방지: GLOBAL이 아닌 사용자는 자신이 보유한 메뉴만 할당 가능
+        menus = data.get("menus", [])
+        if menus and not current_user.is_global:
+            my_menu_ids = self._get_my_menu_ids(current_user.user_id)
+            req_menu_ids = {(m["menu_id"] if isinstance(m, dict) else m.menu_id) for m in menus}
+            unauthorized_ids = req_menu_ids - my_menu_ids
+            if unauthorized_ids:
+                raise APIException(ErrorCode.FORBIDDEN, "자신이 보유하지 않은 메뉴는 할당할 수 없습니다")
+
         try:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute(
@@ -150,7 +159,6 @@ class UserService:
                 new_user_id = cur.fetchone()["user_id"]
 
                 # 메뉴 권한 할당
-                menus = data.get("menus", [])
                 for menu in menus:
                     menu_data = menu if isinstance(menu, dict) else menu.model_dump() if hasattr(menu, "model_dump") else dict(menu)
                     cur.execute(
@@ -256,6 +264,13 @@ class UserService:
         if invalid_ids:
             raise APIException(ErrorCode.BAD_REQUEST, f"존재하지 않거나 비활성 메뉴 ID: {sorted(invalid_ids)}")
 
+        # 권한 상승 방지: GLOBAL이 아닌 사용자는 자신이 보유한 메뉴만 할당 가능
+        if not current_user.is_global:
+            my_menu_ids = self._get_my_menu_ids(current_user.user_id)
+            unauthorized_ids = set(menu_ids) - my_menu_ids
+            if unauthorized_ids:
+                raise APIException(ErrorCode.FORBIDDEN, "자신이 보유하지 않은 메뉴는 할당할 수 없습니다")
+
         # replace 방식: 삭제 후 재할당
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("DELETE FROM tb_user_menu WHERE user_id = %s", (user_id,))
@@ -297,6 +312,55 @@ class UserService:
             )
             return [dict(row) for row in cur.fetchall()]
 
+
+    def _get_my_menu_ids(self, user_id: int) -> set:
+        """현재 사용자가 보유한 menu_id 집합 조회"""
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT menu_id FROM tb_user_menu WHERE user_id = %s", (user_id,))
+            return {row["menu_id"] for row in cur.fetchall()}
+
+    def get_menu_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
+        """메뉴 선택 옵션 (사용자 메뉴 권한 할당용, 트리 순서 평탄화)
+        전체 메뉴를 반환하되, 자신이 보유하지 않은 메뉴는 assignable=false 표시
+        """
+        with db_manager.get_cursor() as cur:
+            cur.execute(
+                "SELECT menu_id, parent_menu_id, menu_code, menu_name, menu_type, "
+                "menu_path, icon, sort_order, depth "
+                "FROM tb_menu WHERE is_active = true ORDER BY depth, sort_order"
+            )
+            rows = [dict(row) for row in cur.fetchall()]
+
+        # GLOBAL/superuser가 아니면 assignable 플래그 설정
+        if current_user.is_global:
+            for row in rows:
+                row["assignable"] = True
+        else:
+            my_menu_ids = self._get_my_menu_ids(current_user.user_id)
+            for row in rows:
+                row["assignable"] = row["menu_id"] in my_menu_ids
+
+        # 트리 순서로 평탄화 (부모 → 자식 순서 보장)
+        children_map: Dict[Optional[int], list] = {}
+        for row in rows:
+            pid = row["parent_menu_id"]
+            children_map.setdefault(pid, []).append(row)
+
+        result: list = []
+        def _flatten(parent_id: Optional[int]) -> None:
+            for item in children_map.get(parent_id, []):
+                result.append(item)
+                _flatten(item["menu_id"])
+        _flatten(None)
+
+        # 부모가 없어 누락된 항목도 포함
+        result_ids = {r["menu_id"] for r in result}
+        for row in rows:
+            if row["menu_id"] not in result_ids:
+                result.append(row)
+
+        log_step(logger, request_id, "USER", "OPT", "MENUS", "메뉴 옵션 조회", total=len(result), role=current_user.role_code)
+        return {"total": len(result), "items": result}
 
     def get_role_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """역할 선택 옵션 (드롭다운용 경량 데이터)"""
