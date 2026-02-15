@@ -173,7 +173,10 @@ router.beforeEach((to, from, next) => {
     return next()
   }
 
-  // 4. 일반 페이지 (/chat 등): Phase 3a 선택적 모드 — 통과
+  // 4. 일반 페이지 (/chat 등): 인증 필요
+  if (!isAuthenticated) {
+    return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
   next()
 })
 

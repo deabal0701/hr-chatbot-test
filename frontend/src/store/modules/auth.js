@@ -123,11 +123,13 @@ export default {
      * - 성공: TokenResponse → SET_AUTH → user 반환
      * - 실패: 에러 메시지 SET_LOGIN_ERROR (계정잠금, 비활성화, 인증실패 구분)
      */
-    async login({ commit }, { loginId, password }) {
+    async login({ commit, dispatch }, { loginId, password }) {
       commit('SET_LOGIN_LOADING', true)
       commit('SET_LOGIN_ERROR', null)
       try {
         const data = await authApi.login(loginId, password)
+        // 이전 사용자의 채팅 데이터 초기화
+        dispatch('chat/clearChat', null, { root: true })
         commit('SET_AUTH', {
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
@@ -159,7 +161,7 @@ export default {
      * - 서버에 로그아웃 요청 (세션 삭제)
      * - 로컬 토큰 및 상태 초기화
      */
-    async logout({ commit, state }) {
+    async logout({ commit, state, dispatch }) {
       try {
         if (state.accessToken) {
           await authApi.logout()
@@ -168,6 +170,8 @@ export default {
         // 서버 에러 무시 (이미 만료 등)
       } finally {
         commit('CLEAR_AUTH')
+        // 이전 사용자의 채팅 데이터 초기화
+        dispatch('chat/clearChat', null, { root: true })
       }
     },
 

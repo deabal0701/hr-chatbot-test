@@ -23,9 +23,16 @@ export function streamSSE(url, body, callbacks) {
   const controller = new AbortController()
   const fullUrl = `${BASE_URL}${url}`
 
+  // 요청 헤더 (Authorization 토큰 포함)
+  const headers = { 'Content-Type': 'application/json' }
+  const token = localStorage.getItem('mureum_access_token')
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
   fetch(fullUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
     signal: controller.signal,
   })

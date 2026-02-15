@@ -13,6 +13,7 @@ from starlette.responses import Response, StreamingResponse
 
 from app.middleware.base import BaseMiddleware
 from app.api.services.history_service import history_service
+from app.core.security.jwt import verify_token
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -72,10 +73,8 @@ class HistoryMiddleware(BaseMiddleware):
         client_ip = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent")
 
-        # 멀티테넌트/사용자 정보 (헤더에서 추출, 향후 인증 연동)
-        tenant_id = request.headers.get("X-Tenant-ID")
-        user_id = request.headers.get("X-User-ID")
-        user_name = request.headers.get("X-User-Name")
+        # 멀티테넌트/사용자 정보 (JWT 토큰에서 추출)
+        tenant_id, user_id, user_name = self._extract_user_from_token(request)
 
         # 실제 요청 처리
         response = await call_next(request)
@@ -130,6 +129,18 @@ class HistoryMiddleware(BaseMiddleware):
             headers=dict(response.headers),
             media_type=response.media_type
         )
+
+    def _extract_user_from_token(self, request: Request) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Authorization 헤더의 JWT 토큰에서 사용자 정보 추출 (tenant_id, user_id, user_name)"""
+        try:
+            auth_header = request.headers.get("authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return None, None, None
+            token = auth_header[7:]
+            payload = verify_token(token)
+            return str(payload.tenant_id) if payload.tenant_id else None, payload.sub, payload.display_name
+        except Exception:
+            return None, None, None
 
     def _is_history_target(self, path: str) -> bool:
         """이력 저장 대상 엔드포인트인지 확인"""
