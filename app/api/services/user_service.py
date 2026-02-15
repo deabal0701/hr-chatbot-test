@@ -133,12 +133,16 @@ class UserService:
         password_hashed = hash_password(data["password"])
         role_id = data.get("role_id")
 
-        # role_id 유효성 검사
+        # role_id 유효성 + 역할 권한 상승 방지
         if role_id:
             with db_manager.get_cursor() as cur:
-                cur.execute("SELECT role_id FROM tb_role WHERE role_id = %s", (role_id,))
-                if not cur.fetchone():
+                cur.execute("SELECT role_id, role_code FROM tb_role WHERE role_id = %s", (role_id,))
+                role_row = cur.fetchone()
+                if not role_row:
                     raise APIException(ErrorCode.BAD_REQUEST, f"존재하지 않는 역할 ID: {role_id}")
+                allowed_codes = self._get_allowed_role_codes(current_user)
+                if role_row["role_code"] not in allowed_codes:
+                    raise APIException(ErrorCode.FORBIDDEN, "자신보다 상위 역할은 할당할 수 없습니다")
 
         # 권한 상승 방지: GLOBAL이 아닌 사용자는 자신이 보유한 메뉴만 할당 가능
         menus = data.get("menus", [])
@@ -189,12 +193,16 @@ class UserService:
         if existing["is_superuser"] and current_user.user_id != user_id:
             raise APIException(ErrorCode.FORBIDDEN, "슈퍼유저는 본인만 수정할 수 있습니다")
 
-        # role_id 유효성 검사
+        # role_id 유효성 + 역할 권한 상승 방지
         if "role_id" in data and data["role_id"] is not None:
             with db_manager.get_cursor() as cur:
-                cur.execute("SELECT role_id FROM tb_role WHERE role_id = %s", (data["role_id"],))
-                if not cur.fetchone():
+                cur.execute("SELECT role_id, role_code FROM tb_role WHERE role_id = %s", (data["role_id"],))
+                role_row = cur.fetchone()
+                if not role_row:
                     raise APIException(ErrorCode.BAD_REQUEST, f"존재하지 않는 역할 ID: {data['role_id']}")
+                allowed_codes = self._get_allowed_role_codes(current_user)
+                if role_row["role_code"] not in allowed_codes:
+                    raise APIException(ErrorCode.FORBIDDEN, "자신보다 상위 역할은 할당할 수 없습니다")
 
         # 동적 UPDATE
         fields = []
@@ -362,13 +370,25 @@ class UserService:
         log_step(logger, request_id, "USER", "OPT", "MENUS", "메뉴 옵션 조회", total=len(result), role=current_user.role_code)
         return {"total": len(result), "items": result}
 
+    # 역할 계층: sort_order 낮을수록 상위 (GLOBAL=1 > TENANT=2 > USER=3)
+    ROLE_HIERARCHY = {"GLOBAL": 1, "TENANT": 2, "USER": 3}
+
+    def _get_allowed_role_codes(self, current_user: UserContext) -> list:
+        """현재 사용자가 할당 가능한 역할 코드 목록 반환"""
+        if current_user.is_global:
+            return list(self.ROLE_HIERARCHY.keys())
+        my_level = self.ROLE_HIERARCHY.get(current_user.role_code, 99)
+        return [code for code, level in self.ROLE_HIERARCHY.items() if level >= my_level]
+
     def get_role_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
-        """역할 선택 옵션 (드롭다운용 경량 데이터)"""
+        """역할 선택 옵션 (드롭다운용 경량 데이터, 자신보다 상위 역할 제외)"""
+        allowed_codes = self._get_allowed_role_codes(current_user)
+        placeholders = ", ".join(["%s"] * len(allowed_codes))
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT role_id, role_code, role_name FROM tb_role ORDER BY sort_order, role_id")
+            cur.execute(f"SELECT role_id, role_code, role_name FROM tb_role WHERE role_code IN ({placeholders}) ORDER BY sort_order, role_id", allowed_codes)
             rows = cur.fetchall()
         items = [dict(row) for row in rows]
-        log_step(logger, request_id, "USER", "OPT", "ROLES", "역할 옵션 조회", total=len(items))
+        log_step(logger, request_id, "USER", "OPT", "ROLES", "역할 옵션 조회", total=len(items), role=current_user.role_code)
         return {"total": len(items), "items": items}
 
     def get_tenant_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:

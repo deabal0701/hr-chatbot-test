@@ -29,17 +29,6 @@
       </div>
     </div>
 
-    <!-- 테넌트 모드 안내 배너 -->
-    <el-alert
-      v-if="isTenantMode"
-      type="info"
-      :closable="false"
-      show-icon
-      :title="`${getTenantName(selectedTenantId)} 테넌트의 설정을 편집합니다`"
-      description="변경된 값만 테넌트 오버라이드로 저장됩니다. 오버라이드가 없으면 공용 기본값을 사용합니다."
-      style="margin-bottom: 20px;"
-    />
-
     <!-- 설정 탭 -->
     <div class="content-card">
       <el-tabs v-model="activeTab">
