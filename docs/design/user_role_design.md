@@ -296,7 +296,26 @@ tb_role.sort_order 기준: 낮을수록 상위 (GLOBAL=1 > TENANT=2 > USER=3)
 - `create_user()`: 백엔드 검증
 - `update_user()`: 백엔드 검증
 
-### 5.3 메뉴 권한 상승 방지
+### 5.3 역할-테넌트 조합 검증
+
+```
+규칙: 역할과 테넌트의 논리적 조합만 허용
+
+  GLOBAL 역할  → 시스템 테넌트(is_system=true) 자동 설정, 일반 테넌트 불가
+  TENANT 역할  → tenant_id 필수, 시스템 테넌트 불가
+  USER 역할    → tenant_id 필수, 시스템 테넌트 불가
+
+금지 조합 예시:
+  × GLOBAL + 일반 테넌트 → 시스템 테넌트로 자동 보정
+  × TENANT + 시스템 테넌트 → BAD_REQUEST 에러
+  × USER + 테넌트 미선택 → BAD_REQUEST 에러
+```
+
+**적용 위치**:
+- **백엔드**: `_validate_role_tenant()` - create_user, update_user에서 호출
+- **프론트엔드**: `handleRoleChange()` - GLOBAL 선택 시 시스템 테넌트 자동 설정 & 비활성화, TENANT/USER 선택 시 시스템 테넌트 제외
+
+### 5.4 메뉴 권한 상승 방지
 
 ```
 규칙: 자신이 보유하지 않은 메뉴는 할당할 수 없다
@@ -309,7 +328,7 @@ tb_role.sort_order 기준: 낮을수록 상위 (GLOBAL=1 > TENANT=2 > USER=3)
 - `assign_menus()`: 백엔드 검증 (unauthorized_ids 체크)
 - `create_user()`: 메뉴 할당 시 동일 검증
 
-### 5.4 사용자 삭제 보호
+### 5.5 사용자 삭제 보호
 
 - 슈퍼유저 삭제 불가
 - 자기 자신 삭제 불가

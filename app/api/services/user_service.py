@@ -28,6 +28,44 @@ class UserService:
             "landing_page": user.pop("landing_page"),
         } if user.get("role_id") else None
 
+    def _validate_role_tenant(self, role_id: Optional[int], tenant_id: Optional[int]) -> int:
+        """역할-테넌트 조합 유효성 검증, 보정된 tenant_id 반환
+
+        규칙:
+          GLOBAL  → 시스템 테넌트(is_system=true) 자동 설정
+          TENANT  → tenant_id 필수, 시스템 테넌트 불가
+          USER    → tenant_id 필수, 시스템 테넌트 불가
+        """
+        if not role_id:
+            return tenant_id
+
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT role_code FROM tb_role WHERE role_id = %s", (role_id,))
+            role_row = cur.fetchone()
+        if not role_row:
+            return tenant_id
+
+        role_code = role_row["role_code"]
+
+        if role_code == "GLOBAL":
+            # GLOBAL → 시스템 테넌트 자동 설정
+            with db_manager.get_cursor() as cur:
+                cur.execute("SELECT tenant_id FROM tb_tenant WHERE is_system = true LIMIT 1")
+                sys_tenant = cur.fetchone()
+            return sys_tenant["tenant_id"] if sys_tenant else tenant_id
+
+        # TENANT / USER → 테넌트 필수, 시스템 테넌트 불가
+        if not tenant_id:
+            raise APIException(ErrorCode.BAD_REQUEST, f"{role_code} 역할은 테넌트를 반드시 선택해야 합니다")
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT is_system FROM tb_tenant WHERE tenant_id = %s", (tenant_id,))
+            tenant_row = cur.fetchone()
+        if not tenant_row:
+            raise APIException(ErrorCode.BAD_REQUEST, "존재하지 않는 테넌트입니다")
+        if tenant_row["is_system"]:
+            raise APIException(ErrorCode.BAD_REQUEST, f"{role_code} 역할은 시스템 테넌트에 소속될 수 없습니다")
+        return tenant_id
+
     def _check_scope_access(self, target_tenant_id: Optional[int], current_user: UserContext) -> None:
         """role_code에 따른 접근 범위 검증"""
         if current_user.is_global:
@@ -131,6 +169,9 @@ class UserService:
         password_hashed = hash_password(data["password"])
         role_id = data.get("role_id")
 
+        # 역할-테넌트 조합 검증 (GLOBAL→시스템 테넌트, TENANT/USER→일반 테넌트 필수)
+        tenant_id = self._validate_role_tenant(role_id, tenant_id)
+
         # role_id 유효성 + 역할 권한 상승 방지
         if role_id:
             with db_manager.get_cursor() as cur:
@@ -177,7 +218,7 @@ class UserService:
     def update_user(self, user_id: int, data: Dict[str, Any], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """사용자 수정"""
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT user_id, tenant_id, is_superuser FROM tb_user WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT user_id, tenant_id, role_id, is_superuser FROM tb_user WHERE user_id = %s", (user_id,))
             existing = cur.fetchone()
 
         if not existing:
@@ -199,6 +240,13 @@ class UserService:
                 allowed_codes = self._get_allowed_role_codes(current_user)
                 if role_row["role_code"] not in allowed_codes:
                     raise APIException(ErrorCode.FORBIDDEN, "자신보다 상위 역할은 할당할 수 없습니다")
+
+        # 역할-테넌트 조합 검증 (변경될 최종값 기준)
+        final_role_id = data.get("role_id", existing["role_id"])
+        final_tenant_id = data.get("tenant_id", existing["tenant_id"])
+        if "role_id" in data or "tenant_id" in data:
+            validated_tenant_id = self._validate_role_tenant(final_role_id, final_tenant_id)
+            data["tenant_id"] = validated_tenant_id
 
         # 동적 UPDATE
         fields = []
@@ -397,7 +445,7 @@ class UserService:
             params.append(current_user.tenant_id)
         where_clause = " AND ".join(conditions)
         with db_manager.get_cursor() as cur:
-            cur.execute(f"SELECT t.tenant_id, t.tenant_code, t.tenant_name FROM tb_tenant t WHERE {where_clause} ORDER BY t.tenant_id", params)
+            cur.execute(f"SELECT t.tenant_id, t.tenant_code, t.tenant_name, t.is_system FROM tb_tenant t WHERE {where_clause} ORDER BY t.tenant_id", params)
             rows = cur.fetchall()
         items = [dict(row) for row in rows]
         log_step(logger, request_id, "USER", "OPT", "TENANTS", "테넌트 옵션 조회", total=len(items))

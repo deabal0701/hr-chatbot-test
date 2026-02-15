@@ -188,12 +188,13 @@
                 <el-form-item label="테넌트" prop="tenant_id">
                   <el-select
                     v-model="formData.tenant_id"
-                    placeholder="테넌트 선택 (선택)"
-                    clearable
+                    :placeholder="isTenantDisabled ? '시스템 테넌트 (자동)' : '테넌트를 선택하세요'"
+                    :disabled="isTenantDisabled"
+                    :clearable="!isTenantDisabled"
                     style="width: 100%"
                   >
                     <el-option
-                      v-for="t in allTenants"
+                      v-for="t in filteredTenants"
                       :key="t.tenant_id"
                       :label="t.tenant_name"
                       :value="t.tenant_id"
@@ -267,7 +268,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete, Search } from '@element-plus/icons-vue'
 import usersApi from '@/api/users'
@@ -306,6 +307,23 @@ const formData = reactive({
   role_id: null
 })
 
+// 선택된 역할의 role_code
+const selectedRoleCode = computed(() => {
+  const role = allRoles.value.find(r => r.role_id === formData.role_id)
+  return role?.role_code || null
+})
+
+// GLOBAL 역할이면 테넌트 비활성화
+const isTenantDisabled = computed(() => selectedRoleCode.value === 'GLOBAL')
+
+// 테넌트 필터: GLOBAL → 시스템 테넌트만, TENANT/USER → 시스템 테넌트 제외
+const filteredTenants = computed(() => {
+  if (selectedRoleCode.value === 'GLOBAL') {
+    return allTenants.value.filter(t => t.is_system)
+  }
+  return allTenants.value.filter(t => !t.is_system)
+})
+
 // 폼 검증 규칙
 const formRules = {
   login_id: [
@@ -325,6 +343,18 @@ const formRules = {
   ],
   role_id: [
     { required: true, message: '역할을 선택하세요', trigger: 'change' }
+  ],
+  tenant_id: [
+    {
+      validator: (_rule, value, callback) => {
+        if (selectedRoleCode.value && selectedRoleCode.value !== 'GLOBAL' && !value) {
+          callback(new Error('테넌트를 선택하세요'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
   ]
 }
 
@@ -363,10 +393,23 @@ const handleMenuPermChange = (menuId, field, val) => {
   }
 }
 
-// 역할 변경 시 기본 메뉴 로드
+// 역할 변경 시 테넌트 자동 설정 + 기본 메뉴 로드
 const handleRoleChange = async (roleId) => {
   const role = allRoles.value.find(r => r.role_id === roleId)
   if (!role) return
+
+  // GLOBAL → 시스템 테넌트 자동 설정
+  if (role.role_code === 'GLOBAL') {
+    const sysTenant = allTenants.value.find(t => t.is_system)
+    formData.tenant_id = sysTenant?.tenant_id || null
+  } else {
+    // TENANT/USER → 시스템 테넌트가 선택되어 있으면 해제
+    const current = allTenants.value.find(t => t.tenant_id === formData.tenant_id)
+    if (current?.is_system) {
+      formData.tenant_id = null
+    }
+  }
+
   try {
     const defaultMenus = await rolesApi.getDefaultMenus(role.role_code)
     initMenuPermMap()
