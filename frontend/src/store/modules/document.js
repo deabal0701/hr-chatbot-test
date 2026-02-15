@@ -16,6 +16,7 @@ export default {
       usageType: null,  // rag, cortex
       indexed: null
     },
+    tenantFilter: null,  // 테넌트 필터 (GLOBAL 역할 전용)
     pagination: {
       page: 1,
       limit: 20,
@@ -48,6 +49,10 @@ export default {
         usageType: null,
         indexed: null
       }
+      state.tenantFilter = null
+    },
+    SET_TENANT_FILTER(state, tenantId) {
+      state.tenantFilter = tenantId
     },
     SET_SELECTED(state, ids) {
       state.selectedIds = ids
@@ -109,6 +114,9 @@ export default {
         }
         if (state.filters.indexed !== null) {
           params.indexed = state.filters.indexed
+        }
+        if (state.tenantFilter) {
+          params.tenant_id = state.tenantFilter
         }
 
         const response = await documentApi.list(params)
@@ -266,6 +274,13 @@ export default {
     // 필터 설정
     setFilters({ commit, dispatch }, filters) {
       commit('SET_FILTERS', filters)
+      commit('SET_PAGE', 1)
+      dispatch('fetchDocuments')
+    },
+
+    // 테넌트 필터 설정
+    setTenantFilter({ commit, dispatch }, tenantId) {
+      commit('SET_TENANT_FILTER', tenantId)
       commit('SET_PAGE', 1)
       dispatch('fetchDocuments')
     },

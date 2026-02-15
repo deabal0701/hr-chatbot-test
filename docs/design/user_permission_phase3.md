@@ -48,7 +48,7 @@ Phase 3 산출물:
 | 역할 조회 쿼리 | `tb_user_role` + `tb_role_permission` + `tb_permission` JOIN | `tb_user.role_id` → `tb_role` 직접 JOIN |
 | 메뉴 권한 조회 | 없음 | `tb_user_menu` + `tb_menu` JOIN |
 | UserInfo | `roles`, `role_names`, `permissions` | `role_code`, `landing_page`, `menus` |
-| UserContext | `roles`, `permissions`, `has_permission()` | `role_code`, `scope_type` (DB 조회로 대체) |
+| UserContext | `roles`, `permissions`, `has_permission()` | `role_code` (데이터 범위 겸용, DB 조회로 대체) |
 | JWT payload | `roles`, `permissions` 배열 | `role_code` 단일 |
 
 ### 1.3 선행 완료 확인
@@ -72,10 +72,10 @@ Phase 3 시작 전 아래 Phase 1~2 산출물이 v2.0으로 완료되어야 합�
      → tb_user 조회 → 잠금 확인 → 비밀번호 검증
    → auth_service.create_session(user_id, ip, user_agent)
      → get_user_with_permissions(user_id)
-       → tb_user JOIN tb_role → role_code, scope_type, landing_page
+       → tb_user JOIN tb_role → role_code, landing_page
        → tb_user_menu JOIN tb_menu → menus[{menu_code, can_create, ...}]
      → tb_user_session INSERT
-     → JWT Access Token (role_code, scope_type) + Refresh Token (session_id)
+     → JWT Access Token (role_code) + Refresh Token (session_id)
    → TokenResponse 반환 (user.menus 포함)
 
 2. GET /api/v1/auth/me (Authorization: Bearer <access_token>)
@@ -113,7 +113,7 @@ Phase 3 시작 전 아래 Phase 1~2 산출물이 v2.0으로 완료되어야 합�
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Q: JWT에 메뉴 권한을 포함할까?                                      │
-│  A: 아니요. JWT에는 role_code, scope_type만 포함합니다.              │
+│  A: 아니요. JWT에는 role_code만 포함합니다 (데이터 범위 겸용).       │
 │                                                                      │
 │     이유: 메뉴 권한은 사용자별로 커스터마이즈 가능 (role 기본값과      │
 │     다를 수 있음). JWT에 넣으면 토큰이 비대해지고, 권한 변경 시      │
@@ -147,7 +147,7 @@ Phase 3 시작 전 아래 Phase 1~2 산출물이 v2.0으로 완료되어야 합�
 |---|------|-----------|------|------|
 | 1 | `app/api/services/auth_service.py` | v2.0 | ✅ 구현 완료 | `tb_user.role_id` + `tb_user_menu` 기반 쿼리 재작성 완료 |
 | 2 | `app/api/routes/auth.py` | v2.0 | ✅ 구현 완료 | `UserInfo(role_code=..., menus=...)` 전환 완료 |
-| 3 | `app/middleware/auth.py` | v2.0 | ✅ 구현 완료 | `UserContext(role_code=..., scope_type=...)` 전환 완료 |
+| 3 | `app/middleware/auth.py` | v2.0 | ✅ 구현 완료 | `UserContext(role_code=...)` 전환 완료 |
 | 4 | `app/main.py` | v2.0 | ✅ 완료 | 미들웨어 + 라우터 이미 등록 |
 
 ### 2.2 auth_service.py — 현행 v1.0 문제점
@@ -156,7 +156,7 @@ Phase 3 시작 전 아래 Phase 1~2 산출물이 v2.0으로 완료되어야 합�
 
 ```sql
 -- 현행 (v1.0): v2.0 DDL에서 삭제된 테이블을 JOIN (실행 불가)
-SELECT DISTINCT r.role_code, r.role_name, r.scope_type, p.permission_code
+SELECT DISTINCT r.role_code, r.role_name, p.permission_code
 FROM tb_user_role ur                          -- ← v2.0에서 삭제됨
 JOIN tb_role r ON ur.role_id = r.role_id
 LEFT JOIN tb_role_permission rp ON ...        -- ← v2.0에서 삭제됨
@@ -171,7 +171,7 @@ v2.0 DDL 적용 후 위 쿼리는 `relation "tb_user_role" does not exist` 에�
 ```sql
 -- v2.0: tb_user.role_id FK로 역할 직접 JOIN
 SELECT u.user_id, u.login_id, u.display_name, u.tenant_id, u.is_superuser,
-       r.role_code, r.role_name, r.scope_type, r.landing_page
+       r.role_code, r.role_name, r.landing_page
 FROM tb_user u
 JOIN tb_role r ON r.role_id = u.role_id
 WHERE u.user_id = %s
@@ -195,8 +195,7 @@ ORDER BY m.depth, m.sort_order
   "user": {
     "user_id": 1,
     "login_id": "admin",
-    "scope_type": "GLOBAL",
-    "roles": ["SYSTEM_ADMIN"],
+    "roles": ["GLOBAL"],
     "role_names": ["시스템 관리자"],
     "permissions": ["nl2sql:execute", "admin:settings"]
   }
@@ -207,8 +206,7 @@ ORDER BY m.depth, m.sort_order
   "user": {
     "user_id": 1,
     "login_id": "admin",
-    "role_code": "SYSTEM_ADMIN",
-    "scope_type": "GLOBAL",
+    "role_code": "GLOBAL",
     "landing_page": "/admin/dashboard",
     "menus": [
       {
@@ -347,7 +345,6 @@ class AuthService:
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
             "role_code": user_info["role_code"],
-            "scope_type": user_info["scope_type"],
             "is_superuser": user_info["is_superuser"],
         }
         access_token = create_access_token(token_data)
@@ -376,7 +373,6 @@ class AuthService:
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
                 role_code=user_info["role_code"],
-                scope_type=user_info["scope_type"],
                 landing_page=user_info["landing_page"],
                 menus=user_info["menus"],
             ),
@@ -421,7 +417,6 @@ class AuthService:
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
             "role_code": user_info["role_code"],
-            "scope_type": user_info["scope_type"],
             "is_superuser": user_info["is_superuser"],
         }
         new_access_token = create_access_token(token_data)
@@ -439,7 +434,6 @@ class AuthService:
                 display_name=user_info["display_name"],
                 tenant_id=user_info["tenant_id"],
                 role_code=user_info["role_code"],
-                scope_type=user_info["scope_type"],
                 landing_page=user_info["landing_page"],
                 menus=user_info["menus"],
             ),
@@ -468,7 +462,7 @@ class AuthService:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 "u.is_superuser, u.is_active, "
-                "r.role_code, r.role_name, r.scope_type, r.landing_page "
+                "r.role_code, r.role_name, r.landing_page "
                 "FROM tb_user u "
                 "JOIN tb_role r ON r.role_id = u.role_id "
                 "WHERE u.user_id = %s",
@@ -519,7 +513,7 @@ class AuthService:
 
         user["menus"] = menus
 
-        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus), scope=user["scope_type"])
+        log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus))
         return user
 
     def change_password(self, user_id: int, current_password: str, new_password: str, request_id: str = "") -> bool:
@@ -558,7 +552,7 @@ v1.0 (제거):
   → roles: Set[str], permissions: Set[str], max_scope 계산
 
 v2.0 (신규):
-  쿼리 1: tb_user u JOIN tb_role r → role_code, scope_type, landing_page (단일 역할)
+  쿼리 1: tb_user u JOIN tb_role r → role_code, landing_page (단일 역할)
   쿼리 2: tb_user_menu um JOIN tb_menu m → menus 리스트 (MenuPermission 객체)
 
 변경 이유:
@@ -679,7 +673,6 @@ async def get_me(request: Request, current_user: UserContext = Depends(get_curre
         display_name=user_data["display_name"],
         tenant_id=user_data["tenant_id"],
         role_code=user_data["role_code"],
-        scope_type=user_data["scope_type"],
         landing_page=user_data["landing_page"],
         menus=user_data["menus"],
     )
@@ -780,7 +773,6 @@ class AuthMiddleware(BaseMiddleware):
                         tenant_id=payload.tenant_id,
                         is_superuser=payload.is_superuser,
                         role_code=payload.role_code,
-                        scope_type=payload.scope_type,
                     )
             except Exception:
                 # Phase 3a: 토큰 검증 실패해도 차단하지 않음
@@ -802,8 +794,7 @@ request.state.current_user = UserContext(
 # v2.0 (신규)
 request.state.current_user = UserContext(
     ...,
-    role_code=payload.role_code,  # str (단일 역할)
-    scope_type=payload.scope_type,
+    role_code=payload.role_code,  # str (단일 역할, 데이터 범위 겸용)
     # menus는 JWT에 포함되지 않음 → DB 조회로 처리
 )
 ```
@@ -850,7 +841,7 @@ app.include_router(auth.router)          # ← 이미 등록
 역할:
   CORS       → 브라우저 Same-Origin 정책 처리
   Logging    → request_id 생성 + 요청/응답 로깅
-  Auth       → Bearer 토큰 → UserContext(role_code, scope_type) (선택적 모드)
+  Auth       → Bearer 토큰 → UserContext(role_code) (선택적 모드)
   History    → API 이력 DB 저장
   Handler    → 실제 API 로직
 ```
@@ -870,7 +861,7 @@ app.include_router(auth.router)          # ← 이미 등록
 - [x] `auth_service.create_session()` — TokenResponse에 `user.role_code` (단일 문자열) 포함 확인
 - [x] `auth_service.create_session()` — TokenResponse에 `user.menus` (List[MenuPermission]) 포함 확인
 - [x] `auth_service.create_session()` — TokenResponse에 `user.landing_page` 포함 확인
-- [x] `auth_service.get_user_with_permissions()` — `role_code`, `scope_type`, `landing_page` 반환 확인
+- [x] `auth_service.get_user_with_permissions()` — `role_code`, `landing_page` 반환 확인
 - [x] `auth_service.get_user_with_permissions()` — `menus` 리스트에 `can_create`~`can_export` CRUD 포함 확인
 - [x] `auth_service.get_user_with_permissions()` — admin 사용자 → 메뉴 14개 확인
 - [x] `auth_service.get_user_with_permissions()` — user01 사용자 → 메뉴 4개 확인
@@ -887,7 +878,7 @@ curl -X POST http://localhost:19090/api/v1/auth/login \
   -d '{"login_id": "admin", "password": "admin123!"}'
 
 # 응답 확인 포인트:
-# - user.role_code = "SYSTEM_ADMIN" (단일 문자열, 배열 아님)
+# - user.role_code = "GLOBAL" (단일 문자열, 배열 아님)
 # - user.landing_page = "/admin/dashboard"
 # - user.menus = [{menu_code: "DASHBOARD", can_read: true, ...}, ...]
 # - user.menus 개수 = 14 (admin 계정)
@@ -931,8 +922,8 @@ curl -X POST http://localhost:19090/api/v1/agent/search \
 
 | 계정 | 역할 | 예상 메뉴 수 | 확인 |
 |------|------|:---:|:---:|
-| admin | SYSTEM_ADMIN | 14 | [ ] |
-| tenant_admin | TENANT_ADMIN | 9 | [ ] |
+| admin | GLOBAL | 14 | [ ] |
+| tenant_admin | TENANT | 9 | [ ] |
 | user01 | USER | 4 | [ ] |
 
 ---
@@ -984,7 +975,7 @@ Phase 4:                Phase 5:
 | `get_user_with_permissions()` | `tb_permission` JOIN | 삭제 |
 | `get_user_with_permissions()` | `roles: Set[str]`, `role_names: Set[str]` | `role_code: str` (단일) |
 | `get_user_with_permissions()` | `permissions: Set[str]` | `menus: List[MenuPermission]` |
-| `get_user_with_permissions()` | `_SCOPE_PRIORITY` 기반 max_scope 계산 | 불필요 (역할이 1개이므로 scope_type 직접 사용) |
+| `get_user_with_permissions()` | `_SCOPE_PRIORITY` 기반 max_scope 계산 | 불필요 (역할이 1개이므로 role_code로 데이터 범위 직접 결정) |
 | `create_session()` | `token_data["roles"]`, `["role_names"]`, `["permissions"]` | `token_data["role_code"]` |
 | `create_session()` | `UserInfo(roles=..., role_names=..., permissions=...)` | `UserInfo(role_code=..., landing_page=..., menus=...)` |
 | `refresh_access_token()` | 동일 변경 | 동일 변경 |
@@ -993,7 +984,7 @@ Phase 4:                Phase 5:
 
 | 위치 | 제거 코드 | 대체 |
 |------|----------|------|
-| `process_request()` | `UserContext(roles=..., permissions=...)` | `UserContext(role_code=..., scope_type=...)` |
+| `process_request()` | `UserContext(roles=..., permissions=...)` | `UserContext(role_code=...)` |
 
 ### routes/auth.py에서 제거
 

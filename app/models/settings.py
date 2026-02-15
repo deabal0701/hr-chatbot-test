@@ -33,6 +33,10 @@ class SettingItemResponse(BaseModel):
     description: Optional[str] = None
     is_secret: bool = False
     updated_at: Optional[datetime] = None
+    # Phase 2: 테넌트 오버라이드 정보 (tenant_id != '1'일 때만 포함)
+    global_value: Optional[str] = None
+    tenant_value: Optional[str] = None
+    is_overridden: Optional[bool] = None
 
 
 class SettingsCategoryResponse(BaseModel):

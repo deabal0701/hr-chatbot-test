@@ -425,14 +425,22 @@ class HistoryService:
             logger.error(f"[HISTORY] Count failed: {e}")
             return 0
 
-    def get_by_request_id(self, request_id: str) -> Optional[Dict[str, Any]]:
-        """단일 요청 조회"""
+    def get_by_request_id(self, request_id: str, tenant_id: Optional[str] = None, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """단일 요청 조회 (테넌트/사용자 필터 지원)"""
         try:
+            conditions = ["request_id = %s"]
+            params = [request_id]
+
+            if tenant_id:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id)
+            if user_id:
+                conditions.append("user_id = %s")
+                params.append(user_id)
+
+            where_clause = " AND ".join(conditions)
             with db_manager.get_cursor() as cur:
-                cur.execute(
-                    "SELECT * FROM tb_api_history WHERE request_id = %s",
-                    (request_id,)
-                )
+                cur.execute(f"SELECT * FROM tb_api_history WHERE {where_clause}", params)
                 row = cur.fetchone()
                 return dict(row) if row else None
         except Exception as e:
@@ -565,16 +573,26 @@ class HistoryService:
         self,
         search_query: Optional[str] = None,
         request_type: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """세션 단위 이력 목록 조회 (사이드바용)
+        """세션 단위 이력 목록 조회 (사이드바용, 테넌트/사용자 필터 지원)
 
         session_id가 있는 레코드는 session_id로 그룹핑하고,
         session_id가 NULL인 레코드(RAG 등)는 request_id를 session_key로 사용한다.
         """
         conditions = ["success = true", f"created_at >= NOW() - INTERVAL '{self.SIDEBAR_HISTORY_DAYS} days'"]
         params = []
+
+        if tenant_id:
+            conditions.append("tenant_id = %s")
+            params.append(tenant_id)
+
+        if user_id:
+            conditions.append("user_id = %s")
+            params.append(user_id)
 
         if search_query:
             conditions.append("question ILIKE %s")
@@ -612,10 +630,20 @@ class HistoryService:
         self,
         search_query: Optional[str] = None,
         request_type: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> int:
-        """세션 단위 이력 총 개수 조회"""
+        """세션 단위 이력 총 개수 조회 (테넌트/사용자 필터 지원)"""
         conditions = ["success = true", f"created_at >= NOW() - INTERVAL '{self.SIDEBAR_HISTORY_DAYS} days'"]
         params = []
+
+        if tenant_id:
+            conditions.append("tenant_id = %s")
+            params.append(tenant_id)
+
+        if user_id:
+            conditions.append("user_id = %s")
+            params.append(user_id)
 
         if search_query:
             conditions.append("question ILIKE %s")
@@ -640,14 +668,22 @@ class HistoryService:
             logger.error(f"[HISTORY] Session list count failed: {e}")
             return 0
 
-    def delete_session(self, session_key: str) -> int:
-        """세션 단위 이력 삭제 (session_id 또는 request_id로 삭제)"""
+    def delete_session(self, session_key: str, tenant_id: Optional[str] = None, user_id: Optional[str] = None) -> int:
+        """세션 단위 이력 삭제 (session_id 또는 request_id로 삭제, 테넌트/사용자 필터 지원)"""
         try:
+            conditions = ["(session_id = %s OR request_id = %s)"]
+            params = [session_key, session_key]
+
+            if tenant_id:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id)
+            if user_id:
+                conditions.append("user_id = %s")
+                params.append(user_id)
+
+            where_clause = " AND ".join(conditions)
             with db_manager.get_cursor(commit=True) as cur:
-                cur.execute(
-                    "DELETE FROM tb_api_history WHERE session_id = %s OR request_id = %s",
-                    (session_key, session_key)
-                )
+                cur.execute(f"DELETE FROM tb_api_history WHERE {where_clause}", params)
                 deleted = cur.rowcount
                 log_step(logger, "system", "HISTORY", "DELETE_SESSION", "COMPLETE", f"Session deleted | session_key={session_key}, deleted={deleted}")
                 return deleted
@@ -655,32 +691,52 @@ class HistoryService:
             logger.error(f"[HISTORY] Session delete failed: {e}")
             return 0
 
-    def get_session_detail(self, session_key: str) -> List[Dict[str, Any]]:
-        """세션 키로 이력 상세 조회 (session_id 또는 request_id)"""
+    def get_session_detail(self, session_key: str, tenant_id: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """세션 키로 이력 상세 조회 (session_id 또는 request_id, 테넌트/사용자 필터 지원)"""
         try:
+            conditions = ["(session_id = %s OR request_id = %s)"]
+            params = [session_key, session_key]
+
+            if tenant_id:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id)
+            if user_id:
+                conditions.append("user_id = %s")
+                params.append(user_id)
+
+            where_clause = " AND ".join(conditions)
             with db_manager.get_cursor() as cur:
-                cur.execute("""
-                    SELECT * FROM tb_api_history
-                    WHERE session_id = %s OR request_id = %s
-                    ORDER BY created_at ASC
-                """, (session_key, session_key))
+                cur.execute(f"SELECT * FROM tb_api_history WHERE {where_clause} ORDER BY created_at ASC", params)
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             logger.error(f"[HISTORY] Session detail failed: {e}")
             return []
 
-    def delete_by_request_id(self, request_id: str) -> bool:
-        """단일 요청 이력 삭제
+    def delete_by_request_id(self, request_id: str, tenant_id: Optional[str] = None, user_id: Optional[str] = None) -> bool:
+        """단일 요청 이력 삭제 (테넌트/사용자 필터 지원)
 
         Args:
             request_id: 삭제할 요청 ID
+            tenant_id: 테넌트 ID 필터
+            user_id: 사용자 ID 필터
 
         Returns:
             삭제 성공 여부
         """
         try:
+            conditions = ["request_id = %s"]
+            params = [request_id]
+
+            if tenant_id:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id)
+            if user_id:
+                conditions.append("user_id = %s")
+                params.append(user_id)
+
+            where_clause = " AND ".join(conditions)
             with db_manager.get_cursor(commit=True) as cur:
-                cur.execute("DELETE FROM tb_api_history WHERE request_id = %s", (request_id,))
+                cur.execute(f"DELETE FROM tb_api_history WHERE {where_clause}", params)
                 deleted = cur.rowcount > 0
                 log_step(logger, "system", "HISTORY", "DELETE", "COMPLETE", f"Record deleted | request_id={request_id}, success={deleted}")
                 return deleted

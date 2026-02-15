@@ -71,6 +71,7 @@ class DocumentSaveRequest(BaseModel):
     source_type: str = Field(default="ui_input", description="소스 타입 (ui_input, pdf, web, api)")
     source_file: Optional[str] = Field(default=None, description="원본 파일명")
     usage_type: str = Field(default="rag_knowledge", description="문서 용도 (rag_knowledge, rag_action)")
+    tenant_id: Optional[str] = Field(default=None, description="소속 테넌트 ID (GLOBAL: 선택, TENANT: 자동 부여)")
 
     model_config = {
         "json_schema_extra": {
@@ -130,6 +131,7 @@ class DocumentListItem(BaseModel):
     embedded_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    tenant_id: Optional[str] = None  # 소속 테넌트 ID ('1'=공용)
 
 
 class DocumentListResponse(BaseModel):

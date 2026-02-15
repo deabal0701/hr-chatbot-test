@@ -14,6 +14,25 @@
     <!-- 필터 및 액션 -->
     <div class="content-card filter-section">
       <div class="filter-row">
+        <!-- 테넌트 필터 (GLOBAL 역할만 표시) -->
+        <el-select
+          v-if="isGlobal"
+          v-model="tenantFilter"
+          placeholder="테넌트"
+          clearable
+          style="width: 150px"
+          @change="handleTenantFilterChange"
+          :loading="tenantsLoading"
+        >
+          <el-option label="공용" value="1" />
+          <el-option
+            v-for="tenant in tenantOptions"
+            :key="tenant.tenant_id"
+            :label="tenant.tenant_name"
+            :value="String(tenant.tenant_id)"
+          />
+        </el-select>
+
         <el-select
           v-model="filters.usageType"
           placeholder="문서 용도"
@@ -141,6 +160,14 @@
           </template>
         </el-table-column>
 
+        <el-table-column prop="tenant_id" label="테넌트" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.tenant_id === '1' ? 'info' : ''">
+              {{ getTenantLabel(row.tenant_id) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="created_at" label="생성일" width="120">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
@@ -150,10 +177,16 @@
         <el-table-column label="작업" width="150">
           <template #default="{ row }">
             <el-button-group>
-              <el-button size="small" text :icon="Edit" @click="showEditForm(row)">
+              <el-button
+                v-if="canEditDoc(row)"
+                size="small" text :icon="Edit" @click="showEditForm(row)"
+              >
                 수정
               </el-button>
-              <el-button size="small" text type="danger" :icon="Delete" @click="confirmDelete(row)">
+              <el-button
+                v-if="canDeleteDoc(row)"
+                size="small" text type="danger" :icon="Delete" @click="confirmDelete(row)"
+              >
                 삭제
               </el-button>
             </el-button-group>
@@ -185,10 +218,21 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
+import usersApi from '@/api/users'
 import { formatDate, formatNumber } from '@/utils/format'
 
 const store = useStore()
 const router = useRouter()
+
+// 사용자 역할 정보
+const roleCode = computed(() => store.getters['auth/roleCode'])
+const isGlobal = computed(() => roleCode.value === 'GLOBAL')
+const currentUser = computed(() => store.getters['auth/currentUser'])
+
+// 테넌트 필터 (GLOBAL 역할 전용)
+const tenantFilter = ref(null)
+const tenantOptions = ref([])
+const tenantsLoading = ref(false)
 
 // 문서 용도 코드 (DB에서 동적 로드)
 const usageTypes = ref([])
@@ -207,11 +251,31 @@ const total = computed(() => store.state.document.pagination.total)
 const pageSize = computed(() => store.state.document.pagination.limit)
 const currentPage = computed(() => store.state.document.pagination.page)
 
+// 테넌트 옵션 로드 (GLOBAL 역할만)
+const loadTenantOptions = async () => {
+  if (!isGlobal.value) return
+  tenantsLoading.value = true
+  try {
+    const response = await usersApi.getTenantOptions()
+    // tenant_id=1(공용)은 드롭다운에 직접 추가했으므로 제외
+    tenantOptions.value = (response.items || []).filter(t => t.tenant_id !== 1)
+  } catch (error) {
+    console.error('테넌트 옵션 로드 실패:', error)
+  } finally {
+    tenantsLoading.value = false
+  }
+}
+
+// 테넌트 필터 변경
+const handleTenantFilterChange = () => {
+  store.dispatch('document/setTenantFilter', tenantFilter.value)
+}
+
 // 문서 용도 코드 로드
 const loadUsageTypes = async () => {
   usageTypesLoading.value = true
   try {
-    const response = await codesApi.getByGroup('USAGE_TYPE', false)
+    const response = await codesApi.lookup('USAGE_TYPE')
     usageTypes.value = response.codes
   } catch (error) {
     console.error('문서 용도 로드 실패:', error)
@@ -224,7 +288,7 @@ const loadUsageTypes = async () => {
 const loadDocTypes = async () => {
   docTypesLoading.value = true
   try {
-    const response = await codesApi.getByGroup('DOC_TYPE', false)
+    const response = await codesApi.lookup('DOC_TYPE')
     docTypes.value = response.codes
   } catch (error) {
     console.error('문서 유형 로드 실패:', error)
@@ -264,6 +328,7 @@ watch(() => filters.value.usageType, (newUsageType) => {
 
 // 초기 로드
 onMounted(() => {
+  loadTenantOptions()
   loadUsageTypes()
   loadDocTypes()
   store.dispatch('document/fetchDocuments')
@@ -275,6 +340,7 @@ const handleFilterChange = () => {
 }
 
 const resetFilters = () => {
+  tenantFilter.value = null
   store.dispatch('document/resetFilters')
 }
 
@@ -360,6 +426,24 @@ const executeEmbeddingSelected = async () => {
   } catch (error) {
     ElMessage.error('임베딩 실행에 실패했습니다.')
   }
+}
+
+// 테넌트 라벨
+const getTenantLabel = (tenantId) => {
+  if (!tenantId || tenantId === '1') return '공용'
+  const found = tenantOptions.value.find(t => String(t.tenant_id) === String(tenantId))
+  return found ? found.tenant_name : `T${tenantId}`
+}
+
+// 문서 수정/삭제 권한 (TENANT 역할은 공용 문서 수정/삭제 불가)
+const canEditDoc = (row) => {
+  if (isGlobal.value) return true
+  return row.tenant_id !== '1'
+}
+
+const canDeleteDoc = (row) => {
+  if (isGlobal.value) return true
+  return row.tenant_id !== '1'
 }
 
 // 유틸리티

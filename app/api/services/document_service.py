@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg
 
+from app.models.auth import UserContext
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -75,7 +76,8 @@ class DocumentService:
         context_data: Optional[str] = None,
         source_type: str = "ui_input",
         source_file: Optional[str] = None,
-        usage_type: str = "rag_knowledge"
+        usage_type: str = "rag_knowledge",
+        tenant_id: str = "1"
     ) -> Dict[str, Any]:
         """
         문서 저장 (임베딩 없이)
@@ -90,6 +92,7 @@ class DocumentService:
             source_type: 소스 타입 (ui_input, pdf, web, api)
             source_file: 원본 파일명
             usage_type: 문서 용도 (rag/cortex, 기본: rag)
+            tenant_id: 소속 테넌트 ID (기본: '1' = 공용)
 
         Returns:
             {
@@ -107,8 +110,8 @@ class DocumentService:
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
-                    INSERT INTO tb_docs (title, doc_type, language, content, metadata, context_data, indexed, source_type, source_file, content_hash, chunk_index, total_chunks, usage_type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO tb_docs (title, doc_type, language, content, metadata, context_data, indexed, source_type, source_file, content_hash, chunk_index, total_chunks, usage_type, tenant_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     title, doc_type, language, content,
@@ -118,7 +121,8 @@ class DocumentService:
                     source_type, source_file, content_hash,
                     0,  # chunk_index
                     1,  # total_chunks (아직 청킹 안됨)
-                    usage_type
+                    usage_type,
+                    tenant_id
                 ))
 
                 result = cur.fetchone()
@@ -147,12 +151,13 @@ class DocumentService:
         }
 
     @staticmethod
-    def get_document(doc_id: int) -> Optional[Dict[str, Any]]:
+    def get_document(doc_id: int, current_user: Optional[UserContext] = None) -> Optional[Dict[str, Any]]:
         """
         문서 상세 조회 (청크 포함)
 
         Args:
             doc_id: 문서 ID
+            current_user: 현재 사용자 (테넌트 접근 제어용)
 
         Returns:
             문서 정보 (청크 포함) 또는 None
@@ -164,7 +169,7 @@ class DocumentService:
                 cur.execute("""
                     SELECT id, title, doc_type, language, content, original_content, metadata,
                            context_data, source_type, source_file, chunk_index, total_chunks,
-                           parent_doc_id, indexed, embedded_at,
+                           parent_doc_id, indexed, embedded_at, tenant_id,
                            LENGTH(content) as content_length,
                            created_at, updated_at
                     FROM tb_docs
@@ -174,6 +179,13 @@ class DocumentService:
                 doc = cur.fetchone()
                 if not doc:
                     return None
+
+                # 테넌트 접근 권한 검증 (TENANT/USER는 자기 테넌트 문서만 접근)
+                if current_user and not current_user.is_global:
+                    doc_tenant = doc.get('tenant_id') or '1'
+                    user_tenant = str(current_user.tenant_id)
+                    if doc_tenant != user_tenant:
+                        return None  # 접근 불가 문서는 없는 것처럼 처리
 
                 result = dict(doc)
 
@@ -219,7 +231,9 @@ class DocumentService:
         include_chunks: bool = False,
         usage_type: Optional[str] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        current_user: Optional[UserContext] = None,
+        tenant_id_filter: Optional[str] = None
     ) -> Tuple[List[Dict[str, Any]], int]:
         """
         문서 목록 조회
@@ -232,12 +246,23 @@ class DocumentService:
             usage_type: 문서 용도 필터 (rag/cortex, None이면 전체)
             limit: 최대 결과 수
             offset: 시작 위치
+            current_user: 현재 사용자 (테넌트 접근 제어용)
+            tenant_id_filter: 테넌트 필터 (GLOBAL 역할의 선택적 필터)
 
         Returns:
             (문서 목록, 전체 카운트) 튜플
         """
         conditions = []
         params = []
+
+        # 테넌트 격리 필터
+        if current_user and current_user.is_global:
+            if tenant_id_filter:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id_filter)
+        elif current_user:
+            conditions.append("tenant_id = %s")
+            params.append(str(current_user.tenant_id))
 
         # 청크 제외 (원본 문서만)
         if not include_chunks:
@@ -281,7 +306,7 @@ class DocumentService:
                            LENGTH(content) as content_length,
                            COALESCE(LENGTH(original_content), LENGTH(content)) as original_length,
                            source_type, source_file, total_chunks, indexed,
-                           embedded_at, created_at, updated_at
+                           embedded_at, created_at, updated_at, tenant_id
                     FROM tb_docs
                     {where_clause}
                     ORDER BY created_at DESC
@@ -303,7 +328,8 @@ class DocumentService:
         content: Optional[str] = None,
         language: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        context_data: Optional[str] = None
+        context_data: Optional[str] = None,
+        current_user: Optional[UserContext] = None
     ) -> Dict[str, Any]:
         """
         문서 수정 (내용 변경 시 임베딩 무효화)
@@ -316,6 +342,7 @@ class DocumentService:
             language: 새 언어
             metadata: 새 메타데이터
             context_data: 임베딩 제외 컨텍스트 데이터 (SQL, 스키마 등 Agent 참조용)
+            current_user: 현재 사용자 (테넌트 접근 제어용)
 
         Returns:
             {
@@ -327,7 +354,7 @@ class DocumentService:
             }
 
         Raises:
-            ValueError: 문서 없음, 청크 문서 수정 시도
+            ValueError: 문서 없음, 청크 문서 수정 시도, 접근 권한 없음
         """
         tc = _get_text_chunker_module()
 
@@ -337,7 +364,7 @@ class DocumentService:
             # 기존 문서 조회
             with db_manager.get_cursor() as cur:
                 cur.execute("""
-                    SELECT id, title, doc_type, language, content, metadata, indexed, parent_doc_id
+                    SELECT id, title, doc_type, language, content, metadata, indexed, parent_doc_id, tenant_id
                     FROM tb_docs
                     WHERE id = %s
                 """, (doc_id,))
@@ -345,6 +372,15 @@ class DocumentService:
                 doc = cur.fetchone()
                 if not doc:
                     raise ValueError(f"문서를 찾을 수 없습니다: ID={doc_id}")
+
+                # 테넌트 접근 권한 검증
+                if current_user and not current_user.is_global:
+                    doc_tenant = doc.get('tenant_id') or '1'
+                    user_tenant = str(current_user.tenant_id)
+                    if doc_tenant == '1':
+                        raise ValueError("공용 문서는 수정할 수 없습니다")
+                    if doc_tenant != user_tenant:
+                        raise ValueError("접근 권한이 없는 문서입니다")
 
                 # 청크 문서는 수정 불가
                 if doc['parent_doc_id'] is not None:
@@ -430,19 +466,35 @@ class DocumentService:
             raise RuntimeError(f"문서 수정 중 데이터베이스 오류가 발생했습니다: {e}")
 
     @staticmethod
-    def delete_document(doc_id: int) -> int:
+    def delete_document(doc_id: int, current_user: Optional[UserContext] = None) -> int:
         """
         문서 삭제 (청크 포함)
 
         Args:
             doc_id: 문서 ID
+            current_user: 현재 사용자 (테넌트 접근 제어용)
 
         Returns:
             삭제된 문서 수 (청크 포함)
+
+        Raises:
+            ValueError: 접근 권한 없음
         """
         try:
             db_manager = _get_db_manager()
             with db_manager.get_cursor(commit=True) as cur:
+                # 테넌트 접근 권한 검증
+                if current_user and not current_user.is_global:
+                    cur.execute("SELECT tenant_id FROM tb_docs WHERE id = %s", (doc_id,))
+                    doc = cur.fetchone()
+                    if doc:
+                        doc_tenant = doc.get('tenant_id') or '1'
+                        user_tenant = str(current_user.tenant_id)
+                        if doc_tenant == '1':
+                            raise ValueError("공용 문서는 삭제할 수 없습니다")
+                        if doc_tenant != user_tenant:
+                            raise ValueError("접근 권한이 없는 문서입니다")
+
                 # parent_doc_id가 doc_id인 청크들도 삭제
                 cur.execute("""
                     DELETE FROM tb_docs
@@ -453,17 +505,20 @@ class DocumentService:
                 logger.info(f"문서 삭제 완료: doc_id={doc_id}, 삭제된 문서={deleted}개")
                 return deleted
 
+        except ValueError:
+            raise
         except psycopg.Error as e:
             logger.error(f"문서 삭제 실패 - DB 오류: doc_id={doc_id}, error={e}")
             raise RuntimeError(f"문서 삭제 중 데이터베이스 오류가 발생했습니다: {e}")
 
     @staticmethod
-    def bulk_delete_documents(doc_ids: List[int]) -> Dict[str, Any]:
+    def bulk_delete_documents(doc_ids: List[int], current_user: Optional[UserContext] = None) -> Dict[str, Any]:
         """
         문서 일괄 삭제
 
         Args:
             doc_ids: 삭제할 문서 ID 목록
+            current_user: 현재 사용자 (테넌트 접근 제어용)
 
         Returns:
             {
@@ -477,7 +532,7 @@ class DocumentService:
 
         for doc_id in doc_ids:
             try:
-                deleted = DocumentService.delete_document(doc_id)
+                deleted = DocumentService.delete_document(doc_id, current_user=current_user)
                 if deleted > 0:
                     total_deleted += deleted
                 else:

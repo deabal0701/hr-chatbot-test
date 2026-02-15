@@ -225,6 +225,7 @@ class NL2SQLGraph:
             max_retries=inputs.get("max_retries", 2),
             session_id=session_id,
             max_turns=max_turns,
+            tenant_id=inputs.get("tenant_id"),
         )
 
         # 기존 conversation_history 복원

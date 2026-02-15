@@ -99,11 +99,14 @@ def retrieve_documents_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     log_step(logger, request_id, "RAG", "1", "RETRIEVE", "벡터 검색 시작", question=question, top_k=top_k, similarity_threshold=similarity_threshold, has_filters=bool(filters_dict))
 
+    tenant_id = state.get("tenant_id")
+
     documents = vector_store.search_similar_documents(
         query=question,
         top_k=top_k,
         filters=filters,
-        similarity_threshold=similarity_threshold
+        similarity_threshold=similarity_threshold,
+        tenant_id=tenant_id,
     )
 
     state["retrieved_docs"] = documents

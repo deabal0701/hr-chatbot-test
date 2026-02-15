@@ -57,6 +57,9 @@ class NL2SQLState(TypedDict):
     intent_reasoning: str                # 의도 분석 이유
     sql_result_summary: List[Dict]       # 이전 SQL 결과 요약 (최대 10행)
 
+    # ===== 테넌트 격리 (Phase 3) =====
+    tenant_id: Optional[str]             # 테넌트 ID (설정값 조회용)
+
 
 def create_initial_state(
     question: str,
@@ -64,6 +67,7 @@ def create_initial_state(
     max_retries: int = 2,
     session_id: str = "",
     max_turns: int = 5,
+    tenant_id: Optional[str] = None,
 ) -> NL2SQLState:
     """
     초기 상태 생성
@@ -123,4 +127,7 @@ def create_initial_state(
         rewritten_question="",           # 빈 문자열 = 재작성 필요 없음
         intent_reasoning="",             # 의도 분석 이유
         sql_result_summary=[],           # 이전 SQL 결과 요약
+
+        # 테넌트 격리 (Phase 3)
+        tenant_id=tenant_id,
     )

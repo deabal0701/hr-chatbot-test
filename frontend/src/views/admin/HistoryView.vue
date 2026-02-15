@@ -76,6 +76,22 @@
     <div class="content-card filter-section">
       <div class="filter-row">
         <el-select
+          v-if="isGlobal"
+          v-model="selectedTenantId"
+          placeholder="테넌트: 전체"
+          clearable
+          @change="handleFilterChange"
+          style="width: 140px"
+        >
+          <el-option
+            v-for="t in tenantOptions"
+            :key="t.tenant_id"
+            :label="t.tenant_name"
+            :value="String(t.tenant_id)"
+          />
+        </el-select>
+
+        <el-select
           v-model="filters.request_type"
           placeholder="요청 타입"
           clearable
@@ -151,7 +167,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="request_id" label="요청ID" width="100">
+        <el-table-column prop="request_id" label="요청ID" width="90">
           <template #default="{ row }">
             <span class="request-id" :title="row.request_id">{{ row.request_id }}</span>
           </template>
@@ -165,7 +181,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="user_name" label="사용자" width="100">
+        <el-table-column v-if="isGlobal" prop="tenant_id" label="테넌트" width="100" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ getTenantName(row.tenant_id) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="user_name" label="사용자" width="100" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.user_name || row.user_id">
               {{ row.user_name || row.user_id }}
@@ -174,7 +196,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="success" label="성공" width="70" align="center">
+        <el-table-column prop="success" label="성공" width="60" align="center">
           <template #default="{ row }">
             <el-icon v-if="row.success" color="#67c23a" :size="18"><CircleCheck /></el-icon>
             <el-icon v-else color="#f56c6c" :size="18"><CircleClose /></el-icon>
@@ -257,6 +279,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   List,
@@ -268,10 +291,20 @@ import {
   Search
 } from '@element-plus/icons-vue'
 import historyApi from '@/api/history'
+import usersApi from '@/api/users'
 import { formatDateTime, formatNumber, formatResponseTime } from '@/utils/format'
 
 const router = useRouter()
 const route = useRoute()
+const store = useStore()
+
+// 역할 기반 상태
+const roleCode = computed(() => store.getters['auth/roleCode'])
+const isGlobal = computed(() => roleCode.value === 'GLOBAL')
+
+// 테넌트 필터 (GLOBAL 역할용)
+const selectedTenantId = ref(null)
+const tenantOptions = ref([])
 
 // 상태
 const isLoading = ref(false)
@@ -322,6 +355,11 @@ const loadData = async () => {
       offset: offset.value
     }
 
+    // 테넌트 필터 (GLOBAL: 드롭다운 선택값, TENANT/USER: 백엔드 _apply_scope_filter()에서 강제)
+    if (isGlobal.value && selectedTenantId.value) {
+      params.tenant_id = selectedTenantId.value
+    }
+
     if (filters.request_type) params.request_type = filters.request_type
     if (filters.success_only !== null) params.success_only = filters.success_only
     if (filters.session_id) params.session_id = filters.session_id
@@ -343,6 +381,9 @@ const loadData = async () => {
 const loadStatistics = async () => {
   try {
     const params = {}
+    if (isGlobal.value && selectedTenantId.value) {
+      params.tenant_id = selectedTenantId.value
+    }
     if (filters.from_date) params.from_date = filters.from_date
     if (filters.to_date) params.to_date = filters.to_date
 
@@ -402,6 +443,7 @@ const resetFilters = () => {
   filters.from_date = null
   filters.to_date = null
   dateRange.value = null
+  selectedTenantId.value = null
   currentPage.value = 1
   router.replace({ query: {} })
   loadData()
@@ -499,6 +541,24 @@ const getTypeLabel = (type) => {
   return labels[type] || type
 }
 
+// 테넌트명 조회 헬퍼
+const getTenantName = (tenantId) => {
+  if (!tenantId) return '-'
+  const tenant = tenantOptions.value.find(t => String(t.tenant_id) === String(tenantId))
+  return tenant ? tenant.tenant_name : tenantId
+}
+
+// 테넌트 옵션 로드 (GLOBAL 역할용)
+const loadTenantOptions = async () => {
+  if (!isGlobal.value) return
+  try {
+    const response = await usersApi.getTenantOptions()
+    tenantOptions.value = response.items || []
+  } catch (error) {
+    console.error('테넌트 옵션 로드 실패:', error)
+  }
+}
+
 
 // URL 쿼리 파라미터 감시 (session_id 직접 감시)
 watch(() => route.query.session_id, (newSessionId) => {
@@ -508,6 +568,7 @@ watch(() => route.query.session_id, (newSessionId) => {
 
 // 초기 로드
 onMounted(() => {
+  if (isGlobal.value) loadTenantOptions()
   loadStatistics()
 })
 </script>

@@ -46,15 +46,15 @@ class SettingsService:
     # 설정 조회 (Core settings_config 활용)
     # ============================================================================
 
-    def get_all_settings_masked(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_settings_masked(self, tenant_id: str = '1') -> Dict[str, List[Dict[str, Any]]]:
         """전체 설정 조회 (마스킹 적용)"""
-        return settings_config.get_all_masked_settings()
+        return settings_config.get_all_masked_settings(tenant_id=tenant_id)
 
-    def get_category_settings_masked(self, category: str) -> List[Dict[str, Any]]:
+    def get_category_settings_masked(self, category: str, tenant_id: str = '1') -> List[Dict[str, Any]]:
         """카테고리별 설정 조회 (마스킹 적용)"""
-        return settings_config.get_masked_settings(category)
+        return settings_config.get_masked_settings(category, tenant_id=tenant_id)
 
-    def get_setting(self, category: str, key: str, masked: bool = True) -> Optional[Dict[str, Any]]:
+    def get_setting(self, category: str, key: str, masked: bool = True, tenant_id: str = '1') -> Optional[Dict[str, Any]]:
         """
         단일 설정 조회
 
@@ -62,8 +62,9 @@ class SettingsService:
             category: 카테고리
             key: 설정 키
             masked: 마스킹 여부 (기본 True)
+            tenant_id: 테넌트 ID (기본 '1' 공용)
         """
-        setting = settings_config.get_setting(category, key)
+        setting = settings_config.get_setting(category, key, tenant_id=tenant_id)
         if not setting:
             return None
 
@@ -96,7 +97,7 @@ class SettingsService:
     # 설정 수정
     # ============================================================================
 
-    def update_setting(self, category: str, key: str, value: str, changed_by: str = 'admin', change_reason: str = None) -> bool:
+    def update_setting(self, category: str, key: str, value: str, tenant_id: str = '1', changed_by: str = 'admin', change_reason: str = None) -> bool:
         """
         단일 설정 수정
 
@@ -104,6 +105,7 @@ class SettingsService:
             category: 카테고리
             key: 설정 키
             value: 새 값
+            tenant_id: 테넌트 ID (기본 '1' = 공용)
             changed_by: 변경자
             change_reason: 변경 사유
 
@@ -127,19 +129,19 @@ class SettingsService:
                 # 프롬프트 카테고리인 경우 기존 값 조회 (이력 저장용)
                 old_value = None
                 if category == 'prompt':
-                    cur.execute("SELECT value FROM tb_app_settings WHERE category = %s AND key = %s", (category, key))
+                    cur.execute("SELECT value FROM tb_app_settings WHERE category = %s AND key = %s AND tenant_id = %s", (category, key, tenant_id))
                     row = cur.fetchone()
                     if row:
                         old_value = row['value']
 
-                # 설정 저장 (UPSERT)
+                # 설정 저장 (UPSERT with tenant_id)
                 cur.execute("""
-                    INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                    ON CONFLICT (category, key)
+                    INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, tenant_id, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (category, key, tenant_id)
                     DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
                     RETURNING updated_at
-                """, (category, key, value, default[1], default[2], default[3]))
+                """, (category, key, value, default[1], default[2], default[3], tenant_id))
 
                 row = cur.fetchone()
                 updated_at = row['updated_at'] if row else datetime.now()
@@ -156,7 +158,7 @@ class SettingsService:
                         logger.error(f"프롬프트 이력 저장 실패 (무시): {hist_err}")
 
                 # 캐시 갱신 (settings_config에서 통합 관리)
-                settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at)
+                settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at, tenant_id=tenant_id)
 
                 # external_database 카테고리인 경우 external_db_manager 캐시도 갱신
                 if category == 'external_database':
@@ -167,14 +169,14 @@ class SettingsService:
                     except Exception as reload_err:
                         logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
 
-                logger.info(f"설정 저장: {category}.{key}")
+                logger.info(f"설정 저장: {category}.{key} (tenant_id={tenant_id})")
                 return True
 
         except Exception as e:
             logger.error(f"설정 저장 실패: {category}.{key} - {e}")
             return False
 
-    def update_category_settings(self, category: str, settings_dict: Dict[str, str]) -> Tuple[int, List[str]]:
+    def update_category_settings(self, category: str, settings_dict: Dict[str, str], tenant_id: str = '1') -> Tuple[int, List[str]]:
         """
         카테고리별 설정 일괄 수정
 
@@ -186,7 +188,7 @@ class SettingsService:
 
         for key, value in settings_dict.items():
             # update_setting 내부에서 개별 키마다 reload_config 호출되므로 일단 저장
-            if self._update_setting_without_reload(category, key, value):
+            if self._update_setting_without_reload(category, key, value, tenant_id=tenant_id):
                 success_count += 1
             else:
                 failed_keys.append(key)
@@ -220,7 +222,7 @@ class SettingsService:
 
         return success_count, failed_keys
 
-    def _update_setting_without_reload(self, category: str, key: str, value: str, changed_by: str = 'admin', change_reason: Optional[str] = None) -> bool:
+    def _update_setting_without_reload(self, category: str, key: str, value: str, tenant_id: str = '1', changed_by: str = 'admin', change_reason: Optional[str] = None) -> bool:
         """단일 설정 수정 (external_db_manager reload 없이 - 일괄 수정용)"""
         default = settings_config._get_default_value(category, key)
         if not default:
@@ -237,18 +239,18 @@ class SettingsService:
             with db_manager.get_cursor(commit=True) as cur:
                 old_value = None
                 if category == 'prompt':
-                    cur.execute("SELECT value FROM tb_app_settings WHERE category = %s AND key = %s", (category, key))
+                    cur.execute("SELECT value FROM tb_app_settings WHERE category = %s AND key = %s AND tenant_id = %s", (category, key, tenant_id))
                     row = cur.fetchone()
                     if row:
                         old_value = row['value']
 
                 cur.execute("""
-                    INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                    ON CONFLICT (category, key)
+                    INSERT INTO tb_app_settings (category, key, value, value_type, description, is_secret, tenant_id, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (category, key, tenant_id)
                     DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
                     RETURNING updated_at
-                """, (category, key, value, default[1], default[2], default[3]))
+                """, (category, key, value, default[1], default[2], default[3], tenant_id))
 
                 row = cur.fetchone()
                 updated_at = row['updated_at'] if row else datetime.now()
@@ -262,17 +264,22 @@ class SettingsService:
                     except Exception:
                         pass
 
-                settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at)
+                settings_config._update_cache(category, key, value, default[1], default[2], default[3], updated_at, tenant_id=tenant_id)
                 return True
 
         except Exception as e:
             logger.error(f"설정 저장 실패: {category}.{key} - {e}")
             return False
 
-    def reset_category(self, category: str) -> bool:
-        """카테고리 설정을 기본값으로 초기화"""
+    def reset_category(self, category: str, tenant_id: str = '1') -> bool:
+        """카테고리 설정을 기본값으로 초기화 (공용) 또는 테넌트 오버라이드 삭제"""
         if category not in settings_config.DEFAULTS:
             return False
+
+        # 테넌트 오버라이드 삭제
+        if tenant_id != '1':
+            deleted = self.reset_tenant_category(category, tenant_id)
+            return deleted >= 0
 
         try:
             db_manager = _get_db_manager()
@@ -280,7 +287,7 @@ class SettingsService:
                 for key, (value, value_type, desc, is_secret) in settings_config.DEFAULTS[category].items():
                     cur.execute("""
                         UPDATE tb_app_settings SET value = %s, updated_at = NOW()
-                        WHERE category = %s AND key = %s
+                        WHERE category = %s AND key = %s AND tenant_id = '1'
                     """, (value, category, key))
 
                 # 캐시 무효화 (settings_config에서 통합 관리)
@@ -301,6 +308,91 @@ class SettingsService:
         except Exception as e:
             logger.error(f"카테고리 초기화 실패: {category} - {e}")
             return False
+
+    # ============================================================================
+    # 테넌트 오버라이드 관리
+    # ============================================================================
+
+    def get_tenant_settings_merged(self, tenant_id: str) -> Dict[str, List[Dict[str, Any]]]:
+        """테넌트 설정 조회 (공용값 + 오버라이드 병합, 마스킹 적용)"""
+        settings_config._load_cache()
+        result = {}
+        for category in settings_config.DEFAULTS:
+            items = []
+            for key, (default_val, val_type, desc, is_secret) in settings_config.DEFAULTS[category].items():
+                # 공용 설정
+                global_setting = settings_config.get_setting(category, key, tenant_id='1')
+                global_value = global_setting['value'] if global_setting else default_val
+                # 테넌트 오버라이드 (캐시에서 직접 조회, fallback 없이)
+                tenant_cached = settings_config._cache.get(str(tenant_id), {}).get(category, {}).get(key)
+                tenant_value = tenant_cached['value'] if tenant_cached else None
+                effective = tenant_value if tenant_value is not None else global_value
+
+                item = {
+                    'category': category, 'key': key,
+                    'value': effective,
+                    'value_type': val_type, 'description': desc, 'is_secret': is_secret,
+                    'updated_at': (tenant_cached or global_setting or {}).get('updated_at'),
+                    'global_value': global_value,
+                    'tenant_value': tenant_value,
+                    'is_overridden': tenant_value is not None,
+                }
+                # 마스킹
+                if is_secret:
+                    mask = settings_config.mask_secret_value
+                    if item['value']:
+                        item['value'] = mask(item['value'])
+                    if item['global_value']:
+                        item['global_value'] = mask(item['global_value'])
+                    if item['tenant_value']:
+                        item['tenant_value'] = mask(item['tenant_value'])
+                items.append(item)
+            result[category] = items
+        return result
+
+    def delete_tenant_override(self, category: str, key: str, tenant_id: str) -> bool:
+        """테넌트 오버라이드 삭제 (공용 기본값으로 복원)"""
+        if tenant_id == '1':
+            return False
+
+        try:
+            db_manager = _get_db_manager()
+            with db_manager.get_cursor(commit=True) as cur:
+                cur.execute("""
+                    DELETE FROM tb_app_settings WHERE category = %s AND key = %s AND tenant_id = %s
+                """, (category, key, tenant_id))
+                deleted = cur.rowcount > 0
+
+            if deleted:
+                tenant_cache = settings_config._cache.get(str(tenant_id), {})
+                if category in tenant_cache and key in tenant_cache[category]:
+                    del tenant_cache[category][key]
+                logger.info(f"테넌트 오버라이드 삭제: {category}.{key} (tenant_id={tenant_id})")
+            return deleted
+
+        except Exception as e:
+            logger.error(f"테넌트 오버라이드 삭제 실패: {category}.{key} - {e}")
+            return False
+
+    def reset_tenant_category(self, category: str, tenant_id: str) -> int:
+        """테넌트의 카테고리 전체 오버라이드 삭제"""
+        if tenant_id == '1':
+            return 0
+
+        try:
+            db_manager = _get_db_manager()
+            with db_manager.get_cursor(commit=True) as cur:
+                cur.execute("DELETE FROM tb_app_settings WHERE category = %s AND tenant_id = %s", (category, tenant_id))
+                deleted_count = cur.rowcount
+
+            if deleted_count > 0:
+                settings_config.refresh_cache()
+                logger.info(f"테넌트 카테고리 오버라이드 삭제: {category} (tenant_id={tenant_id}, {deleted_count}개)")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"테넌트 카테고리 오버라이드 삭제 실패: {category} - {e}")
+            return 0
 
     # ============================================================================
     # API 키 검증

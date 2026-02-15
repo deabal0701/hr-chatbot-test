@@ -18,6 +18,7 @@ from langchain_core.tools import tool
 from app.graphs.agent.tools.base import BaseTool, ToolResult
 from app.core.vector.vector_store import vector_store
 from app.core.config.settings_config import settings_config
+from app.core.security.tenant_context import get_tenant_id
 from app.models.search import SearchFilters
 from app.config import settings
 from app.utils.logger import setup_logger, log_step
@@ -172,12 +173,16 @@ Examples:
             # 필터 구성 (지식 문서 전용 - Action 문서 제외)
             filters = SearchFilters(usage_type="rag_knowledge", doc_type=doc_type) if doc_type else SearchFilters(usage_type="rag_knowledge")
 
+            # 테넌트 격리 (Phase 3: contextvars에서 tenant_id 읽기)
+            tenant_id = get_tenant_id()
+
             # 벡터 검색 (기존 vector_store 재사용)
             documents = vector_store.search_similar_documents(
                 query=question,
                 top_k=top_k,
                 filters=filters,
-                similarity_threshold=similarity_threshold
+                similarity_threshold=similarity_threshold,
+                tenant_id=tenant_id,
             )
 
             if not documents:

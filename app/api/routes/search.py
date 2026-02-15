@@ -15,6 +15,7 @@ from app.api.services.rag_service import rag_service
 from app.api.services.nl2sql_service import nl2sql_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_optional_user
+from app.core.security.tenant_context import set_tenant_id
 from app.models.auth import UserContext
 from app.models.search import SearchRequest
 from app.utils.logger import setup_logger, log_step
@@ -22,6 +23,15 @@ from app.utils.logger import setup_logger, log_step
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
+
+
+def _extract_tenant_id(current_user: Optional[UserContext]) -> Optional[str]:
+    """current_user에서 tenant_id 추출 (GLOBAL: None=전체, TENANT/USER: 자기 테넌트)"""
+    if not current_user:
+        return None
+    if current_user.role_code == "GLOBAL":
+        return None  # 총괄관리자는 전체 검색
+    return str(current_user.tenant_id) if current_user.tenant_id else None
 
 
 @router.post("/search")
@@ -51,13 +61,15 @@ async def search(search_request: SearchRequest, request: Request, current_user: 
             query_type = search_request.mode
             log_step(logger, request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
-        # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip, 인증 시 활성 사용자 확인)
+        # 테넌트 격리 (Phase 3: TENANT/USER는 자기 테넌트만, GLOBAL은 전체)
+        tenant_id = _extract_tenant_id(current_user)
+        set_tenant_id(tenant_id)
 
         # 서비스 호출
         if query_type == "nl2sql":
-            response = await nl2sql_service.search(query=search_request.query, session_id=search_request.session_id, request_id=request_id)
+            response = await nl2sql_service.search(query=search_request.query, session_id=search_request.session_id, request_id=request_id, tenant_id=tenant_id)
         else:
-            response = await rag_service.search(query=search_request.query, filters=search_request.filters, request_id=request_id)
+            response = await rag_service.search(query=search_request.query, filters=search_request.filters, request_id=request_id, tenant_id=tenant_id)
 
         log_step(logger, request_id, "API", "4", "RESPONSE", "응답 생성 완료", query_type=response.query_type, response_time_ms=response.response_time_ms, answer_length=len(response.answer))
         logger.info(f"[{request_id}] ========== 검색 요청 처리 완료 ==========")
@@ -89,7 +101,9 @@ async def search_stream(search_request: SearchRequest, request: Request, current
     else:
         query_type = search_request.mode
 
-    # 인증 사용자 권한 검증 (Phase 3a: 미인증 시 skip, 인증 시 활성 사용자 확인)
+    # 테넌트 격리 (Phase 3)
+    tenant_id = _extract_tenant_id(current_user)
+    set_tenant_id(tenant_id)
 
     # RAG 모드는 SSE 미지원
     if query_type == "rag":
@@ -102,6 +116,7 @@ async def search_stream(search_request: SearchRequest, request: Request, current
             query=search_request.query,
             session_id=search_request.session_id,
             request_id=request_id,
+            tenant_id=tenant_id,
         ):
             yield event
 

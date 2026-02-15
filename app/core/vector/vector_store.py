@@ -141,7 +141,7 @@ class VectorStoreService:
     # 벡터 검색
     # ============================================
 
-    def search_similar_documents(self, query: str, top_k: int = 10, filters: Optional[SearchFilters] = None, similarity_threshold: Optional[float] = None) -> List[DocumentSource]:
+    def search_similar_documents(self, query: str, top_k: int = 10, filters: Optional[SearchFilters] = None, similarity_threshold: Optional[float] = None, tenant_id: Optional[str] = None) -> List[DocumentSource]:
         """유사 문서 검색 (벡터 유사도 기반)"""
         # 쿼리를 벡터로 변환
         query_embedding = self.embed_text(query)
@@ -150,6 +150,11 @@ class VectorStoreService:
         # 필터 조건 구성
         filter_conditions = []
         filter_params = []
+
+        # 테넌트 격리 필터 (Phase 3: 자기 테넌트 문서만 검색)
+        if tenant_id:
+            filter_conditions.append("tenant_id = %s")
+            filter_params.append(tenant_id)
 
         # usage_type 필터 (기본값: 'rag_knowledge' - Action 문서 제외)
         usage_type = "rag_knowledge"
@@ -436,7 +441,7 @@ class VectorStoreService:
         # 원본 문서 조회
         with db_manager.get_cursor() as cur:
             cur.execute("""
-                SELECT id, title, doc_type, language, content, metadata, source_type, source_file, content_hash
+                SELECT id, title, doc_type, language, content, metadata, source_type, source_file, content_hash, tenant_id
                 FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
@@ -496,7 +501,8 @@ class VectorStoreService:
             parent_id = doc_id
             chunk_ids.append(doc_id)
 
-            # 나머지 청크: 새 문서로 삽입 (usage_type = 'rag_knowledge'로 통일)
+            # 나머지 청크: 새 문서로 삽입 (usage_type = 'rag_knowledge'로 통일, tenant_id 유지)
+            doc_tenant_id = doc.get('tenant_id') or '1'
             for i, chunk in enumerate(chunks[1:], start=1):
                 embedding_array = np.array(embeddings[i])
                 cur.execute("""
@@ -505,16 +511,16 @@ class VectorStoreService:
                         embedding, embedding_model, indexed,
                         source_type, source_file, content_hash,
                         chunk_index, total_chunks, parent_doc_id, embedded_at,
-                        usage_type
+                        usage_type, tenant_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     f"{original_title} ({i + 1}/{total_chunks})", doc['doc_type'], doc['language'],
                     chunk.content, psycopg.types.json.Json(doc['metadata'] or {}),
                     embedding_array, self.embedding_model, True, doc['source_type'], doc['source_file'],
                     None, chunk.chunk_index, total_chunks, parent_id, datetime.now(),
-                    'rag_knowledge'
+                    'rag_knowledge', doc_tenant_id
                 ))
                 chunk_id = cur.fetchone()['id']
                 chunk_ids.append(chunk_id)

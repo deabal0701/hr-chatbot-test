@@ -5,35 +5,43 @@ const BASE_URL = '/api/admin/v1/settings'
 const settingsApi = {
   /**
    * 전체 설정 조회
+   * @param {string|null} tenantId - 테넌트 ID (null이면 공용)
    */
-  getAll() {
-    return apiClient.get(BASE_URL)
+  getAll(tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.get(BASE_URL, { params })
   },
 
   /**
    * 카테고리별 설정 조회
    * @param {string} category - 카테고리명 (openai, embedding, llm, rag, nl2sql, chunking)
+   * @param {string|null} tenantId - 테넌트 ID
    */
-  getCategory(category) {
-    return apiClient.get(`${BASE_URL}/${category}`)
+  getCategory(category, tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.get(`${BASE_URL}/${category}`, { params })
   },
 
   /**
    * 단일 설정 조회
    * @param {string} category - 카테고리명
    * @param {string} key - 설정 키
+   * @param {string|null} tenantId - 테넌트 ID
    */
-  getSetting(category, key) {
-    return apiClient.get(`${BASE_URL}/${category}/${key}`)
+  getSetting(category, key, tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.get(`${BASE_URL}/${category}/${key}`, { params })
   },
 
   /**
    * 단일 설정 조회 (마스킹 없이)
    * @param {string} category - 카테고리명
    * @param {string} key - 설정 키
+   * @param {string|null} tenantId - 테넌트 ID
    */
-  revealSetting(category, key) {
-    return apiClient.get(`${BASE_URL}/${category}/${key}/reveal`)
+  revealSetting(category, key, tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.get(`${BASE_URL}/${category}/${key}/reveal`, { params })
   },
 
   /**
@@ -41,26 +49,42 @@ const settingsApi = {
    * @param {string} category - 카테고리명
    * @param {string} key - 설정 키
    * @param {string} value - 설정 값
+   * @param {string|null} tenantId - 테넌트 ID
    */
-  updateSetting(category, key, value) {
-    return apiClient.put(`${BASE_URL}/${category}/${key}`, { value })
+  updateSetting(category, key, value, tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.put(`${BASE_URL}/${category}/${key}`, { value }, { params })
   },
 
   /**
    * 카테고리별 설정 일괄 수정
    * @param {string} category - 카테고리명
    * @param {Object} settings - key-value 쌍 객체
+   * @param {string|null} tenantId - 테넌트 ID
    */
-  updateCategory(category, settings) {
-    return apiClient.put(`${BASE_URL}/${category}`, { settings })
+  updateCategory(category, settings, tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.put(`${BASE_URL}/${category}`, { settings }, { params })
   },
 
   /**
    * 카테고리 설정 초기화
    * @param {string} category - 카테고리명
+   * @param {string|null} tenantId - 테넌트 ID
    */
-  resetCategory(category) {
-    return apiClient.post(`${BASE_URL}/${category}/reset`)
+  resetCategory(category, tenantId = null) {
+    const params = tenantId ? { tenant_id: tenantId } : {}
+    return apiClient.post(`${BASE_URL}/${category}/reset`, null, { params })
+  },
+
+  /**
+   * 테넌트 오버라이드 삭제 (공용 기본값으로 복원)
+   * @param {string} category - 카테고리명
+   * @param {string} key - 설정 키
+   * @param {string} tenantId - 테넌트 ID (필수)
+   */
+  deleteOverride(category, key, tenantId) {
+    return apiClient.delete(`${BASE_URL}/${category}/${key}`, { params: { tenant_id: tenantId } })
   },
 
   /**

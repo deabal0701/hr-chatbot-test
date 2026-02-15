@@ -23,7 +23,7 @@ const documentsApi = {
    * @param {Object} data - 문서 데이터
    */
   save(data) {
-    return apiClient.post('/api/admin/v1/documents', {
+    const payload = {
       title: data.title,
       doc_type: data.docType,
       content: data.content,
@@ -33,7 +33,9 @@ const documentsApi = {
       source_type: data.sourceType || 'ui_input',
       source_file: data.sourceFile || null,
       usage_type: data.usageType || 'rag_knowledge'
-    })
+    }
+    if (data.tenantId) payload.tenant_id = data.tenantId
+    return apiClient.post('/api/admin/v1/documents', payload)
   },
 
   /**

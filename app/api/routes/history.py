@@ -186,21 +186,28 @@ async def get_user_history(
 async def list_sessions(
     search: Optional[str] = Query(None, description="검색어 (질문 내용 필터)"),
     request_type: Optional[str] = Query(None, description="요청 타입 (agent/nl2sql/rag)"),
+    tenant_id: Optional[str] = Query(None, description="테넌트 ID 필터"),
+    user_id: Optional[str] = Query(None, description="사용자 ID 필터"),
     limit: int = Query(50, ge=1, le=200, description="조회 개수"),
     offset: int = Query(0, ge=0, description="오프셋"),
     current_user: Optional[UserContext] = Depends(get_optional_user),
 ):
-    """세션 단위 이력 목록 조회 (사용자 사이드바용)"""
+    """세션 단위 이력 목록 조회 (사용자 사이드바용, scope 기반 필터 적용)"""
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
         items = history_service.get_session_list(
             search_query=search,
             request_type=request_type,
+            tenant_id=tenant_id,
+            user_id=user_id,
             limit=limit,
             offset=offset,
         )
         total = history_service.get_session_list_count(
             search_query=search,
             request_type=request_type,
+            tenant_id=tenant_id,
+            user_id=user_id,
         )
         return success_response({
             "total": total,
@@ -215,10 +222,16 @@ async def list_sessions(
 
 
 @router.get("/sessions/{session_key}")
-async def get_session_history(session_key: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
-    """세션별 이력 상세 조회 (session_id 또는 request_id, Phase 3a: 미인증 허용)"""
+async def get_session_history(
+    session_key: str,
+    tenant_id: Optional[str] = Query(None, description="테넌트 ID 필터"),
+    user_id: Optional[str] = Query(None, description="사용자 ID 필터"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
+):
+    """세션별 이력 상세 조회 (session_id 또는 request_id, scope 기반 필터 적용)"""
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
-        items = history_service.get_session_detail(session_key)
+        items = history_service.get_session_detail(session_key, tenant_id=tenant_id, user_id=user_id)
         return success_response({
             "session_key": session_key,
             "total": len(items),
@@ -230,10 +243,16 @@ async def get_session_history(session_key: str, current_user: Optional[UserConte
 
 
 @router.delete("/sessions/{session_key}")
-async def delete_session_history(session_key: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
-    """세션 단위 이력 삭제 (Phase 3a: 미인증 허용)"""
+async def delete_session_history(
+    session_key: str,
+    tenant_id: Optional[str] = Query(None, description="테넌트 ID 필터"),
+    user_id: Optional[str] = Query(None, description="사용자 ID 필터"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
+):
+    """세션 단위 이력 삭제 (scope 기반 필터 적용)"""
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
-        deleted = history_service.delete_session(session_key)
+        deleted = history_service.delete_session(session_key, tenant_id=tenant_id, user_id=user_id)
         if not deleted:
             raise APIException(error_code=ErrorCode.NOT_FOUND, message=f"Session {session_key} not found")
         return success_response({
@@ -249,15 +268,21 @@ async def delete_session_history(session_key: str, current_user: Optional[UserCo
 
 
 @router.get("/{request_id}")
-async def get_history_detail(request_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def get_history_detail(
+    request_id: str,
+    tenant_id: Optional[str] = Query(None, description="테넌트 ID 필터"),
+    user_id: Optional[str] = Query(None, description="사용자 ID 필터"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
+):
     """
     단일 요청 상세 조회
 
     request_id로 특정 요청의 상세 정보 조회
-    Phase 3a: 미인증 허용 (하위호환)
+    scope 기반 필터 적용 (Phase 3a: 미인증 허용)
     """
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
-        record = history_service.get_by_request_id(request_id)
+        record = history_service.get_by_request_id(request_id, tenant_id=tenant_id, user_id=user_id)
         if not record:
             raise APIException(
                 error_code=ErrorCode.NOT_FOUND,
@@ -300,15 +325,21 @@ async def cleanup_old_records(
 
 
 @router.delete("/{request_id}")
-async def delete_history(request_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def delete_history(
+    request_id: str,
+    tenant_id: Optional[str] = Query(None, description="테넌트 ID 필터"),
+    user_id: Optional[str] = Query(None, description="사용자 ID 필터"),
+    current_user: Optional[UserContext] = Depends(get_optional_user),
+):
     """
     단일 요청 이력 삭제
 
     request_id로 특정 요청의 이력을 삭제합니다.
-    Phase 3a: 미인증 허용 (하위호환)
+    scope 기반 필터 적용 (Phase 3a: 미인증 허용)
     """
+    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
     try:
-        deleted = history_service.delete_by_request_id(request_id)
+        deleted = history_service.delete_by_request_id(request_id, tenant_id=tenant_id, user_id=user_id)
         if not deleted:
             raise APIException(
                 error_code=ErrorCode.NOT_FOUND,

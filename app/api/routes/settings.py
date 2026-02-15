@@ -5,7 +5,8 @@
 - 예외 변환
 - 비즈니스 로직은 settings_service에 위임
 """
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
@@ -33,10 +34,21 @@ router = APIRouter(prefix="/api/admin/v1/settings", tags=["admin-settings"])
 # ============================================
 
 @router.get("")
-async def get_all_settings(current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
+async def get_all_settings(
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))
+):
     """전체 설정 조회 (마스킹 적용)"""
     try:
-        all_settings = settings_service.get_all_settings_masked()
+        # TENANT 역할: 자기 테넌트 강제
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        if tenant_id == '1':
+            all_settings = settings_service.get_all_settings_masked()
+        else:
+            all_settings = settings_service.get_tenant_settings_merged(tenant_id)
+
         categories = [
             SettingsCategoryResponse(category=cat, settings=[SettingItemResponse(**s) for s in settings_list])
             for cat, settings_list in all_settings.items()
@@ -49,13 +61,20 @@ async def get_all_settings(current_user: UserContext = Depends(require_menu_perm
 
 
 @router.get("/{category}")
-async def get_category_settings(category: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
+async def get_category_settings(
+    category: str,
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))
+):
     """카테고리별 설정 조회 (마스킹 적용)"""
     try:
         if not settings_service.is_valid_category(category):
             raise APIException(error_code=ErrorCode.SETTING_NOT_FOUND, message=f"알 수 없는 카테고리: {category}")
 
-        settings_list = settings_service.get_category_settings_masked(category)
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        settings_list = settings_service.get_category_settings_masked(category, tenant_id=tenant_id)
         response = SettingsCategoryResponse(category=category, settings=[SettingItemResponse(**s) for s in settings_list])
         return success_response(response.model_dump())
     except APIException:
@@ -108,10 +127,17 @@ async def restore_prompt_from_history(history_id: int, current_user: UserContext
 
 
 @router.get("/{category}/{key}")
-async def get_setting(category: str, key: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
+async def get_setting(
+    category: str, key: str,
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))
+):
     """단일 설정 조회 (마스킹 적용)"""
     try:
-        setting = settings_service.get_setting(category, key, masked=True)
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        setting = settings_service.get_setting(category, key, masked=True, tenant_id=tenant_id)
         if not setting:
             raise APIException(error_code=ErrorCode.SETTING_NOT_FOUND, message=f"설정을 찾을 수 없습니다: {category}.{key}")
         response = SettingItemResponse(**setting)
@@ -124,10 +150,17 @@ async def get_setting(category: str, key: str, current_user: UserContext = Depen
 
 
 @router.get("/{category}/{key}/reveal")
-async def reveal_setting(category: str, key: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))):
+async def reveal_setting(
+    category: str, key: str,
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "read"))
+):
     """단일 설정 조회 (마스킹 없이)"""
     try:
-        setting = settings_service.get_setting(category, key, masked=False)
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        setting = settings_service.get_setting(category, key, masked=False, tenant_id=tenant_id)
         if not setting:
             raise APIException(error_code=ErrorCode.SETTING_NOT_FOUND, message=f"설정을 찾을 수 없습니다: {category}.{key}")
         response = SettingItemResponse(**setting)
@@ -144,7 +177,11 @@ async def reveal_setting(category: str, key: str, current_user: UserContext = De
 # ============================================
 
 @router.put("/{category}/{key}")
-async def update_setting(category: str, key: str, request: SettingUpdateRequest, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
+async def update_setting(
+    category: str, key: str, request: SettingUpdateRequest,
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))
+):
     """단일 설정 수정"""
     try:
         if not settings_service.is_valid_category(category):
@@ -152,9 +189,13 @@ async def update_setting(category: str, key: str, request: SettingUpdateRequest,
         if not settings_service.is_valid_key(category, key):
             raise APIException(error_code=ErrorCode.SETTING_NOT_FOUND, message=f"알 수 없는 설정 키: {category}.{key}")
 
-        success = settings_service.update_setting(category, key, request.value)
+        # TENANT 역할: 자기 테넌트 강제
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        success = settings_service.update_setting(category, key, request.value, tenant_id=tenant_id)
         if success:
-            logger.info(f"설정 수정 완료: {category}.{key}")
+            logger.info(f"설정 수정 완료: {category}.{key} (tenant_id={tenant_id})")
             response = SettingsUpdateResponse(success=True, message=f"설정이 수정되었습니다: {category}.{key}", updated_count=1)
             return success_response(response.model_dump())
         else:
@@ -167,13 +208,20 @@ async def update_setting(category: str, key: str, request: SettingUpdateRequest,
 
 
 @router.put("/{category}")
-async def update_category_settings(category: str, request: SettingsBulkUpdateRequest, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
+async def update_category_settings(
+    category: str, request: SettingsBulkUpdateRequest,
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))
+):
     """카테고리별 설정 일괄 수정"""
     try:
         if not settings_service.is_valid_category(category):
             raise APIException(error_code=ErrorCode.SETTING_NOT_FOUND, message=f"알 수 없는 카테고리: {category}")
 
-        success_count, failed_keys = settings_service.update_category_settings(category, request.settings)
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        success_count, failed_keys = settings_service.update_category_settings(category, request.settings, tenant_id=tenant_id)
 
         if failed_keys:
             response = SettingsUpdateResponse(success=False, message=f"{success_count}개 수정, {len(failed_keys)}개 실패: {', '.join(failed_keys)}", updated_count=success_count)
@@ -192,22 +240,69 @@ async def update_category_settings(category: str, request: SettingsBulkUpdateReq
 # ============================================
 
 @router.post("/{category}/reset")
-async def reset_category_settings(category: str, current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))):
+async def reset_category_settings(
+    category: str,
+    tenant_id: Optional[str] = Query('1', description="테넌트 ID"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))
+):
     """카테고리 설정 초기화"""
     try:
         if not settings_service.is_valid_category(category):
             raise APIException(error_code=ErrorCode.SETTING_NOT_FOUND, message=f"알 수 없는 카테고리: {category}")
 
-        success = settings_service.reset_category(category)
-        if success:
-            response = SettingsUpdateResponse(success=True, message=f"{category} 카테고리가 기본값으로 초기화되었습니다.", updated_count=settings_service.get_category_key_count(category))
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        if tenant_id != '1':
+            # 테넌트 오버라이드 전체 삭제
+            deleted = settings_service.reset_tenant_category(category, tenant_id)
+            response = SettingsUpdateResponse(success=True, message=f"테넌트 오버라이드 {deleted}개가 삭제되었습니다.", updated_count=deleted)
             return success_response(response.model_dump())
         else:
-            raise APIException(error_code=ErrorCode.INTERNAL_ERROR, message="설정 초기화에 실패했습니다.")
+            # 기존 로직: 공용 설정 기본값 복원
+            success = settings_service.reset_category(category)
+            if success:
+                response = SettingsUpdateResponse(success=True, message=f"{category} 카테고리가 기본값으로 초기화되었습니다.", updated_count=settings_service.get_category_key_count(category))
+                return success_response(response.model_dump())
+            else:
+                raise APIException(error_code=ErrorCode.INTERNAL_ERROR, message="설정 초기화에 실패했습니다.")
     except APIException:
         raise
     except Exception as e:
         logger.error(f"설정 초기화 실패: {e}", exc_info=True)
+        raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
+
+
+# ============================================
+# 테넌트 오버라이드 삭제
+# ============================================
+
+@router.delete("/{category}/{key}")
+async def delete_tenant_override(
+    category: str, key: str,
+    tenant_id: str = Query(..., description="테넌트 ID (필수)"),
+    current_user: UserContext = Depends(require_menu_permission("SYS_SETTING", "update"))
+):
+    """테넌트 설정 오버라이드 삭제 (공용 기본값으로 복원)"""
+    try:
+        if tenant_id == '1':
+            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, message="공용 설정은 삭제할 수 없습니다")
+
+        if not current_user.is_global:
+            tenant_id = str(current_user.tenant_id)
+
+        success = settings_service.delete_tenant_override(category, key, tenant_id)
+        if success:
+            logger.info(f"테넌트 오버라이드 삭제: {category}.{key} (tenant_id={tenant_id})")
+            response = SettingsUpdateResponse(success=True, message=f"오버라이드가 삭제되었습니다: {category}.{key}", updated_count=1)
+            return success_response(response.model_dump())
+        else:
+            response = SettingsUpdateResponse(success=True, message="삭제할 오버라이드가 없습니다.", updated_count=0)
+            return success_response(response.model_dump())
+    except APIException:
+        raise
+    except Exception as e:
+        logger.error(f"오버라이드 삭제 실패: {e}", exc_info=True)
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
 
 

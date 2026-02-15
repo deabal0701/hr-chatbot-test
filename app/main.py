@@ -87,6 +87,7 @@ app.include_router(search.router)
 app.include_router(documents.router)
 app.include_router(settings_router.router)
 app.include_router(codes.router, prefix="/api/admin/v1")  # 코드 관리 라우터 (Phase A)
+app.include_router(codes.lookup_router)  # 코드 조회 공개 라우터 (인증만 필요)
 app.include_router(agent.router)  # AI Agent 라우터
 app.include_router(history.router)  # API 요청 이력 라우터
 app.include_router(export.router)  # Excel 내보내기 라우터

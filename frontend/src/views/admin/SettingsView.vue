@@ -8,6 +8,38 @@
       </div>
     </div>
 
+    <!-- 테넌트 선택 (GLOBAL 역할만) -->
+    <div v-if="isGlobal" class="content-card tenant-selector-section">
+      <div class="tenant-selector-row">
+        <span class="tenant-selector-label">설정 대상:</span>
+        <el-select
+          v-model="selectedTenantId"
+          @change="handleTenantChange"
+          style="width: 200px"
+          :loading="tenantsLoading"
+        >
+          <el-option label="공용 (기본값)" value="1" />
+          <el-option
+            v-for="t in tenantOptions"
+            :key="t.tenant_id"
+            :label="t.tenant_name"
+            :value="String(t.tenant_id)"
+          />
+        </el-select>
+      </div>
+    </div>
+
+    <!-- 테넌트 모드 안내 배너 -->
+    <el-alert
+      v-if="isTenantMode"
+      type="info"
+      :closable="false"
+      show-icon
+      :title="`${getTenantName(selectedTenantId)} 테넌트의 설정을 편집합니다`"
+      description="변경된 값만 테넌트 오버라이드로 저장됩니다. 오버라이드가 없으면 공용 기본값을 사용합니다."
+      style="margin-bottom: 20px;"
+    />
+
     <!-- 설정 탭 -->
     <div class="content-card">
       <el-tabs v-model="activeTab">
@@ -1025,7 +1057,7 @@
       <!-- 저장 버튼 -->
       <div class="settings-actions">
         <el-button @click="resetCategory" :disabled="isSaving">
-          기본값으로 초기화
+          {{ isTenantMode ? '테넌트 오버라이드 초기화' : '기본값으로 초기화' }}
         </el-button>
         <el-button type="primary" @click="saveSettings" :loading="isSaving">
           저장
@@ -1124,10 +1156,28 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock, List } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
+import usersApi from '@/api/users'
+
+const store = useStore()
+
+// 사용자 역할 정보
+const roleCode = computed(() => store.getters['auth/roleCode'])
+const isGlobal = computed(() => roleCode.value === 'GLOBAL')
+const currentUser = computed(() => store.getters['auth/currentUser'])
+
+// 테넌트 선택
+const selectedTenantId = ref('1')
+const tenantOptions = ref([])
+const tenantsLoading = ref(false)
+const isTenantMode = computed(() => selectedTenantId.value !== '1')
+
+// 오버라이드 정보 (테넌트 모드에서 사용)
+const overrideInfo = reactive({})
 
 const activeTab = ref('api_keys')
 const isLoading = ref(false)
@@ -1293,11 +1343,40 @@ const formData = reactive({
 // 원본 데이터 (변경 감지용)
 const originalData = ref({})
 
+// 테넌트 옵션 로드 (GLOBAL 역할만)
+const loadTenantOptions = async () => {
+  if (!isGlobal.value) return
+  tenantsLoading.value = true
+  try {
+    const response = await usersApi.getTenantOptions()
+    tenantOptions.value = (response.items || []).filter(t => t.tenant_id !== 1)
+  } catch (error) {
+    console.error('테넌트 옵션 로드 실패:', error)
+  } finally {
+    tenantsLoading.value = false
+  }
+}
+
+// 테넌트 변경 핸들러
+const handleTenantChange = () => {
+  Object.keys(overrideInfo).forEach(k => delete overrideInfo[k])
+  loadSettings()
+}
+
+// 테넌트 이름 조회
+const getTenantName = (tenantId) => {
+  if (tenantId === '1') return '공용'
+  const found = tenantOptions.value.find(t => String(t.tenant_id) === String(tenantId))
+  return found ? found.tenant_name : `테넌트 ${tenantId}`
+}
+
 // 설정 로드
 const loadSettings = async () => {
   isLoading.value = true
   try {
-    const response = await settingsApi.getAll()
+    // 테넌트 ID 결정
+    const tenantId = isGlobal.value ? selectedTenantId.value : String(currentUser.value?.tenant_id || '1')
+    const response = await settingsApi.getAll(tenantId !== '1' ? tenantId : null)
 
     // 카테고리별로 데이터 매핑
     response.categories.forEach(cat => {
@@ -1320,6 +1399,15 @@ const loadSettings = async () => {
           }
 
           formData[cat.category][setting.key] = value
+
+          // 테넌트 모드: 오버라이드 정보 저장
+          if (setting.is_overridden !== null && setting.is_overridden !== undefined) {
+            overrideInfo[`${cat.category}.${setting.key}`] = {
+              global_value: setting.global_value,
+              tenant_value: setting.tenant_value,
+              is_overridden: setting.is_overridden
+            }
+          }
         })
       }
     })
@@ -1450,6 +1538,9 @@ const saveSettings = async () => {
           ? ['rag', 'embedding', 'chunking']
           : [category]
 
+    // 테넌트 ID 결정
+    const tenantId = isGlobal.value ? selectedTenantId.value : String(currentUser.value?.tenant_id || '1')
+
     for (const cat of categoriesToSave) {
       const settings = {}
 
@@ -1463,7 +1554,7 @@ const saveSettings = async () => {
         }
       })
 
-      await settingsApi.updateCategory(cat, settings)
+      await settingsApi.updateCategory(cat, settings, tenantId !== '1' ? tenantId : null)
 
       // 원본 데이터 업데이트
       originalData.value[cat] = JSON.parse(JSON.stringify(formData[cat]))
@@ -1480,10 +1571,15 @@ const saveSettings = async () => {
 
 // 카테고리 초기화
 const resetCategory = async () => {
+  const tenantId = isGlobal.value ? selectedTenantId.value : String(currentUser.value?.tenant_id || '1')
+  const confirmMsg = isTenantMode.value
+    ? `${getTenantName(selectedTenantId.value)} 테넌트의 ${activeTab.value} 오버라이드를 모두 삭제하시겠습니까?\n공용 기본값으로 복원됩니다.`
+    : `${activeTab.value} 설정을 기본값으로 초기화하시겠습니까?`
+
   try {
     await ElMessageBox.confirm(
-      `${activeTab.value} 설정을 기본값으로 초기화하시겠습니까?`,
-      '설정 초기화',
+      confirmMsg,
+      isTenantMode.value ? '테넌트 오버라이드 초기화' : '설정 초기화',
       {
         confirmButtonText: '초기화',
         cancelButtonText: '취소',
@@ -1491,9 +1587,9 @@ const resetCategory = async () => {
       }
     )
 
-    await settingsApi.resetCategory(activeTab.value)
+    await settingsApi.resetCategory(activeTab.value, tenantId !== '1' ? tenantId : null)
     await loadSettings()
-    ElMessage.success('설정이 초기화되었습니다.')
+    ElMessage.success(isTenantMode.value ? '테넌트 오버라이드가 초기화되었습니다.' : '설정이 초기화되었습니다.')
   } catch (error) {
     if (error !== 'cancel') {
       console.error('설정 초기화 실패:', error)
@@ -1675,7 +1771,8 @@ const toggleApiKeyVisibility = async (provider) => {
     // 숨김 -> 보임: reveal API 호출
     if (formData[provider].api_key.includes('*')) {
       try {
-        const response = await settingsApi.revealSetting(provider, 'api_key')
+        const tenantId = isGlobal.value ? selectedTenantId.value : String(currentUser.value?.tenant_id || '1')
+        const response = await settingsApi.revealSetting(provider, 'api_key', tenantId !== '1' ? tenantId : null)
         originalApiKeys[provider] = formData[provider].api_key
         formData[provider].api_key = response.value
         visibilityRef.value = true
@@ -1885,13 +1982,22 @@ const importPrompts = () => {
 }
 
 onMounted(async () => {
+  // TENANT 역할: 자동으로 자기 테넌트 선택
+  if (!isGlobal.value && currentUser.value?.tenant_id) {
+    selectedTenantId.value = String(currentUser.value.tenant_id)
+  }
+
   // 설정 및 코드 목록 병렬 로드
-  await Promise.all([
+  const loadTasks = [
     loadSettings(),
     loadLLMProviders(),
     loadEmbeddingModels(),
     loadLLMModels()
-  ])
+  ]
+  if (isGlobal.value) {
+    loadTasks.push(loadTenantOptions())
+  }
+  await Promise.all(loadTasks)
 })
 </script>
 
@@ -1901,6 +2007,23 @@ onMounted(async () => {
 .settings-view {
   .page-header {
     @include mx.page-header;
+  }
+
+  .tenant-selector-section {
+    margin-bottom: 16px;
+    padding: 12px 20px;
+  }
+
+  .tenant-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .tenant-selector-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--el-text-color-regular);
   }
 
   .settings-section {

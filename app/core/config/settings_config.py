@@ -166,7 +166,7 @@ class SettingsConfig:
             return False
 
     def _load_cache(self, force: bool = False) -> None:
-        """DB에서 캐시 로드"""
+        """DB에서 캐시 로드 (tenant_id 포함 3단 중첩: cache[tenant_id][category][key])"""
         if self._cache_loaded and not force:
             return
 
@@ -178,15 +178,14 @@ class SettingsConfig:
         try:
             db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
-                cur.execute("SELECT category, key, value, value_type, description, is_secret, updated_at FROM tb_app_settings ORDER BY category, key")
+                cur.execute("SELECT category, key, value, value_type, description, is_secret, updated_at, tenant_id FROM tb_app_settings ORDER BY category, key")
                 rows = cur.fetchall()
 
                 self._cache = {}
                 for row in rows:
+                    tid = str(row.get('tenant_id') or '1')
                     category = row['category']
-                    if category not in self._cache:
-                        self._cache[category] = {}
-                    self._cache[category][row['key']] = {
+                    self._cache.setdefault(tid, {}).setdefault(category, {})[row['key']] = {
                         'value': row['value'],
                         'value_type': row['value_type'],
                         'description': row['description'],
@@ -217,15 +216,22 @@ class SettingsConfig:
             return self.DEFAULTS[category][key]
         return None
 
-    def _query_setting_from_db(self, category: str, key: str) -> Optional[Dict[str, Any]]:
-        """DB에서 직접 설정 조회 (캐시 우회)"""
+    def _query_setting_from_db(self, category: str, key: str, tenant_id: str = '1') -> Optional[Dict[str, Any]]:
+        """DB에서 직접 설정 조회 (캐시 우회, 테넌트 fallback 포함)"""
         if not self._ensure_table_exists():
             return None
 
         try:
             db_manager = _get_db_manager()
             with db_manager.get_cursor() as cur:
-                cur.execute("SELECT value, value_type, description, is_secret, updated_at FROM tb_app_settings WHERE category = %s AND key = %s", (category, key))
+                # 테넌트 설정 + 공용 설정 한 번에 조회 (테넌트 우선)
+                cur.execute("""
+                    SELECT value, value_type, description, is_secret, updated_at, tenant_id
+                    FROM tb_app_settings
+                    WHERE category = %s AND key = %s AND tenant_id IN (%s, '1')
+                    ORDER BY CASE WHEN tenant_id = '1' THEN 1 ELSE 0 END
+                    LIMIT 1
+                """, (category, key, str(tenant_id)))
                 row = cur.fetchone()
                 if row:
                     return {'value': row['value'], 'value_type': row['value_type'], 'description': row['description'], 'is_secret': row['is_secret'], 'updated_at': row['updated_at'], 'source': 'db'}
@@ -233,63 +239,73 @@ class SettingsConfig:
             logger.error(f"DB 설정 조회 실패: {category}.{key} - {e}")
         return None
 
-    def _update_cache(self, category: str, key: str, value: str, value_type: str, description: str, is_secret: bool, updated_at: datetime) -> None:
+    def _update_cache(self, category: str, key: str, value: str, value_type: str, description: str, is_secret: bool, updated_at: datetime, tenant_id: str = '1') -> None:
         """캐시 갱신 (API 서비스에서 호출)"""
-        if category not in self._cache:
-            self._cache[category] = {}
-        self._cache[category][key] = {'value': value, 'value_type': value_type, 'description': description, 'is_secret': is_secret, 'updated_at': updated_at}
+        tid = str(tenant_id)
+        self._cache.setdefault(tid, {}).setdefault(category, {})[key] = {
+            'value': value, 'value_type': value_type, 'description': description, 'is_secret': is_secret, 'updated_at': updated_at
+        }
 
     # ============================================================================
     # 설정 조회 (읽기 전용)
     # ============================================================================
 
-    def get_setting(self, category: str, key: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
+    def get_setting(self, category: str, key: str, use_cache: bool = True, tenant_id: str = '1') -> Optional[Dict[str, Any]]:
         """
-        단일 설정 조회 (우선순위: DB → 환경변수 → 기본값)
+        단일 설정 조회 (우선순위: 테넌트 설정 → 공용 설정 → 환경변수 → 기본값)
 
         Args:
             category: 설정 카테고리
             key: 설정 키
             use_cache: 캐시 사용 여부
+            tenant_id: 테넌트 ID (기본 '1' = 공용, 하위 호환)
         """
-        # 1. DB에서 조회
+        tid = str(tenant_id)
+
         if use_cache:
             self._load_cache()
-            if category in self._cache and key in self._cache[category]:
-                cached = self._cache[category][key]
-                if cached['value']:
+            # 1. 테넌트 설정 확인 (tenant_id != '1'일 때만)
+            if tid != '1':
+                cached = self._cache.get(tid, {}).get(category, {}).get(key)
+                if cached and cached['value']:
                     return cached
+            # 2. 공용 설정 확인
+            cached = self._cache.get('1', {}).get(category, {}).get(key)
+            if cached and cached['value']:
+                return cached
         else:
-            db_value = self._query_setting_from_db(category, key)
+            db_value = self._query_setting_from_db(category, key, tenant_id=tid)
             if db_value and db_value['value']:
                 return db_value
 
-        # 2. 환경변수에서 조회
+        # 3. 환경변수에서 조회
         env_value = self._get_env_value(category, key)
         if env_value:
             default = self._get_default_value(category, key)
             return {'value': env_value, 'value_type': default[1] if default else 'string', 'description': default[2] if default else None, 'is_secret': default[3] if default else False, 'updated_at': None, 'source': 'env'}
 
-        # 3. 기본값 반환
+        # 4. 기본값 반환
         default = self._get_default_value(category, key)
         if default:
             return {'value': default[0], 'value_type': default[1], 'description': default[2], 'is_secret': default[3], 'updated_at': None, 'source': 'default'}
 
         return None
 
-    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = True) -> Any:
+    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = True, tenant_id: str = '1') -> Any:
         """
         설정 값만 조회 (타입 변환 포함)
 
-        다른 서비스/그래프에서 설정 값을 가져올 때 사용하는 주요 메서드
+        다른 서비스/그래프에서 설정 값을 가져올 때 사용하는 주요 메서드.
+        tenant_id 기본값 '1'로 하위 호환 유지 (기존 호출자 변경 불필요).
 
         Args:
             category: 설정 카테고리
             key: 설정 키
             default: 기본값 (설정이 없을 때)
             use_cache: 캐시 사용 여부
+            tenant_id: 테넌트 ID (기본 '1' = 공용)
         """
-        setting = self.get_setting(category, key, use_cache=use_cache)
+        setting = self.get_setting(category, key, use_cache=use_cache, tenant_id=tenant_id)
         if not setting:
             return default
 
@@ -310,21 +326,21 @@ class SettingsConfig:
         except (ValueError, AttributeError, json.JSONDecodeError):
             return default
 
-    def get_category_settings(self, category: str) -> List[Dict[str, Any]]:
+    def get_category_settings(self, category: str, tenant_id: str = '1') -> List[Dict[str, Any]]:
         """카테고리별 설정 전체 조회"""
         self._load_cache()
         result = []
         if category in self.DEFAULTS:
             for key in self.DEFAULTS[category]:
-                setting = self.get_setting(category, key)
+                setting = self.get_setting(category, key, tenant_id=tenant_id)
                 if setting:
                     result.append({'category': category, 'key': key, **setting})
         return result
 
-    def get_all_settings(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_settings(self, tenant_id: str = '1') -> Dict[str, List[Dict[str, Any]]]:
         """전체 설정 조회"""
         self._load_cache()
-        return {category: self.get_category_settings(category) for category in self.DEFAULTS}
+        return {category: self.get_category_settings(category, tenant_id=tenant_id) for category in self.DEFAULTS}
 
     # ============================================================================
     # 마스킹 유틸리티
@@ -336,19 +352,19 @@ class SettingsConfig:
             return "****"
         return value[:4] + "*" * (len(value) - 8) + value[-4:]
 
-    def get_masked_settings(self, category: str) -> List[Dict[str, Any]]:
+    def get_masked_settings(self, category: str, tenant_id: str = '1') -> List[Dict[str, Any]]:
         """마스킹된 카테고리 설정 조회"""
-        settings = self.get_category_settings(category)
+        settings = self.get_category_settings(category, tenant_id=tenant_id)
         for setting in settings:
             if setting.get('is_secret') and setting.get('value'):
                 setting['value'] = self.mask_secret_value(setting['value'])
         return settings
 
-    def get_all_masked_settings(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_masked_settings(self, tenant_id: str = '1') -> Dict[str, List[Dict[str, Any]]]:
         """마스킹된 전체 설정 조회"""
         result = {}
         for category in self.DEFAULTS:
-            result[category] = self.get_masked_settings(category)
+            result[category] = self.get_masked_settings(category, tenant_id=tenant_id)
         return result
     #   return {category: self.get_masked_settings(category) for category in self.DEFAULTS}
 

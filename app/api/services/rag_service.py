@@ -18,7 +18,7 @@ logger = setup_logger(__name__)
 class RAGService:
     """RAG 검색 서비스"""
 
-    async def search(self, query: str, filters: Optional[SearchFilters] = None, request_id: str = "unknown") -> SearchResponse:
+    async def search(self, query: str, filters: Optional[SearchFilters] = None, request_id: str = "unknown", tenant_id: Optional[str] = None) -> SearchResponse:
         """
         RAG 검색 실행
 
@@ -26,16 +26,18 @@ class RAGService:
             query: 사용자 질문
             filters: 검색 필터 (선택)
             request_id: 요청 추적 ID
+            tenant_id: 테넌트 ID (Phase 3: 테넌트 격리)
 
         Returns:
             SearchResponse: 검색 결과
         """
-        log_step(logger, request_id, "SERVICE", "RAG", "START", "RAG 서비스 시작", query=truncate_text(query, 50))
+        log_step(logger, request_id, "SERVICE", "RAG", "START", "RAG 서비스 시작", query=truncate_text(query, 50), tenant_id=tenant_id or "all")
 
         inputs = {
             "question": query,
             "filters": filters.model_dump() if filters else {},
-            "request_id": request_id
+            "request_id": request_id,
+            "tenant_id": tenant_id,
         }
 
         response = await rag_graph.ainvoke(inputs)

@@ -45,12 +45,19 @@ router = APIRouter(prefix="/api/admin/v1/documents", tags=["admin-documents"])
 async def save_document(doc: DocumentSaveRequest, current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "create"))):
     """문서 저장 (임베딩 없이)"""
     try:
-        logger.info(f"문서 저장 요청: title='{doc.title}', content_length={len(doc.content)}자")
+        # tenant_id 결정: GLOBAL은 요청값 또는 공용('1'), TENANT/USER는 자기 테넌트 강제
+        if current_user.is_global:
+            tenant_id = doc.tenant_id or '1'
+        else:
+            tenant_id = str(current_user.tenant_id)
+
+        logger.info(f"문서 저장 요청: title='{doc.title}', content_length={len(doc.content)}자, tenant_id={tenant_id}")
 
         result = document_service.save_document(
             title=doc.title, doc_type=doc.doc_type, content=doc.content,
             language=doc.language, metadata=doc.metadata, context_data=doc.context_data,
-            source_type=doc.source_type, source_file=doc.source_file, usage_type=doc.usage_type
+            source_type=doc.source_type, source_file=doc.source_file, usage_type=doc.usage_type,
+            tenant_id=tenant_id
         )
 
         response = DocumentSaveResponse(
@@ -81,6 +88,7 @@ async def list_documents(
     usage_type: Optional[str] = Query(None, description="문서 용도 필터"),
     indexed: Optional[bool] = Query(None, description="임베딩 여부 필터"),
     include_chunks: bool = Query(False, description="청크 포함 여부"),
+    tenant_id: Optional[str] = Query(None, description="테넌트 필터 (GLOBAL 역할 전용)"),
     limit: int = Query(100, ge=1, le=1000, description="최대 결과 수"),
     offset: int = Query(0, ge=0, description="시작 위치"),
     current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "read")),
@@ -89,7 +97,8 @@ async def list_documents(
     try:
         documents, total_count = document_service.list_documents(
             doc_type=doc_type, source_type=source_type, indexed=indexed,
-            include_chunks=include_chunks, usage_type=usage_type, limit=limit, offset=offset
+            include_chunks=include_chunks, usage_type=usage_type, limit=limit, offset=offset,
+            current_user=current_user, tenant_id_filter=tenant_id
         )
 
         response = DocumentListResponse(
@@ -110,7 +119,7 @@ async def list_documents(
 async def get_document(doc_id: int, current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "read"))):
     """문서 상세 조회"""
     try:
-        doc = document_service.get_document(doc_id)
+        doc = document_service.get_document(doc_id, current_user=current_user)
         if not doc:
             raise APIException(error_code=ErrorCode.DOCUMENT_NOT_FOUND, message=f"문서를 찾을 수 없습니다: ID={doc_id}")
         return success_response(doc)
@@ -131,7 +140,8 @@ async def update_document(doc_id: int, doc: DocumentUpdateRequest, current_user:
         result = document_service.update_document(
             doc_id=doc_id, title=doc.title, doc_type=doc.doc_type,
             content=doc.content, language=doc.language,
-            metadata=doc.metadata, context_data=doc.context_data
+            metadata=doc.metadata, context_data=doc.context_data,
+            current_user=current_user
         )
 
         message = "문서가 수정되었습니다."
@@ -161,7 +171,7 @@ async def update_document(doc_id: int, doc: DocumentUpdateRequest, current_user:
 async def delete_document(doc_id: int, current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "delete"))):
     """문서 삭제"""
     try:
-        deleted_count = document_service.delete_document(doc_id)
+        deleted_count = document_service.delete_document(doc_id, current_user=current_user)
         if deleted_count == 0:
             raise APIException(error_code=ErrorCode.DOCUMENT_NOT_FOUND, message=f"문서를 찾을 수 없습니다: ID={doc_id}")
 
@@ -186,7 +196,7 @@ async def delete_document(doc_id: int, current_user: UserContext = Depends(requi
 async def bulk_delete_documents(request: BulkDelete.Request, current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "delete"))):
     """문서 일괄 삭제"""
     try:
-        result = document_service.bulk_delete_documents(request.doc_ids)
+        result = document_service.bulk_delete_documents(request.doc_ids, current_user=current_user)
 
         response = BulkDelete.Response(
             success=len(result['failed_ids']) == 0,

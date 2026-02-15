@@ -5,6 +5,7 @@ LLM 제공자, 모델, 임베딩 모델 등 코드성 데이터 관리를 위한
 from fastapi import APIRouter, Depends, status
 
 from app.core.security.permission import require_menu_permission
+from app.core.security.dependencies import get_current_active_user
 from app.models.auth import UserContext
 from app.models.codes import (
     CodeItem,
@@ -20,6 +21,25 @@ from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 router = APIRouter()
+
+# 공개 코드 조회 라우터 (인증만 필요, CODE_MGMT 권한 불필요)
+lookup_router = APIRouter(prefix="/api/v1/codes", tags=["codes-lookup"])
+
+
+@lookup_router.get("/{code_group}")
+async def lookup_codes(code_group: str, _current_user: UserContext = Depends(get_current_active_user)):
+    """코드 조회 (공통 - 인증만 필요, 메뉴 권한 불필요)"""
+    try:
+        codes = code_service.get_codes_by_group(code_group, include_inactive=False)
+        response = CodeGroupResponse(
+            code_group=code_group,
+            codes=[CodeItem(**code) for code in codes],
+            total_count=len(codes)
+        )
+        return success_response(response.model_dump())
+    except Exception as e:
+        logger.error(f"코드 조회 실패 ({code_group}): {e}")
+        raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
 
 
 @router.get("/codes/groups", tags=["codes"])

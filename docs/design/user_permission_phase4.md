@@ -62,21 +62,21 @@ Phase 4 산출물:
 │  v2.0 권한 체크 = tb_user_menu 단일 테이블                            │
 │                                                                       │
 │  기능 접근: tb_user_menu의 CRUD 플래그 (can_create/read/update/delete) │
-│  데이터 범위: tb_role.scope_type (GLOBAL/TENANT/USER)                 │
+│  데이터 범위: tb_role.role_code (GLOBAL/TENANT/USER) — 데이터 범위 겸용│
 │  역할: tb_user.role_id FK (1:N, 사용자는 정확히 1개 역할)             │
 │                                                                       │
 │  예시:                                                                │
-│    USER_MGMT 메뉴 + can_read=true + scope_type=TENANT                │
+│    USER_MGMT 메뉴 + can_read=true + role_code=TENANT                  │
 │    → 사용자 관리 조회 가능 + 자기 테넌트 사용자만 표시                 │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.3 역할별 접근 범위
 
-| 역할 | scope_type | 사용자 관리 | 역할 관리 | 메뉴 관리 | 테넌트 관리 | 설정 관리 |
-|------|-----------|:-----------:|:---------:|:---------:|:----------:|:---------:|
-| SYSTEM_ADMIN | GLOBAL | 전체 (CRUDE) | O (CRUDE) | O (CRUDE) | O (CRUDE) | O (RU) |
-| TENANT_ADMIN | TENANT | 자기 테넌트 (CRU) | - | - | - | - |
+| 역할 (role_code) | 사용자 관리 | 역할 관리 | 메뉴 관리 | 테넌트 관리 | 설정 관리 |
+|------|:-----------:|:---------:|:---------:|:----------:|:---------:|
+| GLOBAL | 전체 (CRUDE) | O (CRUDE) | O (CRUDE) | O (CRUDE) | O (RU) |
+| TENANT | 자기 테넌트 (CRU) | - | - | - | - |
 | USER | USER | 본인만 (R) | - | - | - | - |
 
 ### 1.4 의존 관계
@@ -114,7 +114,7 @@ Phase 4 (이번 구현)
 | 권한 단위 | `tb_permission` (코드) | `tb_menu` + `tb_user_menu` (메뉴 CRUD) |
 | 역할-권한 | `tb_role_permission` | 사용하지 않음 (메뉴 권한은 사용자에 직접 할당) |
 | 사용자-역할 | `tb_user_role` (M:N) | `tb_user.role_id` FK (1:N) |
-| 데이터 필터 | `tb_data_filter` | `tb_role.scope_type` → 코드 유도 |
+| 데이터 필터 | `tb_data_filter` | `tb_role.role_code` → 코드 유도 |
 | 권한 체크 | `require_permission("admin:users")` | `require_menu_permission("USER_MGMT", "read")` |
 | JWT 페이로드 | `permissions: [...]` 배열 | 불포함 (필요시 DB 조회) |
 | 로그인 응답 | `permissions: [...]` | `menus: [{menu_code, can_create, ...}]` |
@@ -170,8 +170,7 @@ class UserInfo(BaseModel):
     login_id: str
     display_name: Optional[str] = None
     tenant_id: Optional[int] = None
-    role_code: str                       # 단일 역할 코드
-    scope_type: str                      # GLOBAL, TENANT, USER
+    role_code: str                       # 단일 역할 코드 (GLOBAL, TENANT, USER) — 데이터 범위 겸용
     landing_page: str = "/chat"          # 로그인 후 랜딩 페이지
     menus: List[MenuPermission] = []     # 메뉴별 CRUD 권한
 

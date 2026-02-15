@@ -66,6 +66,7 @@ class RAGGraph:
             request_id=inputs.get("request_id", "unknown"),
             filters=inputs.get("filters", {}),
             top_k=inputs.get("top_k"),
+            tenant_id=inputs.get("tenant_id"),
         )
 
     def _build_response(self, result: RAGState, response_time_ms: int = 0) -> SearchResponse:

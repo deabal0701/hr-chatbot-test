@@ -1,7 +1,7 @@
 # 테넌트 관리 설계서
 
-> **문서 버전**: 3.0
-> **작성일**: 2026-02-14
+> **문서 버전**: 4.0
+> **작성일**: 2026-02-15
 > **상태**: Draft
 > **관련 문서**: `docs/design/user_permission_system.md`
 
@@ -12,13 +12,13 @@
 ### 1.1 목적
 
 MUREUM 시스템의 멀티테넌트 데이터 격리 체계를 정의합니다.
-총괄관리자(System)는 모든 테넌트의 데이터를 관리하고, 테넌트관리자는 자기 테넌트의 데이터만 접근할 수 있도록 합니다.
+총괄관리자는 모든 테넌트의 데이터를 관리하고, 테넌트관리자는 자기 테넌트의 데이터만 접근할 수 있도록 합니다.
 
 ### 1.2 테넌트 구조
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  [Tenant 1] System (예약 - 총괄관리 전용)                        │
+│  [Tenant 1] 공용 (총괄관리자 소속 = 공용 데이터 기본값)           │
 │    └── admin        (GLOBAL, is_superuser=true)                  │
 │                                                                  │
 │  [Tenant 2~N] 업무 테넌트                                        │
@@ -26,6 +26,9 @@ MUREUM 시스템의 멀티테넌트 데이터 격리 체계를 정의합니다.
 │    └── user01      (USER)                                        │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+**핵심 설계**: 총괄관리자의 `tenant_id = 1` = 공용 테넌트.
+`current_user.tenant_id`를 데이터의 기본 tenant_id로 그대로 사용 가능 (특별 처리 불필요).
 
 ### 1.3 역할 정의
 
@@ -35,7 +38,7 @@ MUREUM 시스템의 멀티테넌트 데이터 격리 체계를 정의합니다.
 
 | 역할 | role_code | role_name | tenant_id | 데이터 접근 범위 |
 |------|-----------|-----------|:---------:|-----------------|
-| 총괄관리자 | GLOBAL | 시스템 관리자 | 1 (System) | **전체 테넌트** |
+| 총괄관리자 | GLOBAL | 시스템 관리자 | 1 (공용) | **전체 테넌트** |
 | 테넌트관리자 | TENANT | 테넌트 관리자 | 2~N | **자기 테넌트만** |
 | 일반사용자 | USER | 일반 사용자 | 2~N | **본인 데이터만** |
 
@@ -44,35 +47,20 @@ MUREUM 시스템의 멀티테넌트 데이터 격리 체계를 정의합니다.
 - `tb_user_menu` = **기능 권한** 결정 (어떤 메뉴에 CRUD 가능한지는 사용자별 개별 설정)
 - 같은 TENANT 역할이라도 사용자마다 메뉴 권한이 다를 수 있음
 
-### 1.4 두 가지 tenant_id 구분
-
-| 구분 | 의미 | 사용처 | 예시 |
-|------|------|--------|------|
-| **소속 tenant_id** | 사용자가 속한 테넌트 | `current_user.tenant_id` | admin → 1, tenant_admin → 2 |
-| **데이터 소유 tenant_id** | 데이터가 속한 테넌트 | `tb_docs.tenant_id`, `tb_app_settings.tenant_id` | 공용 → '0', 특정 테넌트 → '2' |
-
-**핵심 규칙**: 총괄관리자의 소속 tenant_id(=1)는 **데이터에 절대 사용하지 않음**
-- 문서 등록 시: 드롭다운에서 선택한 값 (기본 '0')
-- 설정 수정 시: 드롭다운에서 선택한 값 (기본 '0')
-- 이력 저장 시: `current_user.tenant_id` = '1' (소속 기록용, 유일한 예외)
-
-**테넌트관리자**는 소속 tenant_id와 데이터 소유 tenant_id가 동일 (자동 부여)
-
-### 1.5 전역 tenant_id 규칙
+### 1.4 tenant_id 규칙
 
 ```
-tenant_id = '0'   → 전역 (모든 테넌트에 적용되는 기본값/공용 데이터)
-tenant_id = '1'   → System 테넌트 (총괄관리자 소속)
+tenant_id = '1'   → 공용 (GLOBAL 테넌트, 모든 테넌트에 적용되는 기본값/공용 데이터)
 tenant_id = '2'   → DEMO 테넌트
 tenant_id = '5'   → 현대A
 tenant_id = '6'   → 현대B
 ```
 
-**'0'을 전역으로 사용하는 이유**:
-- `UNIQUE (category, key, tenant_id)` 제약조건에서 UPSERT가 정상 작동
-- NULL은 PostgreSQL에서 `NULL != NULL`이므로 `ON CONFLICT`가 작동하지 않음
-- `IN ('0', '2')` 등 단순 비교 가능 (`IS NULL` 별도 처리 불필요)
-- `tb_tenant` 테이블에 실제 tenant_id=0 레코드는 존재하지 않음 (가상 ID)
+**공용 tenant_id = '1'로 결정한 이유**:
+- 총괄관리자의 `current_user.tenant_id = 1` = 공용 → 별도 변환 로직 불필요
+- `tb_tenant` 테이블에 실제 레코드 존재 (FK 정합성 보장)
+- `UNIQUE (category, key, tenant_id)` 제약조건에서 UPSERT 정상 작동 (NULL이 아닌 실제 값)
+- `IN ('1', '2')` 등 단순 비교 가능
 
 ---
 
@@ -82,12 +70,12 @@ tenant_id = '6'   → 현대B
 
 | 테이블 | tenant_id 존재 | 타입 | 현재 활용 |
 |--------|:---:|------|:---:|
-| `tb_tenant` | O | `integer` (PK) | O |
-| `tb_user` | O | `integer` (FK) | O |
-| `tb_docs` | O | `varchar` | **X** (항상 NULL → '0'으로 마이그레이션 필요) |
-| `tb_app_settings` | O | `varchar` | **O** ('0' = 전역, 마이그레이션 완료) |
+| `tb_tenant` | O | `bigint` (PK) | O |
+| `tb_user` | O | `bigint` (FK) | O |
+| `tb_docs` | O | `varchar` | **O** ('1' = 공용, 마이그레이션 완료) |
+| `tb_app_settings` | O | `varchar` | **O** ('1' = 공용, 마이그레이션 완료) |
 | `tb_api_history` | O | `varchar` | O (middleware에서 저장) |
-| `tb_code` | O | `varchar` | **O** ('0' = 전역, 마이그레이션 완료, 격리 불필요) |
+| `tb_code` | O | `varchar` | **O** ('1' = 공용, 마이그레이션 완료, 격리 불필요) |
 | `tb_user_menu` | - | - | user_id 기반 |
 
 ### 2.2 애플리케이션 코드 - 테넌트 필터링 현황
@@ -106,7 +94,7 @@ tenant_id = '6'   → 현대B
 
 ```
 tb_tenant:
-  1 - SYSTEM    (시스템)        ← 총괄관리 전용
+  1 - GLOBAL    (공용)          ← 총괄관리자 소속 + 공용 데이터
   2 - DEMO      (데모 테넌트)
   5 - HYNDAI_A  (현대A)
   6 - HUNDAI_B  (현대B)
@@ -132,11 +120,11 @@ tb_user:
 │     └── "이 메뉴에 접근할 수 있는가?" (CRUD)                     │
 │                                                                 │
 │  2. 역할 기반 데이터 필터 (tb_role.role_code)                    │
-│     ├── GLOBAL  → 관리화면: 필터 없음 (전체), 채팅검색: 공용('0') 기본│
-│     ├── TENANT  → WHERE tenant_id IN ('N', '0')                │
-│     └── USER    → WHERE tenant_id IN ('N', '0')                │
+│     ├── GLOBAL  → 관리화면: 필터 없음 (전체), 채팅검색: 공용('1') 기본│
+│     ├── TENANT  → WHERE tenant_id IN ('N', '1')                │
+│     └── USER    → WHERE tenant_id IN ('N', '1')                │
 │                                                                 │
-│  '0' = 전역 데이터 (모든 테넌트에 적용)                          │
+│  '1' = 공용 데이터 (모든 테넌트에 적용)                          │
 │  같은 메뉴 권한이라도 role_code에 따라 데이터 범위가 다름        │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -145,48 +133,44 @@ tb_user:
 
 #### 3.2.1 지식문서 (tb_docs)
 
-**현재**: `tenant_id` 컬럼 존재하나 모두 NULL, 필터링 미적용
+**현재**: `tenant_id` = '1' (공용) 마이그레이션 완료
 
 **목표**:
-- 기존 NULL 데이터를 `'0'`으로 마이그레이션 (공용 문서)
 - 총괄관리자: 전체 문서 관리
-- 테넌트관리자: 자기 테넌트 문서 + 공용 문서(tenant_id='0') 조회
+- 테넌트관리자: 자기 테넌트 문서 + 공용 문서(tenant_id='1') 조회
 - RAG 검색 시 테넌트 필터 자동 적용
 
 ```sql
--- 마이그레이션: 기존 NULL → '0'
-UPDATE tb_docs SET tenant_id = '0' WHERE tenant_id IS NULL;
-
 -- 테넌트 관리자가 문서 목록 조회 시
 SELECT * FROM tb_docs
-WHERE tenant_id IN ('2', '0')   -- 자기 테넌트 + 공용
+WHERE tenant_id IN ('2', '1')   -- 자기 테넌트 + 공용
   AND usage_type = 'rag_knowledge';
 
 -- 테넌트 관리자가 문서 생성 시
 INSERT INTO tb_docs (tenant_id, ...) VALUES ('2', ...);  -- 자동으로 자기 tenant_id 부여
 
--- 총괄관리자가 공용 문서 생성 시
-INSERT INTO tb_docs (tenant_id, ...) VALUES ('0', ...);  -- tenant_id = '0' → 전체 공용
+-- 총괄관리자가 공용 문서 생성 시 (기본값 = current_user.tenant_id = '1')
+INSERT INTO tb_docs (tenant_id, ...) VALUES ('1', ...);  -- tenant_id = '1' → 공용
 ```
 
 **공용 문서 개념**:
-- `tenant_id = '0'` → 모든 테넌트에서 접근 가능한 공용 문서
+- `tenant_id = '1'` → 모든 테넌트에서 접근 가능한 공용 문서
 - `tenant_id = '2'` → 테넌트 2 전용 문서
-- 총괄관리자만 공용 문서(tenant_id='0') 생성 가능
+- 총괄관리자만 공용 문서(tenant_id='1') 생성 가능
 
 #### 3.2.2 시스템 설정 (tb_app_settings)
 
-**현재**: `tenant_id` 컬럼에 '0' 설정 완료 (전역 설정)
+**현재**: `tenant_id` = '1' (공용) 마이그레이션 완료
 
 **목표**:
-- 전역 설정 (tenant_id='0'): 총괄관리자만 수정
+- 공용 설정 (tenant_id='1'): 총괄관리자만 수정
 - 테넌트 설정 (tenant_id='N'): 해당 테넌트 관리자가 수정
-- 설정 조회 우선순위: 테넌트 설정 > 전역 설정 > 기본값
+- 설정 조회 우선순위: 테넌트 설정 > 공용 설정 > 기본값
 
 ```
 설정 조회 우선순위 (Fallback Chain):
   1. tb_app_settings WHERE tenant_id = '현재_tenant_id'  (테넌트별 오버라이드)
-  2. tb_app_settings WHERE tenant_id = '0'               (전역 설정)
+  2. tb_app_settings WHERE tenant_id = '1'               (공용 설정)
   3. .env 환경변수                                         (환경 설정)
   4. app/config.py 기본값                                   (코드 기본값)
 ```
@@ -198,7 +182,7 @@ ALTER TABLE tb_app_settings DROP CONSTRAINT app_settings_category_key_key;
 ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
     UNIQUE (category, key, tenant_id);
 
--- UPSERT 정상 작동 ('0'은 NULL과 달리 ON CONFLICT에서 동작)
+-- UPSERT 정상 작동
 INSERT INTO tb_app_settings (category, key, value, tenant_id, ...)
 VALUES ('llm', 'model', 'gpt-4o-mini', '2')
 ON CONFLICT (category, key, tenant_id)
@@ -210,8 +194,8 @@ DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 -- 테넌트 2의 llm.model 조회 (fallback 포함)
 SELECT value, tenant_id FROM tb_app_settings
 WHERE category = 'llm' AND key = 'model'
-  AND tenant_id IN ('2', '0')
-ORDER BY CASE WHEN tenant_id = '0' THEN 1 ELSE 0 END  -- 테넌트 설정 우선
+  AND tenant_id IN ('2', '1')
+ORDER BY CASE WHEN tenant_id = '1' THEN 1 ELSE 0 END  -- 테넌트 설정 우선
 LIMIT 1;
 ```
 
@@ -234,29 +218,31 @@ LIMIT 1;
 
 ## 4. 구현 계획
 
-### Phase 0: 데이터 마이그레이션 (선행 작업)
+### Phase 0: 데이터 마이그레이션 (선행 작업) - 완료
 
 ```sql
--- 0-1. role_code 통합 (scope_type 제거)
+-- 0-1. role_code 통합 (scope_type 제거) ✅ 완료
 UPDATE tb_role SET role_code = 'GLOBAL' WHERE role_code = 'SYSTEM_ADMIN';
 UPDATE tb_role SET role_code = 'TENANT' WHERE role_code = 'TENANT_ADMIN';
--- USER는 변경 없음
-
 ALTER TABLE tb_role DROP CONSTRAINT IF EXISTS chk_role_scope;
 DROP INDEX IF EXISTS idx_role_scope;
 ALTER TABLE tb_role DROP COLUMN IF EXISTS scope_type;
 
--- 0-2. tenant_id NULL → '0' 마이그레이션
--- tb_app_settings: NULL → '0' (완료)
-UPDATE tb_app_settings SET tenant_id = '0' WHERE tenant_id IS NULL;
+-- 0-2. tenant_id 마이그레이션 ✅ 완료
+-- tb_app_settings: NULL → '0' → '1'
+UPDATE tb_app_settings SET tenant_id = '1' WHERE tenant_id IN ('0', NULL);
 
--- tb_code: NULL → '0' (완료)
-UPDATE tb_code SET tenant_id = '0' WHERE tenant_id IS NULL;
+-- tb_code: NULL → '0' → '1'
+UPDATE tb_code SET tenant_id = '1' WHERE tenant_id IN ('0', NULL);
 
--- tb_docs: NULL → '0' (TODO)
-UPDATE tb_docs SET tenant_id = '0' WHERE tenant_id IS NULL;
+-- tb_docs: NULL → '1'
+UPDATE tb_docs SET tenant_id = '1' WHERE tenant_id IS NULL;
 
--- 0-3. tb_app_settings: UNIQUE 제약조건 변경 (TODO)
+-- 0-3. tb_tenant: SYSTEM → GLOBAL ✅ 완료
+UPDATE tb_tenant SET tenant_code = 'GLOBAL', tenant_name = '공용'
+WHERE tenant_id = 1;
+
+-- 0-4. tb_app_settings: UNIQUE 제약조건 변경 (TODO)
 ALTER TABLE tb_app_settings DROP CONSTRAINT app_settings_category_key_key;
 ALTER TABLE tb_app_settings ADD CONSTRAINT app_settings_category_key_tenant_key
     UNIQUE (category, key, tenant_id);
@@ -283,10 +269,10 @@ def list_documents(self, current_user: Optional[UserContext] = None, ...):
     # 역할 기반 테넌트 필터링
     if current_user and current_user.role_code == "TENANT":
         # 자기 테넌트 + 공용 문서
-        conditions.append("tenant_id IN (%s, '0')")
+        conditions.append("tenant_id IN (%s, '1')")
         params.append(str(current_user.tenant_id))
     elif current_user and current_user.role_code == "USER":
-        conditions.append("tenant_id IN (%s, '0')")
+        conditions.append("tenant_id IN (%s, '1')")
         params.append(str(current_user.tenant_id))
     # GLOBAL: 필터 없음
 
@@ -295,12 +281,13 @@ def create_document(self, data, current_user: Optional[UserContext] = None, ...)
     # 테넌트관리자 → 자동으로 자기 tenant_id 부여
     if current_user and current_user.role_code == "TENANT":
         data["tenant_id"] = str(current_user.tenant_id)
-    # GLOBAL → tenant_id는 요청 데이터에서 선택 ('0'=공용)
+    # GLOBAL → 기본값 = current_user.tenant_id = '1' (공용)
+    #          또는 드롭다운에서 선택한 특정 테넌트
 
 # vector_store.py - search_similar_documents()
 def search_similar_documents(self, query, ..., tenant_id=None):
     if tenant_id:
-        filter_conditions.append("tenant_id IN (%s, '0')")
+        filter_conditions.append("tenant_id IN (%s, '1')")
         filter_params.append(tenant_id)
 ```
 
@@ -329,7 +316,7 @@ DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
 | ON CONFLICT에 tenant_id 없음 | 같은 category+key면 테넌트 구분 없이 덮어쓰기 |
 | `update_setting()` 파라미터에 tenant_id 없음 | 호출자가 테넌트를 지정할 수 없음 |
 
-**마이그레이션으로 기존 64개 row는 tenant_id='0'이지만, 코드 수정 없이는 테넌트별 설정 불가**
+**마이그레이션으로 기존 64개 row는 tenant_id='1'이지만, 코드 수정 없이는 테넌트별 설정 불가**
 
 #### 백엔드 수정
 
@@ -344,15 +331,15 @@ DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
 
 ```python
 # settings_service.py
-def get_value(self, category, key, default, tenant_id='0'):
-    """설정 조회: 테넌트 설정 → 전역 설정 → 기본값"""
+def get_value(self, category, key, default, tenant_id='1'):
+    """설정 조회: 테넌트 설정 → 공용 설정 → 기본값"""
     db_manager = _get_db_manager()
     with db_manager.get_cursor() as cur:
-        # 테넌트 설정 + 전역 설정 한 번에 조회
+        # 테넌트 설정 + 공용 설정 한 번에 조회
         cur.execute("""
             SELECT value, tenant_id FROM tb_app_settings
-            WHERE category = %s AND key = %s AND tenant_id IN (%s, '0')
-            ORDER BY CASE WHEN tenant_id = '0' THEN 1 ELSE 0 END
+            WHERE category = %s AND key = %s AND tenant_id IN (%s, '1')
+            ORDER BY CASE WHEN tenant_id = '1' THEN 1 ELSE 0 END
             LIMIT 1
         """, (category, key, str(tenant_id)))
         row = cur.fetchone()
@@ -441,7 +428,7 @@ async def list_sessions(
 │  ┌──────────────┐ ┌──────────┐ ┌──────────┐                     │
 │  │ 테넌트: 전체 ▼│ │ 유형: 전체│ │ 임베딩상태│                     │
 │  │  ├ 전체       │ └──────────┘ └──────────┘                     │
-│  │  ├ 공용 (0)   │   ← 공용 문서만 필터 가능                      │
+│  │  ├ 공용       │   ← 공용 문서만 필터 가능                      │
 │  │  ├ DEMO       │                                               │
 │  │  ├ 현대A      │                                               │
 │  │  └ 현대B      │                                               │
@@ -460,7 +447,7 @@ async def list_sessions(
 │  문서 등록                                                │
 │                                                          │
 │  소속 테넌트: [공용 (기본) ▼]    ← 필수 선택              │
-│               ├ 공용 (기본)      → tenant_id = '0'       │
+│               ├ 공용 (기본)      → tenant_id = '1'       │
 │               ├ DEMO             → tenant_id = '2'       │
 │               ├ 현대A            → tenant_id = '5'       │
 │               └ 현대B            → tenant_id = '6'       │
@@ -473,7 +460,7 @@ async def list_sessions(
 │                               [취소]  [저장]              │
 └──────────────────────────────────────────────────────────┘
 
-* 기본값 = 공용('0')
+* 기본값 = 공용('1') = current_user.tenant_id
 * 수정 시: 기존 tenant_id 표시 (변경 가능)
 ```
 
@@ -496,15 +483,15 @@ async def list_sessions(
 
 * 테넌트 필터 없음 (자기 테넌트 + 공용만 표시)
 * 문서 등록 시: tenant_id 자동 부여 (자기 테넌트), 선택 불가
-* 공용 문서(tenant_id='0'): 읽기 전용 (수정/삭제 버튼 없음)
+* 공용 문서(tenant_id='1'): 읽기 전용 (수정/삭제 버튼 없음)
 ```
 
 ### 5.2 시스템 설정 화면
 
 | 역할 | 설정 조회 | 설정 수정 |
 |------|----------|----------|
-| 총괄관리자 (GLOBAL) | 전역 설정 + 테넌트별 설정 (드롭다운 전환) | 전역 설정 수정, 테넌트별 설정 수정 |
-| 테넌트관리자 (TENANT) | 자기 테넌트 설정 (전역 설정은 읽기 전용) | 자기 테넌트 설정만 수정 |
+| 총괄관리자 (GLOBAL) | 공용 설정 + 테넌트별 설정 (드롭다운 전환) | 공용 설정 수정, 테넌트별 설정 수정 |
+| 테넌트관리자 (TENANT) | 자기 테넌트 설정 (공용 설정은 읽기 전용) | 자기 테넌트 설정만 수정 |
 
 #### 5.2.1 총괄관리자 설정 화면 UX
 
@@ -512,14 +499,14 @@ async def list_sessions(
 ┌──────────────────────────────────────────────────────────────────┐
 │  시스템 설정                                                      │
 │  ┌──────────────────────────┐                                    │
-│  │ 테넌트: [전역 (기본값) ▼] │  ← 테넌트 선택 드롭다운            │
-│  │   ├ 전역 (기본값)  [0]    │                                    │
+│  │ 테넌트: [공용 (기본값) ▼] │  ← 테넌트 선택 드롭다운            │
+│  │   ├ 공용 (기본값)  [1]    │                                    │
 │  │   ├ DEMO (테넌트 2)       │                                    │
 │  │   ├ 현대A (테넌트 5)      │                                    │
 │  │   └ 현대B (테넌트 6)      │                                    │
 │  └──────────────────────────┘                                    │
 │                                                                  │
-│  [전역 (기본값) 선택 시 → tenant_id = '0']                       │
+│  [공용 (기본값) 선택 시 → tenant_id = '1']                       │
 │  ┌────────────┬───────────────────────────────────┐              │
 │  │ 카테고리     │ 설정값                             │              │
 │  ├────────────┼───────────────────────────────────┤              │
@@ -530,26 +517,26 @@ async def list_sessions(
 │                                                                  │
 │  [DEMO (테넌트 2) 선택 시 → tenant_id = '2']                     │
 │  ┌────────────┬──────────┬──────────┬─────────┐                  │
-│  │ 카테고리     │ 전역 기본값 │ 테넌트 설정 │ 상태     │                  │
+│  │ 카테고리     │ 공용 기본값 │ 테넌트 설정 │ 상태     │                  │
 │  ├────────────┼──────────┼──────────┼─────────┤                  │
 │  │ LLM 모델    │ gpt-4o   │ gpt-4o-mini [수정]│ 오버라이드│                  │
-│  │ Temperature │ 0.1      │ -        [설정]  │ 전역 사용│                  │
+│  │ Temperature │ 0.1      │ -        [설정]  │ 공용 사용│                  │
 │  │ RAG top_k   │ 5        │ 3        [수정]  │ 오버라이드│                  │
 │  └────────────┴──────────┴──────────┴─────────┘                  │
 │                                                                  │
-│  * 오버라이드: 테넌트별 설정이 전역 기본값을 덮어씀               │
-│  * 전역 사용: 테넌트별 설정 없음 → 전역 기본값 자동 적용          │
+│  * 오버라이드: 테넌트별 설정이 공용 기본값을 덮어씀               │
+│  * 공용 사용: 테넌트별 설정 없음 → 공용 기본값 자동 적용          │
 │  * [설정] 클릭 → 테넌트별 오버라이드 값 생성                      │
-│  * [삭제] 클릭 → 테넌트별 오버라이드 제거 → 전역 기본값으로 복원  │
+│  * [삭제] 클릭 → 테넌트별 오버라이드 제거 → 공용 기본값으로 복원  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 **동작 규칙**:
-1. **드롭다운 선택지**: `전역 (기본값)` [value='0'] + `tb_tenant`에서 활성화된 테넌트 목록
-2. **전역 선택 시**: 기존 설정 화면과 동일 (category/key/value CRUD, tenant_id='0')
-3. **테넌트 선택 시**: 전역 기본값(tenant_id='0') + 테넌트 오버라이드를 나란히 표시
+1. **드롭다운 선택지**: `공용 (기본값)` [value='1'] + `tb_tenant`에서 활성화된 업무 테넌트 목록
+2. **공용 선택 시**: 기존 설정 화면과 동일 (category/key/value CRUD, tenant_id='1')
+3. **테넌트 선택 시**: 공용 기본값(tenant_id='1') + 테넌트 오버라이드를 나란히 표시
 4. **오버라이드 생성**: 테넌트 설정이 없는 항목에서 [설정] 클릭 → `tenant_id = 'N'`으로 INSERT
-5. **오버라이드 삭제**: 테넌트 설정이 있는 항목에서 [삭제] 클릭 → 해당 row DELETE → 전역 기본값 복원
+5. **오버라이드 삭제**: 테넌트 설정이 있는 항목에서 [삭제] 클릭 → 해당 row DELETE → 공용 기본값 복원
 
 #### 5.2.2 테넌트관리자 설정 화면 UX
 
@@ -558,21 +545,21 @@ async def list_sessions(
 │  시스템 설정  (DEMO 테넌트)                                       │
 │                                                                  │
 │  ┌────────────┬──────────┬──────────┬─────────┐                  │
-│  │ 카테고리     │ 전역 기본값 │ 내 설정    │ 상태     │                  │
+│  │ 카테고리     │ 공용 기본값 │ 내 설정    │ 상태     │                  │
 │  ├────────────┼──────────┼──────────┼─────────┤                  │
 │  │ LLM 모델    │ gpt-4o   │ gpt-4o-mini [수정]│ 오버라이드│                  │
-│  │ Temperature │ 0.1      │ -              │ 전역 사용│                  │
+│  │ Temperature │ 0.1      │ -              │ 공용 사용│                  │
 │  │ RAG top_k   │ 5        │ 3        [수정]│ 오버라이드│                  │
 │  └────────────┴──────────┴──────────┴─────────┘                  │
 │                                                                  │
-│  * 전역 기본값은 읽기 전용 (회색 표시)                             │
+│  * 공용 기본값은 읽기 전용 (회색 표시)                             │
 │  * 내 설정만 수정 가능                                            │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 **테넌트관리자 제약**:
 - 테넌트 선택 드롭다운 없음 (자기 테넌트 고정)
-- 전역 기본값 컬럼은 읽기 전용 (수정 불가, 회색 텍스트)
+- 공용 기본값 컬럼은 읽기 전용 (수정 불가, 회색 텍스트)
 - 자기 테넌트 설정만 생성/수정/삭제 가능
 
 **주의: SYS_SETTING 메뉴 권한 추가 필요**
@@ -590,13 +577,13 @@ WHERE r.role_code = 'TENANT';
 
 ```
 현재 API:
-  GET  /api/admin/v1/settings                    → 전체 설정 조회 (tenant_id='0')
-  PUT  /api/admin/v1/settings/{category}/{key}   → 설정 수정 (tenant_id='0')
+  GET  /api/admin/v1/settings                    → 전체 설정 조회 (tenant_id='1')
+  PUT  /api/admin/v1/settings/{category}/{key}   → 설정 수정 (tenant_id='1')
 
 변경 후 API:
-  GET  /api/admin/v1/settings?tenant_id=0         → 전역 설정 (tenant_id='0')
-  GET  /api/admin/v1/settings?tenant_id=2         → 테넌트 2 설정 (오버라이드 + 전역 기본값)
-  PUT  /api/admin/v1/settings/{category}/{key}?tenant_id=0  → 전역 설정 수정
+  GET  /api/admin/v1/settings?tenant_id=1         → 공용 설정 (tenant_id='1')
+  GET  /api/admin/v1/settings?tenant_id=2         → 테넌트 2 설정 (오버라이드 + 공용 기본값)
+  PUT  /api/admin/v1/settings/{category}/{key}?tenant_id=1  → 공용 설정 수정
   PUT  /api/admin/v1/settings/{category}/{key}?tenant_id=2  → 테넌트 2 설정 수정
   DELETE /api/admin/v1/settings/{category}/{key}?tenant_id=2 → 테넌트 2 오버라이드 삭제
 ```
@@ -719,10 +706,10 @@ WHERE r.role_code = 'TENANT';
 
 | 역할 | 기본 컨텍스트 | 테넌트 선택 | RAG 검색 범위 | NL2SQL 설정 |
 |------|:---:|:---:|------------|-----------|
-| 총괄관리자 (GLOBAL) | **공용('0')** | O (드롭다운) | 공용 문서만 | 전역 설정('0') |
-| 총괄관리자 (테넌트 선택 시) | 선택된 테넌트 | O | 선택 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
-| 테넌트관리자 (TENANT) | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
-| 일반사용자 (USER) | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('0') | 테넌트 설정 → 전역 fallback |
+| 총괄관리자 (GLOBAL) | **공용('1')** | O (드롭다운) | 공용 문서만 | 공용 설정('1') |
+| 총괄관리자 (테넌트 선택 시) | 선택된 테넌트 | O | 선택 테넌트 + 공용('1') | 테넌트 설정 → 공용 fallback |
+| 테넌트관리자 (TENANT) | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('1') | 테넌트 설정 → 공용 fallback |
+| 일반사용자 (USER) | 자기 테넌트 | X (고정) | 자기 테넌트 + 공용('1') | 테넌트 설정 → 공용 fallback |
 
 #### 5.5.3 관리자 채팅 UI
 
@@ -731,10 +718,10 @@ WHERE r.role_code = 'TENANT';
 │  관리자 채팅                                              │
 │                                                          │
 │  검색 컨텍스트: [공용 (기본) ▼]    ← 총괄관리자만 표시    │
-│                  ├ 공용 (기본)      → tenant_id = '0'     │
-│                  ├ DEMO             → tenant_id IN ('2','0') │
-│                  ├ 현대A            → tenant_id IN ('5','0') │
-│                  └ 현대B            → tenant_id IN ('6','0') │
+│                  ├ 공용 (기본)      → tenant_id = '1'     │
+│                  ├ DEMO             → tenant_id IN ('2','1') │
+│                  ├ 현대A            → tenant_id IN ('5','1') │
+│                  └ 현대B            → tenant_id IN ('6','1') │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐    │
 │  │ 재택근무 정책 알려줘                    [전송]    │    │
@@ -751,12 +738,12 @@ WHERE r.role_code = 'TENANT';
 [채팅 입력] → 검색 컨텍스트의 tenant_id 결정
   │
   ├─ RAG 검색:
-  │    tenant_id='0' → WHERE tenant_id = '0'           (공용 문서만)
-  │    tenant_id='2' → WHERE tenant_id IN ('2', '0')   (DEMO + 공용)
+  │    tenant_id='1' → WHERE tenant_id = '1'           (공용 문서만)
+  │    tenant_id='2' → WHERE tenant_id IN ('2', '1')   (DEMO + 공용)
   │
   ├─ NL2SQL 검색:
-  │    tenant_id='0' → 전역 설정으로 LLM 호출 (model, temperature, prompt)
-  │    tenant_id='2' → DEMO 설정 → 없으면 전역 fallback
+  │    tenant_id='1' → 공용 설정으로 LLM 호출 (model, temperature, prompt)
+  │    tenant_id='2' → DEMO 설정 → 없으면 공용 fallback
   │
   └─ Agent 검색:
        RAG tool → 위 RAG 규칙 적용
@@ -777,11 +764,11 @@ WHERE r.role_code = 'TENANT';
 
 ### 6.1 tenant_id 타입 불일치 이슈
 
-현재 `tb_tenant.tenant_id`는 `integer`이지만, `tb_docs`, `tb_app_settings`, `tb_api_history`의 `tenant_id`는 `varchar`입니다.
+현재 `tb_tenant.tenant_id`는 `bigint`이지만, `tb_docs`, `tb_app_settings`, `tb_api_history`의 `tenant_id`는 `varchar`입니다.
 
 **대응 방안**: 현 상태 유지 (varchar로 통일 사용)
 - 비교 시 `str(current_user.tenant_id)` 변환하여 사용
-- 전역 = `'0'` (varchar), 테넌트 = `'1'`, `'2'`, ...
+- 공용 = `'1'` (varchar), 테넌트 = `'2'`, `'5'`, ...
 - 향후 필요 시 integer FK로 마이그레이션
 
 ### 6.2 주요 테이블 관계
@@ -791,8 +778,8 @@ tb_tenant (1) ──┬── (N) tb_user
                 │          ├── tb_user.role_id → tb_role (1:N, role_code=GLOBAL/TENANT/USER)
                 │          └── tb_user_menu (사용자별 메뉴 CRUD)
                 │
-                ├── (N) tb_docs          (tenant_id: varchar, '0'=공용)
-                ├── (N) tb_app_settings  (tenant_id: varchar, '0'=전역)
+                ├── (N) tb_docs          (tenant_id: varchar, '1'=공용)
+                ├── (N) tb_app_settings  (tenant_id: varchar, '1'=공용)
                 └── (N) tb_api_history   (tenant_id: varchar)
 ```
 
@@ -847,8 +834,8 @@ ALTER TABLE tb_role DROP COLUMN IF EXISTS scope_type;
 
 | 순서 | Phase | 난이도 | 영향도 | 비고 |
 |:---:|-------|:---:|:---:|------|
-| 0 | 데이터 마이그레이션 + scope_type 제거 | 낮음 | - | role_code 변경, scope_type 삭제, NULL → '0', UNIQUE 변경 |
-| 1 | 지식문서 테넌트 격리 | 중 | **높음** | 문서 CRUD + RAG 검색 |
+| 0 | 데이터 마이그레이션 + scope_type 제거 | 낮음 | - | ✅ 완료: role_code 변경, scope_type 삭제, tenant_id='1', UNIQUE 변경(TODO) |
+| 1 | 지식문서 테넌트 격리 | 중 | **높음** | 문서 CRUD |
 | 2 | 시스템 설정 테넌트 격리 | 중 | 중 | fallback chain 변경 |
 | 3 | RAG/Agent 검색 격리 | 중 | **높음** | 벡터 검색 + Agent tool |
 | 4 | 검색이력 테넌트 격리 보완 | **낮음** | 중 | 세션 엔드포인트 역할 필터 보완 + 프론트 필터 |
@@ -860,30 +847,30 @@ ALTER TABLE tb_role DROP COLUMN IF EXISTS scope_type;
 ### 8.1 지식문서 격리 검증
 
 ```
-1. 총괄관리자(admin) 로그인
+1. 총괄관리자(admin, tenant_id=1) 로그인
    → 문서 목록: 전체 문서 표시
-   → 공용 문서 생성 (tenant_id='0')
-   → 테넌트 A 전용 문서 생성 (tenant_id='2')
+   → 공용 문서 생성 (tenant_id='1', 기본값 = current_user.tenant_id)
+   → 테넌트 A 전용 문서 생성 (tenant_id='2', 드롭다운 선택)
 
 2. 테넌트관리자(tenant_admin, tenant_id=2) 로그인
-   → 문서 목록: 공용('0') + 자기 테넌트('2') 문서만 표시
+   → 문서 목록: 공용('1') + 자기 테넌트('2') 문서만 표시
    → 문서 생성: tenant_id='2' 자동 부여
    → 다른 테넌트 문서: 보이지 않음
 
 3. RAG 검색
-   → 테넌트관리자가 검색: 공용('0') + 자기 테넌트('2') 문서에서만 검색
-   → 총괄관리자가 기본 검색: 공용('0') 문서에서만 검색
-   → 총괄관리자가 테넌트 선택 후 검색: 해당 테넌트 + 공용('0') 문서에서 검색
+   → 테넌트관리자가 검색: 공용('1') + 자기 테넌트('2') 문서에서만 검색
+   → 총괄관리자가 기본 검색: 공용('1') 문서에서만 검색
+   → 총괄관리자가 테넌트 선택 후 검색: 해당 테넌트 + 공용('1') 문서에서 검색
 ```
 
 ### 8.2 설정 격리 검증
 
 ```
-1. 총괄관리자가 전역(tenant_id='0') LLM 모델 설정: gpt-4o
+1. 총괄관리자가 공용(tenant_id='1') LLM 모델 설정: gpt-4o
 2. 테넌트 A 관리자가 테넌트 설정(tenant_id='2') 추가: gpt-4o-mini
 3. 테넌트 A 사용자가 검색 → gpt-4o-mini 사용 (테넌트 설정 우선)
-4. 테넌트 B 사용자가 검색 → gpt-4o 사용 (전역 설정 '0' fallback)
-5. 테넌트 A 관리자가 오버라이드 삭제 → gpt-4o 사용 (전역 복원)
+4. 테넌트 B 사용자가 검색 → gpt-4o 사용 (공용 설정 '1' fallback)
+5. 테넌트 A 관리자가 오버라이드 삭제 → gpt-4o 사용 (공용 복원)
 ```
 
 ---

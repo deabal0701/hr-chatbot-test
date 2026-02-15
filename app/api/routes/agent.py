@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 from app.api.services.agent_service import agent_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_optional_user
+from app.core.security.tenant_context import set_tenant_id
 from app.models.agent import AgentRequest
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger
@@ -26,6 +27,15 @@ from app.utils.common import truncate_text
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
+
+
+def _extract_tenant_id(current_user: Optional[UserContext]) -> Optional[str]:
+    """current_user에서 tenant_id 추출 (GLOBAL: None=전체, TENANT/USER: 자기 테넌트)"""
+    if not current_user:
+        return None
+    if current_user.role_code == "GLOBAL":
+        return None
+    return str(current_user.tenant_id) if current_user.tenant_id else None
 
 
 @router.post("/search")
@@ -40,6 +50,9 @@ async def agent_search(request: AgentRequest, current_user: Optional[UserContext
     - 단계별 실행 과정 반환
     """
     request_id = str(uuid.uuid4())[:8]
+
+    # 테넌트 격리 (Phase 3: Agent 도구가 contextvars에서 tenant_id 읽음)
+    set_tenant_id(_extract_tenant_id(current_user))
 
     try:
         logger.info(f"[{request_id}] ========== Agent 검색 요청 처리 시작 ==========")
@@ -70,6 +83,9 @@ async def agent_search_stream(request: AgentRequest, current_user: Optional[User
     Response: text/event-stream (SSE)
     """
     request_id = str(uuid.uuid4())[:8]
+
+    # 테넌트 격리 (Phase 3)
+    set_tenant_id(_extract_tenant_id(current_user))
 
     logger.info(f"[{request_id}] Agent SSE 검색 요청: {truncate_text(request.question, 100)}")
 

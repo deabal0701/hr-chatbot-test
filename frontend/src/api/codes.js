@@ -6,8 +6,24 @@
 import apiClient from './index'
 
 const BASE_URL = '/api/admin/v1/codes'
+const LOOKUP_URL = '/api/v1/codes'
 
 const codesApi = {
+  /**
+   * 코드 조회 (공통 - CODE_MGMT 권한 불필요, 인증만 필요)
+   * 문서 관리 등 다른 화면의 드롭다운에서 사용
+   * @param {string} codeGroup - 코드 그룹명
+   * @returns {Promise<Object>} 코드 그룹 응답
+   */
+  async lookup(codeGroup) {
+    try {
+      return await apiClient.get(`${LOOKUP_URL}/${codeGroup}`)
+    } catch (error) {
+      console.error(`코드 조회 실패 (${codeGroup}):`, error)
+      throw error
+    }
+  },
+
   /**
    * 모든 코드 그룹 목록 조회
    * @returns {Promise<string[]>} 코드 그룹 목록

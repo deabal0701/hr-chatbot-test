@@ -4,7 +4,7 @@ RAG State 정의
 RAG 그래프에서 사용하는 상태(State) 타입을 정의합니다.
 """
 
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
 from app.models.rag import DocumentSource
 
@@ -21,12 +21,16 @@ class RAGState(TypedDict):
     metadata: Dict[str, Any]
     request_id: str
 
+    # ===== 테넌트 격리 (Phase 3) =====
+    tenant_id: Optional[str]
+
 
 def create_initial_state(
     question: str,
     request_id: str = "unknown",
     filters: Dict[str, Any] = None,
     top_k: int = None,
+    tenant_id: Optional[str] = None,
 ) -> RAGState:
     """
     초기 상태 생성
@@ -51,4 +55,5 @@ def create_initial_state(
         answer="",
         metadata={},
         request_id=request_id,
+        tenant_id=tenant_id,
     )

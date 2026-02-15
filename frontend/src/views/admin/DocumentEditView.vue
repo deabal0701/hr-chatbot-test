@@ -288,7 +288,7 @@ const docTypesLoading = ref(false)
 const loadUsageTypes = async () => {
   usageTypesLoading.value = true
   try {
-    const response = await codesApi.getByGroup('USAGE_TYPE', false)
+    const response = await codesApi.lookup('USAGE_TYPE')
     usageTypes.value = response.codes
   } catch (error) {
     console.error('문서 용도 로드 실패:', error)
@@ -301,7 +301,7 @@ const loadUsageTypes = async () => {
 const loadDocTypes = async () => {
   docTypesLoading.value = true
   try {
-    const response = await codesApi.getByGroup('DOC_TYPE', false)
+    const response = await codesApi.lookup('DOC_TYPE')
     docTypes.value = response.codes
   } catch (error) {
     console.error('문서 유형 로드 실패:', error)
