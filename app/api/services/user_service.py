@@ -6,7 +6,7 @@
 from typing import Any, Dict, List, Optional
 
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode
+from app.core.errors import APIException, ErrorCode, raise_on_unique_violation
 from app.core.security.password import hash_password
 from app.models.auth import UserContext
 from app.models.menu import UserMenuPermission
@@ -17,6 +17,16 @@ logger = setup_logger(__name__)
 
 class UserService:
     """사용자 관리 비즈니스 로직 (v2.0)"""
+
+    @staticmethod
+    def _format_user_role(user: dict) -> None:
+        """DB 행의 role_id/role_code/role_name/landing_page를 role 객체로 포맷"""
+        user["role"] = {
+            "role_id": user.pop("role_id"),
+            "role_code": user.pop("role_code"),
+            "role_name": user.pop("role_name"),
+            "landing_page": user.pop("landing_page"),
+        } if user.get("role_id") else None
 
     def _check_scope_access(self, target_tenant_id: Optional[int], current_user: UserContext) -> None:
         """role_code에 따른 접근 범위 검증"""
@@ -75,13 +85,7 @@ class UserService:
         items = []
         for row in rows:
             user = dict(row)
-            # 역할을 단일 객체로 포맷
-            user["role"] = {
-                "role_id": user.pop("role_id"),
-                "role_code": user.pop("role_code"),
-                "role_name": user.pop("role_name"),
-                "landing_page": user.pop("landing_page"),
-            } if user.get("role_id") else None
+            self._format_user_role(user)
             items.append(user)
 
         log_step(logger, request_id, "USER", "1", "LIST", "사용자 목록 조회", total=total, role=current_user.role_code)
@@ -112,13 +116,7 @@ class UserService:
         if current_user.user_id != user_id:
             self._check_scope_access(user["tenant_id"], current_user)
 
-        # 역할을 단일 객체로 포맷
-        user["role"] = {
-            "role_id": user.pop("role_id"),
-            "role_code": user.pop("role_code"),
-            "role_name": user.pop("role_name"),
-            "landing_page": user.pop("landing_page"),
-        } if user.get("role_id") else None
+        self._format_user_role(user)
 
         log_step(logger, request_id, "USER", "2", "GET", "사용자 상세 조회", user_id=user_id)
         return user
@@ -171,9 +169,7 @@ class UserService:
                         (new_user_id, menu_data["menu_id"], menu_data.get("can_create", False), menu_data.get("can_read", True), menu_data.get("can_update", False), menu_data.get("can_delete", False), menu_data.get("can_export", False), current_user.user_id),
                     )
         except Exception as e:
-            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                raise APIException(ErrorCode.DUPLICATE_ERROR, "이미 존재하는 로그인 ID 또는 이메일입니다")
-            raise
+            raise_on_unique_violation(e, "이미 존재하는 로그인 ID 또는 이메일입니다")
 
         log_step(logger, request_id, "USER", "3", "CREATE", "사용자 생성", user_id=new_user_id, login_id=data["login_id"], menus=len(menus))
         return self.get_user(new_user_id, current_user, request_id)
@@ -222,9 +218,7 @@ class UserService:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute(f"UPDATE tb_user SET {', '.join(fields)} WHERE user_id = %s", params)
         except Exception as e:
-            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                raise APIException(ErrorCode.DUPLICATE_ERROR, "이미 존재하는 이메일입니다")
-            raise
+            raise_on_unique_violation(e, "이미 존재하는 이메일입니다")
 
         log_step(logger, request_id, "USER", "4", "UPDATE", "사용자 수정", user_id=user_id)
         return self.get_user(user_id, current_user, request_id)
@@ -370,15 +364,18 @@ class UserService:
         log_step(logger, request_id, "USER", "OPT", "MENUS", "메뉴 옵션 조회", total=len(result), role=current_user.role_code)
         return {"total": len(result), "items": result}
 
-    # 역할 계층: sort_order 낮을수록 상위 (GLOBAL=1 > TENANT=2 > USER=3)
-    ROLE_HIERARCHY = {"GLOBAL": 1, "TENANT": 2, "USER": 3}
-
     def _get_allowed_role_codes(self, current_user: UserContext) -> list:
-        """현재 사용자가 할당 가능한 역할 코드 목록 반환"""
-        if current_user.is_global:
-            return list(self.ROLE_HIERARCHY.keys())
-        my_level = self.ROLE_HIERARCHY.get(current_user.role_code, 99)
-        return [code for code, level in self.ROLE_HIERARCHY.items() if level >= my_level]
+        """현재 사용자가 할당 가능한 역할 코드 목록 반환 (DB sort_order 기준)"""
+        with db_manager.get_cursor() as cur:
+            if current_user.is_global:
+                cur.execute("SELECT role_code FROM tb_role ORDER BY sort_order")
+                return [row["role_code"] for row in cur.fetchall()]
+            cur.execute("SELECT sort_order FROM tb_role WHERE role_code = %s", (current_user.role_code,))
+            my_role = cur.fetchone()
+            if not my_role:
+                return []
+            cur.execute("SELECT role_code FROM tb_role WHERE sort_order >= %s ORDER BY sort_order", (my_role["sort_order"],))
+            return [row["role_code"] for row in cur.fetchall()]
 
     def get_role_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """역할 선택 옵션 (드롭다운용 경량 데이터, 자신보다 상위 역할 제외)"""

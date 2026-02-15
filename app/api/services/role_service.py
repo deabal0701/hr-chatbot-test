@@ -6,7 +6,7 @@
 from typing import Any, Dict, List
 
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode
+from app.core.errors import APIException, ErrorCode, raise_on_unique_violation
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger, log_step
 
@@ -61,9 +61,7 @@ class RoleService:
                 )
                 new_role_id = cur.fetchone()["role_id"]
         except Exception as e:
-            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                raise APIException(ErrorCode.DUPLICATE_ERROR, "이미 존재하는 역할 코드입니다")
-            raise
+            raise_on_unique_violation(e, "이미 존재하는 역할 코드입니다")
 
         log_step(logger, request_id, "ROLE", "3", "CREATE", "역할 생성", role_id=new_role_id, role_code=data["role_code"])
         return self.get_role(new_role_id, request_id)

@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.services.user_service import user_service
-from app.core.errors import APIException, ErrorCode, success_response
+from app.core.errors import success_response
 from app.core.security.dependencies import get_current_active_user
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
@@ -85,9 +85,7 @@ async def get_user(
     request: Request,
     current_user: UserContext = Depends(get_current_active_user),
 ):
-    """사용자 상세 조회 (본인 또는 USER_MGMT:read 권한)"""
-    if current_user.user_id != user_id and not current_user.is_superuser:
-        raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
+    """사용자 상세 조회 (본인은 항상 가능, 타인은 서비스 scope 검증)"""
     request_id = getattr(request.state, "request_id", "")
     result = user_service.get_user(user_id, current_user, request_id)
     return success_response(result)

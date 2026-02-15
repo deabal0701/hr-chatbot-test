@@ -8,7 +8,7 @@
 """
 from .error_codes import ErrorCode, ERROR_MESSAGES, ERROR_STATUS_CODES
 from .handlers import APIException, register_exception_handlers
-from .response import success_response, error_response
+from .response import success_response, error_response, raise_on_unique_violation
 
 __all__ = [
     "ErrorCode",
@@ -18,4 +18,5 @@ __all__ = [
     "register_exception_handlers",
     "success_response",
     "error_response",
+    "raise_on_unique_violation",
 ]

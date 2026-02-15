@@ -6,7 +6,7 @@
 from typing import Any, Dict, List
 
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode
+from app.core.errors import APIException, ErrorCode, raise_on_unique_violation
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger, log_step
 
@@ -83,9 +83,7 @@ class MenuService:
                 )
                 new_id = cur.fetchone()["menu_id"]
         except Exception as e:
-            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                raise APIException(ErrorCode.DUPLICATE_ERROR, "이미 존재하는 메뉴 코드입니다")
-            raise
+            raise_on_unique_violation(e, "이미 존재하는 메뉴 코드입니다")
 
         log_step(logger, request_id, "MENU", "3", "CREATE", "메뉴 생성", menu_id=new_id, menu_code=data["menu_code"])
         return self.get_menu(new_id, request_id)

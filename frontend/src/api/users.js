@@ -3,167 +3,46 @@
  *
  * 사용자 CRUD + 메뉴 권한 할당
  * 백엔드: app/api/routes/users.py (prefix: /api/admin/v1/users)
+ *
+ * 에러 처리: axios 인터셉터(index.js)에서 일괄 처리
  */
 import apiClient from './index'
 
 const BASE_URL = '/api/admin/v1/users'
 
 const usersApi = {
-  /**
-   * 사용자 목록 조회
-   * @param {Object} params - 쿼리 파라미터
-   * @param {number} [params.limit=20] - 최대 결과 수
-   * @param {number} [params.offset=0] - 시작 위치
-   * @param {number} [params.tenant_id] - 테넌트 필터
-   * @param {boolean} [params.is_active] - 활성화 필터
-   * @returns {Promise<{total, items, limit, offset}>}
-   */
-  async list(params = {}) {
-    try {
-      return await apiClient.get(BASE_URL, { params })
-    } catch (error) {
-      console.error('사용자 목록 조회 실패:', error)
-      throw error
-    }
-  },
+  /** 사용자 목록 조회 */
+  list: (params = {}) => apiClient.get(BASE_URL, { params }),
 
-  /**
-   * 사용자 상세 조회
-   * @param {number} userId - 사용자 ID
-   * @returns {Promise<Object>} UserResponse
-   */
-  async get(userId) {
-    try {
-      return await apiClient.get(`${BASE_URL}/${userId}`)
-    } catch (error) {
-      console.error(`사용자 조회 실패 (ID: ${userId}):`, error)
-      throw error
-    }
-  },
+  /** 사용자 상세 조회 */
+  get: (userId) => apiClient.get(`${BASE_URL}/${userId}`),
 
-  /**
-   * 사용자 생성
-   * @param {Object} data - UserCreate
-   * @returns {Promise<Object>} 생성된 사용자 정보
-   */
-  async create(data) {
-    try {
-      return await apiClient.post(BASE_URL, data)
-    } catch (error) {
-      console.error('사용자 생성 실패:', error)
-      throw error
-    }
-  },
+  /** 사용자 생성 */
+  create: (data) => apiClient.post(BASE_URL, data),
 
-  /**
-   * 사용자 수정
-   * @param {number} userId - 사용자 ID
-   * @param {Object} data - UserUpdate
-   * @returns {Promise<Object>} 수정된 사용자 정보
-   */
-  async update(userId, data) {
-    try {
-      return await apiClient.put(`${BASE_URL}/${userId}`, data)
-    } catch (error) {
-      console.error(`사용자 수정 실패 (ID: ${userId}):`, error)
-      throw error
-    }
-  },
+  /** 사용자 수정 */
+  update: (userId, data) => apiClient.put(`${BASE_URL}/${userId}`, data),
 
-  /**
-   * 사용자 삭제
-   * @param {number} userId - 사용자 ID
-   * @returns {Promise<void>}
-   */
-  async delete(userId) {
-    try {
-      await apiClient.delete(`${BASE_URL}/${userId}`)
-    } catch (error) {
-      console.error(`사용자 삭제 실패 (ID: ${userId}):`, error)
-      throw error
-    }
-  },
+  /** 사용자 삭제 */
+  delete: (userId) => apiClient.delete(`${BASE_URL}/${userId}`),
 
-  /**
-   * 사용자 메뉴 권한 조회
-   * @param {number} userId - 사용자 ID
-   * @returns {Promise<Array>} UserMenuResponse[]
-   */
-  async getUserMenus(userId) {
-    try {
-      return await apiClient.get(`${BASE_URL}/${userId}/menus`)
-    } catch (error) {
-      console.error(`사용자 메뉴 조회 실패 (ID: ${userId}):`, error)
-      throw error
-    }
-  },
+  /** 사용자 메뉴 권한 조회 */
+  getUserMenus: (userId) => apiClient.get(`${BASE_URL}/${userId}/menus`),
 
-  /**
-   * 사용자 메뉴 권한 할당 (replace 방식)
-   * @param {number} userId - 사용자 ID
-   * @param {Array<{menu_id, can_create, can_read, can_update, can_delete, can_export}>} menus
-   * @returns {Promise<Object>}
-   */
-  async assignMenus(userId, menus) {
-    try {
-      return await apiClient.put(`${BASE_URL}/${userId}/menus`, { menus })
-    } catch (error) {
-      console.error(`메뉴 권한 할당 실패 (User: ${userId}):`, error)
-      throw error
-    }
-  },
+  /** 사용자 메뉴 권한 할당 (replace 방식) */
+  assignMenus: (userId, menus) => apiClient.put(`${BASE_URL}/${userId}/menus`, { menus }),
 
-  /**
-   * 역할 목록 조회 (사용자 생성/수정 시 역할 선택용)
-   * @returns {Promise<{total, items}>}
-   */
-  async listRoles() {
-    try {
-      return await apiClient.get('/api/admin/v1/roles')
-    } catch (error) {
-      console.error('역할 목록 조회 실패:', error)
-      throw error
-    }
-  },
+  /** 역할 목록 조회 (사용자 생성/수정 시 역할 선택용) */
+  listRoles: () => apiClient.get('/api/admin/v1/roles'),
 
-  /**
-   * 역할 선택 옵션 (USER_MGMT 권한으로 접근 가능)
-   * @returns {Promise<{total, items}>}
-   */
-  async getRoleOptions() {
-    try {
-      return await apiClient.get(`${BASE_URL}/options/roles`)
-    } catch (error) {
-      console.error('역할 옵션 조회 실패:', error)
-      throw error
-    }
-  },
+  /** 역할 선택 옵션 (USER_MGMT 권한으로 접근 가능) */
+  getRoleOptions: () => apiClient.get(`${BASE_URL}/options/roles`),
 
-  /**
-   * 테넌트 선택 옵션 (USER_MGMT 권한으로 접근 가능)
-   * @returns {Promise<{total, items}>}
-   */
-  async getTenantOptions() {
-    try {
-      return await apiClient.get(`${BASE_URL}/options/tenants`)
-    } catch (error) {
-      console.error('테넌트 옵션 조회 실패:', error)
-      throw error
-    }
-  },
+  /** 테넌트 선택 옵션 (USER_MGMT 권한으로 접근 가능) */
+  getTenantOptions: () => apiClient.get(`${BASE_URL}/options/tenants`),
 
-  /**
-   * 메뉴 선택 옵션 (사용자 메뉴 권한 할당용, USER_MGMT 권한으로 접근)
-   * @returns {Promise<{total, items}>}
-   */
-  async getMenuOptions() {
-    try {
-      return await apiClient.get(`${BASE_URL}/options/menus`)
-    } catch (error) {
-      console.error('메뉴 옵션 조회 실패:', error)
-      throw error
-    }
-  }
+  /** 메뉴 선택 옵션 (사용자 메뉴 권한 할당용, USER_MGMT 권한으로 접근) */
+  getMenuOptions: () => apiClient.get(`${BASE_URL}/options/menus`),
 }
 
 export default usersApi

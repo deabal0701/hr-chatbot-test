@@ -66,7 +66,7 @@
           <template #default="{ row }">
             <span class="action-cell">
               <el-button link type="primary" size="small" :icon="Edit" @click="openEditDialog(row)">수정</el-button>
-              <el-button link type="danger" size="small" :icon="Delete" @click="handleDelete(row)">삭제</el-button>
+              <el-button link type="danger" size="small" :icon="Delete" :disabled="row.is_system" @click="handleDelete(row)">삭제</el-button>
             </span>
           </template>
         </el-table-column>
@@ -104,7 +104,8 @@
         </el-form-item>
 
         <el-form-item label="활성화 여부">
-          <el-switch v-model="formData.is_active" />
+          <el-switch v-model="formData.is_active" :disabled="formData.is_system" />
+          <div v-if="formData.is_system" class="form-help">시스템 기본 테넌트는 비활성화할 수 없습니다</div>
         </el-form-item>
 
         <el-form-item label="메타데이터 (JSON)">
@@ -164,7 +165,8 @@ const selectedMetadata = ref(null)
 const formData = reactive({
   tenant_code: '',
   tenant_name: '',
-  is_active: true
+  is_active: true,
+  is_system: false
 })
 const metadataJson = ref('')
 
@@ -208,6 +210,7 @@ const openEditDialog = (row) => {
   formData.tenant_code = row.tenant_code
   formData.tenant_name = row.tenant_name
   formData.is_active = row.is_active
+  formData.is_system = row.is_system || false
   metadataJson.value = row.metadata ? JSON.stringify(row.metadata, null, 2) : ''
   dialogVisible.value = true
 
@@ -221,6 +224,7 @@ const resetForm = () => {
   formData.tenant_code = ''
   formData.tenant_name = ''
   formData.is_active = true
+  formData.is_system = false
   metadataJson.value = ''
   if (formRef.value) formRef.value.clearValidate()
 }

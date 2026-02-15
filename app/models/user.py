@@ -12,6 +12,13 @@ from pydantic import BaseModel, Field, field_validator
 from app.models.menu import UserMenuPermission
 
 
+def _validate_email_format(v: str) -> str:
+    """이메일 형식 검증 (공통)"""
+    if "@" not in v or "." not in v.split("@")[-1]:
+        raise ValueError("올바른 이메일 형식이 아닙니다")
+    return v.lower().strip()
+
+
 # ===================================
 # 역할 (Role)
 # ===================================
@@ -98,9 +105,7 @@ class UserBase(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
-        if "@" not in v or "." not in v.split("@")[-1]:
-            raise ValueError("올바른 이메일 형식이 아닙니다")
-        return v.lower().strip()
+        return _validate_email_format(v)
 
 
 class UserCreate(UserBase):
@@ -140,9 +145,7 @@ class UserUpdate(BaseModel):
     @classmethod
     def validate_email(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            if "@" not in v or "." not in v.split("@")[-1]:
-                raise ValueError("올바른 이메일 형식이 아닙니다")
-            return v.lower().strip()
+            return _validate_email_format(v)
         return v
 
 

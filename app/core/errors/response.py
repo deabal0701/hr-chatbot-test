@@ -4,6 +4,7 @@
 위치: app/core/errors/response.py
 - success_response: 성공 응답 생성
 - error_response: 에러 응답 생성
+- raise_on_unique_violation: 유니크 제약조건 위반 처리
 """
 from typing import Any, Optional
 
@@ -76,3 +77,19 @@ def error_response(
             "detail": detail
         }
     }
+
+
+def raise_on_unique_violation(e: Exception, message: str) -> None:
+    """유니크 제약조건 위반 시 DUPLICATE_ERROR로 변환, 아니면 원래 예외 전파
+
+    사용법:
+        try:
+            cur.execute("INSERT ...")
+        except Exception as e:
+            raise_on_unique_violation(e, "이미 존재하는 데이터입니다")
+    """
+    from app.core.errors.handlers import APIException
+
+    if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+        raise APIException(ErrorCode.DUPLICATE_ERROR, message) from e
+    raise e

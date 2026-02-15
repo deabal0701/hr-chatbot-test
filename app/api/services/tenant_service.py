@@ -7,7 +7,7 @@ import json
 from typing import Any, Dict, Optional
 
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode
+from app.core.errors import APIException, ErrorCode, raise_on_unique_violation
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger, log_step
 
@@ -21,7 +21,7 @@ class TenantService:
         """테넌트 목록 조회"""
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT t.tenant_id, t.tenant_code, t.tenant_name, t.is_active, "
+                "SELECT t.tenant_id, t.tenant_code, t.tenant_name, t.is_active, t.is_system, "
                 "t.metadata, t.created_at, t.updated_at, "
                 "(SELECT COUNT(*) FROM tb_user u WHERE u.tenant_id = t.tenant_id) as user_count "
                 "FROM tb_tenant t ORDER BY t.tenant_id"
@@ -36,7 +36,7 @@ class TenantService:
         """테넌트 상세 조회"""
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT t.tenant_id, t.tenant_code, t.tenant_name, t.is_active, "
+                "SELECT t.tenant_id, t.tenant_code, t.tenant_name, t.is_active, t.is_system, "
                 "t.metadata, t.created_at, t.updated_at, "
                 "(SELECT COUNT(*) FROM tb_user u WHERE u.tenant_id = t.tenant_id) as user_count "
                 "FROM tb_tenant t WHERE t.tenant_id = %s",
@@ -63,9 +63,7 @@ class TenantService:
                 )
                 new_id = cur.fetchone()["tenant_id"]
         except Exception as e:
-            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                raise APIException(ErrorCode.DUPLICATE_ERROR, "이미 존재하는 테넌트 코드입니다")
-            raise
+            raise_on_unique_violation(e, "이미 존재하는 테넌트 코드입니다")
 
         log_step(logger, request_id, "TENANT", "3", "CREATE", "테넌트 생성", tenant_id=new_id, tenant_code=data["tenant_code"])
         return self.get_tenant(new_id, request_id)
@@ -73,9 +71,14 @@ class TenantService:
     def update_tenant(self, tenant_id: int, data: Dict[str, Any], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """테넌트 수정"""
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT tenant_id FROM tb_tenant WHERE tenant_id = %s", (tenant_id,))
-            if not cur.fetchone():
+            cur.execute("SELECT tenant_id, is_system FROM tb_tenant WHERE tenant_id = %s", (tenant_id,))
+            existing = cur.fetchone()
+            if not existing:
                 raise APIException(ErrorCode.NOT_FOUND, "테넌트를 찾을 수 없습니다")
+
+        # 시스템 테넌트 비활성화 방지
+        if existing["is_system"] and "is_active" in data and data["is_active"] is False:
+            raise APIException(ErrorCode.FORBIDDEN, "시스템 기본 테넌트는 비활성화할 수 없습니다")
 
         fields = []
         params: list = []
@@ -105,11 +108,14 @@ class TenantService:
     def delete_tenant(self, tenant_id: int, current_user: UserContext, request_id: str = "") -> bool:
         """테넌트 삭제 (소속 사용자 있으면 비활성화, 없으면 삭제)"""
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT tenant_id, tenant_code FROM tb_tenant WHERE tenant_id = %s", (tenant_id,))
+            cur.execute("SELECT tenant_id, tenant_code, is_system FROM tb_tenant WHERE tenant_id = %s", (tenant_id,))
             existing = cur.fetchone()
 
         if not existing:
             raise APIException(ErrorCode.NOT_FOUND, "테넌트를 찾을 수 없습니다")
+
+        if existing["is_system"]:
+            raise APIException(ErrorCode.FORBIDDEN, "시스템 기본 테넌트는 삭제할 수 없습니다")
 
         # 소속 사용자 존재 확인
         with db_manager.get_cursor() as cur:
