@@ -105,10 +105,16 @@ def register_exception_handlers(app: FastAPI):
 
         # 검증 에러 메시지를 사용자 친화적으로 변환
         error_details = []
+        user_messages = []
         for error in exc.errors():
             loc = " -> ".join(str(l) for l in error.get("loc", []))
             msg = error.get("msg", "")
             error_details.append(f"{loc}: {msg}")
+            # field_validator의 한국어 메시지 추출 (Value error, 메시지)
+            if msg.startswith("Value error, "):
+                user_messages.append(msg.replace("Value error, ", "", 1))
+
+        message = "; ".join(user_messages) if user_messages else "입력값이 올바르지 않습니다"
 
         return JSONResponse(
             status_code=400,
@@ -117,7 +123,7 @@ def register_exception_handlers(app: FastAPI):
                 "data": None,
                 "error": {
                     "code": ErrorCode.VALIDATION_ERROR.value,
-                    "message": "입력값이 올바르지 않습니다",
+                    "message": message,
                     "detail": "; ".join(error_details)
                 }
             }

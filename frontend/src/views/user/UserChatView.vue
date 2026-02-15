@@ -626,7 +626,7 @@ watch(messages, async () => {
 
 // 푸터 (입력 영역)
 .chat-footer {
-  padding: 20px 32px 32px;
+  padding: 12px 32px 16px;
   background-color: var(--user-sidebar-bg);
   transition: var(--theme-transition);
 }
@@ -759,7 +759,7 @@ watch(messages, async () => {
   text-align: center;
   font-size: 12px;
   color: var(--text-color-secondary);
-  margin: 12px 0 0;
+  margin: 8px 0 0;
 }
 
 // 드롭다운 메뉴 스타일 (전역 스타일 필요)
@@ -892,7 +892,7 @@ watch(messages, async () => {
   }
 
   .chat-footer {
-    padding: 12px 16px 20px;
+    padding: 8px 16px 12px;
   }
 
   .input-wrapper {
@@ -973,7 +973,7 @@ watch(messages, async () => {
   }
 
   .chat-footer {
-    padding: 10px 12px 16px;
+    padding: 8px 12px 10px;
   }
 
   .welcome-section {

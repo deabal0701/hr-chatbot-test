@@ -145,7 +145,21 @@ const passwordRules = {
   ],
   newPassword: [
     { required: true, message: '새 비밀번호를 입력해주세요', trigger: 'blur' },
-    { min: 8, message: '8자 이상 입력해주세요', trigger: 'blur' }
+    { min: 8, message: '8자 이상 입력해주세요', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (!value) return callback()
+        const hasUpper = /[A-Z]/.test(value)
+        const hasLower = /[a-z]/.test(value)
+        const hasDigit = /[0-9]/.test(value)
+        if (!(hasUpper && hasLower && hasDigit)) {
+          callback(new Error('대문자, 소문자, 숫자를 포함해야 합니다'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
   ],
   confirmPassword: [
     { required: true, message: '비밀번호를 다시 입력해주세요', trigger: 'blur' },
@@ -178,7 +192,7 @@ const handleChangePassword = async () => {
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
   } catch (err) {
-    ElMessage.error(err.message || '비밀번호 변경에 실패했습니다')
+    ElMessage.error(err.detail || err.message || '비밀번호 변경에 실패했습니다')
   } finally {
     passwordLoading.value = false
   }
