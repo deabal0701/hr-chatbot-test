@@ -331,8 +331,9 @@ class UserService:
                     (user_id, menu.menu_id, menu.can_create, menu.can_read, menu.can_update, menu.can_delete, menu.can_export, current_user.user_id),
                 )
 
-        log_step(logger, request_id, "USER", "6", "ASSIGN_MENUS", "메뉴 권한 할당", user_id=user_id, menus=len(menus))
-        return self._get_user_menus(user_id)
+        result = self._get_user_menus(user_id)
+        log_step(logger, request_id, "USER", "6", "ASSIGN_MENUS", "메뉴 권한 할당", user_id=user_id, menus=len(result))
+        return {"user_id": user_id, "menus": result, "total_menus": len(result)}
 
     def get_user_menus(self, user_id: int, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """사용자 메뉴 권한 조회"""

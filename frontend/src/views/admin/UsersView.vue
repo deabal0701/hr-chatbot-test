@@ -411,9 +411,9 @@ const handleRoleChange = async (roleId) => {
   }
 
   try {
-    const defaultMenus = await rolesApi.getDefaultMenus(role.role_code)
+    const response = await rolesApi.getDefaultMenus(role.role_code)
     initMenuPermMap()
-    for (const dm of (defaultMenus || [])) {
+    for (const dm of (response?.items || [])) {
       if (menuPermMap[dm.menu_id]) {
         menuPermMap[dm.menu_id].can_create = dm.can_create ?? false
         menuPermMap[dm.menu_id].can_read = dm.can_read ?? true

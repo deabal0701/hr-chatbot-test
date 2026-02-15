@@ -18,7 +18,8 @@
       "Bash(find:*)",
       "Bash(pip show:*)",
       "Bash(python:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

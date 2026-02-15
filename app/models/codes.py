@@ -76,14 +76,14 @@ class CodeItem(BaseModel):
 class CodeGroupResponse(BaseModel):
     """코드 그룹 조회 응답"""
     code_group: str
-    codes: List[CodeItem]
-    total_count: int
+    items: List[CodeItem]
+    total: int
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "code_group": "LLM_PROVIDER",
-                "codes": [
+                "items": [
                     {
                         "code_id": 1,
                         "code_group": "LLM_PROVIDER",
@@ -98,7 +98,7 @@ class CodeGroupResponse(BaseModel):
                         "updated_at": "2024-01-07T10:00:00"
                     }
                 ],
-                "total_count": 1
+                "total": 1
             }
         }
     }

@@ -114,7 +114,7 @@ async def list_sessions(current_user: Optional[UserContext] = Depends(get_option
     """활성 세션 목록 조회 (InMemorySaver 기반)"""
     try:
         sessions = agent_service.get_sessions()
-        return success_response(sessions)
+        return success_response({"items": sessions, "total": len(sessions)})
     except Exception as e:
         logger.error(f"세션 목록 조회 실패: {e}", exc_info=True)
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))

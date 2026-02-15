@@ -3,7 +3,7 @@
 위치: app/api/routes/menus.py
 메뉴 트리 CRUD + 순서 변경 (MENU_MGMT 권한 필요)
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 
 from app.api.services.menu_service import menu_service
 from app.core.errors import success_response
@@ -25,7 +25,7 @@ async def get_menu_tree(
     return success_response(result)
 
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_menu(
     data: MenuCreate,
     request: Request,
@@ -83,4 +83,4 @@ async def delete_menu(
     """메뉴 삭제 (하위 메뉴 존재 시 불가)"""
     request_id = getattr(request.state, "request_id", "")
     menu_service.delete_menu(menu_id, current_user, request_id)
-    return success_response({"message": "메뉴가 삭제되었습니다"})
+    return success_response({"message": "메뉴가 삭제되었습니다", "deleted_count": 1})

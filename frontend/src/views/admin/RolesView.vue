@@ -340,8 +340,8 @@ const openDefaultMenus = async (row) => {
   isLoadingMenus.value = true
 
   try {
-    const menus = await rolesApi.getDefaultMenus(row.role_code)
-    defaultMenus.value = menus || []
+    const response = await rolesApi.getDefaultMenus(row.role_code)
+    defaultMenus.value = response?.items || []
   } catch {
     ElMessage.error('기본 메뉴 권한 조회 실패')
     defaultMenus.value = []

@@ -253,18 +253,21 @@ def test_all():
 
         # 3-3. 역할별 기본 메뉴 템플릿 조회
         try:
-            default_menus = role_service.get_default_menus("GLOBAL", "test-mgmt")
+            resp = role_service.get_default_menus("GLOBAL", "test-mgmt")
+            default_menus = resp["items"]
             assert isinstance(default_menus, list)
             assert len(default_menus) > 0
             # GLOBAL은 모든 PAGE/API 메뉴에 전체 권한
             checked = [m for m in default_menus if m.get("checked")]
             ok(f"role_service.get_default_menus(GLOBAL): total={len(default_menus)}, checked={len(checked)}")
 
-            tenant_menus = role_service.get_default_menus("TENANT", "test-mgmt")
+            resp = role_service.get_default_menus("TENANT", "test-mgmt")
+            tenant_menus = resp["items"]
             tenant_checked = [m for m in tenant_menus if m.get("checked")]
             ok(f"role_service.get_default_menus(TENANT): total={len(tenant_menus)}, checked={len(tenant_checked)}")
 
-            user_menus = role_service.get_default_menus("USER", "test-mgmt")
+            resp = role_service.get_default_menus("USER", "test-mgmt")
+            user_menus = resp["items"]
             user_checked = [m for m in user_menus if m.get("checked")]
             ok(f"role_service.get_default_menus(USER): total={len(user_menus)}, checked={len(user_checked)}")
         except Exception as e:
@@ -492,10 +495,9 @@ def test_all():
         print("\nFailed tests:")
         for e in errors:
             print(f"  - {e}")
-        sys.exit(1)
+        assert False, f"{len(errors)} tests failed"
     else:
         print("\nALL TESTS PASSED - User Management v2.0 OK")
-        sys.exit(0)
 
 
 if __name__ == "__main__":

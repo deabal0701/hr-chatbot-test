@@ -3,7 +3,7 @@
 위치: app/api/routes/roles.py
 역할 CRUD + 역할별 기본 메뉴 조회 (ROLE_MGMT 권한 필요)
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 
 from app.api.services.role_service import role_service
 from app.core.errors import success_response
@@ -38,7 +38,7 @@ async def list_roles(
     return success_response(result)
 
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_role(
     data: RoleCreate,
     request: Request,
@@ -84,4 +84,4 @@ async def delete_role(
     """역할 삭제 (시스템 역할 불가)"""
     request_id = getattr(request.state, "request_id", "")
     role_service.delete_role(role_id, current_user, request_id)
-    return success_response({"message": "역할이 삭제되었습니다"})
+    return success_response({"message": "역할이 삭제되었습니다", "deleted_count": 1})

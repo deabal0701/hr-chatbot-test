@@ -282,6 +282,66 @@ Agent와 NL2SQL은 SSE(Server-Sent Events) 스트리밍을 지원합니다:
 - `handlers.py`: FastAPI 전역 예외 핸들러
 - `response.py`: 표준화된 응답 포맷 (success_response, error_response)
 
+### API 응답 표준 패턴
+
+**모든 API 응답은 `success_response()` 래퍼를 사용** (`app/core/errors/response.py`):
+```json
+{"success": true, "data": { ... }, "error": null}
+{"success": false, "data": null, "error": {"code": "...", "message": "...", "detail": "..."}}
+```
+
+프론트엔드 Axios 인터셉터(`frontend/src/api/index.js`)가 `result.data`를 자동 언래핑하므로, 프론트엔드 코드는 항상 내부 `data`만 직접 받음.
+
+**응답 유형별 표준 패턴:**
+
+| 작업 | HTTP Status | data 구조 | 예시 |
+|------|-------------|-----------|------|
+| CREATE | 201 | 생성된 객체 | `{"user_id": 1, "login_id": "admin", ...}` |
+| GET (단건) | 200 | 객체 | `{"user_id": 1, ...}` |
+| GET (목록) | 200 | `{"items": [...], "total": N}` | `{"items": [{...}, {...}], "total": 25}` |
+| UPDATE | 200 | 수정된 객체 | `{"user_id": 1, "display_name": "변경됨", ...}` |
+| DELETE | 200 | `{"message": "...", "deleted_count": N}` | `{"message": "사용자가 삭제되었습니다", "deleted_count": 1}` |
+| REORDER | 200 | `{"message": "...", "updated_count": N}` | `{"message": "순서가 변경되었습니다", "updated_count": 3}` |
+| BULK DELETE | 200 | `{"message": "...", "total_deleted": N}` | `{"message": "일괄 삭제 완료", "total_deleted": 5}` |
+
+**라우트 작성 규칙:**
+```python
+from fastapi import status
+
+# CREATE → 반드시 status_code=201
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_item(...):
+    result = service.create(...)
+    return success_response(result)
+
+# LIST → items/total 구조
+@router.get("")
+async def list_items(...):
+    items, total = service.list(...)
+    return success_response({"items": items, "total": total})
+
+# DELETE → message/deleted_count
+@router.delete("/{item_id}")
+async def delete_item(...):
+    service.delete(item_id)
+    return success_response({"message": "삭제되었습니다", "deleted_count": 1})
+```
+
+**서비스 작성 시 주의:**
+- `get_cursor(commit=True)` 사용 시, 커밋이 필요한 조회(`get_by_id` 등)는 반드시 `with` 블록 **밖에서** 호출
+```python
+# ✅ 올바른 패턴
+with db_manager.get_cursor(commit=True) as cur:
+    cur.execute("UPDATE ...")
+# 커밋 완료 후 조회
+return self.get_by_id(item_id)
+
+# ❌ 잘못된 패턴 (커밋 전 조회 → 이전 데이터 반환)
+with db_manager.get_cursor(commit=True) as cur:
+    cur.execute("UPDATE ...")
+    return self.get_by_id(item_id)  # 아직 커밋 안 됨!
+```
+
 ### Middleware
 
 **FastAPI Middleware** (`app/middleware/`):

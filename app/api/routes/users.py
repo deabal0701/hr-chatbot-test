@@ -5,7 +5,7 @@
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.services.user_service import user_service
 from app.core.errors import success_response
@@ -67,7 +67,7 @@ async def list_users(
     return success_response(result)
 
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_user(
     data: UserCreate,
     request: Request,
@@ -113,7 +113,7 @@ async def delete_user(
     """사용자 삭제"""
     request_id = getattr(request.state, "request_id", "")
     user_service.delete_user(user_id, current_user, request_id)
-    return success_response({"message": "사용자가 삭제되었습니다"})
+    return success_response({"message": "사용자가 삭제되었습니다", "deleted_count": 1})
 
 
 @router.put("/{user_id}/menus")

@@ -1650,7 +1650,7 @@ const loadLLMProviders = async () => {
   llmProvidersLoading.value = true
   try {
     const response = await codesApi.getByGroup('LLM_PROVIDER', false)
-    llmProviders.value = response.codes
+    llmProviders.value = response.items
   } catch (error) {
     console.error('LLM 제공자 목록 로드 실패:', error)
     // 실패 시 빈 배열 유지 (하위 호환성)
@@ -1664,7 +1664,7 @@ const loadEmbeddingModels = async () => {
   embeddingModelsLoading.value = true
   try {
     const response = await codesApi.getByGroup('EMBEDDING_MODEL', false)
-    embeddingModels.value = response.codes
+    embeddingModels.value = response.items
   } catch (error) {
     console.error('임베딩 모델 목록 로드 실패:', error)
     // 실패 시 빈 배열 유지 (하위 호환성)

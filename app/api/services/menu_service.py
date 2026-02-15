@@ -169,7 +169,7 @@ class MenuService:
                     (item.sort_order, item.menu_id),
                 )
         log_step(logger, request_id, "MENU", "6", "REORDER", "메뉴 순서 변경", count=len(items))
-        return {"updated": len(items)}
+        return {"message": "메뉴 순서가 변경되었습니다", "updated_count": len(items)}
 
     # ===== 내부 헬퍼 =====
 

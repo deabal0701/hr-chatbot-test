@@ -3,7 +3,7 @@
 위치: app/api/routes/tenants.py
 테넌트 CRUD (GLOBAL 전용 — admin:tenants 권한 필요)
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 
 from app.api.services.tenant_service import tenant_service
 from app.core.errors import success_response
@@ -25,7 +25,7 @@ async def list_tenants(
     return success_response(result)
 
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_tenant(
     data: TenantCreate,
     request: Request,
@@ -71,4 +71,4 @@ async def delete_tenant(
     """테넌트 삭제 (소속 사용자 있으면 비활성화)"""
     request_id = getattr(request.state, "request_id", "")
     tenant_service.delete_tenant(tenant_id, current_user, request_id)
-    return success_response({"message": "테넌트가 삭제(또는 비활성화)되었습니다"})
+    return success_response({"message": "테넌트가 삭제(또는 비활성화)되었습니다", "deleted_count": 1})

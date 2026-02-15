@@ -400,7 +400,7 @@ const loadCodes = async () => {
   isLoading.value = true
   try {
     const response = await codesApi.getByGroup(selectedGroup.value, false)
-    codes.value = response.codes
+    codes.value = response.items
   } catch (error) {
     ElMessage.error('코드 목록 로드 실패')
     console.error(error)
@@ -540,7 +540,7 @@ const loadCategories = async () => {
   isLoadingCategories.value = true
   try {
     const response = await codesApi.getByGroup('CODE_GROUP', true)
-    categories.value = response.codes
+    categories.value = response.items
   } catch (error) {
     ElMessage.error('카테고리 목록 로드 실패')
     console.error(error)

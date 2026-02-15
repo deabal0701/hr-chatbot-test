@@ -122,7 +122,7 @@ export default {
         const response = await documentApi.list(params)
 
         commit('SET_DOCUMENTS', {
-          documents: response.documents,
+          documents: response.items,
           total: response.total
         })
       } catch (error) {

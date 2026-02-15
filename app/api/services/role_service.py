@@ -168,7 +168,7 @@ class RoleService:
             })
 
         log_step(logger, request_id, "ROLE", "6", "DEFAULT_MENUS", "기본 메뉴 조회", role_code=role_code, total=len(result))
-        return result
+        return {"items": result, "total": len(result)}
 
 
 # 싱글톤 인스턴스

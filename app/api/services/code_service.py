@@ -292,8 +292,8 @@ class CodeService:
 
                 logger.info(f"코드 수정 성공: {code_id} - {list(update_fields.keys())}")
 
-                # 수정된 코드 조회 후 반환
-                return CodeService.get_code_by_id(code_id) # type: ignore
+            # 커밋 후 수정된 코드 조회
+            return CodeService.get_code_by_id(code_id)  # type: ignore
 
         except ValueError:
             raise

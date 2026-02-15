@@ -103,7 +103,7 @@ async def list_documents(
 
         response = DocumentListResponse(
             total=total_count,
-            documents=[DocumentListItem(**doc) for doc in documents]
+            items=[DocumentListItem(**doc) for doc in documents]
         )
         return success_response(response.model_dump())
 

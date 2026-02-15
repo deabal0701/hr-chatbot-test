@@ -137,7 +137,7 @@ class DocumentListItem(BaseModel):
 class DocumentListResponse(BaseModel):
     """문서 목록 응답"""
     total: int
-    documents: List[DocumentListItem]
+    items: List[DocumentListItem]
 
 
 # ===================================
