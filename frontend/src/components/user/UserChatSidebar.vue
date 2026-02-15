@@ -88,20 +88,79 @@
       </template>
     </div>
 
-    <!-- Footer with User Label -->
+    <!-- Footer with User Info / Login -->
     <div class="sidebar-footer">
-      <div class="user-link">
+      <!-- 인증됨: 사용자 드롭다운 -->
+      <el-dropdown v-if="isAuthenticated" @command="handleUserCommand" trigger="click" placement="top-start">
+        <div class="user-info-btn">
+          <el-avatar :size="28" class="user-avatar">
+            <el-icon :size="14"><UserFilled /></el-icon>
+          </el-avatar>
+          <div class="user-info-text">
+            <span class="user-name">{{ displayName }}</span>
+          </div>
+          <el-icon class="user-more"><MoreFilled /></el-icon>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item disabled>
+              <span class="user-role-label">권한 : {{ roleName }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="password" divided>
+              <el-icon><Lock /></el-icon> 비밀번호 변경
+            </el-dropdown-item>
+            <el-dropdown-item command="logout">
+              <el-icon><SwitchButton /></el-icon> 로그아웃
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
+      <!-- 미인증: 로그인 버튼 -->
+      <button v-else class="login-btn" @click="goToLogin">
         <el-icon><User /></el-icon>
-        <span>User</span>
-      </div>
+        <span>로그인</span>
+      </button>
     </div>
+
+    <!-- 비밀번호 변경 다이얼로그 -->
+    <el-dialog
+      v-model="passwordDialogVisible"
+      title="비밀번호 변경"
+      width="420px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <el-form
+        ref="passwordFormRef"
+        :model="passwordForm"
+        :rules="passwordRules"
+        label-position="top"
+      >
+        <el-form-item label="현재 비밀번호" prop="currentPassword">
+          <el-input v-model="passwordForm.currentPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="새 비밀번호" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="비밀번호 확인" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="passwordDialogVisible = false">취소</el-button>
+        <el-button type="primary" :loading="passwordLoading" @click="handleChangePassword">변경</el-button>
+      </template>
+    </el-dialog>
   </aside>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { useStore } from 'vuex'
-import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton } from '@element-plus/icons-vue'
 
 const props = defineProps({
   isMobile: {
@@ -113,6 +172,82 @@ const props = defineProps({
 const emit = defineEmits(['new-chat', 'select-chat', 'close', 'toggle'])
 
 const store = useStore()
+const router = useRouter()
+
+// ===== 인증 상태 =====
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
+const displayName = computed(() => store.getters['auth/displayName'])
+const roleName = computed(() => store.getters['auth/roleName'] || store.getters['auth/roleCode'] || '-')
+
+// 사용자 메뉴 커맨드 처리
+const handleUserCommand = async (command) => {
+  if (command === 'logout') {
+    await store.dispatch('auth/logout')
+    router.push('/login')
+  } else if (command === 'password') {
+    passwordDialogVisible.value = true
+  }
+}
+
+// 로그인 페이지로 이동
+const goToLogin = () => {
+  router.push({ path: '/login', query: { redirect: '/chat' } })
+}
+
+// ===== 비밀번호 변경 =====
+const passwordDialogVisible = ref(false)
+const passwordLoading = ref(false)
+const passwordFormRef = ref(null)
+const passwordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const passwordRules = {
+  currentPassword: [
+    { required: true, message: '현재 비밀번호를 입력해주세요', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '새 비밀번호를 입력해주세요', trigger: 'blur' },
+    { min: 8, message: '8자 이상 입력해주세요', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '비밀번호를 다시 입력해주세요', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== passwordForm.newPassword) {
+          callback(new Error('비밀번호가 일치하지 않습니다'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
+const handleChangePassword = async () => {
+  const valid = await passwordFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  passwordLoading.value = true
+  try {
+    await store.dispatch('auth/changePassword', {
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword
+    })
+    ElMessage.success('비밀번호가 변경되었습니다')
+    passwordDialogVisible.value = false
+    passwordForm.currentPassword = ''
+    passwordForm.newPassword = ''
+    passwordForm.confirmPassword = ''
+  } catch (err) {
+    ElMessage.error(err.message || '비밀번호 변경에 실패했습니다')
+  } finally {
+    passwordLoading.value = false
+  }
+}
 
 const searchQuery = ref('')
 let searchTimer = null
@@ -485,15 +620,76 @@ const clearSearch = () => {
   border-top: 1px solid var(--user-sidebar-border);
   flex-shrink: 0;
 
-  .user-link {
+  .user-info-btn {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+
+    &:hover {
+      background-color: var(--user-sidebar-hover-bg);
+    }
+
+    .user-avatar {
+      flex-shrink: 0;
+      background-color: #78909c;
+      color: #eceff1;
+    }
+
+    .user-info-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--user-sidebar-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+    }
+
+    .user-more {
+      flex-shrink: 0;
+      color: var(--user-sidebar-text-muted);
+      font-size: 16px;
+    }
+  }
+
+  .login-btn {
+    width: 100%;
+    height: 40px;
+    background-color: transparent;
+    border: 1px dashed var(--user-sidebar-border);
     border-radius: 8px;
     color: var(--user-sidebar-text-muted);
     font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: 12px;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: var(--user-sidebar-hover-bg);
+      border-style: solid;
+      color: var(--user-sidebar-text);
+    }
   }
+}
+
+.user-role-label {
+  font-size: 13px;
+  color: var(--text-color-primary);
+  font-weight: 500;
 }
 
 // Scrollbar styling
@@ -580,8 +776,16 @@ const clearSearch = () => {
   .sidebar-footer {
     padding: 12px;
 
-    .user-link {
-      padding: 8px 10px;
+    .user-info-btn {
+      padding: 6px 8px;
+
+      .user-name {
+        font-size: 13px;
+      }
+    }
+
+    .login-btn {
+      height: 36px;
       font-size: 13px;
     }
   }

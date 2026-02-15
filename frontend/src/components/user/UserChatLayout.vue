@@ -71,6 +71,13 @@
           <button class="action-btn-icon" @click="handleSave" title="저장하기">
             <el-icon :size="18"><Download /></el-icon>
           </button>
+          <!-- 모바일: 사용자 아바타 / 로그인 아이콘 -->
+          <el-avatar v-if="isAuthenticated" :size="24" class="mobile-user-avatar">
+            <el-icon :size="12"><UserFilled /></el-icon>
+          </el-avatar>
+          <button v-else class="action-btn-icon" @click="goToLogin" title="로그인">
+            <el-icon :size="18"><User /></el-icon>
+          </button>
         </div>
       </header>
 
@@ -83,12 +90,22 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
-import { Menu, Expand, Share, Download, Sunny, Moon } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { Menu, Expand, Share, Download, Sunny, Moon, User, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
 import UserChatView from '@/views/user/UserChatView.vue'
 
 const store = useStore()
+const router = useRouter()
+
+// ===== 인증 상태 =====
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
+const displayName = computed(() => store.getters['auth/displayName'])
+
+const goToLogin = () => {
+  router.push({ path: '/login', query: { redirect: '/chat' } })
+}
 
 const windowWidth = ref(window.innerWidth)
 const MOBILE_BREAKPOINT = 768
@@ -243,7 +260,6 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 24px;
-  border-bottom: 1px solid var(--user-sidebar-border);
   background-color: var(--user-sidebar-bg);
   flex-shrink: 0;
   transition: var(--theme-transition);
@@ -254,6 +270,7 @@ onUnmounted(() => {
 
   .header-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
   }
 }
@@ -350,7 +367,14 @@ onUnmounted(() => {
 
   .header-actions-mobile {
     display: flex;
+    align-items: center;
     gap: 4px;
+  }
+
+  .mobile-user-avatar {
+    background-color: #78909c;
+    color: #eceff1;
+    flex-shrink: 0;
   }
 }
 

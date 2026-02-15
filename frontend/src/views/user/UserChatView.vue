@@ -20,12 +20,9 @@
             <el-icon v-else><Moon /></el-icon>
           </button>
         </el-tooltip>
-        <!-- 관리자 링크 주석처리 (로그인 기능 없음) -->
-        <!-- <el-button text class="header-btn" @click="goToAdmin">
-          <el-icon><Setting /></el-icon>
-          <span class="btn-text">Admin</span>
-        </el-button> -->
-        <span class="user-label">User</span>
+        <!-- 사용자 정보 / 로그인 버튼 -->
+        <span v-if="isAuthenticated" class="user-label">{{ displayName }}</span>
+        <el-button v-else type="primary" size="small" @click="goToLogin">로그인</el-button>
       </div>
     </header>
 
@@ -195,6 +192,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
 import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, Sunny, Moon, QuestionFilled } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
@@ -208,6 +206,15 @@ defineProps({
 })
 
 const store = useStore()
+const router = useRouter()
+
+// ===== 인증 상태 =====
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
+const displayName = computed(() => store.getters['auth/displayName'])
+
+const goToLogin = () => {
+  router.push({ path: '/login', query: { redirect: '/chat' } })
+}
 
 // 테마 관련
 const isDarkMode = computed(() => store.getters['app/isDarkMode'])
