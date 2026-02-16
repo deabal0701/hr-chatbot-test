@@ -176,14 +176,27 @@ onMounted(() => {
   .el-input {
     :deep(.el-input__wrapper) {
       padding: 4px 12px;
-      background-color: var(--bg-color-input);
-      border: 1px solid var(--border-color-light);
+      background-color: var(--bg-color-card);
+      border: 1px solid var(--border-color);
       transition: var(--theme-transition);
 
-      &:hover {
+      &:hover,
+      &.is-focus {
         border-color: var(--color-primary);
       }
     }
+
+    :deep(.el-input__inner) {
+      &:-webkit-autofill,
+      &:-webkit-autofill:hover,
+      &:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0 1000px var(--bg-color-card) inset !important;
+        -webkit-text-fill-color: var(--text-color-primary) !important;
+        transition: background-color 5000s ease-in-out 0s;
+      }
+    }
+
+
   }
 }
 
