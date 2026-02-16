@@ -5,7 +5,7 @@
     </div>
 
     <el-descriptions :column="1" border size="small">
-      <el-descriptions-item label="API 상태">
+      <el-descriptions-item label="서버 상태">
         <el-tag :type="apiHealthy ? 'success' : 'danger'" size="small">
           {{ apiHealthy ? '정상' : '연결 안됨' }}
         </el-tag>
@@ -13,6 +13,10 @@
 
       <el-descriptions-item label="LLM 프로바이더">
         {{ llmProvider }}
+      </el-descriptions-item>
+
+      <el-descriptions-item label="의도 분석 모델">
+        {{ schemaRetrievalModel }}
       </el-descriptions-item>
 
       <el-descriptions-item label="LLM 모델">
@@ -31,6 +35,10 @@
         {{ system.active_users }}명
       </el-descriptions-item>
 
+      <el-descriptions-item label="마지막 요청">
+        {{ formatLastRequest(system.last_request_at) }}
+      </el-descriptions-item>
+
       <el-descriptions-item label="문서 상태">
         <div class="doc-progress">
           <el-progress
@@ -39,14 +47,6 @@
             :format="() => `${system.indexed_documents} / ${system.total_documents}`"
           />
         </div>
-      </el-descriptions-item>
-
-      <el-descriptions-item label="평균 응답시간">
-        {{ formatAvgTime(system.avg_response_ms) }}
-      </el-descriptions-item>
-
-      <el-descriptions-item label="마지막 요청">
-        {{ formatLastRequest(system.last_request_at) }}
       </el-descriptions-item>
     </el-descriptions>
   </div>
@@ -84,26 +84,28 @@ const embeddingModel = computed(() => {
   return s?.embedding?.model || s?.embedding?.find?.(i => i.key === 'model')?.value || '-'
 })
 
+const schemaRetrievalModel = computed(() => {
+  const s = props.settings
+  return s?.nl2sql?.schema_retrieval_model || s?.nl2sql?.find?.(i => i.key === 'schema_retrieval_model')?.value || '-'
+})
+
 const docPercentage = computed(() => {
   const total = props.system.total_documents || 0
   const indexed = props.system.indexed_documents || 0
   return total > 0 ? Math.round((indexed / total) * 100) : 0
 })
 
-const formatAvgTime = (ms) => {
-  if (!ms) return '-'
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
-}
-
 const formatLastRequest = (dateStr) => {
   if (!dateStr) return '-'
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return '-'
+  const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   const hh = String(d.getHours()).padStart(2, '0')
   const mi = String(d.getMinutes()).padStart(2, '0')
-  return `${mm}/${dd} ${hh}:${mi}`
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return `${yyyy}년 ${mm}월 ${dd}일 ${hh}:${mi}:${ss}`
 }
 </script>
 

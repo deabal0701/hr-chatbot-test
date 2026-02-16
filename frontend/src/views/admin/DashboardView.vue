@@ -126,15 +126,17 @@ const REFRESH_INTERVAL = 60000
 const loadDashboardData = async () => {
   isLoading.value = true
   try {
-    const [summary, llmSettings, embeddingSettings] = await Promise.all([
+    const [summary, llmSettings, embeddingSettings, nl2sqlSettings] = await Promise.all([
       dashboardApi.getSummary({ period: period.value }),
       settingsApi.getCategory('llm').catch(() => ({})),
       settingsApi.getCategory('embedding').catch(() => ({})),
+      settingsApi.getCategory('nl2sql').catch(() => ({})),
     ])
     summaryData.value = summary || summaryData.value
     settingsData.value = {
       llm: llmSettings?.settings || llmSettings?.items || [],
       embedding: embeddingSettings?.settings || embeddingSettings?.items || [],
+      nl2sql: nl2sqlSettings?.settings || nl2sqlSettings?.items || [],
     }
   } catch (error) {
     console.error('Dashboard data load error:', error)
