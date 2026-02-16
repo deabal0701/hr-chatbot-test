@@ -1,0 +1,28 @@
+// =============================================
+// Dashboard 관련 Mixin
+// =============================================
+
+// 차트 컨테이너 카드
+@mixin chart-card {
+  @include content-card;
+  min-height: 360px;
+}
+
+// Activity 리스트
+@mixin activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color-lighter);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}

@@ -86,7 +86,7 @@
         <div class="panel-card">
           <!-- 미선택 상태 -->
           <div v-if="!panelMode" class="empty-state">
-            <el-empty description="왼쪽 트리에서 메뉴를 선택하거나&#10;[메뉴추가]를 클릭하세요" :image-size="80" />
+            <p class="empty-guide">왼쪽 트리에서 메뉴를 선택하거나<br/>[메뉴추가]를 클릭하세요</p>
           </div>
 
           <!-- 생성/수정 폼 -->
@@ -971,6 +971,15 @@ onBeforeUnmount(() => {
 
   .empty-state {
     @include mx.empty-state;
+  }
+
+  .empty-guide {
+    text-align: center;
+    color: var(--text-color-secondary);
+    font-size: 14px;
+    line-height: 1.8;
+    padding: 60px 0;
+    margin: 0;
   }
 
   .form-help {

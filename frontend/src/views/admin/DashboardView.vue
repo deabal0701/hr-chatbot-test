@@ -1,213 +1,141 @@
 <template>
   <div class="dashboard-view">
-    <!-- 페이지 헤더 -->
+    <!-- 페이지 헤더 + 기간 필터 -->
     <div class="page-header">
-      <h2>대시보드</h2>
-      <p class="subtitle">HR Chatbot 관리 현황을 확인하세요.</p>
+      <div>
+        <h2>대시보드</h2>
+        <p class="subtitle">MUREUM AI 지식기반 관리 현황</p>
+      </div>
+      <div class="header-actions">
+        <el-button-group>
+          <el-button :type="period === 'today' ? 'primary' : ''"
+                     size="small" @click="changePeriod('today')">오늘</el-button>
+          <el-button :type="period === 'week' ? 'primary' : ''"
+                     size="small" @click="changePeriod('week')">최근 7일</el-button>
+          <el-button :type="period === 'month' ? 'primary' : ''"
+                     size="small" @click="changePeriod('month')">최근 1달</el-button>
+        </el-button-group>
+        <el-button :icon="Refresh" circle size="small"
+                   @click="loadDashboardData" :loading="isLoading" />
+      </div>
     </div>
 
-    <!-- 통계 카드 -->
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-primary">
-            <el-icon :size="24" color="#409eff"><Document /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalDocuments }}</div>
-            <div class="stat-label">전체 문서</div>
-          </div>
-        </div>
-      </el-col>
+    <!-- ① KPI 카드 (1줄 4개) -->
+    <KpiCards :kpi="summaryData.kpi" :system="summaryData.system"
+              :loading="isLoading" />
 
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-success">
-            <el-icon :size="24" color="#67c23a"><CircleCheck /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.indexedDocuments }}</div>
-            <div class="stat-label">임베딩 완료</div>
-          </div>
-        </div>
-      </el-col>
-
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-warning">
-            <el-icon :size="24" color="#e6a23c"><Clock /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.pendingDocuments }}</div>
-            <div class="stat-label">임베딩 대기</div>
-          </div>
-        </div>
-      </el-col>
-
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-info">
-            <el-icon :size="24" color="#909399"><ChatDotSquare /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.todayChats }}</div>
-            <div class="stat-label">오늘 대화</div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
-
-    <!-- 빠른 액션 및 정보 -->
+    <!-- ② 차트 영역 (2개) -->
     <el-row :gutter="20">
       <el-col :xs="24" :lg="12">
-        <div class="content-card">
-          <h3 class="card-title">빠른 시작</h3>
-          <div class="quick-actions">
-            <router-link to="/admin/chat" class="action-item">
-              <el-icon :size="32" color="#409eff"><ChatDotRound /></el-icon>
-              <span>HR 챗봇</span>
-              <p>직원 정보 조회, 정책 검색</p>
-            </router-link>
-
-            <router-link to="/admin/documents" class="action-item">
-              <el-icon :size="32" color="#67c23a"><FolderAdd /></el-icon>
-              <span>문서 등록</span>
-              <p>새로운 HR 문서 추가</p>
-            </router-link>
-
-            <div class="action-item" @click="goToPendingDocuments">
-              <el-icon :size="32" color="#e6a23c"><Upload /></el-icon>
-              <span>임베딩 실행</span>
-              <p>대기 중인 문서 처리</p>
-            </div>
-          </div>
-        </div>
+        <DailyTrendChart :data="summaryData.daily_trend"
+                         :loading="isLoading" />
       </el-col>
-
       <el-col :xs="24" :lg="12">
-        <div class="content-card">
-          <h3 class="card-title">시스템 정보</h3>
-          <el-descriptions :column="1" border size="small">
-            <el-descriptions-item label="API 상태">
-              <el-tag :type="apiHealthy ? 'success' : 'danger'" size="small">
-                {{ apiHealthy ? '정상' : '연결 안됨' }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="API 서버">
-              {{ apiUrl }}
-            </el-descriptions-item>
-            <el-descriptions-item label="검색 모드">
-              Auto / RAG / NL2SQL
-            </el-descriptions-item>
-            <el-descriptions-item label="임베딩 모델">
-              text-embedding-3-small
-            </el-descriptions-item>
-            <el-descriptions-item label="LLM 모델">
-              GPT-3.5/4
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
+        <RequestTypeChart :kpi="summaryData.kpi"
+                          :loading="isLoading" />
       </el-col>
     </el-row>
 
-    <!-- 최근 문서 -->
+    <!-- ③ 최근 활동 + 시스템 현황 -->
+    <el-row :gutter="20">
+      <el-col :xs="24" :lg="12">
+        <RecentActivity :data="summaryData.recent_requests"
+                        :loading="isLoading" />
+      </el-col>
+      <el-col :xs="24" :lg="12">
+        <SystemStatus :system="summaryData.system"
+                      :settings="settingsData"
+                      :loading="isLoading" />
+      </el-col>
+    </el-row>
+
+    <!-- ④ 빠른 액션 -->
     <div class="content-card">
-      <div class="card-header">
-        <h3 class="card-title">최근 등록 문서</h3>
-        <router-link to="/admin/documents">
-          <el-button text type="primary">전체보기</el-button>
+      <h3 class="card-title">빠른 시작</h3>
+      <div class="quick-actions">
+        <router-link to="/admin/chat" class="action-item">
+          <el-icon :size="32" color="#409eff"><ChatDotRound /></el-icon>
+          <span>HR 챗봇</span>
+          <p>직원 정보 조회, 정책 검색</p>
+        </router-link>
+
+        <router-link to="/admin/documents" class="action-item">
+          <el-icon :size="32" color="#67c23a"><FolderAdd /></el-icon>
+          <span>문서 등록</span>
+          <p>새로운 HR 문서 추가</p>
+        </router-link>
+
+        <div class="action-item" @click="goTo('/admin/documents?indexed=false')">
+          <el-icon :size="32" color="#e6a23c"><Upload /></el-icon>
+          <span>임베딩 실행</span>
+          <p>대기 중인 문서 처리</p>
+        </div>
+
+        <router-link to="/admin/users" class="action-item">
+          <el-icon :size="32" color="#409eff"><UserFilled /></el-icon>
+          <span>사용자 관리</span>
+          <p>사용자 생성/수정</p>
+        </router-link>
+
+        <router-link to="/admin/settings" class="action-item">
+          <el-icon :size="32" color="#909399"><Setting /></el-icon>
+          <span>설정 관리</span>
+          <p>시스템 설정</p>
         </router-link>
       </div>
-
-      <el-table
-        :data="recentDocuments"
-        v-loading="isLoading"
-        size="small"
-        style="width: 100%"
-      >
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="title" label="제목" min-width="200">
-          <template #default="{ row }">
-            <router-link :to="`/admin/documents?id=${row.id}`" class="doc-link">
-              {{ row.title }}
-            </router-link>
-          </template>
-        </el-table-column>
-        <el-table-column prop="doc_type" label="유형" width="100">
-          <template #default="{ row }">
-            <el-tag size="small" type="info">{{ row.doc_type }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="indexed" label="상태" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.indexed" type="success" size="small">완료</el-tag>
-            <el-tag v-else type="warning" size="small">대기</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="등록일" width="120">
-          <template #default="{ row }">
-            {{ formatDate(row.created_at) }}
-          </template>
-        </el-table-column>
-      </el-table>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { useStore } from 'vuex'
 import {
-  Document,
-  CircleCheck,
-  Clock,
-  ChatDotSquare,
+  Refresh,
   ChatDotRound,
   FolderAdd,
-  Upload
+  Upload,
+  UserFilled,
+  Setting
 } from '@element-plus/icons-vue'
-import documentApi from '@/api/documents'
-import { formatDate } from '@/utils/format'
+import dashboardApi from '@/api/dashboard'
+import settingsApi from '@/api/settings'
+import KpiCards from '@/components/dashboard/KpiCards.vue'
+import DailyTrendChart from '@/components/dashboard/DailyTrendChart.vue'
+import RequestTypeChart from '@/components/dashboard/RequestTypeChart.vue'
+import RecentActivity from '@/components/dashboard/RecentActivity.vue'
+import SystemStatus from '@/components/dashboard/SystemStatus.vue'
 
 const router = useRouter()
-const store = useStore()
 
 const isLoading = ref(false)
-const recentDocuments = ref([])
-const stats = ref({
-  totalDocuments: 0,
-  indexedDocuments: 0,
-  pendingDocuments: 0,
-  todayChats: 0
+const period = ref('today')
+
+const summaryData = ref({
+  kpi: { total_requests: 0, success_rate: 0, error_count: 0, nl2sql_count: 0, rag_count: 0 },
+  daily_trend: [],
+  recent_requests: [],
+  system: { active_users: 0, active_tenants: 0, total_documents: 0, indexed_documents: 0, pending_documents: 0 },
 })
+const settingsData = ref({})
 
-const apiHealthy = computed(() => store.state.app.apiHealthy)
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// 자동 새로고침 타이머
+let refreshTimer = null
+const REFRESH_INTERVAL = 60000
 
-// 통계 및 최근 문서 로드
 const loadDashboardData = async () => {
   isLoading.value = true
-
   try {
-    // 병렬로 API 호출 (total은 limit과 관계없이 전체 카운트 반환)
-    const [allDocs, indexedDocs, pendingDocs, recent] = await Promise.all([
-      documentApi.list({ limit: 1 }),           // 전체 문서 카운트
-      documentApi.list({ indexed: true, limit: 1 }),   // 임베딩 완료 카운트
-      documentApi.list({ indexed: false, limit: 1 }),  // 임베딩 대기 카운트
-      documentApi.list({ limit: 5 })            // 최근 문서 5개
+    const [summary, llmSettings, embeddingSettings] = await Promise.all([
+      dashboardApi.getSummary({ period: period.value }),
+      settingsApi.getCategory('llm').catch(() => ({})),
+      settingsApi.getCategory('embedding').catch(() => ({})),
     ])
-
-    stats.value.totalDocuments = allDocs.total
-    stats.value.indexedDocuments = indexedDocs.total
-    stats.value.pendingDocuments = pendingDocs.total
-    recentDocuments.value = recent.items || []
-
-    // 오늘 대화 수 (현재는 로컬 상태에서)
-    stats.value.todayChats = store.state.chat.messages.filter(
-      m => m.role === 'user'
-    ).length
-
+    summaryData.value = summary || summaryData.value
+    settingsData.value = {
+      llm: llmSettings?.settings || llmSettings?.items || [],
+      embedding: embeddingSettings?.settings || embeddingSettings?.items || [],
+    }
   } catch (error) {
     console.error('Dashboard data load error:', error)
   } finally {
@@ -215,13 +143,47 @@ const loadDashboardData = async () => {
   }
 }
 
-// 임베딩 대기 문서로 이동
-const goToPendingDocuments = () => {
-  router.push('/admin/documents?indexed=false')
+const changePeriod = (newPeriod) => {
+  period.value = newPeriod
+  loadDashboardData()
+}
+
+const goTo = (path) => {
+  router.push(path)
+}
+
+// 자동 새로고침 (화면 비활성 시 중지)
+const startAutoRefresh = () => {
+  stopAutoRefresh()
+  refreshTimer = setInterval(() => {
+    if (!document.hidden) {
+      loadDashboardData()
+    }
+  }, REFRESH_INTERVAL)
+}
+
+const stopAutoRefresh = () => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+}
+
+const handleVisibilityChange = () => {
+  if (!document.hidden) {
+    loadDashboardData()
+  }
 }
 
 onMounted(() => {
   loadDashboardData()
+  startAutoRefresh()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onBeforeUnmount(() => {
+  stopAutoRefresh()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
@@ -229,16 +191,36 @@ onMounted(() => {
 @use '../../assets/styles/mixins' as mx;
 
 .dashboard-view {
-  .stats-row {
-    @include mx.stats-row;
+  .page-header {
+    @include mx.page-header(center);
 
-    .el-col {
-      margin-bottom: 20px;
+    .subtitle {
+      margin: 4px 0 0;
+      font-size: 14px;
+      color: var(--text-color-secondary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
   }
 
-  .stat-card {
-    @include mx.stat-card;
+  .el-row {
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+
+    :deep(.el-col) {
+      display: flex;
+      flex-direction: column;
+
+      > * {
+        flex: 1;
+      }
+    }
   }
 
   .card-title {
@@ -246,10 +228,6 @@ onMounted(() => {
     font-size: 16px;
     font-weight: 500;
     color: var(--text-color-primary);
-  }
-
-  .card-header {
-    @include mx.content-header;
   }
 
   .quick-actions {
@@ -289,20 +267,15 @@ onMounted(() => {
       }
     }
   }
-
-  .doc-link {
-    color: var(--color-primary);
-    text-decoration: none;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
 }
 
 @media (max-width: 768px) {
   .quick-actions {
-    flex-direction: column;
+    flex-wrap: wrap;
+
+    .action-item {
+      min-width: calc(50% - 8px);
+    }
   }
 }
 </style>
