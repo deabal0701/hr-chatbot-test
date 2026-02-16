@@ -201,7 +201,7 @@ const loadDashboardData = async () => {
     stats.value.totalDocuments = allDocs.total
     stats.value.indexedDocuments = indexedDocs.total
     stats.value.pendingDocuments = pendingDocs.total
-    recentDocuments.value = recent.documents
+    recentDocuments.value = recent.items || []
 
     // 오늘 대화 수 (현재는 로컬 상태에서)
     stats.value.todayChats = store.state.chat.messages.filter(

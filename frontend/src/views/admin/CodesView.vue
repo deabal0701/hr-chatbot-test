@@ -374,9 +374,9 @@ const formRules = {
 const loadCodeGroups = async () => {
   isLoadingGroups.value = true
   try {
-    const groups = await codesApi.getGroups()
-    // API 응답: [{code_value, code_name, ...}] → [{value, label}] 변환
-    codeGroups.value = groups.map(group => ({
+    const response = await codesApi.getGroups()
+    // API 응답: {items: [{code_value, code_name, ...}], total} → [{value, label}] 변환
+    codeGroups.value = (response.items || []).map(group => ({
       value: group.code_value,
       label: group.code_name
     }))

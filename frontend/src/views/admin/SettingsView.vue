@@ -1681,9 +1681,9 @@ const loadLLMModels = async () => {
       codesApi.getByGroup('LLM_MODEL_ANTHROPIC', false),
       codesApi.getByGroup('LLM_MODEL_GOOGLE', false)
     ])
-    llmModelsOpenAI.value = openaiRes.codes
-    llmModelsAnthropic.value = anthropicRes.codes
-    llmModelsGoogle.value = googleRes.codes
+    llmModelsOpenAI.value = openaiRes.items || []
+    llmModelsAnthropic.value = anthropicRes.items || []
+    llmModelsGoogle.value = googleRes.items || []
   } catch (error) {
     console.error('LLM 모델 목록 로드 실패:', error)
     // 실패 시 빈 배열 유지 (하위 호환성)
