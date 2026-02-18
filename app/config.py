@@ -29,8 +29,11 @@ class Settings(BaseSettings):
     # Anthropic (Phase 2)
     anthropic_api_key: Optional[str] = Field(default=None, description="Anthropic API 키 (선택)")
 
-    # LLM Provider (Phase 2: OpenAI + Anthropic 지원)
-    llm_provider: str = Field(default="openai", description="LLM 제공자 (openai, anthropic)")
+    # Google Gemini (Phase 3)
+    google_api_key: Optional[str] = Field(default=None, description="Google Gemini API 키 (선택)")
+
+    # LLM Provider (Phase 3: OpenAI + Anthropic + Google 지원)
+    llm_provider: str = Field(default="openai", description="LLM 제공자 (openai, anthropic, google)")
     embedding_provider: str = Field(default="openai", description="임베딩 제공자 (openai)")
 
     # Application
@@ -105,8 +108,8 @@ class Settings(BaseSettings):
     @field_validator("llm_provider")
     @classmethod
     def validate_llm_provider(cls, v: str) -> str:
-        # Phase 2: OpenAI + Anthropic
-        valid_providers = ["openai", "anthropic"]
+        # Phase 3: OpenAI + Anthropic + Google
+        valid_providers = ["openai", "anthropic", "google"]
         v = v.lower()
         if v not in valid_providers:
             raise ValueError(f"llm_provider must be one of {valid_providers}")

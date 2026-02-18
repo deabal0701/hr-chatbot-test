@@ -17,7 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from app.core.llm.llm_config import LLMConfigManager
 from app.core.llm.prompt_service import prompt_service
 from app.utils.logger import setup_logger, log_step
-from app.utils.common import truncate_text
+from app.utils.common import truncate_text, extract_llm_text_content
 
 logger = setup_logger(__name__)
 
@@ -72,9 +72,7 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=user_prompt)
         ])
 
-        answer = response.content
-        if isinstance(answer, list):
-            answer = " ".join(str(item) for item in answer)
+        answer = extract_llm_text_content(response.content)
 
         log_step(logger, request_id, "AGENT", "ANSWER", "COMPLETE", "최종 답변 생성 완료", length=len(answer))
 
@@ -115,9 +113,7 @@ def _extract_tool_results(messages) -> str:
             # Tool 이름을 한글로 변환
             tool_name_kr = _get_tool_name_kr(tool_name)
 
-            # content가 list인 경우 문자열로 변환
-            if isinstance(content, list):
-                content = " ".join(str(item) for item in content)
+            content = extract_llm_text_content(content)
 
             # SQL Tool 결과는 JSON 파싱하여 실제 데이터 추출
             if tool_name == "query_database_tool" and isinstance(content, str):
@@ -202,11 +198,8 @@ def _use_last_ai_message(state: Dict[str, Any], messages) -> Dict[str, Any]:
         if isinstance(msg, AIMessage) and msg.content:
             has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
             if not has_tool_calls:
-                content = msg.content
-                if isinstance(content, list):
-                    content = " ".join(str(item) for item in content)
                 return {
-                    "final_answer": content,
+                    "final_answer": extract_llm_text_content(msg.content),
                 }
 
     return {

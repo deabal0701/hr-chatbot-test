@@ -20,6 +20,7 @@ from app.models.search import SearchFilters
 from app.core.vector.vector_store import vector_store
 from app.core.llm.llm_config import LLMConfigManager
 from app.core.llm.prompt_service import prompt_service
+from app.utils.common import extract_llm_text_content
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
@@ -175,7 +176,7 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         response = llm.invoke(messages)
-        answer = response.content
+        answer = extract_llm_text_content(response.content)
 
         state["answer"] = answer
         state["metadata"]["llm_model"] = llm_model

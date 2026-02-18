@@ -45,6 +45,9 @@ class SettingsConfig:
         "anthropic": {
             "api_key": ("", "string", "Anthropic API Key (Phase 2)", True),
         },
+        "google": {
+            "api_key": ("", "string", "Google Gemini API Key", True),
+        },
         "embedding": {
             "model": ("text-embedding-3-small", "string", "임베딩 모델명", False),
             "provider": ("openai", "string", "임베딩 제공자 (현재 openai만 지원)", False),
@@ -52,7 +55,7 @@ class SettingsConfig:
         },
         "llm": {
             "model": ("gpt-4.1-mini", "string", "LLM 모델명", False),
-            "provider": ("openai", "string", "LLM 제공자 (openai, anthropic)", False),
+            "provider": ("openai", "string", "LLM 제공자 (openai, anthropic, google)", False),
             "temperature": ("0.1", "float", "생성 온도 (0.0-2.0)", False),
             "max_tokens": ("2000", "int", "최대 토큰 수", False),
             "reasoning_effort": ("medium", "string", "GPT-5 계열 추론 강도 (none, minimal, low, medium, high)", False),

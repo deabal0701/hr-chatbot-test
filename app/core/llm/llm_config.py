@@ -1,8 +1,8 @@
-"""LLM 설정 통합 관리 (Phase 2: 다중 제공자 지원)
+"""LLM 설정 통합 관리 (Phase 3: 다중 제공자 지원)
 
 위치: app/core/llm/llm_config.py
 - LLM 설정 로딩 (DB → 환경변수 → 기본값)
-- 다중 제공자 지원 (OpenAI, Anthropic)
+- 다중 제공자 지원 (OpenAI, Anthropic, Google Gemini)
 - init_chat_model 기반 통합 인터페이스
 """
 from typing import Dict, Optional
@@ -29,14 +29,18 @@ def _get_settings_service():
 
 
 class LLMConfigManager:
-    """LLM 설정 통합 관리 클래스 (Phase 2: 다중 제공자 지원)"""
+    """LLM 설정 통합 관리 클래스 (Phase 3: 다중 제공자 지원)"""
 
     # 제공자별 기본 모델 매핑 (더 이상 사용되지 않음, DB 설정 우선)
     # 이 값들은 DB/env에 아무 설정도 없을 때만 최후의 fallback으로 사용됨
     DEFAULT_MODELS = {
         "openai": "gpt-5-nano",  # 비용 효율적인 기본값(가장 싼걸로..)
         "anthropic": "claude-3-5-sonnet-20241022",
+        "google_genai": "gemini-3-flash-preview",
     }
+
+    # Gemini 지원 모델 (2.0 이상)
+    GEMINI_MODELS = {"gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"}
 
     # GPT-5 계열 모델 (reasoning_effort 지원)
     GPT5_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
@@ -58,7 +62,7 @@ class LLMConfigManager:
         제공자별 API 키 가져오기
 
         Args:
-            provider: 제공자명 ('openai' | 'anthropic')
+            provider: 제공자명 ('openai' | 'anthropic' | 'google_genai')
 
         Returns:
             API 키
@@ -71,7 +75,6 @@ class LLMConfigManager:
         if provider == "openai":
             api_key = settings_service.get_value("openai", "api_key", settings.openai_api_key)
         elif provider == "anthropic":
-            # DB 설정 → 환경변수 순으로 fallback
             api_key = settings_service.get_value(
                 "anthropic", "api_key",
                 getattr(settings, "anthropic_api_key", None)
@@ -81,6 +84,17 @@ class LLMConfigManager:
                     "Anthropic API 키가 설정되지 않았습니다. "
                     "Admin UI에서 'anthropic.api_key'를 설정하거나 "
                     ".env에 ANTHROPIC_API_KEY를 추가하세요."
+                )
+        elif provider == "google_genai":
+            api_key = settings_service.get_value(
+                "google", "api_key",
+                getattr(settings, "google_api_key", None)
+            )
+            if not api_key:
+                raise ValueError(
+                    "Google API 키가 설정되지 않았습니다. "
+                    "Admin UI에서 'google.api_key'를 설정하거나 "
+                    ".env에 GOOGLE_API_KEY를 추가하세요."
                 )
         else:
             raise ValueError(f"지원하지 않는 provider: {provider}")
@@ -144,8 +158,12 @@ class LLMConfigManager:
         if provider is None:
             provider = settings_service.get_value("llm", "provider", settings.llm_provider)
 
-        # Provider 검증 (Phase 2: openai, anthropic만 허용)
-        if provider not in ["openai", "anthropic"]:
+        # Provider 정규화: 프론트엔드 'google' → init_chat_model 'google_genai'
+        if provider == "google":
+            provider = "google_genai"
+
+        # Provider 검증 (Phase 3: openai, anthropic, google_genai 허용)
+        if provider not in ["openai", "anthropic", "google_genai"]:
             logger.warning(f"지원하지 않는 provider='{provider}'. 'openai'로 fallback")
             provider = "openai"
 

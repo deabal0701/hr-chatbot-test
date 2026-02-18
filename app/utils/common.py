@@ -95,6 +95,37 @@ def safe_get_dict_value(data: dict, *keys, default=None):
         return default
 
 
+def extract_llm_text_content(content) -> str:
+    """
+    LLM 응답 content에서 텍스트 추출 (다중 제공자 호환)
+
+    OpenAI: content가 str로 반환
+    Anthropic: content가 str 또는 list[ContentBlock]로 반환
+    Google Gemini: content가 list[dict] 형태로 반환 (예: [{'type': 'text', 'text': '...', 'extras': {...}}])
+
+    Args:
+        content: LLM response.content
+
+    Returns:
+        추출된 텍스트 문자열
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(item["text"])
+            elif hasattr(item, "text"):
+                parts.append(item.text)
+            else:
+                parts.append(str(item))
+        return " ".join(parts).strip()
+    return str(content).strip()
+
+
 def strip_markdown_code_block(text: str, language: str = "sql") -> str:
     """
     마크다운 코드 블록 제거

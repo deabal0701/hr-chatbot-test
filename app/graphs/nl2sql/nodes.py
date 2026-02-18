@@ -29,7 +29,7 @@ from app.core.llm.llm_config import LLMConfigManager
 from app.core.llm.prompt_service import prompt_service
 from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_step
-from app.utils.common import truncate_text
+from app.utils.common import truncate_text, extract_llm_text_content
 
 logger = setup_logger(__name__)
 
@@ -61,12 +61,11 @@ def _get_lightweight_llm():
     테이블 선택용 경량 LLM 인스턴스 생성
 
     schema_retrieval_node에서 사용 (비용 절감)
-
-    필요시 경량 LLM을 사용할 수 있음.(현재는 동일 LLM을 사용하도록 처리함.)
+    스키마 검색용 경량 모델은 OpenAI 전용 (gpt-4.1-nano 등)
     """
     settings_config = _get_settings_config()
     model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4.1-nano")
-    return LLMConfigManager.create_llm(temperature=0, model=model)
+    return LLMConfigManager.create_llm(temperature=0, model=model, provider="openai")
 
 
 def _get_table_catalog_service():
@@ -165,12 +164,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
         response = llm.invoke(messages)
 
-        # response.content가 list일 수 있음 (일부 모델)
-        content = response.content
-        if isinstance(content, list):
-            response_text = " ".join(str(item) for item in content).strip()
-        else:
-            response_text = str(content).strip()
+        response_text = extract_llm_text_content(response.content)
 
         log_step(logger, request_id, "NL2SQL", "0.5b", "LLM-OUTPUT", "LLM 응답 수신", response_length=len(response_text))
 
@@ -549,12 +543,7 @@ def sql_generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # LLM 호출
         response = llm.invoke(messages)
 
-        # response.content가 list일 수 있음 (일부 모델)
-        content = response.content
-        if isinstance(content, list):
-            response_text = " ".join(str(item) for item in content).strip()
-        else:
-            response_text = str(content).strip()
+        response_text = extract_llm_text_content(response.content)
 
         if logger.isEnabledFor(logging.DEBUG):
             log_step(logger, request_id, "NL2SQL", "1b", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=response_text)
@@ -957,7 +946,7 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         if logger.isEnabledFor(logging.DEBUG):
             log_step(logger, request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
 
-        answer = response.content
+        answer = extract_llm_text_content(response.content)
 
         state["answer"] = answer
         log_step(logger, request_id, "NL2SQL", "4b", "LLM-OUTPUT", "답변 생성 완료", answer_length=len(answer))
@@ -1244,12 +1233,7 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         response = llm.invoke(messages)
-        # response.content가 리스트일 수 있음 (멀티모달 응답)
-        content = response.content
-        if isinstance(content, list):
-            response_text = "".join(str(c) for c in content).strip()
-        else:
-            response_text = str(content).strip()
+        response_text = extract_llm_text_content(response.content)
 
         # JSON 파싱
         result = _parse_intent_response(response_text)
@@ -1394,7 +1378,7 @@ def answer_from_history_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         response = llm.invoke(messages)
-        answer = response.content
+        answer = extract_llm_text_content(response.content)
 
         log_step(logger, request_id, "NL2SQL", "4h", "ANSWER-FROM-HISTORY", "답변 생성 완료", answer_length=len(answer))
 

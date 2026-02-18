@@ -35,7 +35,7 @@ from app.graphs.agent.middleware.chain import MiddlewareChain
 from app.graphs.agent.middleware.pii import PIIMiddleware
 from app.models.agent import AgentResponse, AgentConfig, AgentStep, AgentSQLResult
 from app.utils.logger import setup_logger, log_step
-from app.utils.common import truncate_text
+from app.utils.common import truncate_text, extract_llm_text_content
 
 # LangSmith traceable (조건부 import)
 try:
@@ -453,11 +453,7 @@ class InsightAgentGraph:
                 # tool_calls가 없는 AIMessage가 최종 답변
                 has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
                 if not has_tool_calls:
-                    content = msg.content
-                    # content가 list인 경우 문자열로 변환
-                    if isinstance(content, list):
-                        return " ".join(str(item) for item in content)
-                    return str(content)
+                    return extract_llm_text_content(msg.content)
 
         # 못 찾으면 final_answer 필드 확인
         if result.get("final_answer"):
