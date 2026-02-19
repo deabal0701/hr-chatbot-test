@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from app.api.services.rag_service import rag_service
 from app.api.services.nl2sql_service import nl2sql_service
 from app.core.errors import APIException, ErrorCode, success_response
-from app.core.security.dependencies import get_optional_user
+from app.core.security.dependencies import get_current_user
 from app.core.security.tenant_context import set_tenant_id
 from app.models.auth import UserContext
 from app.models.search import SearchRequest
@@ -25,17 +25,15 @@ logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
 
-def _extract_tenant_id(current_user: Optional[UserContext]) -> Optional[str]:
+def _extract_tenant_id(current_user: UserContext) -> Optional[str]:
     """current_user에서 tenant_id 추출 (GLOBAL: None=전체, TENANT/USER: 자기 테넌트)"""
-    if not current_user:
-        return None
     if current_user.role_code == "GLOBAL":
         return None  # 총괄관리자는 전체 검색
     return str(current_user.tenant_id) if current_user.tenant_id else None
 
 
 @router.post("/search")
-async def search(search_request: SearchRequest, request: Request, current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def search(search_request: SearchRequest, request: Request, current_user: UserContext = Depends(get_current_user)):
     """
     통합 검색 엔드포인트
 
@@ -43,8 +41,7 @@ async def search(search_request: SearchRequest, request: Request, current_user: 
     - mode='rag': RAG 검색 (문서 기반)
     - mode='nl2sql': NL2SQL 검색 (데이터베이스 쿼리)
 
-    인증 시 권한 검증: rag:search (RAG), nl2sql:execute (NL2SQL)
-    Phase 3a: 미인증 허용 (하위호환)
+    인증 필수: Bearer Token 필요
     """
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
 
@@ -84,7 +81,7 @@ async def search(search_request: SearchRequest, request: Request, current_user: 
 
 
 @router.post("/search/stream")
-async def search_stream(search_request: SearchRequest, request: Request, current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def search_stream(search_request: SearchRequest, request: Request, current_user: UserContext = Depends(get_current_user)):
     """
     통합 검색 SSE 스트리밍 엔드포인트
 
@@ -164,7 +161,7 @@ def _classify_query_intent(query: str) -> str:
 
 
 @router.get("/nl2sql/sessions")
-async def get_nl2sql_sessions(current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def get_nl2sql_sessions(current_user: UserContext = Depends(get_current_user)):
     """NL2SQL 활성 세션 목록 조회"""
     try:
         sessions = nl2sql_service.get_sessions()
@@ -175,7 +172,7 @@ async def get_nl2sql_sessions(current_user: Optional[UserContext] = Depends(get_
 
 
 @router.get("/nl2sql/sessions/{session_id}/history")
-async def get_nl2sql_session_history(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def get_nl2sql_session_history(session_id: str, current_user: UserContext = Depends(get_current_user)):
     """NL2SQL 세션 대화 이력 조회"""
     try:
         history = nl2sql_service.get_session_history(session_id)
@@ -186,7 +183,7 @@ async def get_nl2sql_session_history(session_id: str, current_user: Optional[Use
 
 
 @router.delete("/nl2sql/sessions/{session_id}")
-async def delete_nl2sql_session(session_id: str, current_user: Optional[UserContext] = Depends(get_optional_user)):
+async def delete_nl2sql_session(session_id: str, current_user: UserContext = Depends(get_current_user)):
     """NL2SQL 세션 삭제"""
     try:
         result = nl2sql_service.delete_session(session_id)
