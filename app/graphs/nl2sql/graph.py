@@ -335,6 +335,9 @@ class NL2SQLGraph:
             # 1단계 node_start 이벤트 전송 (그래프 실행 전)
             start_label = get_stage_label(1, "start", "nl2sql")
             start_event = NodeStartEvent(node="stage_1", message=start_label, step=1)
+            
+            #  "event: node_start\ndata: {"node":"stage_1","message":"질문을 분석하고..."}\n\n"
+            #  이 문자열이 클라이언트에게 비동기 전송됨
             yield format_sse("node_start", start_event.model_dump())
             await asyncio.sleep(0)
             current_stage = 1
@@ -354,21 +357,13 @@ class NL2SQLGraph:
                     if node_stage > current_stage:
                         # 현재 스테이지 완료 이벤트
                         complete_label = get_stage_label(current_stage, "complete", "nl2sql")
-                        complete_event = NodeCompleteEvent(
-                            node=f"stage_{current_stage}",
-                            message=complete_label,
-                            step=current_stage,
-                        )
+                        complete_event = NodeCompleteEvent(node=f"stage_{current_stage}", message=complete_label, step=current_stage)
                         yield format_sse("node_complete", complete_event.model_dump())
                         await asyncio.sleep(0)
 
                         # 새 스테이지 시작 이벤트
                         new_start_label = get_stage_label(node_stage, "start", "nl2sql")
-                        new_start_event = NodeStartEvent(
-                            node=f"stage_{node_stage}",
-                            message=new_start_label,
-                            step=node_stage,
-                        )
+                        new_start_event = NodeStartEvent(node=f"stage_{node_stage}", message=new_start_label, step=node_stage,)
                         yield format_sse("node_start", new_start_event.model_dump())
                         await asyncio.sleep(0)
 
@@ -379,11 +374,7 @@ class NL2SQLGraph:
             # 마지막 스테이지 완료 이벤트
             if current_stage > 0:
                 final_label = get_stage_label(current_stage, "complete", "nl2sql")
-                final_event = NodeCompleteEvent(
-                    node=f"stage_{current_stage}",
-                    message=final_label,
-                    step=current_stage,
-                )
+                final_event = NodeCompleteEvent(node=f"stage_{current_stage}", message=final_label, step=current_stage)
                 yield format_sse("node_complete", final_event.model_dump())
                 await asyncio.sleep(0)
 
