@@ -1131,8 +1131,6 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
         - intent_reasoning: str
         - sql_result_summary: List[Dict]
     """
-    import json
-
     request_id = state.get("request_id", "unknown")
     question = state.get("question", "")
     conversation_history = state.get("conversation_history", [])
@@ -1165,45 +1163,50 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
     llm = _get_llm()
 
     system_prompt = """당신은 NL2SQL 의도 분석기입니다.
+사용자의 후속 질문에 새로운 SQL 실행이 필요한지 판단합니다.
 
-## 질문: "새로운 SQL 실행이 필요한가?"
+## ★★★ 최우선 규칙 ★★★
+**기본값은 항상 "sql_needed"입니다.**
+**"sql_not_needed"는 아래 조건을 모두 충족할 때만 선택하세요.**
 
-## 응답 형식 (JSON)
+## sql_not_needed 조건 (모두 충족해야 함)
+1. 질문에 필요한 정보가 "사용 가능한 컬럼 목록"의 컬럼명과 **정확히 일치**
+2. 단순 정렬, 필터링, 집계(최대/최소/합계)로 답변 가능
+3. 새로운 테이블이나 컬럼 조회가 전혀 불필요
+
+## sql_needed (아래 중 하나라도 해당하면)
+- 질문에 필요한 컬럼이 목록에 **없음** (유사한 이름이 있어도 정확히 없으면 sql_needed)
+- "상세", "자세히", "디테일", "더 알려줘" 요청
+- "왜", "이유", "원인" 질문
+- 새로운 테이블/컬럼 조회 필요
+- **조금이라도 확신이 없으면 → sql_needed**
+
+## 예시
+
+| 질문 | 사용 가능 컬럼 | query_type | 이유 |
+|------|---------------|------------|------|
+| "1등은 누구?" | [emp_id, name, score] | sql_not_needed | score 컬럼으로 정렬 가능 |
+| "부서는?" | [emp_id, name, score] | sql_needed | dept 관련 컬럼 없음 |
+| "상세 정보 보여줘" | [emp_id, name] | sql_needed | 추가 컬럼 필요 |
+| "상벌내역 보여줘" | [emp_id, name] | sql_needed | 상벌 관련 컬럼 없음 |
+| "연봉은?" | [emp_id, name, dept_code] | sql_needed | salary 컬럼 없음 |
+| "이름순으로 정렬해줘" | [emp_id, name, score] | sql_not_needed | name 컬럼으로 정렬 가능 |
+
+## 응답 형식 (반드시 JSON만 출력)
 ```json
 {
     "query_type": "sql_needed" 또는 "sql_not_needed",
     "rewritten_question": "완전한 질문 형태 (답변 아님!)",
     "reasoning": "판단 이유"
 }
-```
-
-## ★ 핵심 판단 기준 ★
-
-**sql_needed (새 SQL 실행 필요):**
-- 이전 결과 컬럼에 **없는** 정보를 요청
-- "상세", "자세히", "디테일" 요청
-- "왜", "이유", "원인" 질문
-- 새로운 테이블/컬럼 조회 필요
-- 명확하게 확신이 들지 않는 경우
-
-**sql_not_needed (기존 데이터로 답변 가능):**
-- 요청 정보가 이전 결과 컬럼에 **100% 존재**
-
-
-## 예시
-
-| 질문 | 이전 결과 컬럼 | query_type | 이유 |
-|------|---------------|------------|------|
-| "상세 정보 보여줘" | [emp_id, name] | sql_needed | 상세=추가 컬럼 필요 |
-| "1등은 누구?" | [emp_id, name, score] | sql_not_needed | score로 정렬 가능 |
-| "부서는?" | [emp_id, name, score] | sql_needed | 부서 컬럼 없음 |
-| "상벌내역 보여줘" | [emp_id, name] | sql_needed | 상벌 컬럼 없음 |
-"""
+```"""
 
     # 이전 결과 데이터의 컬럼 목록 추출 (LLM이 판단하기 쉽도록)
     available_columns = []
     if sql_result_summary and len(sql_result_summary) > 0:
         available_columns = list(sql_result_summary[0].keys())
+
+    data_row_count = len(sql_result_summary) if sql_result_summary else 0
 
     user_prompt = f"""## 이전 대화 이력
 {history_text}
@@ -1211,17 +1214,15 @@ def intent_rewrite_node(state: Dict[str, Any]) -> Dict[str, Any]:
 ## 현재 질문
 {question}
 
-## 이전 SQL 결과 데이터 (최대 10행)
-**★ 사용 가능한 컬럼 목록**: {available_columns if available_columns else "없음"}
-**★ 이 컬럼들로만 답변 가능! 다른 정보는 새 SQL 필요!**
+## 이전 SQL 결과 정보
+- **사용 가능한 컬럼 목록**: {available_columns if available_columns else "없음"}
+- **데이터 행 수**: {data_row_count}행
 
-데이터:
-{json.dumps(sql_result_summary, ensure_ascii=False, indent=2) if sql_result_summary else "없음"}
-
-위 컨텍스트를 바탕으로:
-1. 현재 질문에 필요한 정보가 "사용 가능한 컬럼 목록"에 있는지 확인
-2. 없으면 → sql_needed, 있으면 → sql_not_needed
-3. 질문을 재작성하세요."""
+## 판단 절차
+1. 현재 질문에 답변하려면 어떤 컬럼이 필요한지 나열
+2. 필요한 컬럼이 "사용 가능한 컬럼 목록"에 **정확히** 존재하는지 확인
+3. 하나라도 없으면 → sql_needed / 모두 있으면 → sql_not_needed
+4. 질문을 완전한 형태로 재작성"""
 
     messages = [
         SystemMessage(content=system_prompt),
