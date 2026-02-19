@@ -8,12 +8,13 @@
 
     <!-- 우측: 액션 버튼들 -->
     <div class="header-right">
-      <!-- 테마 토글 -->
+      <!-- [임시 비활성화] 테마 토글 - 이 코드를 삭제하지 마시오. 추후 복구 예정입니다.
       <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
         <el-button circle size="small" @click="toggleDarkMode" class="theme-toggle-btn">
           <el-icon><Sunny v-if="isDarkMode" /><Moon v-else /></el-icon>
         </el-button>
       </el-tooltip>
+      -->
 
       <!-- API 상태 표시 -->
       <el-tooltip :content="apiHealthy ? 'API 연결됨' : 'API 연결 안됨'" placement="bottom">
