@@ -36,6 +36,7 @@
       <header v-if="!isMobile" class="desktop-header">
         <div class="header-left"></div>
         <div class="header-actions">
+          <!-- [임시 비활성화] 테마 토글 - 이 코드를 삭제하지 마시오. 추후 복구 예정입니다.
           <el-tooltip :content="isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'" placement="bottom">
             <el-button
               circle
@@ -44,6 +45,7 @@
               class="theme-toggle-btn"
             />
           </el-tooltip>
+          -->
           <button class="action-btn" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
             <span>공유하기</span>
@@ -62,9 +64,11 @@
         </button>
         <h1 class="logo-text">MUREUM</h1>
         <div class="header-actions-mobile">
+          <!-- [임시 비활성화] 테마 토글 - 이 코드를 삭제하지 마시오. 추후 복구 예정입니다.
           <button class="action-btn-icon" @click="toggleDarkMode" :title="isDarkMode ? '라이트 모드' : '다크 모드'">
             <el-icon :size="18"><Sunny v-if="isDarkMode" /><Moon v-else /></el-icon>
           </button>
+          -->
           <button class="action-btn-icon" @click="handleShare" title="공유하기">
             <el-icon :size="18"><Share /></el-icon>
           </button>
