@@ -118,45 +118,43 @@ class RoleService:
         log_step(logger, request_id, "ROLE", "5", "DELETE", "역할 삭제", role_id=role_id, role_code=existing["role_code"])
         return True
 
-    # 역할 코드별 기본 메뉴 템플릿
+    # 역할 코드별 기본 메뉴 템플릿 (tb_menu.menu_code 기준)
     _DEFAULT_MENUS: Dict[str, Dict[str, dict]] = {
         "GLOBAL": {
             "__all_pages__": {"can_create": True, "can_read": True, "can_update": True, "can_delete": True, "can_export": True},
         },
         "TENANT": {
-            "DASHBOARD": {"can_read": True},
-            "CHAT":      {"can_create": True, "can_read": True},
-            "DOCUMENTS": {"can_create": True, "can_read": True, "can_update": True, "can_delete": True, "can_export": True},
-            "USER_MGMT": {"can_create": True, "can_read": True, "can_update": True},
-            "HISTORY":   {"can_read": True, "can_export": True},
-            "USER_CHAT": {"can_create": True, "can_read": True},
-            "AGENT_API": {"can_create": True, "can_read": True},
-            "RAG_API":   {"can_create": True, "can_read": True},
-            "NL2SQL_API": {"can_create": True, "can_read": True},
+            "DASHBOARD":   {"can_read": True},
+            "AI_SEARCH":   {"can_create": True, "can_read": True},
+            "DOC_MGMT":    {"can_create": True, "can_read": True, "can_update": True, "can_delete": True, "can_export": True},
+            "SEARCH_HIST": {"can_read": True, "can_export": True},
+            "USER_MGMT":   {"can_create": True, "can_read": True, "can_update": True},
+            "AI_CHAT":     {"can_create": True, "can_read": True},
         },
         "USER": {
-            "USER_CHAT": {"can_create": True, "can_read": True},
-            "AGENT_API": {"can_create": True, "can_read": True},
-            "RAG_API":   {"can_create": True, "can_read": True},
-            "NL2SQL_API": {"can_create": True, "can_read": True},
+            "AI_CHAT": {"can_create": True, "can_read": True},
         },
     }
 
     def get_default_menus(self, role_code: str, request_id: str = "") -> List[dict]:
-        """역할별 기본 메뉴 권한 목록 (사용자 생성 시 자동 체크용)"""
+        """역할별 기본 메뉴 권한 목록 (사용자 생성 시 자동 체크용, 트리 순서)"""
         template = self._DEFAULT_MENUS.get(role_code, {})
 
         with db_manager.get_cursor() as cur:
             cur.execute(
-                "SELECT menu_id, menu_code, menu_name, menu_type, menu_path, icon, depth, sort_order "
-                "FROM tb_menu WHERE is_active = true AND menu_type IN ('PAGE', 'API') "
+                "SELECT menu_id, menu_code, menu_name, menu_type, menu_path, "
+                "icon, depth, sort_order, parent_menu_id "
+                "FROM tb_menu WHERE is_active = true "
                 "ORDER BY depth, sort_order"
             )
             menus = [dict(row) for row in cur.fetchall()]
 
+        ordered = self._flatten_menu_tree(menus)
+
         result = []
-        for menu in menus:
-            defaults = template.get(menu["menu_code"], template.get("__all_pages__", {}))
+        for menu in ordered:
+            is_dir = menu["menu_type"] == "DIRECTORY"
+            defaults = {} if is_dir else template.get(menu["menu_code"], template.get("__all_pages__", {}))
             result.append({
                 **menu,
                 "can_create": defaults.get("can_create", False),
@@ -165,10 +163,31 @@ class RoleService:
                 "can_delete": defaults.get("can_delete", False),
                 "can_export": defaults.get("can_export", False),
                 "checked":    bool(defaults),
+                "is_directory": is_dir,
             })
 
         log_step(logger, request_id, "ROLE", "6", "DEFAULT_MENUS", "기본 메뉴 조회", role_code=role_code, total=len(result))
         return {"items": result, "total": len(result)}
+
+    def _flatten_menu_tree(self, menus: List[dict]) -> List[dict]:
+        """메뉴를 depth-first 순서로 펼침 (최상위 DIRECTORY 제외)"""
+        by_parent: Dict[Any, List[dict]] = {}
+        for m in menus:
+            by_parent.setdefault(m.get("parent_menu_id"), []).append(m)
+
+        result: List[dict] = []
+
+        def walk(parent_id):
+            children = sorted(by_parent.get(parent_id, []), key=lambda x: x["sort_order"])
+            for child in children:
+                if child["menu_type"] == "DIRECTORY" and child["depth"] == 0:
+                    walk(child["menu_id"])
+                else:
+                    result.append(child)
+                    walk(child["menu_id"])
+
+        walk(None)
+        return result
 
 
 # 싱글톤 인스턴스

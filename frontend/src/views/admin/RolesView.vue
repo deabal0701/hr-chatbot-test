@@ -123,10 +123,14 @@
         :data="defaultMenus"
         style="width: 100%"
         size="small"
+        :row-class-name="({ row }) => row.is_directory ? 'directory-row' : ''"
       >
         <el-table-column prop="menu_name" label="메뉴명" min-width="140">
           <template #default="{ row }">
-            <span :style="{ paddingLeft: (row.depth || 0) * 16 + 'px' }">{{ row.menu_name }}</span>
+            <span :style="{
+              paddingLeft: ((row.depth || 0) - 1) * 20 + 'px',
+              fontWeight: row.is_directory ? 'bold' : 'normal'
+            }">{{ row.menu_name }}</span>
           </template>
         </el-table-column>
 
@@ -134,7 +138,7 @@
 
         <el-table-column prop="menu_type" label="유형" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.menu_type === 'PAGE' ? '' : 'warning'" size="small">
+            <el-tag :type="row.menu_type === 'PAGE' ? '' : row.menu_type === 'DIRECTORY' ? 'info' : 'warning'" size="small">
               {{ row.menu_type }}
             </el-tag>
           </template>
@@ -142,35 +146,40 @@
 
         <el-table-column label="조회" width="60" align="center">
           <template #default="{ row }">
-            <el-icon v-if="row.can_read" color="#67c23a"><Check /></el-icon>
+            <span v-if="row.is_directory" class="dir-placeholder">—</span>
+            <el-icon v-else-if="row.can_read" color="#67c23a"><Check /></el-icon>
             <el-icon v-else color="#dcdfe6"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="생성" width="60" align="center">
           <template #default="{ row }">
-            <el-icon v-if="row.can_create" color="#67c23a"><Check /></el-icon>
+            <span v-if="row.is_directory" class="dir-placeholder">—</span>
+            <el-icon v-else-if="row.can_create" color="#67c23a"><Check /></el-icon>
             <el-icon v-else color="#dcdfe6"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="수정" width="60" align="center">
           <template #default="{ row }">
-            <el-icon v-if="row.can_update" color="#67c23a"><Check /></el-icon>
+            <span v-if="row.is_directory" class="dir-placeholder">—</span>
+            <el-icon v-else-if="row.can_update" color="#67c23a"><Check /></el-icon>
             <el-icon v-else color="#dcdfe6"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="삭제" width="60" align="center">
           <template #default="{ row }">
-            <el-icon v-if="row.can_delete" color="#67c23a"><Check /></el-icon>
+            <span v-if="row.is_directory" class="dir-placeholder">—</span>
+            <el-icon v-else-if="row.can_delete" color="#67c23a"><Check /></el-icon>
             <el-icon v-else color="#dcdfe6"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="내보내기" width="80" align="center">
           <template #default="{ row }">
-            <el-icon v-if="row.can_export" color="#67c23a"><Check /></el-icon>
+            <span v-if="row.is_directory" class="dir-placeholder">—</span>
+            <el-icon v-else-if="row.can_export" color="#67c23a"><Check /></el-icon>
             <el-icon v-else color="#dcdfe6"><Close /></el-icon>
           </template>
         </el-table-column>
@@ -393,6 +402,14 @@ onMounted(() => {
     margin: 0 0 12px;
     color: var(--text-color-secondary);
     font-size: 13px;
+  }
+
+  .dir-placeholder {
+    color: var(--el-text-color-placeholder);
+  }
+
+  :deep(.directory-row) {
+    background-color: var(--el-fill-color-light);
   }
 }
 </style>
