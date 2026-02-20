@@ -48,10 +48,7 @@
 
         <el-table-column prop="display_name" label="이름" min-width="130">
           <template #default="{ row }">
-            <span class="name-cell">
-              <span>{{ row.display_name || '-' }}</span>
-              <el-tag v-if="row.is_superuser" type="danger" size="small">SU</el-tag>
-            </span>
+            {{ row.display_name || '-' }}
           </template>
         </el-table-column>
 
@@ -90,7 +87,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="last_login_at" label="최근 로그인" width="160">
+        <el-table-column prop="last_login_at" label="최근 로그인" width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.last_login_at) }}
           </template>
