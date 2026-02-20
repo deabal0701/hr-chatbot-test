@@ -49,8 +49,9 @@ const formatNumber = (num) => {
 .chunk-preview {
   margin-top: 20px;
   padding: 16px;
-  background-color: #f5f7fa;
+  background-color: var(--bg-color-hover);
   border-radius: 6px;
+  transition: var(--theme-transition);
 }
 
 .preview-header {
@@ -63,7 +64,7 @@ const formatNumber = (num) => {
     margin: 0;
     font-size: 14px;
     font-weight: 500;
-    color: #303133;
+    color: var(--text-color-primary);
   }
 }
 
@@ -80,9 +81,10 @@ const formatNumber = (num) => {
 
 .chunk-item {
   padding: 12px;
-  background-color: #fff;
+  background-color: var(--bg-color-card);
   border-radius: 4px;
   margin-bottom: 8px;
+  transition: var(--theme-transition);
 
   &:last-child {
     margin-bottom: 0;
@@ -97,18 +99,18 @@ const formatNumber = (num) => {
   .chunk-index {
     font-size: 12px;
     font-weight: 500;
-    color: #409eff;
+    color: var(--color-primary);
   }
 
   .chunk-length {
     font-size: 12px;
-    color: #909399;
+    color: var(--text-color-secondary);
   }
 }
 
 .chunk-content {
   font-size: 13px;
-  color: #606266;
+  color: var(--text-color-regular);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;

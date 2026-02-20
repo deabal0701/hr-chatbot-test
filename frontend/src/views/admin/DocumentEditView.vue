@@ -264,6 +264,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
+import settingsApi from '@/api/settings'
 import { formatDate, formatNumber } from '@/utils/format'
 
 const store = useStore()
@@ -332,6 +333,22 @@ const getDefaultDocType = (usageType) => {
 const isEditMode = computed(() => route.name === 'AdminDocumentEdit')
 const docId = computed(() => route.params.id)
 const isSaving = computed(() => store.state.document.isSaving)
+
+// 청킹 기본값 (서버 설정 로드 후 갱신)
+const chunkingDefaults = ref({ chunkSize: 1000, chunkOverlap: 100 })
+
+const loadChunkingSettings = async () => {
+  try {
+    const response = await settingsApi.getCategory('chunking')
+    const settingsList = response.settings || response || []
+    const sizeItem = settingsList.find(s => s.key === 'default_chunk_size')
+    const overlapItem = settingsList.find(s => s.key === 'default_overlap')
+    if (sizeItem?.value) chunkingDefaults.value.chunkSize = Number(sizeItem.value)
+    if (overlapItem?.value) chunkingDefaults.value.chunkOverlap = Number(overlapItem.value)
+  } catch (error) {
+    console.error('청킹 설정 로드 실패:', error)
+  }
+}
 
 // 폼 데이터
 const form = ref({
@@ -408,9 +425,14 @@ const rules = {
 
 // 문서 데이터 로드
 onMounted(async () => {
-  // 코드 로드
+  // 코드 로드 + 청킹 설정 로드
   loadUsageTypes()
   loadDocTypes()
+  await loadChunkingSettings()
+
+  // 새 문서 생성 모드: 청킹 기본값 반영
+  form.value.chunkSize = chunkingDefaults.value.chunkSize
+  form.value.chunkOverlap = chunkingDefaults.value.chunkOverlap
 
   // 새 문서 생성 모드: 쿼리 파라미터에서 usageType 읽기
   if (!isEditMode.value) {
@@ -448,8 +470,8 @@ onMounted(async () => {
         usageType: doc.usage_type || 'rag_knowledge',
         content: fullContent,
         contextData: doc.context_data || '',
-        chunkSize: 1000,
-        chunkOverlap: 100,
+        chunkSize: chunkingDefaults.value.chunkSize,
+        chunkOverlap: chunkingDefaults.value.chunkOverlap,
         metadata: doc.metadata || {}
       }
 

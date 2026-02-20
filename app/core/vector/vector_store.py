@@ -434,14 +434,15 @@ class VectorStoreService:
         return results
 
     def _execute_single_chunking(self, doc_id: int, chunk_size: int, chunk_overlap: int, delete_original: bool) -> Dict[str, Any]:
-        """단일 문서 청킹 실행"""
+        """단일 문서 청킹 실행 (재청킹 지원: original_content가 있으면 원본 기준으로 재분할)"""
         tc = _get_text_chunker_module()
         db_manager = _get_db_manager()
 
-        # 원본 문서 조회
+        # 원본 문서 조회 (original_content 포함)
         with db_manager.get_cursor() as cur:
             cur.execute("""
-                SELECT id, title, doc_type, language, content, metadata, source_type, source_file, content_hash, tenant_id
+                SELECT id, title, doc_type, language, content, original_content, metadata,
+                       source_type, source_file, content_hash, tenant_id, total_chunks
                 FROM tb_docs
                 WHERE id = %s
             """, (doc_id,))
@@ -450,9 +451,25 @@ class VectorStoreService:
             if not doc:
                 raise ValueError(f"문서를 찾을 수 없습니다: ID={doc_id}")
 
-        original_title = doc['title']
-        content = doc['content']
+        # 재청킹 판단: original_content가 있으면 원본 사용
+        is_rechunk = doc.get('original_content') is not None and len(doc.get('original_content', '') or '') > 0
+        content = doc['original_content'] if is_rechunk else doc['content']
         content_length = len(content)
+
+        # 제목에서 청크 번호 제거 (재청킹 시)
+        original_title = doc['title']
+        if is_rechunk:
+            import re
+            original_title = re.sub(r'\s*\(\d+/\d+\)$', '', original_title)
+            logger.info(f"재청킹 감지: doc_id={doc_id}, original_content={content_length}자, 기존 청크 삭제 예정")
+
+        # 재청킹 시 기존 자식 청크 삭제
+        if is_rechunk:
+            with db_manager.get_cursor(commit=True) as cur:
+                cur.execute("DELETE FROM tb_docs WHERE parent_doc_id = %s", (doc_id,))
+                deleted_count = cur.rowcount
+                if deleted_count > 0:
+                    logger.info(f"기존 자식 청크 삭제: doc_id={doc_id}, deleted={deleted_count}개")
 
         # 청킹이 필요없는 짧은 문서
         if content_length <= chunk_size:
@@ -462,11 +479,12 @@ class VectorStoreService:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute("""
                     UPDATE tb_docs
-                    SET embedding = %s, embedding_model = %s, indexed = true, embedded_at = %s
+                    SET content = %s, original_content = NULL, embedding = %s, embedding_model = %s,
+                        indexed = true, embedded_at = %s, title = %s, chunk_index = 0, total_chunks = 1
                     WHERE id = %s
-                """, (embedding_array, self.embedding_model, datetime.now(), doc_id))
+                """, (content, embedding_array, self.embedding_model, datetime.now(), original_title, doc_id))
 
-            logger.info(f"짧은 문서 임베딩 완료: doc_id={doc_id}")
+            logger.info(f"짧은 문서 임베딩 완료: doc_id={doc_id}, chars={content_length}")
 
             return {
                 "original_doc_id": doc_id, "original_title": original_title, "success": True, "error": None,
@@ -487,7 +505,7 @@ class VectorStoreService:
         chunk_ids = []
 
         with db_manager.get_cursor(commit=True) as cur:
-            # 첫 번째 청크: 원본 문서 업데이트 (usage_type도 rag_knowledge로 보장)
+            # 첫 번째 청크: 원본 문서 업데이트
             first_embedding = np.array(embeddings[0])
             cur.execute("""
                 UPDATE tb_docs
@@ -525,7 +543,7 @@ class VectorStoreService:
                 chunk_id = cur.fetchone()['id']
                 chunk_ids.append(chunk_id)
 
-        logger.info(f"청킹 실행 완료: doc_id={doc_id}, parent_id={parent_id}, chunks={total_chunks}")
+        logger.info(f"청킹 실행 완료: doc_id={doc_id}, parent_id={parent_id}, chunks={total_chunks}, rechunk={is_rechunk}")
 
         return {
             "original_doc_id": doc_id, "original_title": original_title, "success": True, "error": None,

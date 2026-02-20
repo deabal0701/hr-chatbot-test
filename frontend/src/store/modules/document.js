@@ -232,16 +232,15 @@ export default {
     },
 
     // 임베딩 실행
-    async executeEmbedding({ commit, dispatch }, { docIds, chunkSize = 1000, chunkOverlap = 100 }) {
+    async executeEmbedding({ commit, dispatch }, { docIds, chunkSize, chunkOverlap }) {
       commit('SET_LOADING', true)
       commit('CLEAR_ERROR')
 
       try {
-        const response = await documentApi.executeEmbedding({
-          doc_ids: docIds,
-          chunk_size: chunkSize,
-          chunk_overlap: chunkOverlap
-        })
+        const params = { doc_ids: docIds }
+        if (chunkSize) params.chunk_size = chunkSize
+        if (chunkOverlap) params.chunk_overlap = chunkOverlap
+        const response = await documentApi.executeEmbedding(params)
         await dispatch('fetchDocuments')
         return response
       } catch (error) {
@@ -255,13 +254,12 @@ export default {
     },
 
     // 청킹 미리보기
-    async previewChunks({ commit }, { content, chunkSize = 1000, chunkOverlap = 100 }) {
+    async previewChunks({ commit }, { content, chunkSize, chunkOverlap }) {
       try {
-        const response = await documentApi.previewChunks({
-          content,
-          chunk_size: chunkSize,
-          chunk_overlap: chunkOverlap
-        })
+        const params = { content }
+        if (chunkSize) params.chunk_size = chunkSize
+        if (chunkOverlap) params.chunk_overlap = chunkOverlap
+        const response = await documentApi.previewChunks(params)
         return response
       } catch (error) {
         const errorCode = error.code || 'UNKNOWN_ERROR'

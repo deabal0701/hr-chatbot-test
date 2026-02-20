@@ -215,8 +215,8 @@ class Chunking:
     class PreviewRequest(BaseModel):
         """청킹 미리보기 요청"""
         content: str = Field(..., min_length=1, description="문서 내용")
-        chunk_size: int = Field(default=1000, ge=100, le=5000, description="청크 크기")
-        chunk_overlap: int = Field(default=100, ge=0, le=500, description="청크 간 중복")
+        chunk_size: Optional[int] = Field(default=None, ge=100, le=5000, description="청크 크기 (None이면 DB 설정 사용)")
+        chunk_overlap: Optional[int] = Field(default=None, ge=0, le=500, description="청크 간 중복 (None이면 DB 설정 사용)")
 
     class PreviewItem(BaseModel):
         """청킹 미리보기 항목"""
@@ -233,8 +233,8 @@ class Chunking:
     class ExecuteRequest(BaseModel):
         """청킹 실행 요청"""
         doc_ids: List[int] = Field(..., min_length=1, description="청킹할 문서 ID 목록")
-        chunk_size: int = Field(default=1000, ge=100, le=5000, description="청크 크기 (문자 수)")
-        chunk_overlap: int = Field(default=100, ge=0, le=500, description="청크 간 중복 (문자 수)")
+        chunk_size: Optional[int] = Field(default=None, ge=100, le=5000, description="청크 크기 (None이면 DB 설정 사용)")
+        chunk_overlap: Optional[int] = Field(default=None, ge=0, le=500, description="청크 간 중복 (None이면 DB 설정 사용)")
         delete_original: bool = Field(default=False, description="원본 문서 삭제 여부")
 
         model_config = {

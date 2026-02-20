@@ -63,17 +63,60 @@
                 </el-descriptions-item>
               </el-descriptions>
 
-              <!-- 임베딩 실행 버튼 -->
-              <div class="action-section" v-if="!document.indexed">
-                <el-button
-                  type="success"
-                  :icon="Upload"
-                  :loading="isEmbedding"
-                  style="width: 100%"
-                  @click="executeEmbedding"
-                >
-                  임베딩 실행
-                </el-button>
+              <!-- 임베딩 섹션 -->
+              <div class="embedding-section">
+                <h3>임베딩</h3>
+
+                <div class="chunk-settings">
+                  <div class="setting-item">
+                    <label>청크 크기</label>
+                    <el-input-number
+                      v-model="chunkSize"
+                      :min="100" :max="5000" :step="100"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </div>
+                  <div class="setting-item">
+                    <label>청크 오버랩</label>
+                    <el-input-number
+                      v-model="chunkOverlap"
+                      :min="0" :max="500" :step="50"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </div>
+                </div>
+
+                <div class="embedding-actions">
+                  <el-button
+                    :icon="View"
+                    size="small"
+                    :loading="isPreviewing"
+                    @click="previewChunks"
+                    :disabled="!document.content && !document.full_content"
+                  >
+                    미리보기
+                  </el-button>
+                  <el-button
+                    type="success"
+                    :icon="Upload"
+                    size="small"
+                    :loading="isEmbedding"
+                    @click="executeEmbedding"
+                  >
+                    {{ document.indexed ? '재임베딩' : '임베딩 실행' }}
+                  </el-button>
+                </div>
+
+                <!-- 청킹 미리보기 결과 -->
+                <ChunkPreview
+                  v-if="chunkPreviewData"
+                  :data="chunkPreviewData"
+                  @close="chunkPreviewData = null"
+                />
               </div>
             </div>
           </el-col>
@@ -208,8 +251,10 @@ import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight, Edit, Delete, Upload, CopyDocument } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Edit, Delete, Upload, CopyDocument, View } from '@element-plus/icons-vue'
 import { formatDateTime, formatNumber } from '@/utils/format'
+import ChunkPreview from '@/components/documents/ChunkPreview.vue'
+import settingsApi from '@/api/settings'
 
 const store = useStore()
 const router = useRouter()
@@ -218,8 +263,26 @@ const route = useRoute()
 const document = ref(null)
 const isLoading = ref(false)
 const isEmbedding = ref(false)
+const isPreviewing = ref(false)
 const viewMode = ref('full') // 'full' | 'chunk'
 const currentChunkIndex = ref(0)
+const chunkSize = ref(1000)
+const chunkOverlap = ref(100)
+const chunkPreviewData = ref(null)
+
+// 서버 청킹 설정 로드
+const loadChunkingSettings = async () => {
+  try {
+    const response = await settingsApi.getCategory('chunking')
+    const settingsList = response.settings || response || []
+    const sizeItem = settingsList.find(s => s.key === 'default_chunk_size')
+    const overlapItem = settingsList.find(s => s.key === 'default_overlap')
+    if (sizeItem?.value) chunkSize.value = Number(sizeItem.value)
+    if (overlapItem?.value) chunkOverlap.value = Number(overlapItem.value)
+  } catch (error) {
+    console.error('청킹 설정 로드 실패:', error)
+  }
+}
 
 const docId = computed(() => route.params.id)
 
@@ -264,6 +327,9 @@ const handleChunkPageChange = (page) => {
 
 // 문서 로드
 onMounted(async () => {
+  // 서버 청킹 설정 로드
+  loadChunkingSettings()
+
   if (docId.value) {
     isLoading.value = true
     try {
@@ -316,16 +382,52 @@ const confirmDelete = () => {
   }).catch(() => {})
 }
 
+// 청킹 미리보기
+const previewChunks = async () => {
+  const content = document.value?.full_content || document.value?.content
+  if (!content) return
+
+  isPreviewing.value = true
+  chunkPreviewData.value = null
+  try {
+    const result = await store.dispatch('document/previewChunks', {
+      content,
+      chunkSize: chunkSize.value,
+      chunkOverlap: chunkOverlap.value,
+    })
+    chunkPreviewData.value = result
+  } catch (error) {
+    ElMessage.error('청킹 미리보기에 실패했습니다.')
+  } finally {
+    isPreviewing.value = false
+  }
+}
+
 // 임베딩 실행
 const executeEmbedding = async () => {
+  const action = document.value?.indexed ? '재임베딩' : '임베딩'
+  if (document.value?.indexed) {
+    try {
+      await ElMessageBox.confirm(
+        '기존 임베딩 데이터를 덮어씁니다. 계속하시겠습니까?',
+        `${action} 확인`,
+        { confirmButtonText: '실행', cancelButtonText: '취소', type: 'warning' }
+      )
+    } catch { return }
+  }
+
   isEmbedding.value = true
   try {
-    const result = await store.dispatch('document/executeEmbedding', { docIds: [docId.value] })
-    ElMessage.success(result.message || '임베딩이 완료되었습니다.')
-    // 문서 새로고침
+    const result = await store.dispatch('document/executeEmbedding', {
+      docIds: [docId.value],
+      chunkSize: chunkSize.value,
+      chunkOverlap: chunkOverlap.value,
+    })
+    ElMessage.success(result.message || `${action}이 완료되었습니다.`)
+    chunkPreviewData.value = null
     document.value = await store.dispatch('document/fetchDocument', docId.value)
   } catch (error) {
-    ElMessage.error('임베딩 실행에 실패했습니다.')
+    ElMessage.error(`${action} 실행에 실패했습니다.`)
   } finally {
     isEmbedding.value = false
   }
@@ -403,9 +505,40 @@ const getDocTypeTag = (type) => {
     h3 {
       @include mx.section-title;
     }
+  }
 
-    .action-section {
-      margin-top: 20px;
+  .embedding-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color-light);
+
+    h3 {
+      @include mx.section-title;
+    }
+
+    .chunk-settings {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+
+      .setting-item {
+        label {
+          display: block;
+          font-size: 13px;
+          color: var(--text-color-secondary);
+          margin-bottom: 4px;
+        }
+      }
+    }
+
+    .embedding-actions {
+      display: flex;
+      gap: 8px;
+
+      .el-button {
+        flex: 1;
+      }
     }
   }
 

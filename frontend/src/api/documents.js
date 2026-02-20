@@ -78,12 +78,13 @@ const documentsApi = {
    * @param {Object} params - 임베딩 파라미터
    */
   executeEmbedding(params) {
-    return apiClient.post('/api/admin/v1/documents/embedding/execute', {
+    const payload = {
       doc_ids: params.doc_ids,
-      chunk_size: params.chunk_size || 1000,
-      chunk_overlap: params.chunk_overlap || 100,
       delete_original: params.delete_original || false
-    })
+    }
+    if (params.chunk_size) payload.chunk_size = params.chunk_size
+    if (params.chunk_overlap) payload.chunk_overlap = params.chunk_overlap
+    return apiClient.post('/api/admin/v1/documents/embedding/execute', payload)
   },
 
   /**
@@ -91,11 +92,10 @@ const documentsApi = {
    * @param {Object} params - 미리보기 파라미터
    */
   previewChunks(params) {
-    return apiClient.post('/api/admin/v1/documents/embedding/preview', {
-      content: params.content,
-      chunk_size: params.chunk_size || 1000,
-      chunk_overlap: params.chunk_overlap || 100
-    })
+    const payload = { content: params.content }
+    if (params.chunk_size) payload.chunk_size = params.chunk_size
+    if (params.chunk_overlap) payload.chunk_overlap = params.chunk_overlap
+    return apiClient.post('/api/admin/v1/documents/embedding/preview', payload)
   }
 }
 
