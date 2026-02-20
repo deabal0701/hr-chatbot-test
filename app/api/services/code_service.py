@@ -51,10 +51,7 @@ class CodeService:
             raise
 
     @staticmethod
-    def get_codes_by_group(
-        code_group: str,
-        include_inactive: bool = False
-    ) -> List[Dict[str, Any]]:
+    def get_codes_by_group(code_group: str, include_inactive: bool = False) -> List[Dict[str, Any]]:
         """
         특정 그룹의 코드 목록 조회
 

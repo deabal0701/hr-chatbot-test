@@ -26,8 +26,7 @@ _bearer_scheme = HTTPBearer(auto_error=True)            # 인증값 없으면 Ex
 _bearer_scheme_optional = HTTPBearer(auto_error=False)  # 인증값 없어도 None 반환
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
-) -> UserContext:
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme), ) -> UserContext:
     """Bearer 토큰에서 현재 사용자 추출 (필수 인증)"""
     payload = verify_token(credentials.credentials)
 
@@ -44,9 +43,7 @@ async def get_current_user(
     )
 
 
-async def get_current_active_user(
-    current_user: UserContext = Depends(get_current_user),
-) -> UserContext:
+async def get_current_active_user(current_user: UserContext = Depends(get_current_user),) -> UserContext:
     """활성 사용자 검증"""
     return current_user
 
