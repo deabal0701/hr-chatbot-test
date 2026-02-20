@@ -23,9 +23,7 @@ def require_menu_permission(menu_code: str, action: str = "read"):
     if action not in valid_actions:
         raise ValueError(f"action은 {valid_actions} 중 하나여야 합니다")
 
-    async def permission_checker(
-        current_user: UserContext = Depends(get_current_active_user),
-    ) -> UserContext:
+    async def permission_checker(current_user: UserContext = Depends(get_current_active_user), ) -> UserContext:
         # superuser는 항상 통과
         if current_user.is_superuser:
             return current_user
