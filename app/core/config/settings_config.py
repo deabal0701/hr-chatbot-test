@@ -150,7 +150,7 @@ class SettingsConfig:
     }
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: Dict[str, Dict[str, Dict[str, Any]]] = {}  # cache[tenant_id][category][key]
         self._cache_loaded = False
 
     # ============================================================================
@@ -250,10 +250,27 @@ class SettingsConfig:
         }
 
     # ============================================================================
+    # 테넌트 해석
+    # ============================================================================
+
+    def _resolve_tenant_id(self, tenant_id=None):
+        """tenant_id 자동 해석: 명시값 → contextvars → '1' (공용)"""
+        if tenant_id is not None:
+            return str(tenant_id)
+        try:
+            from app.core.security.tenant_context import get_tenant_id
+            ctx_tid = get_tenant_id()
+            if ctx_tid:
+                return str(ctx_tid)
+        except Exception:
+            pass
+        return '1'
+
+    # ============================================================================
     # 설정 조회 (읽기 전용)
     # ============================================================================
 
-    def get_setting(self, category: str, key: str, use_cache: bool = True, tenant_id: str = '1') -> Optional[Dict[str, Any]]:
+    def get_setting(self, category: str, key: str, use_cache: bool = True, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         단일 설정 조회 (우선순위: 테넌트 설정 → 공용 설정 → 환경변수 → 기본값)
 
@@ -261,9 +278,9 @@ class SettingsConfig:
             category: 설정 카테고리
             key: 설정 키
             use_cache: 캐시 사용 여부
-            tenant_id: 테넌트 ID (기본 '1' = 공용, 하위 호환)
+            tenant_id: 테넌트 ID (None이면 contextvars에서 자동 해석, 명시 시 해당 값 사용)
         """
-        tid = str(tenant_id)
+        tid = self._resolve_tenant_id(tenant_id)
 
         if use_cache:
             self._load_cache()
@@ -294,19 +311,19 @@ class SettingsConfig:
 
         return None
 
-    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = True, tenant_id: str = '1') -> Any:
+    def get_value(self, category: str, key: str, default: Any = None, use_cache: bool = True, tenant_id: Optional[str] = None) -> Any:
         """
         설정 값만 조회 (타입 변환 포함)
 
         다른 서비스/그래프에서 설정 값을 가져올 때 사용하는 주요 메서드.
-        tenant_id 기본값 '1'로 하위 호환 유지 (기존 호출자 변경 불필요).
+        tenant_id가 None이면 contextvars에서 자동 해석하여 테넌트별 설정을 적용합니다.
 
         Args:
             category: 설정 카테고리
             key: 설정 키
             default: 기본값 (설정이 없을 때)
             use_cache: 캐시 사용 여부
-            tenant_id: 테넌트 ID (기본 '1' = 공용)
+            tenant_id: 테넌트 ID (None이면 contextvars에서 자동 해석)
         """
         setting = self.get_setting(category, key, use_cache=use_cache, tenant_id=tenant_id)
         if not setting:
@@ -329,7 +346,7 @@ class SettingsConfig:
         except (ValueError, AttributeError, json.JSONDecodeError):
             return default
 
-    def get_category_settings(self, category: str, tenant_id: str = '1') -> List[Dict[str, Any]]:
+    def get_category_settings(self, category: str, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """카테고리별 설정 전체 조회"""
         self._load_cache()
         result = []
@@ -340,7 +357,7 @@ class SettingsConfig:
                     result.append({'category': category, 'key': key, **setting})
         return result
 
-    def get_all_settings(self, tenant_id: str = '1') -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_settings(self, tenant_id: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
         """전체 설정 조회"""
         self._load_cache()
         return {category: self.get_category_settings(category, tenant_id=tenant_id) for category in self.DEFAULTS}
@@ -355,7 +372,7 @@ class SettingsConfig:
             return "****"
         return value[:4] + "*" * (len(value) - 8) + value[-4:]
 
-    def get_masked_settings(self, category: str, tenant_id: str = '1') -> List[Dict[str, Any]]:
+    def get_masked_settings(self, category: str, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """마스킹된 카테고리 설정 조회"""
         settings = self.get_category_settings(category, tenant_id=tenant_id)
         for setting in settings:
@@ -363,7 +380,7 @@ class SettingsConfig:
                 setting['value'] = self.mask_secret_value(setting['value'])
         return settings
 
-    def get_all_masked_settings(self, tenant_id: str = '1') -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_masked_settings(self, tenant_id: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
         """마스킹된 전체 설정 조회"""
         result = {}
         for category in self.DEFAULTS:

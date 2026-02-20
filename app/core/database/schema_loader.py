@@ -1,7 +1,7 @@
 """스키마 메타데이터 로더
 
 위치: app/core/database/schema_loader.py
-- 비즈니스 DB 스키마 조회
+- 비즈니스 DB 스키마 조회 (테넌트별 캐시)
 - 테이블/컬럼/키/인덱스 정보
 - LLM용 스키마 설명 생성
 - 다중 DB 지원 (어댑터 패턴)
@@ -24,22 +24,31 @@ def _get_external_db_manager():
     return _external_db_manager
 
 
+def _get_tenant_id() -> str:
+    """현재 요청의 tenant_id 조회 (pool_tid 기준)"""
+    ext = _get_external_db_manager()
+    tid = ext._resolve_tenant_id()
+    return ext._get_pool_tenant_id(tid)
+
+
 class SchemaLoaderService:
-    """비즈니스 데이터베이스 스키마 메타데이터 로더 (NL2SQL용)"""
+    """비즈니스 데이터베이스 스키마 메타데이터 로더 (NL2SQL용, 테넌트별 캐시)"""
 
     def __init__(self):
-        self._schema_cache: Dict[str, Any] = {}
+        self._schema_cache: Dict[str, Dict[str, Any]] = {}  # pool_tid → schema dict
 
     def load_schema_metadata(self, refresh: bool = False) -> Dict[str, Any]:
         """
-        비즈니스 DB 스키마 메타데이터 로드
+        비즈니스 DB 스키마 메타데이터 로드 (테넌트별 캐시)
         Args:
             refresh: 캐시 무시하고 새로 로드
         Returns:
             스키마 정보 딕셔너리
         """
-        if not refresh and self._schema_cache:
-            return self._schema_cache
+        pool_tid = _get_tenant_id()
+
+        if not refresh and pool_tid in self._schema_cache:
+            return self._schema_cache[pool_tid]
 
         external_db_manager = _get_external_db_manager()
         schema_name = external_db_manager.get_schema_name()
@@ -66,9 +75,15 @@ class SchemaLoaderService:
             }
             schema["tables"].append(table_info)
 
-        self._schema_cache = schema
-        logger.info(f"스키마 메타데이터 로드 완료: {schema_name}.* {len(tables)}개 테이블 (DB: {db_type})")
+        self._schema_cache[pool_tid] = schema
+        logger.info(f"스키마 메타데이터 로드 완료: {schema_name}.* {len(tables)}개 테이블 (DB: {db_type}, 테넌트: {pool_tid})")
         return schema
+
+    def clear_tenant_cache(self, tenant_id: str):
+        """특정 테넌트의 스키마 캐시 클리어 (reload_config에서 호출)"""
+        removed = self._schema_cache.pop(tenant_id, None)
+        if removed:
+            logger.info(f"테넌트 {tenant_id}: 스키마 캐시 클리어")
 
     def _get_tables(self) -> List[str]:
         """비즈니스 스키마의 테이블 목록 조회 (allowed_tables 설정으로 필터링)"""

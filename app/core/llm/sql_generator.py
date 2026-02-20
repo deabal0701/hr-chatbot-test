@@ -77,11 +77,17 @@ class SQLGeneratorService:
     """
 
     def __init__(self):
-        self._schema_cache: str = None
+        self._schema_cache: Dict[str, str] = {}  # pool_tid → schema description
+
+    def _get_pool_tid(self) -> str:
+        """현재 요청의 pool_tid 조회"""
+        ext = _get_external_db_manager()
+        tid = ext._resolve_tenant_id()
+        return ext._get_pool_tenant_id(tid)
 
     def get_schema_description(self, refresh: bool = False) -> str:
         """
-        스키마 설명 조회 (캐싱 지원)
+        스키마 설명 조회 (테넌트별 캐싱 지원)
 
         Args:
             refresh: 캐시 무시하고 새로 로드
@@ -89,12 +95,21 @@ class SQLGeneratorService:
         Returns:
             LLM용 스키마 설명 문자열
         """
-        if refresh or self._schema_cache is None:
-            schema_loader = _get_schema_loader()
-            self._schema_cache = schema_loader.generate_schema_description()
-            log_step(logger, "SYSTEM", "SQL-GEN", "SCHEMA", "CACHE", "스키마 캐시 갱신 완료")
+        pool_tid = self._get_pool_tid()
+        if not refresh and pool_tid in self._schema_cache:
+            return self._schema_cache[pool_tid]
 
-        return self._schema_cache
+        schema_loader = _get_schema_loader()
+        self._schema_cache[pool_tid] = schema_loader.generate_schema_description()
+        log_step(logger, "SYSTEM", "SQL-GEN", "SCHEMA", "CACHE", f"스키마 캐시 갱신 완료 (테넌트: {pool_tid})")
+
+        return self._schema_cache[pool_tid]
+
+    def clear_tenant_cache(self, tenant_id: str):
+        """특정 테넌트의 스키마 캐시 클리어 (reload_config에서 호출)"""
+        removed = self._schema_cache.pop(tenant_id, None)
+        if removed:
+            logger.info(f"테넌트 {tenant_id}: SQL 생성기 스키마 캐시 클리어")
 
     def get_db_type(self) -> str:
         """
@@ -220,7 +235,7 @@ SQL만 출력하세요 (설명 없이)."""
 
     def refresh_schema_cache(self) -> str:
         """
-        스키마 캐시 강제 갱신
+        현재 테넌트의 스키마 캐시 강제 갱신
 
         Returns:
             갱신된 스키마 설명

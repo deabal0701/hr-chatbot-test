@@ -31,15 +31,8 @@ async def lifespan(app: FastAPI):
     db_manager.initialize()
     logger.info("서비스 데이터베이스 연결 풀 초기화 완료")
 
-    # 외부 비즈니스 DB 초기화 (NL2SQL용)
-    try:
-        external_db_manager.initialize()
-        if external_db_manager.is_enabled():
-            logger.info("외부 비즈니스 데이터베이스 연결 풀 초기화 완료")
-        else:
-            logger.info("외부 DB 비활성화 (로컬 business 스키마 사용)")
-    except Exception as e:
-        logger.warning(f"외부 DB 초기화 실패 (계속 진행): {e}")
+    # 외부 비즈니스 DB: lazy 초기화 (최초 NL2SQL/Agent 요청 시 테넌트별 연결)
+    external_db_manager.initialize()
 
     yield
 

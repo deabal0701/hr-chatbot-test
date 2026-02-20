@@ -164,8 +164,8 @@ class SettingsService:
                 if category == 'external_database':
                     try:
                         ext_db_manager = _get_external_db_manager()
-                        ext_db_manager.reload_config()
-                        logger.info(f"외부 DB 설정 캐시 갱신 완료: {key}")
+                        ext_db_manager.reload_config(tenant_id=tenant_id)
+                        logger.info(f"외부 DB 설정 캐시 갱신 완료: {key} (tenant_id={tenant_id})")
                     except Exception as reload_err:
                         logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
 
@@ -197,8 +197,8 @@ class SettingsService:
         if category == 'external_database' and success_count > 0:
             try:
                 ext_db_manager = _get_external_db_manager()
-                ext_db_manager.reload_config()
-                logger.info(f"외부 DB 설정 일괄 갱신 후 캐시 갱신 완료")
+                ext_db_manager.reload_config(tenant_id=tenant_id)
+                logger.info(f"외부 DB 설정 일괄 갱신 후 캐시 갱신 완료 (tenant_id={tenant_id})")
             except Exception as reload_err:
                 logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
 
@@ -297,12 +297,12 @@ class SettingsService:
                 if category == 'external_database':
                     try:
                         ext_db_manager = _get_external_db_manager()
-                        ext_db_manager.reload_config()
-                        logger.info("외부 DB 설정 초기화 후 캐시 갱신 완료")
+                        ext_db_manager.reload_config(tenant_id=tenant_id)
+                        logger.info(f"외부 DB 설정 초기화 후 캐시 갱신 완료 (tenant_id={tenant_id})")
                     except Exception as reload_err:
                         logger.warning(f"외부 DB 캐시 갱신 실패 (무시): {reload_err}")
 
-                logger.info(f"카테고리 초기화: {category}")
+                logger.info(f"카테고리 초기화: {category} (tenant_id={tenant_id})")
                 return True
 
         except Exception as e:
