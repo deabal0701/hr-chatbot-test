@@ -61,22 +61,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
-import {
-  ChatDotRound,
-  ChatDotSquare,
-  Document,
-  Setting,
-  Grid,
-  Histogram,
-  User,
-  Key,
-  OfficeBuilding,
-  Odometer,
-  Menu as MenuIcon,
-  List,
-  Folder,
-  DataLine
-} from '@element-plus/icons-vue'
+import { ChatDotRound } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const store = useStore()
@@ -86,30 +71,28 @@ const activeMenu = computed(() => route.path)
 const isDarkMode = computed(() => store.getters['app/isDarkMode'])
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
 
-// DB 아이콘명 → Element Plus 아이콘 컴포넌트 매핑
-// DB에 소문자 약어로 저장됨 (예: 'dashboard', 'chat', 'document')
+// DB 아이콘명 → Element Plus 전역 등록 아이콘명 매핑
+// main.js에서 모든 아이콘이 전역 등록되므로 문자열 이름 사용
+// (컴포넌트 객체 참조 시 Vue Proxy 이슈로 el-sub-menu 접힘 상태에서 아이콘 미표시 방지)
 const ICON_MAP = {
-  // DB 소문자 아이콘명
-  dashboard: Odometer,
-  chat: ChatDotSquare,
-  document: Document,
-  users: User,
-  menu: MenuIcon,
-  role: Key,
-  tenant: OfficeBuilding,
-  settings: Setting,
-  code: Grid,
-  history: Histogram,
-  search: DataLine,
-  folder: Folder,
-  // PascalCase (Element Plus 원본명)
-  Odometer, ChatDotSquare, Document, Setting, Grid,
-  Histogram, User, Key, OfficeBuilding, Menu: MenuIcon,
-  List, Folder, DataLine, ChatDotRound
+  dashboard: 'Odometer',
+  chat: 'ChatDotSquare',
+  document: 'Document',
+  users: 'User',
+  menu: 'Menu',
+  role: 'Key',
+  tenant: 'OfficeBuilding',
+  settings: 'Setting',
+  setup: 'SetUp',
+  tools: 'Tools',
+  code: 'Grid',
+  history: 'Histogram',
+  search: 'DataLine',
+  folder: 'Folder',
 }
 
 const resolveIcon = (iconName) => {
-  return ICON_MAP[iconName] || Document
+  return ICON_MAP[iconName] || 'Document'
 }
 
 // 트리 기반 계층 메뉴 구성
@@ -215,6 +198,7 @@ const menuActiveColor = '#409eff'
       &:hover {
         background-color: var(--sidebar-hover-bg) !important;
       }
+
     }
 
     .el-menu-item {

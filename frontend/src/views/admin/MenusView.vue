@@ -160,24 +160,30 @@
               <el-row :gutter="16">
                 <el-col :span="8">
                   <el-form-item label="아이콘" prop="icon">
-                    <el-select
-                      v-model="formData.icon"
-                      placeholder="선택"
-                      clearable
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in iconOptions"
-                        :key="opt.value"
-                        :label="opt.label"
-                        :value="opt.value"
+                    <div class="icon-select-wrap">
+                      <el-icon v-if="formData.icon" class="icon-preview" :size="18">
+                        <component :is="resolveIcon(formData.icon)" />
+                      </el-icon>
+                      <el-select
+                        v-model="formData.icon"
+                        placeholder="선택"
+                        clearable
+                        filterable
+                        style="width: 100%"
                       >
-                        <span class="icon-option">
-                          <el-icon :size="16"><component :is="opt.component" /></el-icon>
-                          <span>{{ opt.label }}</span>
-                        </span>
-                      </el-option>
-                    </el-select>
+                        <el-option
+                          v-for="opt in iconOptions"
+                          :key="opt.value"
+                          :label="opt.label"
+                          :value="opt.value"
+                        >
+                          <span class="icon-option">
+                            <el-icon :size="16"><component :is="opt.component" /></el-icon>
+                            <span>{{ opt.label }}</span>
+                          </span>
+                        </el-option>
+                      </el-select>
+                    </div>
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
@@ -279,7 +285,17 @@ import {
   ArrowDown, ArrowUp,
   ChatDotSquare, Document, Setting, Grid, Histogram,
   User, Key, OfficeBuilding, Odometer,
-  Menu as MenuIcon, List, DataLine
+  Menu as MenuIcon, List, DataLine,
+  SetUp, Tools, HomeFilled, Monitor, Connection, Bell,
+  Calendar, Clock, Search, Lock, Unlock, Star, Flag,
+  PieChart, TrendCharts, Tickets, Briefcase, Suitcase,
+  House, Platform, Service, Management, Operation,
+  DataAnalysis, DataBoard, Notebook, Reading,
+  ShoppingCart, Goods, Wallet, CreditCard, Money,
+  Message, ChatRound, Comment, Notification,
+  Picture, Files, FolderOpened, DocumentAdd,
+  Edit as EditIcon, EditPen, Download, Upload,
+  CircleCheck, Warning, InfoFilled, QuestionFilled
 } from '@element-plus/icons-vue'
 import menusApi from '@/api/menus'
 
@@ -287,6 +303,7 @@ const store = useStore()
 
 // ===== 아이콘 매핑 (AppSidebar ICON_MAP 동기화) =====
 const ICON_MAP = {
+  // 기본 (사이드바 사용)
   dashboard: Odometer,
   chat: ChatDotSquare,
   document: Document,
@@ -295,10 +312,59 @@ const ICON_MAP = {
   role: Key,
   tenant: OfficeBuilding,
   settings: Setting,
+  setup: SetUp,
+  tools: Tools,
   code: Grid,
   history: Histogram,
   search: DataLine,
-  folder: Folder
+  folder: Folder,
+  // 추가 아이콘
+  home: HomeFilled,
+  monitor: Monitor,
+  connection: Connection,
+  bell: Bell,
+  calendar: Calendar,
+  clock: Clock,
+  lock: Lock,
+  unlock: Unlock,
+  star: Star,
+  flag: Flag,
+  piechart: PieChart,
+  trendcharts: TrendCharts,
+  tickets: Tickets,
+  briefcase: Briefcase,
+  suitcase: Suitcase,
+  house: House,
+  platform: Platform,
+  service: Service,
+  management: Management,
+  operation: Operation,
+  dataanalysis: DataAnalysis,
+  databoard: DataBoard,
+  notebook: Notebook,
+  reading: Reading,
+  cart: ShoppingCart,
+  goods: Goods,
+  wallet: Wallet,
+  creditcard: CreditCard,
+  money: Money,
+  message: Message,
+  chatround: ChatRound,
+  comment: Comment,
+  notification: Notification,
+  picture: Picture,
+  files: Files,
+  folderopened: FolderOpened,
+  documentadd: DocumentAdd,
+  edit: EditIcon,
+  editpen: EditPen,
+  download: Download,
+  upload: Upload,
+  circlecheck: CircleCheck,
+  warning: Warning,
+  info: InfoFilled,
+  question: QuestionFilled,
+  list: List,
 }
 
 const resolveIcon = (iconName) => ICON_MAP[iconName] || Document
@@ -952,6 +1018,22 @@ onBeforeUnmount(() => {
       display: inline-flex;
       align-items: center;
       gap: 8px;
+    }
+
+    .icon-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+
+      .icon-preview {
+        flex-shrink: 0;
+        color: var(--color-primary);
+      }
+
+      .el-select {
+        flex: 1;
+      }
     }
   }
 
