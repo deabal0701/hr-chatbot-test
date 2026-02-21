@@ -1,6 +1,7 @@
 # NL2SQL 정확도 분석 보고서
 
 > **작성일**: 2026-02-21
+> **최종 수정일**: 2026-02-21
 > **분석 범위**: Business DB 스키마, Graph 설계, 스키마 검색, Few-shot, Intent Rewrite, SQL 생성 프롬프트, SQL 검증/실행
 > **대상 DB**: Oracle (ORCLCDB, 115.68.223.220:1521, MUSER 스키마)
 
@@ -56,17 +57,20 @@ EMP_ID=2282 → Row2: DEPARTMENT=2사업그룹
 **영향**: `SELECT COUNT(*) FROM v_ai_employee WHERE work_status='재직'`이 실제 재직자 수보다 많은 값을 반환합니다.
 `COUNT(DISTINCT emp_id)` 사용이 필수적이나, LLM은 이를 인지하지 못합니다.
 
-#### [이슈 1-2] V_AI_EDUCATION vs V_AI_SCHOLAR 이름 불일치 (심각도: 높음)
+#### [이슈 1-2] V_AI_EDUCATION vs V_AI_SCHOLAR 이름 불일치 — ✅ 수정 완료
 
-| 위치 | 사용하는 이름 |
-|------|-------------|
-| `nl2sql_generation_prompt` (DB 프롬프트) | `V_AI_EDUCATION` |
-| Few-shot 예제 id=947, id=973 | `v_ai_education` |
-| `table_catalog` (DB 설정) | `v_ai_scholar` |
-| Oracle DB `allowed_tables` | `V_AI_SCHOLAR` |
-| 실제 Oracle 뷰 | `V_AI_SCHOLAR` (존재), `V_AI_EDUCATION` (**미존재**) |
+| 위치 | 수정 전 | 수정 후 |
+|------|---------|---------|
+| `nl2sql_generation_prompt` (DB 프롬프트) | `V_AI_EDUCATION` | ✅ `V_AI_SCHOLAR` |
+| Few-shot 예제 id=947 content/context_data | `v_ai_education` | ✅ `v_ai_scholar` |
+| Few-shot 예제 id=973 context_data | `v_ai_education` | ✅ `v_ai_scholar` |
+| Few-shot 예제 id=979 context_data | `v_ai_education` | ✅ `v_ai_scholar` |
+| `table_catalog` 코드 (`table_catalog.py:85`) | `v_ai_education` | ✅ `v_ai_scholar` |
+| 프론트엔드 (`PromptGuideModal.vue:223`) | `v_ai_education` | ✅ `v_ai_scholar` |
+| Oracle DB `allowed_tables` | `V_AI_SCHOLAR` | (변경 불필요) |
+| 실제 Oracle 뷰 | `V_AI_SCHOLAR` | (변경 불필요) |
 
-**영향**: LLM이 `V_AI_EDUCATION`으로 SQL 생성 시 테이블 검증 실패 또는 ORA-00942 에러 발생.
+> **참고**: id=947, 979에서 구버전 컬럼명(`MAJOR` → `MAJOR_NAME`, `GRADUATION_YEAR` → `GRADUATION_DATE`)도 함께 수정함.
 
 #### [이슈 1-3] EMP_ID vs EMPLOYEE_ID 조인키 불일치 (심각도: 중간)
 
@@ -195,14 +199,13 @@ LLM이 `WHERE POSITION = '부장'`을 올바르게 생성하려면 POSITION 컬�
 
 1개 예제만으로는 복잡한 질문의 SQL 패턴을 충분히 참고할 수 없습니다. 특히 다중 테이블 조인, EXISTS 패턴, 서브쿼리 패턴을 동시에 보여주려면 최소 3개가 필요합니다.
 
-#### [이슈 4-2] V_AI_EDUCATION 사용 예제 (심각도: 높음)
+#### [이슈 4-2] V_AI_EDUCATION 사용 예제 — ✅ 수정 완료
 
-| id | title | 문제 |
-|----|-------|------|
-| 947 | 학력 기준 직원 수 조회 | SQL에 `v_ai_education` 참조 → 실제 뷰명 `v_ai_scholar` |
-| 973 | 입사자 현황 + 학력 정보 | SQL에 `v_ai_education` 참조 → 실제 뷰명 `v_ai_scholar` |
-
-이 예제가 검색되면 LLM이 잘못된 테이블명으로 SQL을 생성합니다.
+| id | title | 수정 전 | 수정 후 |
+|----|-------|---------|---------|
+| 947 | 학력 기준 직원 수 조회 | `v_ai_education`, `MAJOR`, `GRADUATION_YEAR` | ✅ `v_ai_scholar`, `MAJOR_NAME`, `GRADUATION_DATE` |
+| 973 | 입사자 현황 + 학력 정보 | context_data에 `v_ai_education` | ✅ `v_ai_scholar` |
+| 979 | 두 직원 전체 정보표 비교 | context_data에 `v_ai_education`, `MAJOR`, `GRADUATION_YEAR` | ✅ `v_ai_scholar`, `MAJOR_NAME`, `TO_CHAR(GRADUATION_DATE)` |
 
 #### [이슈 4-3] context_data 형식 비일관 (심각도: 중간)
 
@@ -288,39 +291,53 @@ DB(`tb_app_settings`)에 `intent_analysis_system_prompt` 키가 빈 문자열로
 
 ### 6.2 발견된 이슈
 
-#### [이슈 6-1] 날짜 하드코딩 "2026년00월00일" (심각도: 높음)
+#### [이슈 6-1] 날짜 하드코딩 "2026년00월00일" — ✅ 수정 완료
 
-DB에 저장된 프롬프트:
+DB에 저장된 프롬프트 (수정 전):
 
 ```
 올해는 2026년, 오늘 = 2026년00월00일임(LLM기준 날짜 추측 절대 금지)
 ```
 
-"00월00일"이 동적으로 치환되지 않고 **그대로** LLM에 전달됩니다. LLM이 "이번 달 입사자", "최근 3개월" 등의 시간 기반 질문에 정확한 SQL을 생성할 수 없습니다.
+**수정 내용**:
 
-**수정 방안**: `prompt_build_node`에서 `datetime.now()` 값을 프롬프트에 주입하거나, DB 프롬프트 자체에 `{current_date}` 플레이스홀더를 사용.
+1. **DB 프롬프트**: `2026년00월00일` → `{current_date}`, `올해는 2026년` → `올해는 {current_year}년`
+2. **코드** (`prompt_service.py:114-126`): `template.format()` → `template.format_map(SafeDict)` 변경
+   - `{current_date}` → `date.today().strftime("%Y년 %m월 %d일")` (매일 자동 갱신)
+   - `{current_year}` → `str(date.today().year)`
+   - `SafeDict`로 DB 프롬프트에 없는 플레이스홀더도 안전하게 처리
+3. **코드 default 프롬프트** (`prompt_service.py:93-94`): `{current_date}`, `{current_year}` 추가
 
-#### [이슈 6-2] V_AI_EDUCATION 참조 (심각도: 높음)
+#### [이슈 6-2] V_AI_EDUCATION 참조 — ✅ 수정 완료
 
-프롬프트의 1:N 뷰 목록에 `V_AI_EDUCATION`이 명시되어 있으나, 실제 뷰명은 `V_AI_SCHOLAR`입니다.
-
-```
-1:N 뷰: V_AI_ADDRESS, V_AI_CAREER, V_AI_EDUCATION, ...
-                                     ^^^^^^^^^^^^^^^^ → V_AI_SCHOLAR 이어야 함
-```
-
-#### [이슈 6-3] COUNT 시 DISTINCT 미안내 (심각도: 높음)
-
-V_AI_EMPLOYEE 중복 행 문제(이슈 1-1)에도 불구하고, 프롬프트에 `COUNT(DISTINCT emp_id)` 사용 가이드가 없습니다.
-
-**추가 필요 규칙**:
+프롬프트의 1:N 뷰 목록에 `V_AI_EDUCATION`이 명시되어 있었으나, 이슈 1-2 수정 시 함께 `V_AI_SCHOLAR`로 통일 완료.
 
 ```
-# V_AI_EMPLOYEE 주의사항
-- V_AI_EMPLOYEE는 1인 다행 가능 (부서이동 이력)
-- 인원수 집계 시 반드시 COUNT(DISTINCT EMP_ID) 사용
-- SELECT DISTINCT emp_id, emp_name, ... 으로 중복 제거
+수정 전: 1:N 뷰: V_AI_ADDRESS, V_AI_CAREER, V_AI_EDUCATION, ...
+수정 후: 1:N 뷰: V_AI_ADDRESS, V_AI_CAREER, V_AI_SCHOLAR, ...
 ```
+
+#### [이슈 6-3] COUNT 시 DISTINCT 미안내 — ✅ 수정 완료
+
+V_AI_EMPLOYEE 중복 행 문제(이슈 1-1)에 대한 가이드를 프롬프트에 추가 완료.
+
+**수정 내용**:
+
+1. **DB 프롬프트** (`tb_app_settings`): 아래 섹션 추가
+```
+# 인원수 집계 (중요)
+- 인원수/사람 수를 셀 때는 반드시 COUNT(DISTINCT EMP_ID)를 사용하세요
+- V_AI_EMPLOYEE 뷰에 1인당 여러 행이 존재할 수 있음 (FRM_CODE JOIN)
+- COUNT(*)는 행 수이므로 실제 인원수와 다를 수 있음
+```
+
+2. **코드 default 프롬프트** (`prompt_service.py:101`): Oracle 주의사항에 추가
+```
+- 인원수/사람 수를 셀 때는 반드시 COUNT(DISTINCT EMP_ID)를 사용하세요
+  (V_AI_EMPLOYEE 등 뷰에 1인당 여러 행이 존재할 수 있음)
+```
+
+> **V_AI_EMPLOYEE 중복 현황**: 전체 2,437행 중 실제 인원 2,349명 (88명이 2행씩 중복, 오차율 3.7%). 차이나는 컬럼은 `DEPARTMENT` 1개뿐.
 
 #### [이슈 6-4] table_catalog 메타데이터 미주입 (심각도: 중간)
 
@@ -394,7 +411,7 @@ return {
 ```
 
 에러 메시지를 파싱하여 구체적인 수정 힌트를 제공하면 재시도 성공률이 향상됩니다:
-- `"허용되지 않은 테이블: v_ai_education"` → `"v_ai_education 대신 v_ai_scholar를 사용하세요"`
+- `"허용되지 않은 테이블: xxx"` → `"허용된 테이블 목록에서 유사한 테이블명을 제안"`
 - `"ORA-00904: EMP_ID invalid"` → `"v_ai_pay_report에서는 EMPLOYEE_ID를 사용하세요"`
 
 #### [이슈 7-3] LIMIT 자동 추가의 부작용 (심각도: 낮음)
@@ -405,13 +422,13 @@ return {
 
 ## 8. 종합 개선 로드맵
 
-### 8.1 CRITICAL (즉시 수정 필요)
+### 8.1 CRITICAL (즉시 수정 필요) — ✅ 모두 수정 완료
 
-| ID | 이슈 | 영향 | 수정 방안 | 수정 위치 |
-|----|------|------|----------|----------|
-| **C1** | V_AI_EDUCATION → V_AI_SCHOLAR 통일 | SQL 실행 실패 | 프롬프트/Few-shot에서 `v_ai_education` → `v_ai_scholar` 변경 | DB: `tb_app_settings`(prompt.nl2sql_generation_prompt), `tb_docs`(id=947,973) |
-| **C2** | 날짜 동적 주입 | 시간 기반 질문 오류 | `prompt_build_node`에서 `datetime.now()` 주입 또는 프롬프트에 `{current_date}` 플레이스홀더 | `app/graphs/nl2sql/nodes.py` + DB 프롬프트 |
-| **C3** | COUNT(DISTINCT EMP_ID) 가이드 | 집계 수치 부정확 | 프롬프트에 V_AI_EMPLOYEE 중복 행 주의 규칙 추가 | DB: `tb_app_settings`(prompt.nl2sql_generation_prompt) |
+| ID | 이슈 | 상태 | 수정 내용 |
+|----|------|------|----------|
+| **C1** | V_AI_EDUCATION → V_AI_SCHOLAR 통일 | ✅ 완료 | **코드**: `table_catalog.py:85`, `PromptGuideModal.vue:223` / **DB**: `tb_app_settings`(프롬프트), `tb_docs`(id=947,973,979) 일괄 치환. 구버전 컬럼명(`MAJOR`→`MAJOR_NAME`, `GRADUATION_YEAR`→`GRADUATION_DATE`)도 수정 |
+| **C2** | 날짜 동적 주입 | ✅ 완료 | **코드**: `prompt_service.py` — `format()` → `format_map(SafeDict)` + `{current_date}`, `{current_year}` 변수 주입 / **DB**: `2026년00월00일` → `{current_date}` 플레이스홀더 치환 |
+| **C3** | COUNT(DISTINCT EMP_ID) 가이드 | ✅ 완료 | **코드**: `prompt_service.py` default 프롬프트에 규칙 추가 / **DB**: `tb_app_settings`(프롬프트)에 "인원수 집계" 섹션 추가 |
 
 ### 8.2 HIGH (정확도 직접 영향)
 
@@ -451,23 +468,19 @@ UPDATE tb_app_settings SET value = '3' WHERE category = 'nl2sql' AND key = 'fews
 
 -- 2. multiturn_max_turns: 1 → 5
 UPDATE tb_app_settings SET value = '5' WHERE category = 'nl2sql' AND key = 'multiturn_max_turns';
-
--- 3. Few-shot 예제 수정 (v_ai_education → v_ai_scholar)
-UPDATE tb_docs SET context_data = REPLACE(context_data, 'v_ai_education', 'v_ai_scholar')
-WHERE id IN (947, 973);
-
--- 4. nl2sql_generation_prompt에서 V_AI_EDUCATION → V_AI_SCHOLAR 변경
-UPDATE tb_app_settings
-SET value = REPLACE(value, 'V_AI_EDUCATION', 'V_AI_SCHOLAR')
-WHERE category = 'prompt' AND key = 'nl2sql_generation_prompt';
 ```
 
-**코드 수정이 필요한 항목**:
+> ~~3. Few-shot v_ai_education 수정~~ → ✅ C1에서 완료
+> ~~4. 프롬프트 V_AI_EDUCATION 수정~~ → ✅ C1에서 완료
 
-| 파일 | 수정 내용 |
-|------|----------|
-| `app/graphs/nl2sql/nodes.py` (prompt_build_node) | 날짜 동적 주입, table_catalog 메타데이터 주입 |
-| `app/core/database/schema_loader.py` | catalog 컬럼 설명 병합 옵션 |
+**코드 수정이 필요한 항목** (미수정):
+
+| 파일 | 수정 내용 | 관련 |
+|------|----------|------|
+| `app/graphs/nl2sql/nodes.py` (prompt_build_node) | table_catalog 메타데이터 주입 | H2 |
+| `app/core/database/schema_loader.py` | catalog 컬럼 설명 병합 옵션 | M2 |
+
+> ~~날짜 동적 주입~~ → ✅ C2에서 `prompt_service.py` 수정으로 완료
 
 ---
 
