@@ -82,7 +82,7 @@ _DEFAULT_CATALOG: Dict[str, Dict[str, Any]] = {
         "relation": "1:N",
         "related_tables": ["v_ai_employee"],
     },
-    "v_ai_education": {
+    "v_ai_scholar": {
         "description": "학력 정보",
         "columns": [
             "EMP_ID (FK)",

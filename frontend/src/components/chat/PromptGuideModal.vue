@@ -220,7 +220,7 @@ const nl2sqlTables = [
     columns: ['주소', '상세주소', '우편번호', '거주지역']
   },
   {
-    name: 'v_ai_education',
+    name: 'v_ai_scholar',
     description: '학력 정보',
     columns: ['학교명', '전공', '복수전공', '졸업연도']
   },

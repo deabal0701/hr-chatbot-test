@@ -84,7 +84,7 @@ export default {
 
     // 테마 설정 (사용자/관리자 분리)
     userDarkMode: getStoredTheme('user'),    // 사용자 화면 테마 (기본: 다크)
-    adminDarkMode: getStoredTheme('admin'),  // 관리자 화면 테마 (기본: 라이트)
+    adminDarkMode: getStoredTheme('admin'),  // 관리자 화면 테마 (기본: 다크)
     currentView: 'admin'                      // 현재 화면 타입 ('user' | 'admin')
   }),
 

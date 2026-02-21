@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MUREUM is an enterprise AI knowledge base assistant combining multiple AI techniques for natural language search over documents and databases. The system features an AI Agent (ReAct pattern), RAG, and NL2SQL capabilities with multi-turn conversation support.
+MUREUM is an enterprise AI knowledge base assistant combining multiple AI techniques for natural language search over documents and databases. The system features an AI Agent (ReAct pattern), RAG, and NL2SQL capabilities with multi-turn conversation support, multi-tenant architecture, and role-based access control.
 
 **Stack**: FastAPI + LangGraph + PostgreSQL (pgvector) + Vue 3 + Multi-LLM Provider (OpenAI, Anthropic) + Multi-DB Support (PostgreSQL, Oracle)
 
@@ -18,10 +18,16 @@ MUREUM is an enterprise AI knowledge base assistant combining multiple AI techni
 - RAG document search with vector embeddings (pgvector)
 - Multi-turn conversations with session-based memory (InMemorySaver)
 - SSE streaming for real-time responses (Agent, NL2SQL)
+- JWT authentication with role-based access control (GLOBAL/TENANT/USER)
+- Multi-tenant architecture with scope-based data isolation
+- Menu-based CRUD permission system (tb_user_menu)
 - Dynamic settings management (DB-based real-time configuration)
 - Multi-LLM provider support (OpenAI, Anthropic via init_chat_model)
 - Multi-DB support for NL2SQL (PostgreSQL, Oracle via adapter pattern)
 - PII detection and masking (Agent middleware, NL2SQL pipeline)
+- Dashboard with KPI, charts, recent activity
+
+**설계 문서**: `docs/design/` 디렉토리 참조
 
 ## Common Commands
 
@@ -58,14 +64,14 @@ npm run preview  # Preview production build
 ### Testing
 
 ```bash
-# Unit tests
-pytest tests/
+# Integration tests (순서대로 실행 권장)
+pytest tests/ -v
 
 # Single test file
-pytest tests/test_agent.py -v
+pytest tests/test_02_auth.py -v
 
 # Single test function
-pytest tests/test_agent.py::test_function_name -v
+pytest tests/test_02_auth.py::test_login -v
 
 # With coverage
 pytest tests/ --cov=app --cov-report=html
@@ -77,10 +83,16 @@ pytest tests/ --cov=app --cov-report=html
 # API health check
 curl http://localhost:19090/health
 
+# Login (토큰 획득)
+curl -X POST "http://localhost:19090/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"login_id": "admin", "password": "Admin1234!"}'
+
 # Test AI Agent search
 curl -X POST "http://localhost:19090/api/v1/agent/search" \
   -H "Content-Type: application/json" \
-  -d '{"question": "2024년 입사자는 몇 명이고 재택근무 정책은 뭐야?", "config": {"max_iterations": 10, "enable_memory": true}}'
+  -H "Authorization: Bearer <token>" \
+  -d '{"question": "2024년 입사자는 몇 명이고 재택근무 정책은 뭐야?"}'
 
 # Test RAG search
 curl -X POST "http://localhost:19090/api/v1/rag" \
@@ -95,6 +107,43 @@ curl -X POST "http://localhost:19090/api/v1/nl2sql" \
 
 ## Architecture Highlights
 
+### Authentication & Authorization
+
+**JWT 인증** (`app/core/security/`):
+- Access Token (30분) + Refresh Token (7일, DB 저장)
+- 로그인 실패 5회 → 30분 계정 잠금
+- bcrypt 패스워드 해싱
+
+**권한 모델** (2계층):
+```
+tb_user_menu = "어떤 메뉴에 무엇을 할 수 있는가"  (기능 접근: CRUD + Export)
+tb_role.role_code = "어디까지 볼 수 있는가"       (데이터 범위: GLOBAL/TENANT/USER)
+```
+
+**역할 계층**:
+| role_code | sort_order | 데이터 범위 | landing_page |
+|-----------|-----------|------------|--------------|
+| GLOBAL | 1 | 전체 | /admin/dashboard |
+| TENANT | 2 | 소속 테넌트 | /admin/dashboard |
+| USER | 3 | 본인만 | /chat |
+
+**라우트에서 권한 체크**:
+```python
+from app.core.security.permission import require_menu_permission
+
+@router.post("")
+async def create_user(
+    current_user = Depends(require_menu_permission("USER_MGMT", "create"))
+):
+```
+
+**보안 보호 메커니즘**:
+- 시스템 리소스 보호: `is_system` 플래그 (테넌트, 역할 삭제 불가)
+- 역할 권한 상승 방지: `sort_order` 기반 (자신보다 상위 역할 할당 불가)
+- 역할-테넌트 조합 검증: GLOBAL→시스템테넌트, TENANT/USER→일반테넌트
+- 메뉴 권한 상승 방지: 본인 미보유 메뉴 할당 불가
+- 슈퍼유저 보호: is_superuser 수정/삭제 불가
+
 ### LangGraph Workflow Pattern
 
 This codebase uses **LangGraph** for AI workflows. Understanding the graph execution model is critical:
@@ -107,94 +156,27 @@ This codebase uses **LangGraph** for AI workflows. Understanding the graph execu
 
 **AI Agent Flow** (ReAct - `app/graphs/agent/graph.py`):
 ```
-┌──────────────────────────────────────────────────────────┐
-│  START → agent_node → should_continue() decision         │
-│                        ├─ "tools" → tools_node → agent   │
-│                        └─ "answer" → answer_node → END   │
-└──────────────────────────────────────────────────────────┘
+START → agent_node → should_continue()
+                      ├─ "tools" → tools_node → agent_node (loop)
+                      └─ "answer" → answer_node → END
 ```
 
 **NL2SQL Flow** (Multi-turn + Intent Analysis + PII Filter - `app/graphs/nl2sql/graph.py`):
 ```
 load_history → intent_rewrite → should_route_after_intent
-                                 ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                 │                                                                                      ├─ execute → execute_sql → should_continue_after_execute
-                                 │                                                                                      │                            ├─ answer → pii_filter → generate_answer → save_history → END
-                                 │                                                                                      │                            ├─ retry → prepare_retry → fewshot_retrieval
-                                 │                                                                                      │                            └─ error → handle_error → END
-                                 │                                                                                      ├─ retry → prepare_retry → fewshot_retrieval
-                                 │                                                                                      └─ error → handle_error → END
+                                 ├─ sql_needed → schema → fewshot → prompt → generate → validate
+                                 │                                                        ├─ execute → execute_sql → should_continue_after_execute
+                                 │                                                        │                            ├─ answer → pii_filter → generate_answer → save_history → END
+                                 │                                                        │                            ├─ retry → prepare_retry → fewshot
+                                 │                                                        │                            └─ error → handle_error → END
+                                 │                                                        ├─ retry → prepare_retry → fewshot
+                                 │                                                        └─ error → handle_error → END
                                  └─ sql_not_needed → answer_from_history → save_history → END
 ```
 
 **RAG Flow** (`app/graphs/rag/graph.py`):
 ```
 retrieve → generate_answer → END
-```
-
-### AgentState (ReAct 상태 관리)
-
-Agent 상태는 TypedDict로 정의됩니다 (`app/graphs/agent/state.py`):
-
-```python
-class AgentState(TypedDict):
-    # ===== 기본 필드 =====
-    messages: Annotated[Sequence[BaseMessage], add_messages]  # 대화 히스토리 (누적)
-    question: str                        # 원본 질문
-    session_id: str                      # 세션 ID (멀티턴)
-    request_id: str                      # 요청 추적 ID
-
-    # ===== ReAct 제어 필드 =====
-    iteration_count: int                 # 현재 반복 횟수
-    max_iterations: int                  # 최대 반복 횟수
-    final_answer: str                    # 최종 답변
-
-    # ===== 설정 =====
-    config: AgentConfig                  # Agent 설정
-
-    # ===== Tool 결과 =====
-    last_tool_name: str                  # 마지막 사용 Tool
-    last_tool_result: str                # 마지막 Tool 결과
-
-    # ===== SQL Tool 결과 (프론트엔드 표시용) =====
-    generated_sql: str                   # 생성된 SQL
-    sql_result: Optional[SQLResult]      # SQL 실행 결과
-
-    # ===== RAG Tool 결과 =====
-    rag_sources: List[Dict]              # 검색된 문서 목록
-
-    # ===== 메타데이터 =====
-    tools_used: List[str]                # 사용된 Tool 목록
-    start_time: float                    # 시작 시간
-```
-
-**초기 상태 생성**:
-```python
-from app.graphs.agent.state import create_initial_state
-
-initial_state = create_initial_state(
-    question="사용자 질문",
-    session_id="session-123",
-    request_id="abc12345",
-    config=AgentConfig(),
-    max_iterations=10,
-)
-initial_state["messages"] = [HumanMessage(content=question)]
-```
-
-### NL2SQLState (멀티턴 상태 관리)
-
-NL2SQL 상태는 멀티턴 대화와 의도 분석을 포함합니다 (`app/graphs/nl2sql/state.py`):
-
-```python
-class NL2SQLState(TypedDict):
-    # 기본 필드: question, schema_description, generated_sql, validated, sql_result, answer, metadata, request_id
-    # 스키마 검색: selected_tables, schema_retrieval_confidence
-    # Few-shot: fewshot_context, fewshot_examples, fewshot_count
-    # 프롬프트: sql_prompt, user_prompt, prompt_metadata
-    # 재시도: retry_count, max_retries, previous_sql, previous_error, enhanced_fewshot
-    # 멀티턴: session_id, conversation_history, current_turn, max_turns, history_truncated
-    # 의도 분석: query_type, rewritten_question, intent_reasoning, sql_result_summary
 ```
 
 ### Async/Await Pattern
@@ -222,7 +204,7 @@ llm_model = settings_service.get_value("llm", "model", settings.llm_model)
 **Unified Interface** via `app/core/llm/llm_config.py`:
 ```python
 from app.core.llm.llm_config import LLMConfigManager
-llm = LLMConfigManager.create_llm(temperature=0.0)  # Auto-loads from DB/env
+llm = LLMConfigManager.create_llm(temperature=0.0)
 ```
 
 **Providers**: OpenAI (gpt-4o, gpt-4o-mini), Anthropic (claude-3-5-sonnet-20241022)
@@ -231,10 +213,20 @@ llm = LLMConfigManager.create_llm(temperature=0.0)  # Auto-loads from DB/env
 
 ### Database Architecture
 
-**PostgreSQL** (Primary DB with pgvector):
+**Service DB** (PostgreSQL with pgvector):
+- `tb_tenant`: 멀티테넌트 (is_system 플래그)
+- `tb_role`: 역할 정의 (GLOBAL/TENANT/USER, sort_order)
+- `tb_user`: 사용자 (role_id, tenant_id, is_superuser)
+- `tb_menu`: 메뉴 트리 (parent-child 계층)
+- `tb_user_menu`: 권한 매트릭스 (CRUD + Export)
+- `tb_user_session`: JWT 세션 (refresh_token)
 - `tb_docs`: Documents + embeddings (RAG source)
 - `tb_app_settings`: Dynamic configuration
 - `tb_api_history`: API 요청 이력 (history middleware 자동 저장)
+- `tb_code_group`, `tb_code_item`: 코드 관리
+
+**External Business DB** (`app/core/database/external.py`):
+- NL2SQL 대상 DB (PostgreSQL 또는 Oracle)
 - `employee`, `department`: NL2SQL query targets
 
 **Connection Pattern** (`app/core/database/connection.py`):
@@ -249,23 +241,11 @@ with db_manager.get_cursor(commit=True) as cur:
     cur.execute("INSERT ...")
 ```
 
-**External Business DB** (`app/core/database/external.py`):
-```python
-from app.core.database.external import external_db_manager
-# NL2SQL 대상 DB (PostgreSQL 또는 Oracle)
-```
-
 **Multi-DB Support** (NL2SQL via Factory Pattern - `app/core/database/adapters/factory.py`):
 ```python
 from app.core.database.adapters.factory import get_adapter, get_supported_db_types
-
-# 지원 DB 타입: postgresql, oracle
-adapter = get_adapter("postgresql")  # DatabaseAdapter 구현체 반환
-supported = get_supported_db_types()  # ["postgresql", "oracle"]
+adapter = get_adapter("postgresql")  # postgresql, oracle
 ```
-
-- PostgreSQL: `LIMIT N`, `information_schema`
-- Oracle: `FETCH FIRST N ROWS ONLY`, `ALL_TABLES`
 
 ### SSE Streaming
 
@@ -273,12 +253,12 @@ Agent와 NL2SQL은 SSE(Server-Sent Events) 스트리밍을 지원합니다:
 - `app/core/sse/stream_manager.py`: SSE 포맷팅, 스테이지 그룹핑
 - `app/models/sse.py`: NodeStartEvent, NodeCompleteEvent, CompleteEvent, ErrorEvent
 - Agent: `astream_events()` → 노드별 스테이지 이벤트 전송
-- NL2SQL: `astream_events()` → forward-only 스테이지 전환 (재시도 루프 시 뒤로 안 감)
+- NL2SQL: `astream_events()` → forward-only 스테이지 전환
 
 ### Error Handling
 
 통일된 에러 처리 시스템 (`app/core/errors/`):
-- `error_codes.py`: ErrorCode enum 정의
+- `error_codes.py`: ErrorCode enum (VALIDATION, AUTH, FORBIDDEN, NOT_FOUND 등 12종)
 - `handlers.py`: FastAPI 전역 예외 핸들러
 - `response.py`: 표준화된 응답 포맷 (success_response, error_response)
 
@@ -300,7 +280,7 @@ Agent와 NL2SQL은 SSE(Server-Sent Events) 스트리밍을 지원합니다:
 | GET (단건) | 200 | 객체 | `{"user_id": 1, ...}` |
 | GET (목록) | 200 | `{"items": [...], "total": N}` | `{"items": [{...}, {...}], "total": 25}` |
 | UPDATE | 200 | 수정된 객체 | `{"user_id": 1, "display_name": "변경됨", ...}` |
-| DELETE | 200 | `{"message": "...", "deleted_count": N}` | `{"message": "사용자가 삭제되었습니다", "deleted_count": 1}` |
+| DELETE | 200 | `{"message": "...", "deleted_count": N}` | `{"message": "삭제되었습니다", "deleted_count": 1}` |
 | REORDER | 200 | `{"message": "...", "updated_count": N}` | `{"message": "순서가 변경되었습니다", "updated_count": 3}` |
 | BULK DELETE | 200 | `{"message": "...", "total_deleted": N}` | `{"message": "일괄 삭제 완료", "total_deleted": 5}` |
 
@@ -346,10 +326,12 @@ with db_manager.get_cursor(commit=True) as cur:
 
 **FastAPI Middleware** (`app/middleware/`):
 ```
-요청 순서: LoggingMiddleware → HistoryMiddleware → CORSMiddleware → Handler
-응답 순서: Handler → CORSMiddleware → HistoryMiddleware → LoggingMiddleware
+등록 순서: HistoryMiddleware → AuthMiddleware → LoggingMiddleware → CORSMiddleware
+요청 실행: CORS → Logging → Auth → History → Handler
+응답 실행: Handler → History → Auth → Logging → CORS
 ```
 - `logging.py`: 요청/응답 로깅 + request_id 생성
+- `auth.py`: JWT 토큰 검증 → `request.state.current_user` 설정 (선택적 모드)
 - `history.py`: API 요청 이력 DB 저장 (비동기 워커)
 - `base.py`: 미들웨어 베이스 클래스
 
@@ -363,24 +345,36 @@ with db_manager.get_cursor(commit=True) as cur:
 ```
 app/
 ├── main.py                    # FastAPI app + lifespan + router/middleware 등록
-├── config.py                  # Pydantic settings
+├── config.py                  # Pydantic settings (JWT, 보안 설정 포함)
 ├── api/
 │   ├── routes/                # HTTP endpoints (thin layer)
-│   │   ├── agent.py           # AI Agent endpoints (search, stream, sessions, tools)
+│   │   ├── auth.py            # 인증 (login/logout/refresh/me/password)
+│   │   ├── agent.py           # AI Agent (search, stream, sessions, tools)
 │   │   ├── search.py          # RAG/NL2SQL search (auto/rag/nl2sql + stream)
 │   │   ├── documents.py       # Document management CRUD
+│   │   ├── users.py           # 사용자 CRUD + options + 메뉴 권한 할당
+│   │   ├── roles.py           # 역할 CRUD + default-menus
+│   │   ├── menus.py           # 메뉴 트리 CRUD + reorder
+│   │   ├── tenants.py         # 테넌트 CRUD
 │   │   ├── settings.py        # Settings management
-│   │   ├── codes.py           # Code management
-│   │   ├── history.py         # API 요청 이력 (필터, 통계, 세션별)
+│   │   ├── codes.py           # Code management + public lookup
+│   │   ├── history.py         # API 이력 (필터, 통계, 세션별)
+│   │   ├── dashboard.py       # 대시보드 KPI/차트/최근활동
 │   │   └── export.py          # Excel 내보내기
 │   └── services/              # Business logic layer
+│       ├── auth_service.py    # 인증 (로그인, 토큰, 세션, 권한 조회)
 │       ├── agent_service.py   # Agent orchestration (→ graphs/agent/graph.py)
 │       ├── rag_service.py     # RAG orchestration (→ graphs/rag/graph.py)
 │       ├── nl2sql_service.py  # NL2SQL orchestration (→ graphs/nl2sql/graph.py)
 │       ├── document_service.py # Document CRUD
+│       ├── user_service.py    # 사용자 CRUD + 권한 상승 방지 + scope 필터
+│       ├── role_service.py    # 역할 CRUD + 기본 메뉴
+│       ├── menu_service.py    # 메뉴 트리 CRUD + reorder
+│       ├── tenant_service.py  # 테넌트 CRUD + is_system 보호
 │       ├── settings_service.py # Dynamic config (DB fallback chain)
 │       ├── code_service.py    # Code service
 │       ├── history_service.py # 이력 저장 (비동기 워커 큐)
+│       ├── dashboard_service.py # 대시보드 통합 데이터 (KPI, 추이, 시스템)
 │       └── export_service.py  # Excel export logic
 ├── graphs/                    # LangGraph workflows (core AI logic)
 │   ├── agent/                 # AI Agent (ReAct 패턴)
@@ -408,6 +402,12 @@ app/
 │       ├── state.py           # RAGState TypedDict + create_initial_state()
 │       └── nodes.py           # retrieve_documents_node, generate_answer_node
 ├── core/                      # Core infrastructure
+│   ├── security/              # 인증/인가 시스템
+│   │   ├── jwt.py             # JWT 생성/검증 (Access + Refresh)
+│   │   ├── password.py        # bcrypt 해싱/검증
+│   │   ├── dependencies.py    # get_current_user, get_current_active_user
+│   │   ├── permission.py      # require_menu_permission, require_superuser
+│   │   └── tenant_context.py  # ContextVar 기반 테넌트 컨텍스트
 │   ├── database/              # Database layer
 │   │   ├── connection.py      # Connection pool (psycopg3) - db_manager
 │   │   ├── external.py        # External DB manager (NL2SQL 대상 DB)
@@ -418,7 +418,7 @@ app/
 │   │       ├── base.py        # DatabaseAdapter ABC
 │   │       ├── postgresql.py  # PostgreSQL adapter
 │   │       ├── oracle.py      # Oracle adapter
-│   │       └── factory.py     # Adapter factory (get_adapter, get_supported_db_types)
+│   │       └── factory.py     # Adapter factory
 │   ├── llm/                   # LLM layer
 │   │   ├── llm_config.py      # LLMConfigManager (create_llm, get_rag_settings)
 │   │   ├── prompt_service.py  # Prompt templates (agent, nl2sql, rag)
@@ -437,8 +437,12 @@ app/
 │   └── config/                # Configuration
 │       └── settings_config.py # Settings schema (settings_config)
 ├── models/                    # Pydantic models (API contracts)
-│   ├── agent.py               # AgentRequest, AgentResponse, AgentConfig, AgentStep, AgentSQLResult
-│   ├── search.py              # SearchRequest, SearchResponse, SearchFilters, ExcelExportRequest
+│   ├── auth.py                # LoginRequest, TokenResponse, UserContext, MenuPermission
+│   ├── user.py                # UserCreate/Update/Response, RoleCreate/Update/Response
+│   ├── menu.py                # MenuCreate/Update, MenuTreeResponse, UserMenuPermission
+│   ├── tenant.py              # TenantCreate/Update/Response
+│   ├── agent.py               # AgentRequest, AgentResponse, AgentConfig
+│   ├── search.py              # SearchRequest, SearchResponse, SearchFilters
 │   ├── rag.py                 # DocumentSource, SQLResult
 │   ├── documents.py           # Document CRUD models
 │   ├── settings.py            # Settings models
@@ -449,6 +453,7 @@ app/
 ├── middleware/                 # FastAPI middleware
 │   ├── base.py                # Middleware base class
 │   ├── logging.py             # Request/response logging + request_id 생성
+│   ├── auth.py                # JWT 인증 미들웨어 (선택적 모드)
 │   └── history.py             # API history recording (async worker)
 └── utils/                     # Utilities
     ├── logger.py              # Structured logging + log_step()
@@ -457,15 +462,20 @@ app/
 
 frontend/src/
 ├── views/
+│   ├── LoginView.vue                 # 로그인 페이지
 │   ├── user/
 │   │   └── UserChatView.vue          # User chat interface (dark mode default)
 │   └── admin/
 │       ├── AdminLayout.vue           # Admin navigation wrapper
+│       ├── DashboardView.vue         # Dashboard (KPI, 차트, 최근활동)
 │       ├── ChatView.vue              # Admin chat interface
-│       ├── DashboardView.vue         # Dashboard/analytics
 │       ├── DocumentsView.vue         # Document management
 │       ├── DocumentDetailView.vue    # Document detail
 │       ├── DocumentEditView.vue      # Document editor
+│       ├── UsersView.vue             # 사용자 관리 (CRUD + 메뉴 권한)
+│       ├── RolesView.vue             # 역할 관리
+│       ├── MenusView.vue             # 메뉴 트리 관리
+│       ├── TenantsView.vue           # 테넌트 관리
 │       ├── SettingsView.vue          # Settings management
 │       ├── CodesView.vue             # Code management
 │       ├── HistoryView.vue           # API history
@@ -478,6 +488,12 @@ frontend/src/
 │   │   └── PromptGuideModal.vue # NL2SQL/RAG examples modal
 │   ├── chart/                 # Chart components
 │   │   └── ChartBuilder.vue   # SQL result chart visualization
+│   ├── dashboard/             # Dashboard components
+│   │   ├── KpiCards.vue       # KPI 요약 카드 (4개)
+│   │   ├── DailyTrendChart.vue # 일별 요청 추이 (Stacked Bar)
+│   │   ├── RequestTypeChart.vue # 검색 유형 분포 (Donut)
+│   │   ├── RecentActivity.vue # 최근 검색 요청 피드
+│   │   └── SystemStatus.vue   # 시스템 현황 패널
 │   ├── user/                  # User-facing components
 │   │   ├── UserChatLayout.vue
 │   │   ├── UserChatMessage.vue
@@ -488,15 +504,22 @@ frontend/src/
 │       ├── AppHeader.vue
 │       └── AppSidebar.vue
 ├── api/                       # Axios API clients
-│   ├── index.js               # Axios instance + interceptors
+│   ├── index.js               # Axios instance + interceptors (401 auto-refresh)
+│   ├── auth.js                # 인증 API (login/logout/refresh/me)
 │   ├── agent.js               # Agent API
 │   ├── search.js              # Search API (RAG/NL2SQL)
 │   ├── documents.js           # Document API
+│   ├── users.js               # 사용자 관리 + options API
+│   ├── roles.js               # 역할 관리 API
+│   ├── menus.js               # 메뉴 관리 API
+│   ├── tenants.js             # 테넌트 관리 API
+│   ├── dashboard.js           # 대시보드 API
 │   ├── settings.js            # Settings API
 │   ├── codes.js               # Code API
 │   ├── history.js             # History API
 │   └── sse.js                 # SSE stream client
 ├── store/modules/             # Vuex state management
+│   ├── auth.js                # 인증 상태 (token, user, menus, hasMenuPermission)
 │   ├── chat.js                # Chat conversation state
 │   ├── document.js            # Document state
 │   └── app.js                 # Global app state
@@ -509,32 +532,74 @@ frontend/src/
         ├── _cards.scss
         ├── _chart.scss
         ├── _chat.scss
+        ├── _dashboard.scss
         ├── _forms.scss
         ├── _layout.scss
         └── _markdown.scss
 
 scripts/
 ├── add_multiturn_settings.py  # Multi-turn settings initialization
-├── check_oracle_schema.py     # Oracle schema validation
-├── check_tools_config.py      # Tool configuration checker
+├── check_admin.py             # Admin user validation
+├── check_codes.py             # Code table validation
 ├── check_feedback.py          # Feedback data validation
+├── check_oracle_schema.py     # Oracle schema validation
+├── check_tadmin.py            # Tenant admin validation
+├── check_tools_config.py      # Tool configuration checker
+├── cleanup_test_codes.py      # Test data cleanup
+├── reset_admin_password.py    # Admin password reset
 
 tests/
+├── conftest.py                # Pytest fixtures (auth helper, API client)
+├── test_01_health.py          # Health check
+├── test_02_auth.py            # Authentication (login/refresh/logout/me)
+├── test_03_tenants.py         # Tenant CRUD
+├── test_04_roles.py           # Role CRUD
+├── test_05_menus.py           # Menu CRUD
+├── test_06_users.py           # User CRUD + scope validation
+├── test_07_codes.py           # Code management
+├── test_08_settings.py        # Settings
+├── test_09_documents.py       # Document management
+├── test_10_search.py          # Search (RAG/NL2SQL)
 ├── test_agent.py              # Agent + Calculator tool tests
 ├── test_classfy.py            # Classification tests
 ├── test_pii_service.py        # PII service tests
-└── test_pii_redaction.py      # PII redaction tests
+├── test_pii_redaction.py      # PII redaction tests
+└── test_user_management.py    # User management comprehensive tests
+
+docs/
+├── design/                    # 설계 문서 (영역별 정리)
+│   ├── 00_architecture_overview.md  # 시스템 아키텍처 전체 개요
+│   ├── 01_ai_workflows.md          # AI 워크플로우 (Agent, NL2SQL, RAG)
+│   ├── 02_auth_and_permission.md   # 인증/인가 시스템
+│   ├── 03_database.md              # 데이터베이스 설계
+│   ├── 04_api_reference.md         # API 엔드포인트 레퍼런스
+│   ├── 05_frontend.md              # 프론트엔드 아키텍처
+│   ├── 06_deployment.md            # 배포/인프라
+│   ├── 07_user_role_design.md      # 사용자/역할/권한 상세 설계
+│   └── 08_dashboard_design.md      # 대시보드 설계
+└── sql/
+    ├── psql-hermes_db.sql           # 전체 DB DDL 스크립트
+    └── orcl-business_db.sql         # Oracle 비즈니스 DB 스크립트
 ```
 
 ### Request Flow Examples
 
+**인증 포함 API 요청**:
+```
+Request → CORSMiddleware → LoggingMiddleware (request_id 생성)
+  → AuthMiddleware (Bearer token → request.state.current_user)
+  → HistoryMiddleware → Route Handler
+  → Depends(require_menu_permission("MENU_CODE", "action"))
+  → Service → Response
+```
+
 **AI Agent Flow** (ReAct):
 ```
 User question → api/routes/agent.py
+  → Depends(get_current_active_user)
   → api/services/agent_service.py
     → graphs/agent/graph.py:ainvoke(inputs)
       → middleware.process_input()
-      → create_initial_state()
       → agent_node → tools_node → agent_node (loop) → answer_node
       → middleware.process_output()
     → END (InMemorySaver auto-saves session)
@@ -550,15 +615,6 @@ User query → api/routes/search.py
         → sql_needed? → schema → fewshot → prompt → generate → validate → execute → pii_filter → answer → save_history
         → sql_not_needed? → answer_from_history → save_history
     → END (InMemorySaver auto-saves session)
-  → Return SearchResponse
-```
-
-**RAG Flow**:
-```
-User query → api/routes/search.py
-  → api/services/rag_service.py
-    → graphs/rag/graph.py:ainvoke(inputs)
-      → retrieve_documents → generate_answer
   → Return SearchResponse
 ```
 
@@ -606,7 +662,16 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # LLM Provider
 LLM_PROVIDER=openai           # openai or anthropic
-EMBEDDING_PROVIDER=openai     # openai only (Anthropic doesn't provide embeddings)
+EMBEDDING_PROVIDER=openai     # openai only
+
+# Security (JWT)
+SECRET_KEY=your-super-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+PASSWORD_MIN_LENGTH=8
+LOGIN_MAX_FAIL_COUNT=5
+LOGIN_LOCK_MINUTES=30
 
 # Application
 APP_ENV=development
@@ -688,6 +753,32 @@ VALUES ('category', 'new_setting', 'default', 'string', 'Description');
 value = settings_service.get_value("category", "new_setting", settings.new_setting)
 ```
 
+### Adding Permission-Protected Route
+
+```python
+from app.core.security.dependencies import get_current_active_user
+from app.core.security.permission import require_menu_permission
+
+# 1. 메뉴 권한 체크가 필요한 경우
+@router.get("")
+async def list_items(
+    current_user = Depends(require_menu_permission("MENU_CODE", "read"))
+):
+    # current_user.role_code로 scope 필터링
+    if current_user.role_code == "GLOBAL":
+        # 전체 데이터
+    elif current_user.role_code == "TENANT":
+        # tenant_id 기반 필터
+    else:
+        # user_id 기반 필터
+
+# 2. 로그인만 필요한 경우
+@router.get("/me")
+async def get_me(
+    current_user = Depends(get_current_active_user)
+):
+```
+
 ### Adding New Database Adapter
 
 1. Create adapter in `app/core/database/adapters/newdb.py` extending `DatabaseAdapter`
@@ -718,7 +809,7 @@ docker run -p 80:80 mureum-frontend
 - `frontend/Dockerfile` - Frontend container
 - `deploy-docker.sh` - Backend deployment script (SSH + Docker)
 - `frontend/deploy-docker.sh` - Frontend deployment script
-- `frontend/nginx.conf` - Nginx configuration
+- `frontend/nginx.conf` - Nginx configuration (19080 → 19090 proxy)
 - `frontend/.env.development`, `.env.docker`, `.env.production` - Environment configs
 
 ## Known Issues & Workarounds
@@ -738,6 +829,10 @@ docker run -p 80:80 mureum-frontend
 ### Route Order Matters
 **Fix**: `/sessions` 같은 고정 경로는 `/{request_id}` 같은 파라미터 경로보다 **앞에** 배치
 
+### Memory Leak (InMemorySaver)
+**원인**: UI 닫아도 서버에 세션 잔존 (`agent/graph.py`, `nl2sql/graph.py`)
+**해결**: `app/core/checkpoint.py`에 `BoundedInMemorySaver` 생성 완료 (TTL+max세션), 적용 필요
+
 ## Dependencies (requirements.txt)
 
 ```python
@@ -751,6 +846,9 @@ psycopg[binary,pool]>=3.2.0, pgvector>=0.2.5, oracledb>=2.0.0
 langchain-core>=1.2.5, langchain>=1.2.0, langchain-openai>=1.1.6
 langchain-anthropic>=0.2.4, langgraph>=1.0.5
 openai>=1.30.0, anthropic>=0.39.0
+
+# Security
+python-jose[cryptography]>=3.3.0, passlib[bcrypt]>=1.7.4
 
 # Utilities
 numpy>=1.26.2, sqlparse>=0.4.4, python-json-logger>=2.0.7

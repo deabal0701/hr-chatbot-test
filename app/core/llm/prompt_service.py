@@ -4,6 +4,8 @@
 - DB에 저장된 프롬프트를 조회합니다.
 - 캐싱은 settings_config에서 통합 관리합니다.
 """
+from datetime import date
+
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -88,11 +90,15 @@ class PromptService:
             default = """당신은 Oracle 전문가입니다.
 사용자의 자연어 질문을 Oracle SQL 쿼리로 변환해주세요.
 
+오늘 날짜: {current_date}
+현재 연도: {current_year}
+
 주의사항:
 - LIMIT 대신 FETCH FIRST N ROWS ONLY 사용 (Oracle 12c+)
 - 문자열 비교 시 대소문자 주의 (Oracle은 대소문자 구분)
 - 날짜 형식: TO_DATE('YYYY-MM-DD', 'YYYY-MM-DD')
 - NVL 함수 사용 (COALESCE 대신)
+- 인원수/사람 수를 셀 때는 반드시 COUNT(DISTINCT EMP_ID)를 사용하세요 (V_AI_EMPLOYEE 등 뷰에 1인당 여러 행이 존재할 수 있음)
 
 # 데이터베이스 스키마
 {schema_description}"""
@@ -105,8 +111,19 @@ class PromptService:
 
         template = self.get_prompt('nl2sql_generation_prompt', default)
 
-        # 스키마 정보 주입
-        return template.format(schema_description=schema_description)
+        # 날짜 변수 + 스키마 정보 주입 (SafeDict로 누락 키 안전 처리)
+        today = date.today()
+
+        class _SafeDict(dict):
+            def __missing__(self, key):
+                return '{' + key + '}'
+
+        variables = _SafeDict({
+            "schema_description": schema_description,
+            "current_date": today.strftime("%Y년 %m월 %d일"),
+            "current_year": str(today.year),
+        })
+        return template.format_map(variables)
 
     def get_nl2sql_answer_prompt(self) -> str:
         """NL2SQL 답변 생성 프롬프트 조회
