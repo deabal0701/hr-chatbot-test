@@ -910,12 +910,25 @@
                   placeholder="자연어를 SQL 쿼리로 변환하는 프롬프트"
                   class="prompt-textarea"
                 />
-                <div class="form-help">
-                  <el-icon><Warning /></el-icon>
-                  {schema_description} 변수는 자동으로 DB 스키마로 치환됩니다.
-                  <el-button text type="primary" size="small" @click="showPromptPreview('nl2sql_generation_prompt')">
-                   <!--  프리뷰 -->
-                  </el-button>
+                <div class="prompt-variables-guide">
+                  <div class="prompt-variables-header">
+                    <el-icon><Warning /></el-icon>
+                    <span>프롬프트에서 아래 변수를 사용할 수 있습니다. 실행 시 자동으로 치환됩니다.</span>
+                  </div>
+                  <div class="prompt-variables-list">
+                    <div class="prompt-variable-item">
+                      <code>{schema_description}</code>
+                      <span>DB 스키마 정보 (테이블명, 컬럼, 타입)</span>
+                    </div>
+                    <div class="prompt-variable-item">
+                      <code>{current_date}</code>
+                      <span>오늘 날짜 (예: 2026년 02월 21일)</span>
+                    </div>
+                    <div class="prompt-variable-item">
+                      <code>{current_year}</code>
+                      <span>현재 연도 (예: 2026)</span>
+                    </div>
+                  </div>
                 </div>
               </el-form-item>
 
@@ -2205,6 +2218,56 @@ onMounted(async () => {
 
     .el-icon {
       color: #e6a23c;
+    }
+  }
+
+  // 프롬프트 변수 가이드
+  .prompt-variables-guide {
+    margin-top: 6px;
+    padding: 6px 12px;
+    background: var(--el-fill-color-light, #f5f7fa);
+    border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+    border-radius: 6px;
+    font-size: 12px;
+
+    .prompt-variables-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--el-text-color-secondary);
+      margin-bottom: 4px;
+
+      .el-icon {
+        color: #e6a23c;
+        flex-shrink: 0;
+      }
+    }
+
+    .prompt-variables-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 16px;
+    }
+
+    .prompt-variable-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.6;
+
+      code {
+        padding: 0 5px;
+        background: var(--el-fill-color-darker, #e6e8eb);
+        border-radius: 3px;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        color: var(--el-color-primary);
+        white-space: nowrap;
+      }
+
+      span {
+        color: var(--el-text-color-secondary);
+      }
     }
   }
 
