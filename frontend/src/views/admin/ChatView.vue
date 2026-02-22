@@ -111,31 +111,34 @@
           </p>
         </div>
 
-        <!-- 대화 관리 -->
-        <div class="sidebar-section content-card">
-          <h4>대화 관리</h4>
-          <el-button
-            type="danger"
-            plain
-            :icon="Delete"
-            :disabled="messages.length === 0"
-            @click="clearChat"
-          >
-            대화 초기화
-          </el-button>
-        </div>
+        <!-- 대화 관리 + 사용자 화면 (가로 2카드) -->
+        <div class="sidebar-row">
+          <div class="sidebar-section content-card sidebar-half-card">
+            <h4>대화 관리</h4>
+            <el-button
+              type="danger"
+              plain
+              size="small"
+              :icon="Delete"
+              :disabled="messages.length === 0"
+              @click="clearChat"
+            >
+              대화 초기화
+            </el-button>
+          </div>
 
-        <!-- 사용자 화면 -->
-        <div class="sidebar-section content-card">
-          <h4>사용자 화면</h4>
-          <el-button
-            type="primary"
-            plain
-            :icon="Monitor"
-            @click="openUserChat"
-          >
-            새 창으로 열기
-          </el-button>
+          <div class="sidebar-section content-card sidebar-half-card">
+            <h4>사용자 화면</h4>
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              :icon="Monitor"
+              @click="openUserChat"
+            >
+              새 창으로 열기
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -290,7 +293,7 @@ watch(messages, async () => {
 .chat-view {
   display: flex;
   position: relative;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 100px);
   overflow: hidden;
 }
 
@@ -350,7 +353,7 @@ watch(messages, async () => {
 }
 
 .chat-input-area {
-  padding: 20px;
+  padding: 12px 20px;
   border-top: 1px solid var(--chat-input-border);
   background-color: var(--chat-input-bg);
   transition: var(--theme-transition);
@@ -465,6 +468,23 @@ watch(messages, async () => {
     font-size: 12px;
     color: var(--text-color-secondary);
     line-height: 1.5;
+  }
+}
+
+.sidebar-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.sidebar-half-card {
+  flex: 1;
+  margin-bottom: 0;
+
+  .el-button {
+    width: 100%;
+    padding: 8px 4px;
+    font-size: 12px;
   }
 }
 </style>
