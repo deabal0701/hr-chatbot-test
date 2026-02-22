@@ -548,6 +548,53 @@ class DocumentService:
         }
 
     # ============================================
+    # 파일 업로드 (텍스트 추출)
+    # ============================================
+
+    @staticmethod
+    def extract_from_file(filename: str, file_bytes: bytes) -> Dict[str, Any]:
+        """
+        업로드된 파일에서 텍스트 추출
+
+        Args:
+            filename: 원본 파일명
+            file_bytes: 파일 바이너리 데이터
+
+        Returns:
+            {
+                "filename": 원본 파일명,
+                "source_type": 파일 타입 (pdf, docx),
+                "extracted_text": 추출된 텍스트,
+                "content_length": 텍스트 길이,
+                "page_count": 페이지 수 (PDF만),
+                "file_size": 파일 크기 (bytes)
+            }
+
+        Raises:
+            ValueError: 파일 유효성 검증 실패 또는 텍스트 추출 실패
+        """
+        from app.core.file.file_extractor import validate_file, extract_text
+
+        # 파일 유효성 검증
+        is_valid, error_msg = validate_file(filename, len(file_bytes))
+        if not is_valid:
+            raise ValueError(error_msg)
+
+        # 텍스트 추출
+        result = extract_text(filename, file_bytes)
+
+        logger.info(f"파일 텍스트 추출 완료: filename={filename}, source_type={result['source_type']}, chars={len(result['text'])}")
+
+        return {
+            "filename": filename,
+            "source_type": result["source_type"],
+            "extracted_text": result["text"],
+            "content_length": len(result["text"]),
+            "page_count": result["page_count"],
+            "file_size": result["file_size"],
+        }
+
+    # ============================================
     # 임베딩/청킹 관련 (VectorStoreService 위임)
     # ============================================
 

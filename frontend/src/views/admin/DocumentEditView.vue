@@ -192,8 +192,42 @@
             <div class="content-section">
               <div class="content-header">
                 <h3>문서 내용</h3>
-                <span class="char-count">{{ form.content?.length || 0 }}자</span>
+                <div class="content-header-right">
+                  <!-- 파일 업로드 버튼 (새 문서 등록 시에만) -->
+                  <template v-if="!isEditMode">
+                    <el-upload
+                      ref="uploadRef"
+                      action=""
+                      :auto-upload="false"
+                      :show-file-list="false"
+                      :limit="1"
+                      accept=".pdf,.docx"
+                      :on-change="handleFileChange"
+                    >
+                      <el-button :icon="UploadFilled" :loading="isUploading" :disabled="isUploading">
+                        파일 업로드
+                      </el-button>
+                    </el-upload>
+                  </template>
+                  <span class="char-count">{{ form.content?.length || 0 }}자</span>
+                </div>
               </div>
+
+              <!-- 업로드된 파일 정보 표시 -->
+              <div v-if="uploadedFile && !isEditMode" class="uploaded-file-bar">
+                <div class="file-info">
+                  <el-icon size="16"><Document /></el-icon>
+                  <span class="filename">{{ uploadedFile.name }}</span>
+                  <span class="filesize">({{ formatFileSize(uploadedFile.size) }})</span>
+                </div>
+                <el-button type="danger" link size="small" @click="clearUploadedFile">삭제</el-button>
+              </div>
+              <el-progress
+                v-if="isUploading"
+                :percentage="uploadProgress"
+                :stroke-width="4"
+                style="margin-bottom: 8px"
+              />
 
               <el-form-item prop="content" class="content-form-item">
                 <el-input
@@ -262,7 +296,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, UploadFilled, Document } from '@element-plus/icons-vue'
+import documentsApi from '@/api/documents'
 import codesApi from '@/api/codes'
 import settingsApi from '@/api/settings'
 import { formatDate, formatNumber } from '@/utils/format'
@@ -272,10 +307,16 @@ const router = useRouter()
 const route = useRoute()
 
 const formRef = ref(null)
+const uploadRef = ref(null)
 const documentInfo = ref(null)
 const chunkPreviewVisible = ref(false)
 const chunkPreviewData = ref(null)
 const isLoading = ref(false)
+
+// 파일 업로드 상태
+const uploadedFile = ref(null)
+const isUploading = ref(false)
+const uploadProgress = ref(0)
 
 // 문서 용도 코드 (DB에서 동적 로드)
 const usageTypes = ref([])
@@ -486,6 +527,80 @@ onMounted(async () => {
   }
 })
 
+// 파일 크기 포맷
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i]
+}
+
+// 파일 선택 시 업로드 + 텍스트 추출
+const handleFileChange = async (uploadFile) => {
+  const file = uploadFile.raw
+  if (!file) return
+
+  // 확장자 검증
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (!['pdf', 'docx'].includes(ext)) {
+    ElMessage.error('PDF 또는 DOCX 파일만 업로드 가능합니다.')
+    return
+  }
+
+  // 크기 검증 (50MB)
+  if (file.size > 50 * 1024 * 1024) {
+    ElMessage.error('파일 크기는 50MB 이하여야 합니다.')
+    return
+  }
+
+  uploadedFile.value = file
+  isUploading.value = true
+  uploadProgress.value = 0
+
+  try {
+    const result = await documentsApi.upload(file, (progress) => {
+      uploadProgress.value = progress
+    })
+
+    // 추출된 텍스트를 content에 채움
+    form.value.content = result.extracted_text
+    form.value.sourceType = result.source_type
+    form.value.sourceFile = result.filename
+
+    // 제목이 비어있으면 파일명에서 자동 설정
+    if (!form.value.title) {
+      form.value.title = file.name.replace(/\.[^/.]+$/, '')
+    }
+
+    // 메타데이터에 파일 정보 추가
+    const fileMeta = { source_filename: result.filename, file_size: result.file_size }
+    if (result.page_count) fileMeta.page_count = result.page_count
+    metadataItems.value = [
+      ...metadataItems.value.filter(item => !['source_filename', 'file_size', 'page_count'].includes(item.key)),
+      ...Object.entries(fileMeta).map(([key, value]) => ({ key, value: String(value) }))
+    ]
+    syncMetadataToForm()
+
+    ElMessage.success(`텍스트 추출 완료 (${result.content_length.toLocaleString()}자)`)
+  } catch (error) {
+    console.error('파일 업로드 실패:', error)
+    const message = error?.response?.data?.detail || error?.message || '파일 업로드에 실패했습니다.'
+    ElMessage.error(message)
+    uploadedFile.value = null
+  } finally {
+    isUploading.value = false
+    uploadProgress.value = 0
+  }
+}
+
+// 업로드된 파일 제거
+const clearUploadedFile = () => {
+  uploadedFile.value = null
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
+}
+
 // 목록으로 돌아가기
 const goBack = () => {
   router.push({ name: 'AdminDocuments' })
@@ -527,10 +642,10 @@ const handleSubmit = async () => {
       usageType: form.value.usageType,
       content: form.value.content,
       contextData: form.value.contextData || null,
-      metadata: form.value.metadata || {}
+      metadata: form.value.metadata || {},
+      ...(form.value.sourceType && { sourceType: form.value.sourceType }),
+      ...(form.value.sourceFile && { sourceFile: form.value.sourceFile })
     }
-
-    console.log('저장할 데이터:', documentData)
 
     if (isEditMode.value) {
       await store.dispatch('document/updateDocument', {
@@ -648,9 +763,42 @@ const handleSubmit = async () => {
     .content-header {
       @include mx.content-header;
 
+      .content-header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
       .char-count {
         font-size: 14px;
         color: var(--text-color-secondary);
+      }
+    }
+
+    .uploaded-file-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      margin-bottom: 8px;
+      background-color: var(--bg-color-hover);
+      border-radius: 4px;
+      font-size: 13px;
+
+      .file-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .filename {
+          font-weight: 500;
+          color: var(--text-color-primary);
+        }
+
+        .filesize {
+          color: var(--text-color-secondary);
+          font-size: 12px;
+        }
       }
     }
 

@@ -1,7 +1,7 @@
 """
 문서 관리 스키마
 
-문서 CRUD, 청킹, 임베딩 관련 모든 모델
+문서 CRUD, 청킹, 임베딩, 파일 업로드 관련 모든 모델
 Inner class를 사용하여 관련 스키마를 그룹화
 """
 from datetime import datetime
@@ -13,52 +13,6 @@ from pydantic import BaseModel, Field
 # ===================================
 # 문서 생성/저장
 # ===================================
-
-class DocumentCreate(BaseModel):
-    """문서 생성 (기본)"""
-    title: str
-    doc_type: str
-    language: str = "ko"
-    content: str
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
-
-class DocumentCreateWithChunking(BaseModel):
-    """문서 생성 (자동 청킹 지원)"""
-    title: str = Field(..., min_length=1, max_length=500, description="문서 제목")
-    doc_type: str = Field(..., description="문서 유형 (policy, guide, faq, notice)")
-    content: str = Field(..., min_length=1, description="문서 내용")
-    language: str = Field(default="ko", description="언어 (ko, en)")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="메타데이터")
-    auto_chunk: bool = Field(default=True, description="자동 청킹 여부")
-    chunk_size: int = Field(default=1000, ge=100, le=5000, description="청크 크기 (문자 수)")
-    chunk_overlap: int = Field(default=100, ge=0, le=500, description="청크 간 중복 (문자 수)")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "title": "2024년 보안 규정",
-                "doc_type": "policy",
-                "content": "제1조 목적... (긴 텍스트를 입력하세요)",
-                "language": "ko",
-                "metadata": {"year": 2024, "department": "Security"},
-                "auto_chunk": True,
-                "chunk_size": 1000,
-                "chunk_overlap": 100
-            }
-        }
-    }
-
-
-class DocumentCreateResponse(BaseModel):
-    """문서 생성 응답 (청킹 지원)"""
-    success: bool
-    message: str
-    parent_id: int
-    chunk_ids: List[int]
-    total_chunks: int
-    total_chars: int
-
 
 class DocumentSaveRequest(BaseModel):
     """문서 저장 요청 (임베딩 없이 저장)"""
@@ -101,19 +55,6 @@ class DocumentSaveResponse(BaseModel):
 # ===================================
 # 문서 조회/응답
 # ===================================
-
-class DocumentResponse(BaseModel):
-    """문서 상세 응답"""
-    id: int
-    title: str
-    doc_type: str
-    language: str
-    content: str
-    metadata: Dict[str, Any]
-    indexed: bool
-    created_at: datetime
-    updated_at: datetime
-
 
 class DocumentListItem(BaseModel):
     """문서 목록 항목"""
@@ -203,6 +144,25 @@ class BulkDelete:
         total_requested: int
         total_deleted: int
         failed_ids: List[int] = Field(default_factory=list)
+
+
+# ===================================
+# 파일 업로드
+# ===================================
+
+class FileUpload:
+    """파일 업로드 관련 스키마 그룹 (Inner Class 패턴)"""
+
+    class Response(BaseModel):
+        """파일 업로드 응답 (추출된 텍스트 + 메타데이터)"""
+        success: bool
+        message: str
+        filename: str
+        source_type: str = Field(description="파일 타입 (pdf, docx)")
+        extracted_text: str = Field(description="추출된 텍스트 내용")
+        content_length: int = Field(description="추출된 텍스트 길이 (문자 수)")
+        page_count: Optional[int] = Field(default=None, description="페이지 수 (PDF만)")
+        file_size: int = Field(description="원본 파일 크기 (bytes)")
 
 
 # ===================================

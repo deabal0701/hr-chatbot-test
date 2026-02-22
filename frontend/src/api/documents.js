@@ -88,6 +88,22 @@ const documentsApi = {
   },
 
   /**
+   * 파일 업로드 (PDF/DOCX → 텍스트 추출)
+   * @param {File} file - 업로드할 파일 객체
+   * @param {Function} onProgress - 업로드 진행률 콜백 (optional)
+   */
+  upload(file, onProgress) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return apiClient.post('/api/admin/v1/documents/upload', formData, {
+      headers: { 'Content-Type': undefined },
+      ...(onProgress && {
+        onUploadProgress: (e) => onProgress(Math.round((e.loaded * 100) / e.total))
+      })
+    })
+  },
+
+  /**
    * 청킹 미리보기
    * @param {Object} params - 미리보기 파라미터
    */

@@ -13,7 +13,7 @@
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
@@ -27,6 +27,7 @@ from app.models.documents import (
     DocumentDeleteResponse,
     BulkDelete,
     Chunking,
+    FileUpload,
 )
 from app.api.services.document_service import document_service
 from app.core.errors import APIException, ErrorCode, success_response
@@ -213,6 +214,41 @@ async def bulk_delete_documents(request: BulkDelete.Request, current_user: UserC
         raise APIException(error_code=ErrorCode.DATABASE_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"일괄 삭제 실패: {e}", exc_info=True)
+        raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
+
+
+# ============================================
+# 파일 업로드
+# ============================================
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...), current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "create"))):
+    """파일 업로드 및 텍스트 추출 (PDF, DOCX)"""
+    try:
+        file_bytes = await file.read()
+        filename = file.filename or "unknown"
+
+        logger.info(f"파일 업로드 요청: filename='{filename}', size={len(file_bytes)}bytes")
+
+        result = document_service.extract_from_file(filename, file_bytes)
+
+        response = FileUpload.Response(
+            success=True,
+            message="파일에서 텍스트가 추출되었습니다.",
+            filename=result["filename"],
+            source_type=result["source_type"],
+            extracted_text=result["extracted_text"],
+            content_length=result["content_length"],
+            page_count=result["page_count"],
+            file_size=result["file_size"],
+        )
+        return success_response(response.model_dump())
+
+    except ValueError as e:
+        logger.warning(f"파일 업로드 실패 - 유효성 오류: {e}")
+        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, detail=str(e))
+    except Exception as e:
+        logger.error(f"파일 업로드 실패: {e}", exc_info=True)
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
 
 
