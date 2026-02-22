@@ -81,7 +81,8 @@
           </div>
         </div>
 
-        <!-- Agent SQL 조회 결과 + 차트 (Agent 모드에서 DB 조회 시) -->
+        <!-- Agent SQL 조회 결과 + 차트 - 추후 Agent 기능 보완 후 주석 제거 예정 -->
+        <!--
         <template v-if="agentSqlSteps.length > 0">
           <div
             v-for="(step, idx) in agentSqlSteps"
@@ -122,6 +123,7 @@
             </div>
           </div>
         </template>
+        -->
 
         <!-- 소스 정보 :  임시로 주석처리함.-->
         <!-- <div v-if="message.sources && message.sources.length > 0" class="sources-section">

@@ -790,6 +790,7 @@
           </div>
         </el-tab-pane>
 
+        <!-- Agent 설정 탭 - 추후 Agent 기능 보완 후 주석 제거 예정
         <el-tab-pane label="Agent" name="agent">
           <div class="settings-section">
             <h3>AI Agent 설정</h3>
@@ -851,6 +852,7 @@
             </el-form>
           </div>
         </el-tab-pane>
+        -->
 
         <!-- 프롬프트 설정 -->
         <el-tab-pane label="프롬프트" name="prompt">
@@ -963,7 +965,7 @@
               </el-row>
             </el-form>
 
-            <!-- Agent 프롬프트 -->
+            <!-- Agent 프롬프트 - 추후 Agent 기능 보완 후 주석 제거 예정
             <el-divider content-position="left">
               <span style="font-weight: 600;">Agent (도구 선택)</span>
             </el-divider>
@@ -993,6 +995,7 @@
                   />
                 </el-form-item>
               </el-form>
+            -->
 
             <!-- Tool 설명 - 현재 Tool docstring은 코드에 하드코딩되어 있어 미사용 -->
             <template v-if="false">

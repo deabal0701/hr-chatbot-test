@@ -104,7 +104,8 @@
         </div>
       </div>
 
-      <!-- Agent 결과 -->
+      <!-- Agent 결과 - 추후 Agent 기능 보완 후 주석 제거 예정 -->
+      <!--
       <div v-if="message.agentResult" class="agent-result">
         <el-collapse>
           <el-collapse-item title="실행 단계 보기" name="steps">
@@ -119,7 +120,7 @@
                 {{ message.agentResult.success ? '성공' : '실패' }}
               </el-tag>
             </div>
-            
+
             <div v-if="message.agentResult.steps?.length > 0" class="steps-list">
               <div
                 v-for="(step, index) in message.agentResult.steps"
@@ -138,7 +139,6 @@
                     <strong>👁️ 관찰:</strong> {{ step.observation }}
                   </div>
 
-                  <!-- Agent SQL 결과 표시 (query_database_tool 사용 시) -->
                   <div v-if="step.sql_result" class="step-sql-result">
                     <el-collapse>
                       <el-collapse-item title="SQL 쿼리 및 결과 보기" name="sql">
@@ -187,6 +187,7 @@
           </el-collapse-item>
         </el-collapse>
       </div>
+      -->
     </div>
 
     <!-- 타임스탬프 -->
