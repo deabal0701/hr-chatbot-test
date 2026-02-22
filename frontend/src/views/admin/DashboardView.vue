@@ -55,14 +55,14 @@
       <div class="quick-actions">
         <router-link to="/admin/chat" class="action-item">
           <el-icon :size="32" color="#409eff"><ChatDotRound /></el-icon>
-          <span>HR 챗봇</span>
-          <p>직원 정보 조회, 정책 검색</p>
+          <span>자연어 검색</span>
+          <p>AI 기반 문서 검색, 데이터 조회</p>
         </router-link>
 
         <router-link to="/admin/documents" class="action-item">
           <el-icon :size="32" color="#67c23a"><FolderAdd /></el-icon>
           <span>문서 등록</span>
-          <p>새로운 HR 문서 추가</p>
+          <p>새로운 지식 문서 추가</p>
         </router-link>
 
         <div class="action-item" @click="goTo('/admin/documents?indexed=false')">
