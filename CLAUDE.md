@@ -867,7 +867,7 @@ from langgraph.graph import END, StateGraph
 
 ---
 
-중요:
+## **중요**:
 - 가상환경: `conda activate penv3.13-nlq`
 - DB 확인할 경우: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
 - DB스크립트 및 데이터:  docs/sql/psql-hermes_db.sql
@@ -876,3 +876,25 @@ from langgraph.graph import END, StateGraph
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
 - __init__에는 가능한 파일만 생성하고 import모듈등은 구현하지 말라.
 - css의 style는 asset/styles/mixins하위 디렉토리를 참조하라.
+
+## Development Workflow
+
+모든 기능 개발/변경 요청 시, 코드 작성 전에 반드시 아래 절차를 따른다:
+
+1. **분석**: 관련 코드와 의존성을 탐색하여 영향 범위를 파악한다
+2. **스타일 확인**: 구현 전 동일/유사 기능의 기존 코드를 참조하여 일관성을 확보한다
+   - **Backend API**: 기존 라우트의 URL 패턴, HTTP method, status_code, Depends 구조를 따른다
+   - **응답 형식**: `success_response()` 래퍼 사용, CREATE→201, LIST→items/total, DELETE→message/deleted_count
+   - **서비스 계층**: db_manager.get_cursor 패턴, 에러 처리, log_step 형식을 기존 서비스와 동일하게 작성한다
+   - **Frontend 화면**: 기존 Vue 컴포넌트의 레이아웃 구조, SCSS mixin 사용법, API 호출 패턴을 따른다
+   - **Pydantic 모델**: 기존 models/ 파일의 네이밍, 필드 타입, Optional 처리 방식을 따른다
+   - **참조 방법**: 새 기능과 가장 유사한 기존 파일 1~2개를 먼저 읽고 그 패턴을 따른다
+3. **계획 수립**: TodoWrite로 작업 목록을 작성한다
+   - 각 항목은 구체적이고 실행 가능해야 한다
+   - 중요도/의존성 순으로 정렬한다
+   - 테스트 항목을 반드시 포함한다
+4. **사용자 확인**: 작업 목록을 사용자에게 제시하고 승인을 받은 후 구현을 시작한다
+5. **구현**: 승인된 항목을 순서대로 진행하며, 완료 시마다 TodoWrite를 갱신한다
+6. **검증**: 각 단계 완료 후 테스트 가능한 항목은 테스트를 수행한다
+
+예외: 오타 수정, 한줄 버그 픽스 등 단순 작업은 즉시 수행 가능하다.
