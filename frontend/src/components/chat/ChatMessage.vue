@@ -104,8 +104,7 @@
         </div>
       </div>
 
-      <!-- Agent 결과 - 추후 Agent 기능 보완 후 주석 제거 예정 -->
-      <!--
+      <!-- Agent 결과 -->
       <div v-if="message.agentResult" class="agent-result">
         <el-collapse>
           <el-collapse-item title="실행 단계 보기" name="steps">
@@ -133,10 +132,10 @@
                 </div>
                 <div class="step-content">
                   <div v-if="step.thought" class="step-thought">
-                    <strong>💭 생각:</strong> {{ step.thought }}
+                    <strong>생각:</strong> {{ step.thought }}
                   </div>
                   <div v-if="step.observation" class="step-observation">
-                    <strong>👁️ 관찰:</strong> {{ step.observation }}
+                    <strong>관찰:</strong> {{ step.observation }}
                   </div>
 
                   <div v-if="step.sql_result" class="step-sql-result">
@@ -187,7 +186,6 @@
           </el-collapse-item>
         </el-collapse>
       </div>
-      -->
     </div>
 
     <!-- 타임스탬프 -->

@@ -87,9 +87,7 @@
             <el-radio-group v-model="searchMode" @change="handleModeChange" class="mode-row-secondary">
               <el-radio-button value="rag">RAG</el-radio-button>
               <el-radio-button value="nl2sql">NL2SQL</el-radio-button>
-              <!-- Agent 모드 - 추후 Agent 기능 보완 후 주석 제거 예정
               <el-radio-button value="agent">Agent</el-radio-button>
-              -->
             </el-radio-group>
           </div>
           <p class="mode-description">
@@ -104,12 +102,10 @@
             <template v-else-if="searchMode === 'nl2sql'">
               데이터베이스 조회 (통계, 수치 데이터 등)
             </template>
-            <!-- Agent 모드 설명 - 추후 사용 예정
             <template v-else-if="searchMode === 'agent'">
               AI Agent가 도구를 자율 선택하여 복합 질문 처리<br>
               <small>(DB 조회 → 문서 검색 → 계산)</small>
             </template>
-            -->
           </p>
         </div>
 
