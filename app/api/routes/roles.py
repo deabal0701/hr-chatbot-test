@@ -6,7 +6,7 @@
 from fastapi import APIRouter, Depends, Request, status
 
 from app.api.services.role_service import role_service
-from app.core.errors import success_response
+from app.core.errors.response import success_response
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
 from app.models.user import RoleCreate, RoleUpdate

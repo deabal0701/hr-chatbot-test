@@ -37,7 +37,7 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state: AgentState
 
     Returns:
-        업데이트된 state (messages, tools_used, last_tool_name, last_tool_result 등)
+        업데이트된 state (messages, tools_used, generated_sql, sql_result, rag_sources)
     """
     request_id = state.get("request_id", "unknown")
     messages = state.get("messages", [])
@@ -63,8 +63,6 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Tool 실행 결과 저장
     tool_messages = []
-    last_tool_name = ""
-    last_tool_result = ""
     generated_sql = state.get("generated_sql", "")
     sql_result = state.get("sql_result")
     rag_sources = list(state.get("rag_sources", []))
@@ -92,10 +90,6 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
             # Tool 실행
             result = tool_func.invoke(tool_args)
-
-            # 결과 처리
-            last_tool_name = tool_name
-            last_tool_result = str(result)
 
             # Tool 사용 기록
             if tool_name not in tools_used:
@@ -143,8 +137,6 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "messages": tool_messages,
         "tools_used": tools_used,
-        "last_tool_name": last_tool_name,
-        "last_tool_result": last_tool_result,
         "generated_sql": generated_sql,
         "sql_result": sql_result,
         "rag_sources": rag_sources,

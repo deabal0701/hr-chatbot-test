@@ -31,7 +31,7 @@ class LoggingMiddleware(BaseMiddleware):
 
     Usage:
         from fastapi import FastAPI
-        from app.middleware import LoggingMiddleware
+        from app.middleware.logging import LoggingMiddleware
 
         app = FastAPI()
         app.add_middleware(LoggingMiddleware)

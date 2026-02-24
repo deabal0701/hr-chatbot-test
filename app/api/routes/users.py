@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.services.user_service import user_service
-from app.core.errors import success_response
+from app.core.errors.response import success_response
 from app.core.security.dependencies import get_current_active_user
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext

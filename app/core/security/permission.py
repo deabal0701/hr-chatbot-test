@@ -7,7 +7,8 @@ FastAPI Depends로 사용하는 권한 검사 함수 생성기
 from fastapi import Depends
 
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode
+from app.core.errors.handlers import APIException
+from app.core.errors.error_codes import ErrorCode
 from app.core.security.dependencies import get_current_active_user
 from app.models.auth import UserContext
 

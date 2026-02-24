@@ -5,7 +5,7 @@ Agent 요청/응답 및 실행 단계 관련 모델
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class AgentSQLResult(BaseModel):
@@ -27,8 +27,8 @@ class AgentStep(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, description="실행 시각")
     sql_result: Optional[AgentSQLResult] = Field(None, description="SQL 도구 실행 시 상세 결과")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "step_number": 1,
                 "thought": "먼저 2024년 입사자를 조회해야 한다",
@@ -38,6 +38,7 @@ class AgentStep(BaseModel):
                 "timestamp": "2024-01-04T10:30:00"
             }
         }
+    }
 
 
 class AgentConfig(BaseModel):
@@ -61,25 +62,6 @@ class AgentConfig(BaseModel):
     tools_blacklist: Optional[List[str]] = Field(None, description="사용 금지 도구 목록")
     timeout_seconds: int = Field(default=60, ge=10, le=300, description="전체 타임아웃(초)")
 
-    # DB 값이 중복으로 로드되는 문제 해결
-    # @model_validator(mode='after')
-    # def set_default_llm_model(self) -> 'AgentConfig':
-    #     """llm_model이 None이면 DB 설정에서 로드"""
-    #     if self.llm_model is None:
-    #         # 순환 import 방지를 위해 함수 내부에서 import
-    #         from app.core.config.settings_service import settings_service
-    #         from app.config import settings
-    #         from app.utils.logger import logger
-
-    #         # DB 설정 → .env → 하드코딩 순서로 fallback
-    #         self.llm_model = settings_service.get_value("llm", "model", settings.llm_model)
-    #         logger.info(f"[AgentConfig] @model_validator: llm_model loaded from DB/env: {self.llm_model}")
-    #     else:
-    #         from app.utils.logger import logger
-    #         logger.info(f"[AgentConfig] @model_validator: llm_model already set: {self.llm_model}")
-
-    #     return self
-
     def is_tool_allowed(self, tool_name: str) -> bool:
         """도구 사용 가능 여부 확인"""
         if self.tools_blacklist and tool_name in self.tools_blacklist:
@@ -101,13 +83,14 @@ class AgentRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=1000, description="질문")
     session_id: Optional[str] = Field(None, description="세션 ID (멀티턴 대화, 첫 요청시 생략)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "question": "2024년 입사자 중 재택근무 정책을 준수하는 사람은 몇 명이고 평균 급여는?",
                 "session_id": None
             }
         }
+    }
 
 
 class AgentResponse(BaseModel):
@@ -121,8 +104,8 @@ class AgentResponse(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="메타데이터")
     session_id: Optional[str] = Field(None, description="세션 ID")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "answer": "2024년 입사자는 총 27명이며, 재택근무 정책(주 2회 이상 출근)을 준수하는 사람은 15명입니다. 평균 급여는 5,400만원입니다.",
                 "steps": [
@@ -141,3 +124,4 @@ class AgentResponse(BaseModel):
                 "session_id": "user123-session456"
             }
         }
+    }

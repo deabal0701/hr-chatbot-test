@@ -9,7 +9,8 @@ from typing import Any, Dict, List
 
 from app.config import settings
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode
+from app.core.errors.handlers import APIException
+from app.core.errors.error_codes import ErrorCode
 from app.core.security.jwt import create_access_token, create_refresh_token, verify_token
 from app.core.security.password import hash_password, verify_password
 from app.models.auth import MenuPermission, TokenResponse, UserInfo

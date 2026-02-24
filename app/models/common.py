@@ -90,18 +90,3 @@ class APIResponse(BaseModel, Generic[T]):
             ]
         }
     }
-
-
-# ========== 레거시 호환용 (기존 코드 지원) ==========
-
-class MessageResponse(BaseModel):
-    """일반 메시지 응답 (레거시)"""
-    message: str
-    success: bool = True
-
-
-class ErrorResponse(BaseModel):
-    """에러 응답 (레거시)"""
-    error: str
-    detail: Optional[str] = None
-    success: bool = False

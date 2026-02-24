@@ -11,67 +11,6 @@
       </el-button>
     </div>
 
-    <!-- 통계 카드 (숨김 처리) -->
-    <el-row v-if="showStats" :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-primary">
-            <el-icon :size="24" color="#409eff"><List /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ formatNumber(stats.total_requests) }}</div>
-            <div class="stat-label">전체 요청</div>
-          </div>
-        </div>
-      </el-col>
-
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-success">
-            <el-icon :size="24" color="#67c23a"><CircleCheck /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.success_rate }}%</div>
-            <div class="stat-label">성공률 (에러 {{ stats.error_count }}건)</div>
-          </div>
-        </div>
-      </el-col>
-
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon is-warning">
-            <el-icon :size="24" color="#e6a23c"><Timer /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ formatResponseTime(stats.avg_response_time_ms) }}</div>
-            <div class="stat-label">평균 응답시간</div>
-          </div>
-        </div>
-      </el-col>
-
-      <el-col :xs="24" :sm="12" :lg="6">
-        <div class="stat-card">
-          <div class="stat-icon request-type-stats">
-            <div class="type-item">
-              <span class="type-badge agent">A</span>
-              <span>{{ stats.agent_count }}</span>
-            </div>
-            <div class="type-item">
-              <span class="type-badge nl2sql">S</span>
-              <span>{{ stats.nl2sql_count }}</span>
-            </div>
-            <div class="type-item">
-              <span class="type-badge rag">R</span>
-              <span>{{ stats.rag_count }}</span>
-            </div>
-          </div>
-          <div class="stat-content">
-            <div class="stat-label">타입별 현황</div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
-
     <!-- 필터 및 액션 -->
     <div class="content-card filter-section">
       <div class="filter-row">
@@ -282,17 +221,15 @@ import { useRouter, useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  List,
   CircleCheck,
   CircleClose,
-  Timer,
   Delete,
   Refresh,
   Search
 } from '@element-plus/icons-vue'
 import historyApi from '@/api/history'
 import usersApi from '@/api/users'
-import { formatDateTime, formatNumber, formatResponseTime } from '@/utils/format'
+import { formatDateTime, formatResponseTime } from '@/utils/format'
 
 const router = useRouter()
 const route = useRoute()
@@ -313,18 +250,6 @@ const totalCount = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 
-// 통계
-const stats = ref({
-  total_requests: 0,
-  success_count: 0,
-  error_count: 0,
-  success_rate: 0,
-  avg_response_time_ms: 0,
-  agent_count: 0,
-  nl2sql_count: 0,
-  rag_count: 0
-})
-
 // 필터
 const filters = reactive({
   request_type: null,
@@ -334,9 +259,6 @@ const filters = reactive({
   to_date: null
 })
 const dateRange = ref(null)
-
-// 통계 카드 표시 여부
-const showStats = ref(false)
 
 // 정리 다이얼로그
 const cleanupDialogVisible = ref(false)
@@ -377,32 +299,6 @@ const loadData = async () => {
   }
 }
 
-// 통계 로드
-const loadStatistics = async () => {
-  try {
-    const params = {}
-    if (isGlobal.value && selectedTenantId.value) {
-      params.tenant_id = selectedTenantId.value
-    }
-    if (filters.from_date) params.from_date = filters.from_date
-    if (filters.to_date) params.to_date = filters.to_date
-
-    const result = await historyApi.getStatistics(params)
-    stats.value = {
-      total_requests: result.total_requests || 0,
-      success_count: result.success_count || 0,
-      error_count: result.error_count || 0,
-      success_rate: result.success_rate || 0,
-      avg_response_time_ms: result.avg_response_time_ms || 0,
-      agent_count: result.agent_count || 0,
-      nl2sql_count: result.nl2sql_count || 0,
-      rag_count: result.rag_count || 0
-    }
-  } catch (error) {
-    console.error('Failed to load statistics:', error)
-  }
-}
-
 // 필터 변경 핸들러
 const handleFilterChange = () => {
   currentPage.value = 1
@@ -425,7 +321,6 @@ const handleDateRangeChange = (range) => {
     filters.to_date = null
   }
   handleFilterChange()
-  loadStatistics()
 }
 
 // 세션 필터 제거
@@ -447,7 +342,6 @@ const resetFilters = () => {
   currentPage.value = 1
   router.replace({ query: {} })
   loadData()
-  loadStatistics()
 }
 
 // 페이지 변경
@@ -474,7 +368,6 @@ const handleDeleteRow = async (row) => {
     await historyApi.delete(row.request_id)
     ElMessage.success('이력이 삭제되었습니다.')
     loadData()
-    loadStatistics()
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Failed to delete history:', error)
@@ -511,7 +404,6 @@ const executeCleanup = async () => {
     ElMessage.success(`${result.deleted_count}건의 이력이 삭제되었습니다.`)
     cleanupDialogVisible.value = false
     loadData()
-    loadStatistics()
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Cleanup failed:', error)
@@ -569,7 +461,6 @@ watch(() => route.query.session_id, (newSessionId) => {
 // 초기 로드
 onMounted(() => {
   if (isGlobal.value) loadTenantOptions()
-  loadStatistics()
 })
 </script>
 
@@ -579,47 +470,6 @@ onMounted(() => {
 .history-view {
   .page-header {
     @include mx.page-header;
-  }
-
-  .stats-row {
-    @include mx.stats-row;
-  }
-
-  .stat-card {
-    @include mx.stat-card;
-
-    // HistoryView 고유: 타입별 현황 아이콘
-    .stat-icon {
-      &.request-type-stats {
-        flex-direction: column;
-        gap: 4px;
-        background: transparent;
-        width: auto;
-
-        .type-item {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 12px;
-        }
-
-        .type-badge {
-          width: 18px;
-          height: 18px;
-          border-radius: 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-weight: bold;
-          color: white;
-
-          &.agent { background-color: #409eff; }
-          &.nl2sql { background-color: #67c23a; }
-          &.rag { background-color: #e6a23c; }
-        }
-      }
-    }
   }
 
   .content-card {

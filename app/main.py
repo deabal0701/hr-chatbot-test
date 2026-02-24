@@ -10,8 +10,10 @@ from app.config import settings
 from app.api.services.history_service import history_service
 from app.core.database.connection import db_manager
 from app.core.database.external import external_db_manager
-from app.core.errors import register_exception_handlers
-from app.middleware import LoggingMiddleware, HistoryMiddleware, AuthMiddleware
+from app.core.errors.handlers import register_exception_handlers
+from app.middleware.logging import LoggingMiddleware
+from app.middleware.history import HistoryMiddleware
+from app.middleware.auth import AuthMiddleware
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 

@@ -5,18 +5,13 @@ ReAct Agent 그래프에서 사용하는 상태(State) 타입을 정의합니다
 LangGraph의 messages 기반 상태 관리를 사용합니다.
 """
 
-from typing import Any, Annotated, Dict, List, Optional, Sequence, TypedDict
+from typing import Annotated, Dict, List, Optional, Sequence, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 from app.models.agent import AgentConfig
 from app.models.rag import SQLResult
-
-
-def _overwrite(left: Any, right: Any) -> Any:
-    """오른쪽 값으로 덮어쓰기 (reducer)"""
-    return right if right is not None else left
 
 
 class AgentState(TypedDict):
@@ -40,10 +35,6 @@ class AgentState(TypedDict):
     # ===== 설정 =====
     config: AgentConfig                                        # Agent 설정
 
-    # ===== Tool 결과 (선택) =====
-    last_tool_name: str                                        # 마지막 사용 Tool
-    last_tool_result: str                                      # 마지막 Tool 결과
-
     # ===== SQL Tool 결과 (프론트엔드 표시용) =====
     generated_sql: str                                         # 생성된 SQL
     sql_result: Optional[SQLResult]                            # SQL 실행 결과
@@ -53,7 +44,6 @@ class AgentState(TypedDict):
 
     # ===== 메타데이터 =====
     tools_used: List[str]                                      # 사용된 Tool 목록
-    start_time: float                                          # 시작 시간
 
 
 def create_initial_state(
@@ -76,8 +66,6 @@ def create_initial_state(
     Returns:
         초기화된 AgentState
     """
-    import time
-
     if config is None:
         config = AgentConfig()
 
@@ -96,10 +84,6 @@ def create_initial_state(
         # 설정
         config=config,
 
-        # Tool 결과
-        last_tool_name="",
-        last_tool_result="",
-
         # SQL 결과
         generated_sql="",
         sql_result=None,
@@ -109,5 +93,4 @@ def create_initial_state(
 
         # 메타데이터
         tools_used=[],
-        start_time=time.time(),
     )

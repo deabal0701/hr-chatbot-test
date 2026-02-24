@@ -23,8 +23,6 @@
         v-show="sidebarVisible"
         :class="{ 'mobile-visible': sidebarVisible && isMobile }"
         :is-mobile="isMobile"
-        @new-chat="handleNewChat"
-        @select-chat="handleSelectChat"
         @close="closeSidebar"
         @toggle="toggleSidebar"
       />
@@ -105,7 +103,6 @@ const router = useRouter()
 
 // ===== 인증 상태 =====
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
-const displayName = computed(() => store.getters['auth/displayName'])
 
 const goToLogin = () => {
   router.push({ path: '/login', query: { redirect: '/chat' } })
@@ -131,14 +128,6 @@ const closeSidebar = () => {
   if (isMobile.value) {
     store.dispatch('app/setUserSidebarVisible', false)
   }
-}
-
-const handleNewChat = () => {
-  // Additional logic if needed
-}
-
-const handleSelectChat = (chatId) => {
-  // Additional logic if needed
 }
 
 // 공유하기 기능

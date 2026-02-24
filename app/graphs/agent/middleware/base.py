@@ -57,19 +57,3 @@ class Middleware(ABC):
             처리된 응답 데이터
         """
         pass
-
-
-class PassThroughMiddleware(Middleware):
-    """
-    아무것도 하지 않는 기본 미들웨어 (개발용)
-
-    미들웨어 테스트나 비활성화 시 사용합니다.
-    """
-
-    async def process_input(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """입력을 그대로 반환"""
-        return data
-
-    async def process_output(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """출력을 그대로 반환"""
-        return data

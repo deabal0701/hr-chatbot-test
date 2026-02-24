@@ -834,13 +834,6 @@ onMounted(async () => {
     flex: 1;
   }
 
-  .name-cell {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-  }
-
   .action-cell {
     display: inline-flex;
     align-items: center;

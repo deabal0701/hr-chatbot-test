@@ -303,7 +303,6 @@ import codesApi from '@/api/codes'
 
 // 상태
 const isLoading = ref(false)
-const isLoadingGroups = ref(false)
 const isSaving = ref(false)
 const selectedGroup = ref('')
 const codes = ref([])
@@ -372,7 +371,6 @@ const formRules = {
 
 // 코드 그룹 목록 로드 (DB에서)
 const loadCodeGroups = async () => {
-  isLoadingGroups.value = true
   try {
     const response = await codesApi.getGroups()
     // API 응답: {items: [{code_value, code_name, ...}], total} → [{value, label}] 변환
@@ -383,8 +381,6 @@ const loadCodeGroups = async () => {
   } catch (error) {
     ElMessage.error('코드 그룹 목록 로드 실패')
     console.error(error)
-  } finally {
-    isLoadingGroups.value = false
   }
 }
 

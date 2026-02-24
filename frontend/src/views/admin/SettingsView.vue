@@ -66,14 +66,6 @@
                   </div>
                 </el-form-item>
 
-                <el-form-item label="Organization ID (선택)" v-if="false">
-                  <el-input
-                    v-model="formData.openai.organization_id"
-                    placeholder="org-xxxxxxxxxxxxxxxxxxxxxxxx"
-                    clearable
-                    style="max-width: 500px"
-                  />
-                </el-form-item>
               </div>
 
               <!-- Anthropic API Key -->
@@ -180,9 +172,6 @@
                     />
                   </el-select>
                 </el-form-item>
-                <a v-if="false" :href="getPricingLink()" target="_blank" class="pricing-link">
-                  가격 정보 보기 →
-                </a>
               </div>
 
               <el-form-item label="Temperature">
@@ -1603,16 +1592,7 @@ const resetCategory = async () => {
   }
 }
 
-// LLM 제공자별 가격 정보 링크
-const getPricingLink = () => {
-  const provider = formData.llm.provider
-  const pricingLinks = {
-    openai: 'https://platform.openai.com/docs/pricing',
-    anthropic: 'https://www.anthropic.com/pricing',
-    google: 'https://ai.google.dev/gemini-api/docs/pricing'
-  }
-  return pricingLinks[provider] || pricingLinks.openai
-}
+
 
 // 현재 provider에 따른 LLM 모델 목록 (Phase C-2)
 const currentLLMModels = computed(() => {

@@ -27,8 +27,7 @@ class ToolResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="메타데이터")
     execution_time_ms: int = Field(0, description="실행 시간(ms)")
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class ToolValidator:
@@ -112,23 +111,6 @@ class ToolMetrics:
         if len(cls._metrics[tool_name]) > 1000:
             cls._metrics[tool_name] = cls._metrics[tool_name][-1000:]
 
-    @classmethod
-    def get_stats(cls, tool_name: str) -> Dict[str, Any]:
-        """도구별 통계"""
-        if tool_name not in cls._metrics or not cls._metrics[tool_name]:
-            return {"total_calls": 0}
-
-        records = cls._metrics[tool_name]
-        total = len(records)
-        success_count = sum(1 for r in records if r["success"])
-        avg_time = sum(r["execution_time_ms"] for r in records) / total
-
-        return {
-            "total_calls": total,
-            "success_rate": success_count / total,
-            "avg_execution_time_ms": avg_time,
-            "last_used": records[-1]["timestamp"]
-        }
 
 
 class BaseTool(ABC):

@@ -6,7 +6,9 @@
 from typing import Any, Dict, List
 
 from app.core.database.connection import db_manager
-from app.core.errors import APIException, ErrorCode, raise_on_unique_violation
+from app.core.errors.handlers import APIException
+from app.core.errors.error_codes import ErrorCode
+from app.core.errors.response import raise_on_unique_violation
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger, log_step
 

@@ -8,10 +8,10 @@ import uuid
 from fastapi import APIRouter, Depends, Request
 
 from app.api.services.auth_service import auth_service
-from app.core.errors import success_response
+from app.core.errors.response import success_response
 from app.core.security.dependencies import get_current_active_user
 from app.models.auth import LoginRequest, RefreshRequest, PasswordChangeRequest, UserContext, UserInfo
-from app.utils.logger import setup_logger, log_step
+from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

@@ -9,7 +9,8 @@ from typing import Optional
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core.errors import APIException, ErrorCode
+from app.core.errors.handlers import APIException
+from app.core.errors.error_codes import ErrorCode
 from app.core.security.jwt import verify_token
 from app.models.auth import UserContext
 

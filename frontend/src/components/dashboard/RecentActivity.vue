@@ -51,7 +51,7 @@ const formatTime = (dateStr) => {
 }
 
 const goToDetail = (requestId) => {
-  router.push(`/admin/history?id=${requestId}`)
+  router.push({ name: 'AdminHistoryDetail', params: { requestId } })
 }
 </script>
 

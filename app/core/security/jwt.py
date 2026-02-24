@@ -11,7 +11,8 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.core.errors import APIException, ErrorCode
+from app.core.errors.handlers import APIException
+from app.core.errors.error_codes import ErrorCode
 
 
 # ===================================

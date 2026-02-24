@@ -238,9 +238,6 @@ const formData = reactive({
   scope_level: 3
 })
 
-// 시스템 역할 여부 (수정 시)
-const isSystemRole = ref(false)
-
 // 폼 검증 규칙
 const formRules = {
   role_code: [
@@ -269,7 +266,6 @@ const loadRoles = async () => {
 const openCreateDialog = () => {
   dialogMode.value = 'create'
   currentRoleId.value = null
-  isSystemRole.value = false
   resetForm()
   dialogVisible.value = true
 }
@@ -278,7 +274,6 @@ const openCreateDialog = () => {
 const openEditDialog = (row) => {
   dialogMode.value = 'edit'
   currentRoleId.value = row.role_id
-  isSystemRole.value = row.is_system
 
   formData.role_code = row.role_code
   formData.role_name = row.role_name
