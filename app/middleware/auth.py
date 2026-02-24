@@ -42,8 +42,10 @@ class AuthMiddleware(BaseMiddleware):
                         login_id=payload.login_id,
                         display_name=payload.display_name,
                         tenant_id=payload.tenant_id,
+                        dept_id=payload.dept_id,
                         is_superuser=payload.is_superuser,
                         role_code=payload.role_code,
+                        scope_level=payload.scope_level,
                     )
             except Exception:
                 pass

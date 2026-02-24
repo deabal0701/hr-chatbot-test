@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants, menus, dashboard
+from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants, menus, departments, dashboard
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.api.services.history_service import history_service
@@ -88,6 +88,7 @@ app.include_router(users.router)    # 사용자 관리 라우터 (Phase 4)
 app.include_router(roles.router)    # 역할 관리 라우터 (Phase 4)
 app.include_router(tenants.router)  # 테넌트 관리 라우터 (Phase 4)
 app.include_router(menus.router)    # 메뉴 관리 라우터 (Phase 4)
+app.include_router(departments.router)  # 부서(조직) 관리 라우터
 app.include_router(dashboard.router)  # 대시보드 라우터
 
 
@@ -230,6 +231,14 @@ async def api_info():
                 "GET /api/admin/v1/tenants/{tenant_id}": "테넌트 상세 조회",
                 "PUT /api/admin/v1/tenants/{tenant_id}": "테넌트 수정",
                 "DELETE /api/admin/v1/tenants/{tenant_id}": "테넌트 삭제"
+            },
+            "admin_departments": {
+                "GET /api/admin/v1/departments": "부서 트리 조회",
+                "POST /api/admin/v1/departments": "부서 추가",
+                "PUT /api/admin/v1/departments/reorder": "부서 순서 변경",
+                "GET /api/admin/v1/departments/{dept_id}": "부서 상세 조회",
+                "PUT /api/admin/v1/departments/{dept_id}": "부서 수정",
+                "DELETE /api/admin/v1/departments/{dept_id}": "부서 삭제"
             }
         }
     }

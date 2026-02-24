@@ -89,6 +89,7 @@ const ICON_MAP = {
   history: 'Histogram',
   search: 'DataLine',
   folder: 'Folder',
+  department: 'Management',
 }
 
 const resolveIcon = (iconName) => {

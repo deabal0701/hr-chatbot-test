@@ -43,6 +43,11 @@ const usersApi = {
 
   /** 메뉴 선택 옵션 (사용자 메뉴 권한 할당용, USER_MGMT 권한으로 접근) */
   getMenuOptions: () => apiClient.get(`${BASE_URL}/options/menus`),
+
+  /** 부서 선택 옵션 (사용자 생성/수정 시 부서 선택용, tenant_id 기반) */
+  getDeptOptions: (tenantId) => apiClient.get(`${BASE_URL}/options/departments`, {
+    params: tenantId ? { tenant_id: tenantId } : {}
+  }),
 }
 
 export default usersApi

@@ -153,32 +153,39 @@ class PasswordChangeRequest(BaseModel):
 
 class UserContext(BaseModel):
     """
-    인증된 사용자 컨텍스트 (v2.0 - 메뉴 기반)
+    인증된 사용자 컨텍스트 (v4.0 - scope_level 기반)
 
     인증 미들웨어가 JWT를 검증한 후 생성하여 request.state.current_user에 저장.
     모든 API 핸들러에서 현재 사용자 정보를 참조할 때 사용.
 
-    v3.0 변경: scope_type 제거 → role_code가 데이터 범위를 직접 결정 (GLOBAL/TENANT/USER).
-    메뉴 권한 체크는 require_menu_permission()에서 DB 조회로 수행.
+    v4.0 변경: scope_level로 데이터 범위 결정 (0=전체, 1=테넌트, 2=부서, 3=본인).
+    role_code는 식별/표시 용도로 유지. 메뉴 권한 체크는 require_menu_permission()에서 DB 조회.
     """
     user_id: int = Field(..., description="사용자 ID")
     login_id: str = Field(..., description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
+    dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
-    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, DEPT, USER)")
+    scope_level: int = Field(default=3, description="데이터 범위 (0=전체, 1=테넌트, 2=부서, 3=본인)")
 
     @property
     def is_global(self) -> bool:
-        """GLOBAL 역할 여부 (전체 데이터 접근)"""
-        return self.is_superuser or self.role_code == "GLOBAL"
+        """전체 데이터 접근 여부"""
+        return self.is_superuser or self.scope_level == 0
 
     @property
     def is_tenant_scope(self) -> bool:
-        """TENANT 역할 여부"""
-        return self.role_code == "TENANT"
+        """테넌트 범위 여부"""
+        return self.scope_level == 1
+
+    @property
+    def is_dept_scope(self) -> bool:
+        """부서 범위 여부"""
+        return self.scope_level == 2
 
     @property
     def is_user_scope(self) -> bool:
-        """USER 역할 여부"""
-        return self.role_code == "USER"
+        """본인 범위 여부"""
+        return self.scope_level == 3

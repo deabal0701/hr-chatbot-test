@@ -89,13 +89,15 @@ class AuthService:
         session_id = str(uuid.uuid4())
         expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
 
-        # JWT 토큰 데이터 구성 (v3.0: role_code가 데이터 범위 겸용, scope_type 제거)
+        # JWT 토큰 데이터 구성 (v4.0: scope_level 기반 데이터 범위)
         token_data = {
             "sub": str(user_id),
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
+            "dept_id": user_info.get("dept_id"),
             "role_code": user_info["role_code"],
+            "scope_level": user_info.get("scope_level", 3),
             "is_superuser": user_info["is_superuser"],
         }
         access_token = create_access_token(token_data)
@@ -168,7 +170,9 @@ class AuthService:
             "login_id": user_info["login_id"],
             "display_name": user_info["display_name"],
             "tenant_id": user_info["tenant_id"],
+            "dept_id": user_info.get("dept_id"),
             "role_code": user_info["role_code"],
+            "scope_level": user_info.get("scope_level", 3),
             "is_superuser": user_info["is_superuser"],
         }
         new_access_token = create_access_token(token_data)
@@ -207,8 +211,8 @@ class AuthService:
         with db_manager.get_cursor() as cur:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
-                "u.is_superuser, u.is_active, "
-                "r.role_code, r.role_name, r.landing_page "
+                "u.dept_id, u.is_superuser, u.is_active, "
+                "r.role_code, r.role_name, r.landing_page, r.scope_level "
                 "FROM tb_user u "
                 "JOIN tb_role r ON r.role_id = u.role_id "
                 "WHERE u.user_id = %s",

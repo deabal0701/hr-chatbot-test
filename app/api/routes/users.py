@@ -51,6 +51,18 @@ async def get_menu_options(
     return success_response(result)
 
 
+@router.get("/options/departments")
+async def get_department_options(
+    request: Request,
+    tenant_id: Optional[int] = Query(None, description="테넌트 ID (GLOBAL만 지정 가능)"),
+    current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
+):
+    """부서 선택 옵션 (사용자 생성/수정 폼용, tenant_id 기반 flat 리스트)"""
+    request_id = getattr(request.state, "request_id", "")
+    result = user_service.get_department_options(tenant_id, current_user, request_id)
+    return success_response(result)
+
+
 @router.get("")
 async def list_users(
     request: Request,

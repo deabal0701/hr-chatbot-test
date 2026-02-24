@@ -28,31 +28,31 @@ class UserService:
             "landing_page": user.pop("landing_page"),
         } if user.get("role_id") else None
 
-    def _validate_role_tenant(self, role_id: Optional[int], tenant_id: Optional[int]) -> int:
-        """역할-테넌트 조합 유효성 검증, 보정된 tenant_id 반환
+    def _validate_role_tenant(self, role_id: Optional[int], tenant_id: Optional[int], dept_id: Optional[int] = None) -> tuple:
+        """역할-테넌트-부서 조합 유효성 검증, (보정된 tenant_id, 보정된 dept_id) 반환
 
         규칙:
-          GLOBAL  → 시스템 테넌트(is_system=true) 자동 설정
-          TENANT  → tenant_id 필수, 시스템 테넌트 불가
-          USER    → tenant_id 필수, 시스템 테넌트 불가
+          GLOBAL  → 시스템 테넌트 자동 설정, dept_id=NULL 강제
+          TENANT  → tenant_id 필수, 시스템 테넌트 불가, dept_id 허용
+          USER    → tenant_id 필수, 시스템 테넌트 불가, dept_id 허용
         """
         if not role_id:
-            return tenant_id
+            return tenant_id, dept_id
 
         with db_manager.get_cursor() as cur:
             cur.execute("SELECT role_code FROM tb_role WHERE role_id = %s", (role_id,))
             role_row = cur.fetchone()
         if not role_row:
-            return tenant_id
+            return tenant_id, dept_id
 
         role_code = role_row["role_code"]
 
         if role_code == "GLOBAL":
-            # GLOBAL → 시스템 테넌트 자동 설정
+            # GLOBAL → 시스템 테넌트 자동 설정, dept_id=NULL
             with db_manager.get_cursor() as cur:
                 cur.execute("SELECT tenant_id FROM tb_tenant WHERE is_system = true LIMIT 1")
                 sys_tenant = cur.fetchone()
-            return sys_tenant["tenant_id"] if sys_tenant else tenant_id
+            return (sys_tenant["tenant_id"] if sys_tenant else tenant_id), None
 
         # TENANT / USER → 테넌트 필수, 시스템 테넌트 불가
         if not tenant_id:
@@ -64,7 +64,18 @@ class UserService:
             raise APIException(ErrorCode.BAD_REQUEST, "존재하지 않는 테넌트입니다")
         if tenant_row["is_system"]:
             raise APIException(ErrorCode.BAD_REQUEST, f"{role_code} 역할은 시스템 테넌트에 소속될 수 없습니다")
-        return tenant_id
+
+        # dept_id 검증: 부서가 지정된 경우 같은 tenant_id인지 확인
+        if dept_id:
+            with db_manager.get_cursor() as cur:
+                cur.execute("SELECT tenant_id FROM tb_department WHERE dept_id = %s AND is_active = true", (dept_id,))
+                dept_row = cur.fetchone()
+            if not dept_row:
+                raise APIException(ErrorCode.BAD_REQUEST, "존재하지 않거나 비활성 부서입니다")
+            if dept_row["tenant_id"] != tenant_id:
+                raise APIException(ErrorCode.BAD_REQUEST, "선택한 부서는 해당 테넌트에 소속되지 않습니다")
+
+        return tenant_id, dept_id
 
     def _check_scope_access(self, target_tenant_id: Optional[int], current_user: UserContext) -> None:
         """role_code에 따른 접근 범위 검증"""
@@ -109,11 +120,13 @@ class UserService:
 
             cur.execute(
                 f"SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
-                f"t.tenant_name, u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
+                f"t.tenant_name, u.dept_id, d.dept_name, "
+                f"u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
                 f"r.role_id, r.role_code, r.role_name, r.landing_page, "
                 f"(SELECT COUNT(*) FROM tb_user_menu um WHERE um.user_id = u.user_id) as menu_count "
                 f"FROM tb_user u "
                 f"LEFT JOIN tb_tenant t ON u.tenant_id = t.tenant_id "
+                f"LEFT JOIN tb_department d ON u.dept_id = d.dept_id "
                 f"LEFT JOIN tb_role r ON u.role_id = r.role_id "
                 f"{where} ORDER BY u.created_at DESC LIMIT %s OFFSET %s",
                 params + [limit, offset],
@@ -134,11 +147,13 @@ class UserService:
         with db_manager.get_cursor() as cur:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
-                "t.tenant_name, u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
+                "t.tenant_name, u.dept_id, d.dept_name, "
+                "u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
                 "r.role_id, r.role_code, r.role_name, r.landing_page, "
                 "(SELECT COUNT(*) FROM tb_user_menu um WHERE um.user_id = u.user_id) as menu_count "
                 "FROM tb_user u "
                 "LEFT JOIN tb_tenant t ON u.tenant_id = t.tenant_id "
+                "LEFT JOIN tb_department d ON u.dept_id = d.dept_id "
                 "LEFT JOIN tb_role r ON u.role_id = r.role_id "
                 "WHERE u.user_id = %s",
                 (user_id,),
@@ -168,9 +183,10 @@ class UserService:
 
         password_hashed = hash_password(data["password"])
         role_id = data.get("role_id")
+        dept_id = data.get("dept_id")
 
-        # 역할-테넌트 조합 검증 (GLOBAL→시스템 테넌트, TENANT/USER→일반 테넌트 필수)
-        tenant_id = self._validate_role_tenant(role_id, tenant_id)
+        # 역할-테넌트-부서 조합 검증
+        tenant_id, dept_id = self._validate_role_tenant(role_id, tenant_id, dept_id)
 
         # role_id 유효성 + 역할 권한 상승 방지
         if role_id:
@@ -195,9 +211,9 @@ class UserService:
         try:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute(
-                    "INSERT INTO tb_user (login_id, email, password_hash, display_name, tenant_id, role_id, is_active) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING user_id",
-                    (data["login_id"], data["email"], password_hashed, data.get("display_name"), tenant_id, role_id, data.get("is_active", True)),
+                    "INSERT INTO tb_user (login_id, email, password_hash, display_name, tenant_id, role_id, dept_id, is_active) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING user_id",
+                    (data["login_id"], data["email"], password_hashed, data.get("display_name"), tenant_id, role_id, dept_id, data.get("is_active", True)),
                 )
                 new_user_id = cur.fetchone()["user_id"]
 
@@ -218,7 +234,7 @@ class UserService:
     def update_user(self, user_id: int, data: Dict[str, Any], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """사용자 수정"""
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT user_id, tenant_id, role_id, is_superuser FROM tb_user WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT user_id, tenant_id, role_id, dept_id, is_superuser FROM tb_user WHERE user_id = %s", (user_id,))
             existing = cur.fetchone()
 
         if not existing:
@@ -241,17 +257,19 @@ class UserService:
                 if role_row["role_code"] not in allowed_codes:
                     raise APIException(ErrorCode.FORBIDDEN, "자신보다 상위 역할은 할당할 수 없습니다")
 
-        # 역할-테넌트 조합 검증 (변경될 최종값 기준)
+        # 역할-테넌트-부서 조합 검증 (변경될 최종값 기준)
         final_role_id = data.get("role_id", existing["role_id"])
         final_tenant_id = data.get("tenant_id", existing["tenant_id"])
-        if "role_id" in data or "tenant_id" in data:
-            validated_tenant_id = self._validate_role_tenant(final_role_id, final_tenant_id)
+        final_dept_id = data.get("dept_id", existing.get("dept_id"))
+        if "role_id" in data or "tenant_id" in data or "dept_id" in data:
+            validated_tenant_id, validated_dept_id = self._validate_role_tenant(final_role_id, final_tenant_id, final_dept_id)
             data["tenant_id"] = validated_tenant_id
+            data["dept_id"] = validated_dept_id
 
         # 동적 UPDATE
         fields = []
         params: list = []
-        for key in ("email", "display_name", "tenant_id", "role_id", "is_active"):
+        for key in ("email", "display_name", "tenant_id", "role_id", "dept_id", "is_active"):
             if key in data and data[key] is not None:
                 fields.append(f"{key} = %s")
                 params.append(data[key])
@@ -436,6 +454,27 @@ class UserService:
         items = [dict(row) for row in rows]
         log_step(logger, request_id, "USER", "OPT", "ROLES", "역할 옵션 조회", total=len(items), role=current_user.role_code)
         return {"total": len(items), "items": items}
+
+    def get_department_options(self, tenant_id: Optional[int], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
+        """부서 선택 옵션 (사용자 생성/수정 시 드롭다운용, tenant_id 기반 flat 리스트)"""
+        conditions = ["d.is_active = true"]
+        params: list = []
+
+        # TENANT 역할은 자기 테넌트만
+        if current_user.role_code == "TENANT":
+            conditions.append("d.tenant_id = %s")
+            params.append(current_user.tenant_id)
+        elif tenant_id:
+            conditions.append("d.tenant_id = %s")
+            params.append(tenant_id)
+
+        where_clause = " AND ".join(conditions)
+        with db_manager.get_cursor() as cur:
+            cur.execute(f"SELECT d.dept_id, d.dept_code, d.dept_name, d.parent_dept_id, d.depth FROM tb_department d WHERE {where_clause} ORDER BY d.depth, d.sort_order, d.dept_id", params)
+            rows = [dict(row) for row in cur.fetchall()]
+
+        log_step(logger, request_id, "USER", "OPT", "DEPTS", "부서 옵션 조회", total=len(rows), tenant_id=tenant_id)
+        return {"total": len(rows), "items": rows}
 
     def get_tenant_options(self, current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """테넌트 선택 옵션 (드롭다운용 경량 데이터)"""

@@ -116,6 +116,12 @@ const routes = [
         name: 'AdminMenus',
         component: () => import('@/views/admin/MenusView.vue'),
         meta: { title: '메뉴 관리', menuCode: 'MENU_MGMT' }
+      },
+      {
+        path: 'departments',
+        name: 'AdminDepartments',
+        component: () => import('@/views/admin/DepartmentsView.vue'),
+        meta: { title: '조직 관리', menuCode: 'DEPT_MGMT' }
       }
     ]
   },

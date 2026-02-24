@@ -44,17 +44,17 @@
       >
         <el-table-column prop="user_id" label="ID" width="70" sortable />
 
-        <el-table-column prop="login_id" label="로그인 ID" min-width="110" sortable />
+        <el-table-column prop="login_id" label="로그인 ID" min-width="90" sortable />
 
-        <el-table-column prop="display_name" label="이름" min-width="130">
+        <el-table-column prop="display_name" label="이름" min-width="90" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.display_name || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="email" label="이메일" min-width="170" show-overflow-tooltip />
+        <el-table-column prop="email" label="이메일" min-width="140" show-overflow-tooltip />
 
-        <el-table-column label="역할" min-width="110">
+        <el-table-column label="역할" min-width="90">
           <template #default="{ row }">
             <el-tag
               v-if="row.role"
@@ -67,19 +67,25 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="menu_count" label="메뉴" width="70" align="center">
+        <el-table-column prop="menu_count" label="메뉴" width="55" align="center">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.menu_count || 0 }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="tenant_name" label="테넌트" min-width="110">
+        <el-table-column prop="tenant_name" label="테넌트" min-width="90" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.tenant_name || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="is_active" label="상태" width="70" align="center">
+        <el-table-column prop="dept_name" label="부서" min-width="80" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.dept_name || '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="is_active" label="상태" width="60" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
               {{ row.is_active ? '활성' : '비활성' }}
@@ -87,13 +93,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="last_login_at" label="최근 로그인" width="180">
+        <el-table-column prop="last_login_at" label="최근 로그인" width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ formatDateTime(row.last_login_at) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="동작" width="140">
+        <el-table-column label="동작" width="120">
           <template #default="{ row }">
             <span class="action-cell">
               <el-button link type="primary" size="small" :icon="Edit" @click="openEditDialog(row)">수정</el-button>
@@ -189,6 +195,7 @@
                     :disabled="isTenantDisabled"
                     :clearable="!isTenantDisabled"
                     style="width: 100%"
+                    @change="handleTenantChange"
                   >
                     <el-option
                       v-for="t in filteredTenants"
@@ -200,11 +207,28 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="활성화 여부">
-                  <el-switch v-model="formData.is_active" />
+                <el-form-item label="부서" prop="dept_id">
+                  <el-select
+                    v-model="formData.dept_id"
+                    placeholder="부서 선택"
+                    :disabled="isDeptDisabled"
+                    clearable
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="d in deptOptions"
+                      :key="d.dept_id"
+                      :label="'  '.repeat(d.depth || 0) + d.dept_name"
+                      :value="d.dept_id"
+                    />
+                  </el-select>
                 </el-form-item>
               </el-col>
             </el-row>
+
+            <el-form-item label="활성화 여부">
+              <el-switch v-model="formData.is_active" />
+            </el-form-item>
           </el-form>
         </el-tab-pane>
 
@@ -287,10 +311,11 @@ const formRef = ref(null)
 const currentUserId = ref(null)
 const activeTab = ref('basic')
 
-// 역할/테넌트/메뉴 목록 (다이얼로그용)
+// 역할/테넌트/메뉴/부서 목록 (다이얼로그용)
 const allRoles = ref([])
 const allTenants = ref([])
 const allMenus = ref([])
+const deptOptions = ref([])
 const menuPermMap = reactive({})
 
 // 폼 데이터
@@ -300,6 +325,7 @@ const formData = reactive({
   display_name: '',
   password: '',
   tenant_id: null,
+  dept_id: null,
   is_active: true,
   role_id: null
 })
@@ -310,8 +336,9 @@ const selectedRoleCode = computed(() => {
   return role?.role_code || null
 })
 
-// GLOBAL 역할이면 테넌트 비활성화
+// GLOBAL 역할이면 테넌트/부서 비활성화
 const isTenantDisabled = computed(() => selectedRoleCode.value === 'GLOBAL')
+const isDeptDisabled = computed(() => selectedRoleCode.value === 'GLOBAL' || !formData.tenant_id)
 
 // 테넌트 필터: GLOBAL → 시스템 테넌트만, TENANT/USER → 시스템 테넌트 제외
 const filteredTenants = computed(() => {
@@ -395,15 +422,23 @@ const handleRoleChange = async (roleId) => {
   const role = allRoles.value.find(r => r.role_id === roleId)
   if (!role) return
 
-  // GLOBAL → 시스템 테넌트 자동 설정
+  // GLOBAL → 시스템 테넌트 자동 설정, dept_id=null
   if (role.role_code === 'GLOBAL') {
     const sysTenant = allTenants.value.find(t => t.is_system)
     formData.tenant_id = sysTenant?.tenant_id || null
+    formData.dept_id = null
+    deptOptions.value = []
   } else {
     // TENANT/USER → 시스템 테넌트가 선택되어 있으면 해제
     const current = allTenants.value.find(t => t.tenant_id === formData.tenant_id)
     if (current?.is_system) {
       formData.tenant_id = null
+      formData.dept_id = null
+      deptOptions.value = []
+    }
+    // 테넌트가 선택되어 있으면 부서 목록 로드
+    if (formData.tenant_id) {
+      await loadDeptOptions(formData.tenant_id)
     }
   }
 
@@ -494,6 +529,26 @@ const loadMenus = async () => {
   }
 }
 
+// 부서 옵션 로드 (tenant_id 기반)
+const loadDeptOptions = async (tenantId) => {
+  if (!tenantId) {
+    deptOptions.value = []
+    return
+  }
+  try {
+    const result = await usersApi.getDeptOptions(tenantId)
+    deptOptions.value = result.items || []
+  } catch {
+    deptOptions.value = []
+  }
+}
+
+// 테넌트 변경 시 부서 목록 갱신 + dept_id 초기화
+const handleTenantChange = async (tenantId) => {
+  formData.dept_id = null
+  await loadDeptOptions(tenantId)
+}
+
 // 검색
 const handleSearch = () => {
   currentPage.value = 1
@@ -541,10 +596,18 @@ const openEditDialog = async (row) => {
   formData.email = row.email
   formData.display_name = row.display_name || ''
   formData.tenant_id = row.tenant_id
+  formData.dept_id = row.dept_id || null
   formData.is_active = row.is_active
   formData.role_id = row.role?.role_id || null
   formData.password = ''
   dialogVisible.value = true
+
+  // 부서 목록 로드 (테넌트가 있을 때만)
+  if (row.tenant_id) {
+    await loadDeptOptions(row.tenant_id)
+  } else {
+    deptOptions.value = []
+  }
 
   // 사용자 메뉴 권한 로드
   initMenuPermMap()
@@ -575,8 +638,10 @@ const resetForm = () => {
   formData.display_name = ''
   formData.password = ''
   formData.tenant_id = null
+  formData.dept_id = null
   formData.is_active = true
   formData.role_id = null
+  deptOptions.value = []
   initMenuPermMap()
   if (formRef.value) formRef.value.clearValidate()
 }
@@ -603,6 +668,7 @@ const handleSubmit = async () => {
         display_name: formData.display_name,
         password: formData.password,
         tenant_id: formData.tenant_id,
+        dept_id: formData.dept_id,
         is_active: formData.is_active,
         role_id: formData.role_id,
         menus
@@ -613,6 +679,7 @@ const handleSubmit = async () => {
         email: formData.email,
         display_name: formData.display_name,
         tenant_id: formData.tenant_id,
+        dept_id: formData.dept_id,
         is_active: formData.is_active,
         role_id: formData.role_id
       })

@@ -19,12 +19,14 @@ from app.core.errors import APIException, ErrorCode
 # ===================================
 
 class TokenPayload(BaseModel):
-    """JWT 토큰 디코딩 결과 (v3.0 - scope_type 제거, role_code 통합)"""
+    """JWT 토큰 디코딩 결과 (v4.0 - scope_level 기반)"""
     sub: str = Field(..., description="Subject (user_id 문자열)")
     login_id: str = Field(default="", description="로그인 ID")
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="테넌트 ID")
-    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, USER)")
+    dept_id: Optional[int] = Field(None, description="부서 ID")
+    role_code: str = Field(default="USER", description="역할 코드 (GLOBAL, TENANT, DEPT, USER)")
+    scope_level: int = Field(default=3, description="데이터 범위 (0=전체, 1=테넌트, 2=부서, 3=본인)")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
     exp: Optional[int] = Field(None, description="만료 시간 (Unix timestamp)")
     iat: Optional[int] = Field(None, description="발급 시간 (Unix timestamp)")

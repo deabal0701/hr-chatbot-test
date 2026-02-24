@@ -112,6 +112,7 @@ class UserCreate(UserBase):
     """사용자 생성 요청 (역할 + 메뉴 권한 포함)"""
     password: str = Field(..., min_length=8, description="비밀번호 (8자 이상)")
     role_id: int = Field(..., description="역할 ID (사용자는 하나의 역할에 소속)")
+    dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     is_active: bool = Field(default=True, description="활성화 여부")
     menus: List[UserMenuPermission] = Field(default_factory=list, description="메뉴 권한 목록")
 
@@ -139,6 +140,7 @@ class UserUpdate(BaseModel):
     display_name: Optional[str] = Field(None, max_length=100, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     role_id: Optional[int] = Field(None, description="역할 ID")
+    dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     is_active: Optional[bool] = Field(None, description="활성화 여부")
 
     @field_validator("email")
@@ -157,6 +159,8 @@ class UserResponse(BaseModel):
     display_name: Optional[str] = Field(None, description="표시 이름")
     tenant_id: Optional[int] = Field(None, description="소속 테넌트 ID")
     tenant_name: Optional[str] = Field(None, description="소속 테넌트명")
+    dept_id: Optional[int] = Field(None, description="소속 부서 ID")
+    dept_name: Optional[str] = Field(None, description="소속 부서명")
     role: RoleSimple = Field(..., description="역할 정보")
     is_active: bool = Field(..., description="활성화 여부")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
