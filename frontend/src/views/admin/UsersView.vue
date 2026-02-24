@@ -21,16 +21,42 @@
           @clear="handleSearch"
         />
         <el-select
-          v-model="filterActive"
-          placeholder="상태 필터"
+          v-model="filterTenantId"
+          placeholder="테넌트"
           clearable
-          style="width: 140px"
+          style="width: 150px"
+          @change="handleTenantFilterChange"
+        >
+          <el-option
+            v-for="t in filterTenantOptions"
+            :key="t.tenant_id"
+            :label="t.tenant_name"
+            :value="t.tenant_id"
+          />
+        </el-select>
+        <el-tree-select
+          v-model="filterDeptId"
+          :data="filterDeptTree"
+          node-key="dept_id"
+          :props="{ label: 'dept_name', children: 'children' }"
+          placeholder="부서"
+          clearable
+          check-strictly
+          :render-after-expand="false"
+          :disabled="!filterTenantId"
+          style="width: 180px"
+        />
+        <el-select
+          v-model="filterActive"
+          placeholder="상태"
+          clearable
+          style="width: 100px"
           @change="handleSearch"
         >
           <el-option label="활성" :value="true" />
           <el-option label="비활성" :value="false" />
         </el-select>
-        <el-button :icon="Refresh" @click="resetFilters">필터 초기화</el-button>
+        <el-button :icon="Refresh" @click="resetFilters">초기화</el-button>
         <div class="flex-1" />
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">새 사용자</el-button>
       </div>
@@ -208,20 +234,18 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="부서" prop="dept_id">
-                  <el-select
+                  <el-tree-select
                     v-model="formData.dept_id"
+                    :data="formDeptTree"
+                    node-key="dept_id"
+                    :props="{ label: 'dept_name', children: 'children' }"
                     placeholder="부서 선택"
                     :disabled="isDeptDisabled"
                     clearable
+                    check-strictly
+                    :render-after-expand="false"
                     style="width: 100%"
-                  >
-                    <el-option
-                      v-for="d in deptOptions"
-                      :key="d.dept_id"
-                      :label="'  '.repeat(d.depth || 0) + d.dept_name"
-                      :value="d.dept_id"
-                    />
-                  </el-select>
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -289,7 +313,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete, Search } from '@element-plus/icons-vue'
 import usersApi from '@/api/users'
@@ -304,6 +328,10 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const filterActive = ref(null)
+const filterTenantId = ref(null)
+const filterDeptId = ref(null)
+const filterTenantOptions = ref([])
+const filterDeptOptions = ref([])
 const searchKeyword = ref('')
 const dialogVisible = ref(false)
 const dialogMode = ref('create')
@@ -339,6 +367,36 @@ const selectedRoleCode = computed(() => {
 // GLOBAL 역할이면 테넌트/부서 비활성화
 const isTenantDisabled = computed(() => selectedRoleCode.value === 'GLOBAL')
 const isDeptDisabled = computed(() => selectedRoleCode.value === 'GLOBAL' || !formData.tenant_id)
+
+// 부서 flat 리스트 → tree 변환 공통 함수
+const buildDeptTree = (items) => {
+  if (!items.length) return []
+  const map = {}
+  const roots = []
+  for (const d of items) {
+    map[d.dept_id] = { ...d, children: [] }
+  }
+  for (const d of items) {
+    if (d.parent_dept_id && map[d.parent_dept_id]) {
+      map[d.parent_dept_id].children.push(map[d.dept_id])
+    } else {
+      roots.push(map[d.dept_id])
+    }
+  }
+  return roots
+}
+
+// 검색 필터용 부서 트리
+const filterDeptTree = computed(() => buildDeptTree(filterDeptOptions.value))
+
+// 다이얼로그(생성/수정) 부서 트리
+const formDeptTree = computed(() => buildDeptTree(deptOptions.value))
+
+// el-tree-select는 @change 이벤트가 안정적이지 않으므로 watch로 검색 트리거
+watch(filterDeptId, () => {
+  currentPage.value = 1
+  loadUsers()
+})
 
 // 테넌트 필터: GLOBAL → 시스템 테넌트만, TENANT/USER → 시스템 테넌트 제외
 const filteredTenants = computed(() => {
@@ -486,6 +544,8 @@ const loadUsers = async () => {
       limit: pageSize.value,
       offset: (currentPage.value - 1) * pageSize.value
     }
+    if (filterTenantId.value !== null) params.tenant_id = filterTenantId.value
+    if (filterDeptId.value !== null) params.dept_id = filterDeptId.value
     if (filterActive.value !== null) params.is_active = filterActive.value
     if (searchKeyword.value.trim()) params.keyword = searchKeyword.value.trim()
     const result = await usersApi.list(params)
@@ -543,7 +603,24 @@ const loadDeptOptions = async (tenantId) => {
   }
 }
 
-// 테넌트 변경 시 부서 목록 갱신 + dept_id 초기화
+// 검색 필터: 테넌트 변경 시 부서 목록 갱신 + dept_id 초기화
+const handleTenantFilterChange = async (tenantId) => {
+  filterDeptId.value = null
+  if (tenantId) {
+    try {
+      const result = await usersApi.getDeptOptions(tenantId)
+      filterDeptOptions.value = result.items || []
+    } catch {
+      filterDeptOptions.value = []
+    }
+  } else {
+    filterDeptOptions.value = []
+  }
+  currentPage.value = 1
+  loadUsers()
+}
+
+// 다이얼로그: 테넌트 변경 시 부서 목록 갱신 + dept_id 초기화
 const handleTenantChange = async (tenantId) => {
   formData.dept_id = null
   await loadDeptOptions(tenantId)
@@ -558,6 +635,9 @@ const handleSearch = () => {
 // 필터 초기화
 const resetFilters = () => {
   searchKeyword.value = ''
+  filterTenantId.value = null
+  filterDeptId.value = null
+  filterDeptOptions.value = []
   filterActive.value = null
   currentPage.value = 1
   loadUsers()
@@ -719,9 +799,19 @@ const handleDelete = async (row) => {
   }
 }
 
+// 검색 필터용 테넌트 목록 로드
+const loadFilterTenants = async () => {
+  try {
+    const result = await usersApi.getTenantOptions()
+    filterTenantOptions.value = result.items || []
+  } catch {
+    filterTenantOptions.value = []
+  }
+}
+
 // 마운트
 onMounted(async () => {
-  await Promise.all([loadUsers(), loadRoles(), loadTenants(), loadMenus()])
+  await Promise.all([loadUsers(), loadRoles(), loadTenants(), loadMenus(), loadFilterTenants()])
 })
 </script>
 

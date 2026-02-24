@@ -69,13 +69,14 @@ async def list_users(
     limit: int = Query(20, ge=1, le=100, description="최대 결과 수"),
     offset: int = Query(0, ge=0, description="시작 위치"),
     tenant_id: Optional[int] = Query(None, description="테넌트 필터 (GLOBAL만)"),
+    dept_id: Optional[int] = Query(None, description="부서 필터"),
     is_active: Optional[bool] = Query(None, description="활성화 필터"),
     keyword: Optional[str] = Query(None, description="이름/로그인ID 검색"),
     current_user: UserContext = Depends(require_menu_permission("USER_MGMT", "read")),
 ):
     """사용자 목록 조회"""
     request_id = getattr(request.state, "request_id", "")
-    result = user_service.list_users(current_user, request_id, limit, offset, tenant_id, is_active, keyword)
+    result = user_service.list_users(current_user, request_id, limit, offset, tenant_id, is_active, keyword, dept_id)
     return success_response(result)
 
 

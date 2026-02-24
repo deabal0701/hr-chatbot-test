@@ -14,22 +14,13 @@ from app.api.services.history_service import history_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_current_user
 from app.core.security.permission import require_menu_permission
+from app.core.security.scope_filter import get_query_scope
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
-
-
-def _apply_scope_filter(current_user: UserContext, tenant_id: Optional[str], user_id: Optional[str]):
-    """role_code에 따라 tenant_id/user_id 필터를 강제 적용"""
-    if current_user.role_code == "TENANT":
-        tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
-    elif current_user.role_code == "USER":
-        tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
-        user_id = str(current_user.user_id)
-    return tenant_id, user_id
 
 
 @router.get("")
@@ -51,7 +42,7 @@ async def list_history(
     scope 기반 필터: GLOBAL=전체, TENANT=자기 테넌트, USER=본인 이력
     인증 필수: Bearer Token 필요
     """
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         items = history_service.get_history(
             tenant_id=tenant_id,
@@ -97,7 +88,7 @@ async def get_statistics(
     current_user: UserContext = Depends(get_current_user),
 ):
     """이력 통계 조회 (scope 기반 필터 적용)"""
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         stats = history_service.get_statistics(
             tenant_id=tenant_id,
@@ -120,9 +111,9 @@ async def get_user_summary(
 ):
     """사용자별 이력 요약 (본인 또는 scope 범위 내)"""
     # USER scope → 본인 이력만
-    if current_user and current_user.role_code == "USER" and str(current_user.user_id) != user_id:
+    if current_user and current_user.is_user_scope and str(current_user.user_id) != user_id:
         raise APIException(ErrorCode.FORBIDDEN, "본인의 이력만 조회할 수 있습니다")
-    tenant_id, _ = _apply_scope_filter(current_user, tenant_id, None)
+    tenant_id, _ = get_query_scope(current_user, tenant_id, None)
     try:
         summary = history_service.get_user_summary(user_id=user_id, tenant_id=tenant_id)
         return success_response(summary)
@@ -144,9 +135,9 @@ async def get_user_history(
     current_user: UserContext = Depends(get_current_user),
 ):
     """사용자별 이력 상세 조회 (본인 또는 scope 범위 내)"""
-    if current_user and current_user.role_code == "USER" and str(current_user.user_id) != user_id:
+    if current_user and current_user.is_user_scope and str(current_user.user_id) != user_id:
         raise APIException(ErrorCode.FORBIDDEN, "본인의 이력만 조회할 수 있습니다")
-    tenant_id, _ = _apply_scope_filter(current_user, tenant_id, None)
+    tenant_id, _ = get_query_scope(current_user, tenant_id, None)
     try:
         items = history_service.get_history(
             tenant_id=tenant_id,
@@ -191,7 +182,7 @@ async def list_sessions(
     current_user: UserContext = Depends(get_current_user),
 ):
     """세션 단위 이력 목록 조회 (사용자 사이드바용, scope 기반 필터 적용)"""
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         items = history_service.get_session_list(
             search_query=search,
@@ -227,7 +218,7 @@ async def get_session_history(
     current_user: UserContext = Depends(get_current_user),
 ):
     """세션별 이력 상세 조회 (session_id 또는 request_id, scope 기반 필터 적용)"""
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         items = history_service.get_session_detail(session_key, tenant_id=tenant_id, user_id=user_id)
         return success_response({
@@ -248,7 +239,7 @@ async def delete_session_history(
     current_user: UserContext = Depends(get_current_user),
 ):
     """세션 단위 이력 삭제 (scope 기반 필터 적용)"""
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         deleted = history_service.delete_session(session_key, tenant_id=tenant_id, user_id=user_id)
         if not deleted:
@@ -278,7 +269,7 @@ async def get_history_detail(
     request_id로 특정 요청의 상세 정보 조회
     scope 기반 필터 적용 (Phase 3a: 미인증 허용)
     """
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         record = history_service.get_by_request_id(request_id, tenant_id=tenant_id, user_id=user_id)
         if not record:
@@ -335,7 +326,7 @@ async def delete_history(
     request_id로 특정 요청의 이력을 삭제합니다.
     scope 기반 필터 적용 (Phase 3a: 미인증 허용)
     """
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, user_id)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, user_id)
     try:
         deleted = history_service.delete_by_request_id(request_id, tenant_id=tenant_id, user_id=user_id)
         if not deleted:

@@ -11,22 +11,13 @@ from fastapi import APIRouter, Depends, Query
 from app.api.services.dashboard_service import dashboard_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_current_user
+from app.core.security.scope_filter import get_query_scope
 from app.models.auth import UserContext
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
-
-
-def _apply_scope_filter(current_user: UserContext, tenant_id: Optional[str], user_id: Optional[str]):
-    """role_code에 따라 tenant_id/user_id 필터를 강제 적용"""
-    if current_user.role_code == "TENANT":
-        tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
-    elif current_user.role_code == "USER":
-        tenant_id = str(current_user.tenant_id) if current_user.tenant_id else tenant_id
-        user_id = str(current_user.user_id)
-    return tenant_id, user_id
 
 
 @router.get("/summary")
@@ -43,7 +34,7 @@ async def get_dashboard_summary(
     if period not in ("today", "week", "month"):
         period = "today"
 
-    tenant_id, user_id = _apply_scope_filter(current_user, tenant_id, None)
+    tenant_id, user_id = get_query_scope(current_user, tenant_id, None)
 
     try:
         data = dashboard_service.get_summary(

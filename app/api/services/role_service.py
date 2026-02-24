@@ -21,7 +21,8 @@ class RoleService:
         with db_manager.get_cursor() as cur:
             cur.execute(
                 "SELECT r.role_id, r.role_code, r.role_name, r.description, "
-                "r.landing_page, r.is_system, r.sort_order, r.created_at, r.updated_at, "
+                "r.landing_page, r.is_system, r.sort_order, r.scope_level, "
+                "r.created_at, r.updated_at, "
                 "(SELECT COUNT(*) FROM tb_user u WHERE u.role_id = r.role_id) as user_count "
                 "FROM tb_role r ORDER BY r.sort_order, r.role_id"
             )
@@ -36,7 +37,8 @@ class RoleService:
         with db_manager.get_cursor() as cur:
             cur.execute(
                 "SELECT r.role_id, r.role_code, r.role_name, r.description, "
-                "r.landing_page, r.is_system, r.sort_order, r.created_at, r.updated_at, "
+                "r.landing_page, r.is_system, r.sort_order, r.scope_level, "
+                "r.created_at, r.updated_at, "
                 "(SELECT COUNT(*) FROM tb_user u WHERE u.role_id = r.role_id) as user_count "
                 "FROM tb_role r WHERE r.role_id = %s",
                 (role_id,),
@@ -55,9 +57,9 @@ class RoleService:
         try:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute(
-                    "INSERT INTO tb_role (role_code, role_name, description, landing_page, sort_order) "
-                    "VALUES (%s, %s, %s, %s, %s) RETURNING role_id",
-                    (data["role_code"], data["role_name"], data.get("description"), data.get("landing_page", "/chat"), data.get("sort_order", 0)),
+                    "INSERT INTO tb_role (role_code, role_name, description, landing_page, sort_order, scope_level) "
+                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING role_id",
+                    (data["role_code"], data["role_name"], data.get("description"), data.get("landing_page", "/chat"), data.get("sort_order", 0), data.get("scope_level", 3)),
                 )
                 new_role_id = cur.fetchone()["role_id"]
         except Exception as e:
@@ -77,7 +79,7 @@ class RoleService:
 
         fields = []
         params: list = []
-        for key in ("role_name", "description", "landing_page"):
+        for key in ("role_name", "description", "landing_page", "scope_level"):
             if key in data and data[key] is not None:
                 fields.append(f"{key} = %s")
                 params.append(data[key])
@@ -129,6 +131,13 @@ class RoleService:
             "DOC_MGMT":    {"can_create": True, "can_read": True, "can_update": True, "can_delete": True, "can_export": True},
             "SEARCH_HIST": {"can_read": True, "can_export": True},
             "USER_MGMT":   {"can_create": True, "can_read": True, "can_update": True},
+            "AI_CHAT":     {"can_create": True, "can_read": True},
+        },
+        "DEPT": {
+            "DASHBOARD":   {"can_read": True},
+            "AI_SEARCH":   {"can_create": True, "can_read": True},
+            "SEARCH_HIST": {"can_read": True},
+            "USER_MGMT":   {"can_read": True},
             "AI_CHAT":     {"can_create": True, "can_read": True},
         },
         "USER": {

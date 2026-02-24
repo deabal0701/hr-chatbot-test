@@ -33,18 +33,20 @@ class RoleSimple(BaseModel):
 
 class RoleCreate(BaseModel):
     """역할 생성 요청"""
-    role_code: str = Field(..., min_length=1, max_length=50, description="역할 코드 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(..., min_length=1, max_length=50, description="역할 코드 (GLOBAL, TENANT, DEPT, USER)")
     role_name: str = Field(..., min_length=1, max_length=100, description="역할명")
     description: Optional[str] = Field(None, description="설명")
     landing_page: str = Field(default="/chat", max_length=200, description="로그인 후 랜딩 페이지")
+    scope_level: int = Field(default=3, ge=0, le=3, description="데이터 범위 (0=전체, 1=테넌트, 2=부서, 3=본인)")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "role_code": "TENANT",
-                "role_name": "테넌트 관리자",
-                "description": "테넌트 내 데이터만 접근",
-                "landing_page": "/admin/dashboard"
+                "role_code": "DEPT",
+                "role_name": "조직 관리자",
+                "description": "소속 부서 + 하위 부서 데이터 접근",
+                "landing_page": "/admin/chat",
+                "scope_level": 2
             }
         }
     }
@@ -55,17 +57,19 @@ class RoleUpdate(BaseModel):
     role_name: Optional[str] = Field(None, max_length=100, description="역할명")
     description: Optional[str] = Field(None, description="설명")
     landing_page: Optional[str] = Field(None, max_length=200, description="랜딩 페이지")
+    scope_level: Optional[int] = Field(None, ge=0, le=3, description="데이터 범위 (0=전체, 1=테넌트, 2=부서, 3=본인)")
 
 
 class RoleResponse(BaseModel):
     """역할 상세 응답"""
     role_id: int = Field(..., description="역할 ID")
-    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, USER)")
+    role_code: str = Field(..., description="역할 코드 (GLOBAL, TENANT, DEPT, USER)")
     role_name: str = Field(..., description="역할명")
     description: Optional[str] = Field(None, description="설명")
     landing_page: str = Field(..., description="랜딩 페이지")
     is_system: bool = Field(..., description="시스템 기본 역할 여부")
     sort_order: int = Field(0, description="정렬 순서")
+    scope_level: int = Field(default=3, description="데이터 범위 (0=전체, 1=테넌트, 2=부서, 3=본인)")
     user_count: int = Field(default=0, description="소속 사용자 수")
     created_at: datetime = Field(..., description="생성일시")
     updated_at: datetime = Field(..., description="수정일시")
@@ -79,7 +83,8 @@ class RoleResponse(BaseModel):
                 "landing_page": "/admin/dashboard",
                 "is_system": True,
                 "user_count": 1,
-                "sort_order": 1
+                "sort_order": 1,
+                "scope_level": 0
             }
         }
     }

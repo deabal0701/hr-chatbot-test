@@ -6,8 +6,6 @@
 - 비즈니스 로직은 서비스 계층에 위임
 """
 import uuid
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
@@ -15,6 +13,7 @@ from app.api.services.rag_service import rag_service
 from app.api.services.nl2sql_service import nl2sql_service
 from app.core.errors import APIException, ErrorCode, success_response
 from app.core.security.dependencies import get_current_user
+from app.core.security.scope_filter import get_tenant_scope
 from app.core.security.tenant_context import set_tenant_id
 from app.models.auth import UserContext
 from app.models.search import SearchRequest
@@ -23,13 +22,6 @@ from app.utils.logger import setup_logger, log_step
 logger = setup_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
-
-
-def _extract_tenant_id(current_user: UserContext) -> Optional[str]:
-    """current_user에서 tenant_id 추출 (GLOBAL: None=전체, TENANT/USER: 자기 테넌트)"""
-    if current_user.role_code == "GLOBAL":
-        return None  # 총괄관리자는 전체 검색
-    return str(current_user.tenant_id) if current_user.tenant_id else None
 
 
 @router.post("/search")
@@ -59,7 +51,7 @@ async def search(search_request: SearchRequest, request: Request, current_user: 
             log_step(logger, request_id, "API", "2", "CLASSIFY", f"사용자 지정 모드 사용 → {query_type.upper()}")
 
         # 테넌트 격리 (Phase 3: TENANT/USER는 자기 테넌트만, GLOBAL은 전체)
-        tenant_id = _extract_tenant_id(current_user)
+        tenant_id = get_tenant_scope(current_user)
         set_tenant_id(tenant_id)
 
         # 서비스 호출
@@ -99,7 +91,7 @@ async def search_stream(search_request: SearchRequest, request: Request, current
         query_type = search_request.mode
 
     # 테넌트 격리 (Phase 3)
-    tenant_id = _extract_tenant_id(current_user)
+    tenant_id = get_tenant_scope(current_user)
     set_tenant_id(tenant_id)
 
     # RAG 모드는 SSE 미지원

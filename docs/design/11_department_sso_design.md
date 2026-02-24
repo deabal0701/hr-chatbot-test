@@ -1,9 +1,9 @@
 # 조직(부서) 관리 및 SSO 연동 설계서
 
-> **문서 버전**: 1.1
+> **문서 버전**: 2.0
 > **작성일**: 2026-02-23
-> **최종 수정**: 2026-02-23
-> **상태**: DB 적용 완료 (코드 미구현)
+> **최종 수정**: 2026-02-24
+> **상태**: Phase 1~3 구현 완료 (SSO/배치 미구현)
 > **선행 문서**: `07_user_role_design.md`, `02_auth_and_permission.md`
 > **마이그레이션**: `docs/sql/migration_v2_department_sso.sql`, `docs/sql/migration_v2_reorder_columns.sql`
 
@@ -30,13 +30,19 @@
 
 ### 1.3 변경 범위 요약
 
-| 구분 | 변경 내용 |
-|------|----------|
-| 신규 테이블 | `tb_department` (recursive 조직 트리) — **적용 완료** |
-| 테이블 변경 | `tb_role` (scope_level 추가), `tb_user` (dept_id + SSO 컬럼 추가) — **적용 완료** |
-| 코드 데이터 | `tb_code` SSO_ROLE_MAP 직급-역할 매핑 — **적용 완료** |
-| 신규 API | SSO 인증, 부서 CRUD |
-| 코드 리팩터 | role_code 하드코딩 → scope_level 기반 공통 필터 |
+| 구분 | 변경 내용 | 상태 |
+|------|----------|:---:|
+| 신규 테이블 | `tb_department` (recursive 조직 트리) | **완료** |
+| 테이블 변경 | `tb_role` (scope_level 추가), `tb_user` (dept_id + SSO 컬럼 추가) | **완료** |
+| 코드 데이터 | `tb_code` SSO_ROLE_MAP 직급-역할 매핑 | **완료** |
+| 백엔드 인프라 | scope_filter.py, UserContext 확장, JWT 토큰 확장 | **완료** |
+| 부서 CRUD API | 부서 트리 조회/생성/수정/삭제/순서변경 | **완료** |
+| 부서 관리 UI | DepartmentsView.vue (트리 테이블 + CRUD) | **완료** |
+| 사용자-부서 연동 | 사용자 생성/수정 시 부서 선택 드롭다운 | **완료** |
+| 역할 Scope CRUD | 역할 생성/수정 시 scope_level 설정 | **완료** |
+| role_code 리팩터 | 하드코딩 11곳 → scope_level 기반 공통 필터 교체 | **완료** |
+| 신규 API | SSO 인증 | 미구현 |
+| 배치 동기화 | 조직/사용자 배치 동기화 스크립트 | 미구현 |
 
 ---
 
@@ -421,18 +427,25 @@ def apply_scope_filter(user, conditions: list, params: list,
         params.append(user.user_id)
 ```
 
-### 5.2 기존 하드코딩 교체 대상
+### 5.2 기존 하드코딩 교체 결과
 
-| 파일 | 현재 코드 | 변경 |
-|------|----------|------|
-| `routes/agent.py:34` | `if role_code == "GLOBAL"` | `apply_scope_filter()` |
-| `routes/search.py:30` | `if role_code == "GLOBAL"` | `apply_scope_filter()` |
-| `routes/dashboard.py:24` | `_apply_scope_filter()` 로컬 | 공통 유틸 호출 |
-| `routes/history.py:26` | `_apply_scope_filter()` 로컬 | 공통 유틸 호출 |
-| `services/user_service.py:85` | `if role_code == "TENANT"` | 공통 유틸 호출 |
-| `services/document_service.py` | `is_global` 분기 | `scope_level` 기반 |
-| `routes/settings.py` (8곳) | `is_global` 체크 | `scope_level == 0` |
-| `models/auth.py` UserContext | `is_global`, `is_tenant_scope` | scope_level 기반 property |
+> Phase 3에서 11곳 교체 완료. `is_global`/`is_user_scope` 프로퍼티 기반 파일은 이미 scope_level 연동되어 변경 불필요.
+
+| 파일 | 변경 내용 | 상태 |
+|------|----------|:---:|
+| `routes/agent.py:34` | `role_code == "GLOBAL"` → `is_global` 프로퍼티 | **완료** |
+| `routes/search.py:30` | `role_code == "GLOBAL"` → `is_global` 프로퍼티 | **완료** |
+| `routes/dashboard.py:22-29` | role_code TENANT/USER 분기 → scope_level + SCOPE_TENANT/SCOPE_USER 상수 | **완료** |
+| `routes/history.py:25-32` | role_code TENANT/USER 분기 → scope_level + SCOPE_TENANT/SCOPE_USER 상수 | **완료** |
+| `routes/history.py:123` | `role_code == "USER"` → `is_user_scope` 프로퍼티 | **완료** |
+| `routes/history.py:147` | `role_code == "USER"` → `is_user_scope` 프로퍼티 | **완료** |
+| `services/user_service.py:84` | `role_code == "TENANT"` → `is_user_scope` + 테넌트 검증 | **완료** |
+| `services/user_service.py:96` | role_code TENANT/else 분기 → `apply_scope_filter()` | **완료** |
+| `services/user_service.py:181` | `role_code == "TENANT"` → `not is_global` | **완료** |
+| `services/user_service.py:467` | `role_code == "TENANT"` → `not is_global` | **완료** |
+| `services/user_service.py:486` | `role_code == "TENANT"` → `not is_global` | **완료** |
+| `services/document_service.py` (4곳) | 이미 `is_global` 사용 | 변경 불필요 |
+| `routes/settings.py` (8곳) | 이미 `is_global` 사용 | 변경 불필요 |
 
 ### 5.3 UserContext 변경
 
@@ -766,33 +779,53 @@ SSO JIT 방식의 보조 수단으로 **배치 동기화**를 병행한다.
 
 ## 9. 파일 구조 (추가/변경)
 
-### 9.1 백엔드
+### 9.1 백엔드 — 구현 완료
 
 ```
 app/core/security/
-  └── scope_filter.py          # ★ 신규: 공통 scope 필터 (apply_scope_filter)
+  └── scope_filter.py          # ★ 신규: 공통 scope 필터 (apply_scope_filter, get_dept_scope_ids)  ✅
 
 app/api/routes/
-  ├── auth.py                  # 변경: POST /sso 추가
-  └── departments.py           # ★ 신규: 부서 CRUD
+  ├── agent.py                 # 변경: _extract_tenant_id() → is_global 프로퍼티  ✅
+  ├── search.py                # 변경: _extract_tenant_id() → is_global 프로퍼티  ✅
+  ├── dashboard.py             # 변경: _apply_scope_filter() → scope_level 기반  ✅
+  ├── history.py               # 변경: _apply_scope_filter() + 접근 제어 → scope_level 기반  ✅
+  ├── departments.py           # ★ 신규: 부서 CRUD (트리 조회/생성/수정/삭제/순서변경)  ✅
+  ├── users.py                 # 변경: 부서 드롭다운 옵션 추가  ✅
+  └── auth.py                  # 변경 예정: POST /sso 추가
 
 app/api/services/
-  ├── auth_service.py          # 변경: SSO 로직 추가
-  └── department_service.py    # ★ 신규: 부서 서비스
+  ├── department_service.py    # ★ 신규: 부서 서비스 (트리 구축, recursive CTE)  ✅
+  ├── user_service.py          # 변경: scope 검증 5곳 → scope_level 기반, apply_scope_filter() 사용  ✅
+  ├── role_service.py          # 변경: CRUD 쿼리에 scope_level 포함  ✅
+  └── auth_service.py          # 변경 예정: SSO 로직 추가
 
 app/models/
-  ├── auth.py                  # 변경: UserContext에 dept_id, scope_level 추가
-  └── department.py            # ★ 신규: DeptCreate/Update/TreeResponse
+  ├── auth.py                  # 변경: UserContext에 dept_id, scope_level, is_dept_scope, is_user_scope 추가  ✅
+  ├── user.py                  # 변경: RoleCreate/Update/Response에 scope_level 추가  ✅
+  └── department.py            # ★ 신규: DeptCreate/Update/TreeResponse  ✅
 ```
 
-### 9.2 프론트엔드
+### 9.2 프론트엔드 — 구현 완료
 
 ```
 frontend/src/
-  ├── api/departments.js       # ★ 신규: 부서 API
+  ├── api/departments.js       # ★ 신규: 부서 API (CRUD + reorder)  ✅
   └── views/admin/
-      └── DepartmentsView.vue  # ★ 신규: 부서 트리 관리 화면
+      ├── DepartmentsView.vue  # ★ 신규: 부서 트리 관리 화면 (el-table 트리 + CRUD 다이얼로그)  ✅
+      ├── RolesView.vue        # 변경: Scope 컬럼/드롭다운 추가 (0=GLOBAL~3=USER)  ✅
+      └── UsersView.vue        # 변경: 부서 선택 드롭다운 추가  ✅
 ```
+
+### 9.3 테스트 — 구현 완료
+
+```
+tests/
+  ├── test_04_roles.py         # 변경: TestRoleScopeLevel 클래스 추가 (7개 테스트)  ✅
+  └── test_11_departments.py   # ★ 신규: 부서 CRUD 통합 테스트  ✅
+```
+
+> 전체 테스트 86개 통과, 프론트엔드 빌드 성공 확인 (2026-02-24)
 
 ---
 
@@ -801,19 +834,24 @@ frontend/src/
 | 순서 | 작업 | 의존성 | 상태 |
 |:---:|------|--------|:---:|
 | 1 | DDL 실행 (tb_department 생성, tb_role/tb_user 변경, 컬럼 순서 정리) | 없음 | **완료** |
-| 2 | scope_filter.py 공통 유틸 구현 | 1 | - |
-| 3 | UserContext, TokenPayload에 dept_id/scope_level 추가 | 1 | - |
-| 4 | auth_service에 scope_level/dept_id 토큰 포함 | 3 | - |
-| 5 | 기존 role_code 하드코딩 13곳 → scope_filter 교체 | 2, 3 | - |
-| 6 | 부서 CRUD API + 서비스 구현 | 1 | - |
-| 7 | 부서 관리 Admin UI (DepartmentsView.vue) | 6 | - |
+| 2 | scope_filter.py 공통 유틸 구현 | 1 | **완료** |
+| 3 | UserContext, TokenPayload에 dept_id/scope_level 추가 | 1 | **완료** |
+| 4 | auth_service에 scope_level/dept_id 토큰 포함 | 3 | **완료** |
+| 5 | 기존 role_code 하드코딩 11곳 → scope_level 기반 교체 | 2, 3 | **완료** |
+| 5.5 | 역할 CRUD에 scope_level 지원 (모델/서비스/UI/테스트) | 1 | **완료** |
+| 6 | 부서 CRUD API + 서비스 구현 | 1 | **완료** |
+| 7 | 부서 관리 Admin UI (DepartmentsView.vue) | 6 | **완료** |
 | 8 | SSO 인증 API + JIT 사용자/부서 생성 | 4, 6 | - |
 | 9 | 배치 동기화 스크립트 | 6 | - |
-| 10 | 사용자 관리 UI에 부서 선택 드롭다운 추가 | 6 | - |
+| 10 | 사용자 관리 UI에 부서 선택 드롭다운 추가 | 6 | **완료** |
 
 > **마이그레이션 스크립트**:
 > - `docs/sql/migration_v2_department_sso.sql` — 테이블/컬럼/데이터 추가
 > - `docs/sql/migration_v2_reorder_columns.sql` — 컬럼 순서 정리 (재생성 방식)
+>
+> **검증 결과** (2026-02-24):
+> - 통합 테스트 86개 전체 통과 (`pytest tests/ -v`)
+> - 프론트엔드 빌드 성공 (`npm run build`)
 
 ---
 

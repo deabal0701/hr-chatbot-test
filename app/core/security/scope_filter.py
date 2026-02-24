@@ -2,9 +2,14 @@
 scope_level 기반 공통 데이터 필터 유틸리티
 
 위치: app/core/security/scope_filter.py
-역할의 scope_level에 따라 SQL WHERE 조건을 자동 추가한다.
+역할의 scope_level에 따라 데이터 접근 범위를 제한한다.
+
+3가지 헬퍼 함수 제공:
+  - apply_scope_filter(): SQL WHERE 조건 빌더 (서비스 계층용)
+  - get_query_scope():    쿼리 파라미터 변환 (dashboard, history 라우트용)
+  - get_tenant_scope():   tenant_id 추출 (agent, search 라우트용)
 """
-from typing import List
+from typing import List, Optional, Tuple
 
 from app.core.database.connection import db_manager
 
@@ -64,3 +69,21 @@ def apply_scope_filter(
     if user.scope_level >= SCOPE_USER:
         conditions.append(f"{user_col} = %s")
         params.append(user.user_id)
+
+
+def get_query_scope(user, tenant_id: Optional[str] = None, user_id: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+    """scope_level 기반 쿼리 파라미터 변환 (dashboard, history 라우트용)"""
+    if user.is_global:
+        return tenant_id, user_id
+    if user.scope_level >= SCOPE_TENANT and user.tenant_id:
+        tenant_id = str(user.tenant_id)
+    if user.scope_level >= SCOPE_USER:
+        user_id = str(user.user_id)
+    return tenant_id, user_id
+
+
+def get_tenant_scope(user) -> Optional[str]:
+    """tenant_id 추출 (agent, search 라우트용). GLOBAL이면 None(전체), 나머지는 자기 테넌트."""
+    if user.is_global:
+        return None
+    return str(user.tenant_id) if user.tenant_id else None

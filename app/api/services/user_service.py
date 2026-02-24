@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database.connection import db_manager
 from app.core.errors import APIException, ErrorCode, raise_on_unique_violation
 from app.core.security.password import hash_password
+from app.core.security.scope_filter import apply_scope_filter, get_dept_scope_ids
 from app.models.auth import UserContext
 from app.models.menu import UserMenuPermission
 from app.utils.logger import setup_logger, log_step
@@ -78,32 +79,33 @@ class UserService:
         return tenant_id, dept_id
 
     def _check_scope_access(self, target_tenant_id: Optional[int], current_user: UserContext) -> None:
-        """role_code에 따른 접근 범위 검증"""
+        """scope_level에 따른 접근 범위 검증"""
         if current_user.is_global:
             return
-        if current_user.role_code == "TENANT":
-            if target_tenant_id != current_user.tenant_id:
-                raise APIException(ErrorCode.FORBIDDEN, "다른 테넌트의 데이터에 접근할 수 없습니다")
-            return
-        raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
+        # USER scope → 사용자 관리 접근 불가 (본인 조회는 별도 처리)
+        if current_user.is_user_scope:
+            raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
+        # TENANT/DEPT scope → 같은 테넌트만 접근
+        if target_tenant_id != current_user.tenant_id:
+            raise APIException(ErrorCode.FORBIDDEN, "다른 테넌트의 데이터에 접근할 수 없습니다")
 
-    def list_users(self, current_user: UserContext, request_id: str = "", limit: int = 20, offset: int = 0, tenant_id_filter: Optional[int] = None, is_active_filter: Optional[bool] = None, keyword: Optional[str] = None) -> Dict[str, Any]:
+    def list_users(self, current_user: UserContext, request_id: str = "", limit: int = 20, offset: int = 0, tenant_id_filter: Optional[int] = None, is_active_filter: Optional[bool] = None, keyword: Optional[str] = None, dept_id_filter: Optional[int] = None) -> Dict[str, Any]:
         """사용자 목록 조회 (scope 제한 적용)"""
         conditions = []
         params: list = []
 
-        # scope 제한 (role_code 기반)
-        if current_user.role_code == "TENANT":
-            conditions.append("u.tenant_id = %s")
-            params.append(current_user.tenant_id)
-        elif not current_user.is_global:
-            conditions.append("u.user_id = %s")
-            params.append(current_user.user_id)
+        # scope 제한 (scope_level 기반)
+        apply_scope_filter(current_user, conditions, params, tenant_col="u.tenant_id", dept_col="u.dept_id", user_col="u.user_id")
 
         # 필터
         if tenant_id_filter is not None and current_user.is_global:
             conditions.append("u.tenant_id = %s")
             params.append(tenant_id_filter)
+        if dept_id_filter is not None:
+            dept_ids = get_dept_scope_ids(dept_id_filter)
+            placeholders = ",".join(["%s"] * len(dept_ids))
+            conditions.append(f"u.dept_id IN ({placeholders})")
+            params.extend(dept_ids)
         if is_active_filter is not None:
             conditions.append("u.is_active = %s")
             params.append(is_active_filter)
@@ -176,9 +178,9 @@ class UserService:
 
     def create_user(self, data: Dict[str, Any], current_user: UserContext, request_id: str = "") -> Dict[str, Any]:
         """사용자 생성 (v2.0: role_id 단일 + 메뉴 권한)"""
-        # TENANT role → 자기 테넌트로 강제
+        # non-GLOBAL → 자기 테넌트로 강제
         tenant_id = data.get("tenant_id")
-        if current_user.role_code == "TENANT":
+        if not current_user.is_global:
             tenant_id = current_user.tenant_id
 
         password_hashed = hash_password(data["password"])
@@ -463,8 +465,8 @@ class UserService:
         conditions = ["d.is_active = true"]
         params: list = []
 
-        # TENANT 역할은 자기 테넌트만
-        if current_user.role_code == "TENANT":
+        # non-GLOBAL → 자기 테넌트만
+        if not current_user.is_global:
             conditions.append("d.tenant_id = %s")
             params.append(current_user.tenant_id)
         elif tenant_id:
@@ -483,7 +485,7 @@ class UserService:
         """테넌트 선택 옵션 (드롭다운용 경량 데이터)"""
         conditions = ["t.is_active = true"]
         params: list = []
-        if current_user.role_code == "TENANT":
+        if not current_user.is_global:
             conditions.append("t.tenant_id = %s")
             params.append(current_user.tenant_id)
         where_clause = " AND ".join(conditions)

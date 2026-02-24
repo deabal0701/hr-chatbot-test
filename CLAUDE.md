@@ -870,7 +870,7 @@ from langgraph.graph import END, StateGraph
 ## **중요**:
 - 가상환경: `conda activate penv3.13-nlq`
 - DB 확인할 경우: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
-- UI 테스트시 Token을 받기위한 총괄관리자의 아이디/패스워드는 admin/Win1234! (다른 계정도 모두 마찬가지)
+- 관리자 아이디/패스워드는 admin/Win1234! (admin123!아님)
 - DB스크립트 및 데이터:  docs/sql/psql-hermes_db.sql
 - 로컬의 로그파일 : ./logs/app.log
 - log_step출력: log_step는 로그이니 다른비즈니스 로직과 분리하여 한줄에 출력하라.

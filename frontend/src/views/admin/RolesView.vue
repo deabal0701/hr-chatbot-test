@@ -32,6 +32,12 @@
 
         <el-table-column prop="role_name" label="역할명" width="120" sortable />
 
+        <el-table-column prop="scope_level" label="Scope" width="130" align="center" sortable>
+          <template #default="{ row }">
+            <el-tag :type="scopeLevelTag(row.scope_level)" size="small">{{ scopeLevelLabel(row.scope_level) }}</el-tag>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="landing_page" label="랜딩 페이지" width="150" show-overflow-tooltip />
 
         <el-table-column prop="user_count" label="사용자수" width="120" align="center" sortable>
@@ -91,6 +97,16 @@
             :rows="2"
             placeholder="역할에 대한 설명 (선택사항)"
           />
+        </el-form-item>
+
+        <el-form-item label="Scope" prop="scope_level">
+          <el-select v-model="formData.scope_level" style="width: 100%">
+            <el-option :value="0" label="GLOBAL(전체) - 모든 데이터 접근" />
+            <el-option :value="1" label="TENANT(테넌트) - 소속 테넌트" />
+            <el-option :value="2" label="DEPT(부서) - 소속 부서 + 하위" />
+            <el-option :value="3" label="USER(본인) - 본인만" />
+          </el-select>
+          <div class="form-help">역할에 할당된 사용자가 접근할 수 있는 데이터 범위</div>
         </el-form-item>
 
         <el-form-item label="랜딩 페이지" prop="landing_page">
@@ -218,7 +234,8 @@ const formData = reactive({
   role_code: '',
   role_name: '',
   description: '',
-  landing_page: '/chat'
+  landing_page: '/chat',
+  scope_level: 3
 })
 
 // 시스템 역할 여부 (수정 시)
@@ -267,6 +284,7 @@ const openEditDialog = (row) => {
   formData.role_name = row.role_name
   formData.description = row.description || ''
   formData.landing_page = row.landing_page || '/chat'
+  formData.scope_level = row.scope_level ?? 3
   dialogVisible.value = true
 
   nextTick(() => {
@@ -280,6 +298,7 @@ const resetForm = () => {
   formData.role_name = ''
   formData.description = ''
   formData.landing_page = '/chat'
+  formData.scope_level = 3
   if (formRef.value) formRef.value.clearValidate()
 }
 
@@ -296,14 +315,16 @@ const handleSubmit = async () => {
         role_code: formData.role_code,
         role_name: formData.role_name,
         description: formData.description || undefined,
-        landing_page: formData.landing_page
+        landing_page: formData.landing_page,
+        scope_level: formData.scope_level
       })
       ElMessage.success('역할이 생성되었습니다')
     } else {
       await rolesApi.update(currentRoleId.value, {
         role_name: formData.role_name,
         description: formData.description || undefined,
-        landing_page: formData.landing_page
+        landing_page: formData.landing_page,
+        scope_level: formData.scope_level
       })
       ElMessage.success('역할이 수정되었습니다')
     }
@@ -358,6 +379,12 @@ const openDefaultMenus = async (row) => {
     isLoadingMenus.value = false
   }
 }
+
+// scope_level 표시 헬퍼 (시스템 상수 — Role과 무관)
+const SCOPE_LABELS = { 0: 'GLOBAL', 1: 'TENANT', 2: 'DEPT', 3: 'USER' }
+const SCOPE_TAGS = { 0: 'danger', 1: 'warning', 2: '', 3: 'info' }
+const scopeLevelLabel = (level) => SCOPE_LABELS[level] ?? `Level ${level}`
+const scopeLevelTag = (level) => SCOPE_TAGS[level] ?? 'info'
 
 // 마운트
 onMounted(() => {
