@@ -62,6 +62,9 @@ class SQLExecutorService:
         'EXEC', 'EXECUTE', 'DECLARE', 'CURSOR'
     }
 
+    # DB 시스템 테이블 (화이트리스트 검증 제외)
+    SYSTEM_TABLES = {'dual'}
+
     def __init__(self):
         # 기본값 저장 (환경변수)
         self._default_timeout = settings.sql_timeout_seconds
@@ -98,7 +101,8 @@ class SQLExecutorService:
             # 단어 경계를 고려한 정규표현식
             pattern = r'\b' + keyword + r'\b'
             if re.search(pattern, sql_upper):
-                return False, f"허용되지 않은 키워드: {keyword}"
+                logger.warning(f"SQL 검증 실패: 금지 키워드 '{keyword}' 감지, sql={sql}")
+                return False, "데이터 조회만 가능합니다. 데이터 변경이 포함된 질문은 처리할 수 없습니다."
 
         # 2. SQL 파싱
         try:
@@ -112,7 +116,8 @@ class SQLExecutorService:
             if self.read_only:
                 first_token = stmt.get_type()
                 if first_token != 'SELECT':
-                    return False, f"SELECT 문만 허용됩니다 (현재: {first_token})"
+                    logger.warning(f"SQL 검증 실패: SELECT 외 문 감지 (type={first_token}), sql={sql}")
+                    return False, "데이터 조회만 가능합니다. 질문을 다시 확인해주세요."
 
         except Exception as e:
             return False, f"SQL 파싱 오류: {str(e)}"
@@ -124,11 +129,16 @@ class SQLExecutorService:
         for table in table_names:
             table_lower = table.lower()
             if table_lower not in allowed_tables:
+                # DB 시스템 테이블 (DUAL 등)은 검증 제외
+                if table_lower in self.SYSTEM_TABLES:
+                    logger.debug(f"테이블 검증: '{table}'는 시스템 테이블로 간주하여 무시")
+                    continue
                 # 짧은 이름(3자 이하)은 서브쿼리/테이블 별칭으로 간주하여 무시
                 if len(table) <= 3:
                     logger.debug(f"테이블 검증: '{table}'는 별칭으로 간주하여 무시")
                     continue
-                return False, f"허용되지 않은 테이블: {table} (허용: {allowed_tables})"
+                logger.warning(f"테이블 검증 실패: '{table}' not in allowed_tables={allowed_tables}")
+                return False, f"'{table}' 테이블은 조회할 수 없습니다. 질문을 다른 표현으로 다시 시도해주세요."
 
         # 5. LIMIT 절 체크 (권장) - DB 타입에 따라 다른 키워드 확인
         external_db_manager = _get_external_db_manager()
