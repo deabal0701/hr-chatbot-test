@@ -692,9 +692,11 @@ def _is_retryable_error(error: str) -> bool:
         "ora-00942",  # Oracle: table or view does not exist
         "ora-00936",  # Oracle: missing expression
         "ora-01747",  # Oracle: invalid column specification
+        "ora-00933",  # Oracle: SQL command not properly ended (복수 SQL문 등)
         "ora-01790",  # Oracle: UNION ALL datatype mismatch
         "ora-01789",  # Oracle: UNION ALL column count mismatch
         "datatype",   # datatype 관련 오류 일반
+        "단일 쿼리만",  # 복수 SQL문 차단 검증 오류
         "컬럼",
         "테이블",
         "존재하지",
