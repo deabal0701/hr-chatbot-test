@@ -679,7 +679,7 @@ const handleSubmit = async () => {
         email: formData.email,
         display_name: formData.display_name,
         tenant_id: formData.tenant_id,
-        dept_id: formData.dept_id,
+        dept_id: formData.dept_id || null,
         is_active: formData.is_active,
         role_id: formData.role_id
       })

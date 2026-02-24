@@ -112,7 +112,7 @@ async def update_user(
 ):
     """사용자 수정"""
     request_id = getattr(request.state, "request_id", "")
-    result = user_service.update_user(user_id, data.model_dump(exclude_none=True), current_user, request_id)
+    result = user_service.update_user(user_id, data.model_dump(exclude_unset=True), current_user, request_id)
     return success_response(result)
 
 

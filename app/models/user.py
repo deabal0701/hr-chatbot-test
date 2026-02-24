@@ -143,6 +143,14 @@ class UserUpdate(BaseModel):
     dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     is_active: Optional[bool] = Field(None, description="활성화 여부")
 
+    @field_validator("dept_id", mode="before")
+    @classmethod
+    def normalize_dept_id(cls, v):
+        """빈 문자열/0/undefined → None 변환 (el-select clearable 대응)"""
+        if v is None or v == "" or v == 0:
+            return None
+        return v
+
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: Optional[str]) -> Optional[str]:

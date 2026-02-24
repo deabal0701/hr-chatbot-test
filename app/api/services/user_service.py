@@ -266,11 +266,14 @@ class UserService:
             data["tenant_id"] = validated_tenant_id
             data["dept_id"] = validated_dept_id
 
-        # 동적 UPDATE
+        # 동적 UPDATE (nullable 필드는 None→NULL 허용)
+        nullable_fields = {"display_name", "dept_id"}
         fields = []
         params: list = []
         for key in ("email", "display_name", "tenant_id", "role_id", "dept_id", "is_active"):
-            if key in data and data[key] is not None:
+            if key in data:
+                if data[key] is None and key not in nullable_fields:
+                    continue
                 fields.append(f"{key} = %s")
                 params.append(data[key])
 
