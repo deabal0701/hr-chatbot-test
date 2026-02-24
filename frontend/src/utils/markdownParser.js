@@ -27,6 +27,16 @@ function escapeHtml(text) {
 }
 
 /**
+ * 테이블 셀용 HTML 이스케이프 (<br> 태그만 허용)
+ * LLM이 테이블 셀 내 줄바꿈으로 <br> 태그를 사용하는 경우 보존
+ * @param {string} text - 이스케이프할 텍스트
+ * @returns {string} - 이스케이프된 텍스트 (<br>은 유지)
+ */
+function escapeCellHtml(text) {
+  return escapeHtml(text).replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+}
+
+/**
  * 마크다운 테이블을 HTML 테이블로 변환
  * @param {string} text - 마크다운 텍스트
  * @returns {string} - 변환된 텍스트
@@ -89,7 +99,7 @@ function buildHtmlTable(rows, tableId) {
   // 헤더
   html += '<thead><tr>'
   rows[0].forEach(cell => {
-    html += `<th>${escapeHtml(cell)}</th>`
+    html += `<th>${escapeCellHtml(cell)}</th>`
   })
   html += '</tr></thead>'
 
@@ -99,7 +109,7 @@ function buildHtmlTable(rows, tableId) {
     for (let i = 1; i < rows.length; i++) {
       html += '<tr>'
       rows[i].forEach(cell => {
-        html += `<td>${escapeHtml(cell)}</td>`
+        html += `<td>${escapeCellHtml(cell)}</td>`
       })
       html += '</tr>'
     }

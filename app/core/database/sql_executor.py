@@ -110,6 +110,12 @@ class SQLExecutorService:
             if not parsed:
                 return False, "SQL 파싱 실패"
 
+            # 2-1. 복수 SQL문 차단 (세미콜론으로 구분된 여러 쿼리)
+            real_stmts = [s for s in parsed if s.get_type() is not None]
+            if len(real_stmts) > 1:
+                logger.warning(f"SQL 검증 실패: 복수 SQL문 감지 ({len(real_stmts)}개), sql={sql[:200]}")
+                return False, "단일 쿼리만 실행 가능합니다. 여러 쿼리를 하나로 합쳐주세요."
+
             stmt: Statement = parsed[0]
 
             # 3. SELECT 문만 허용 (읽기 전용)

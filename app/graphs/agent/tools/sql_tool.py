@@ -164,21 +164,26 @@ Examples:
 
     def _execute_enhanced(self, question: str) -> ToolResult:
         """
-        Enhanced 모드: NL2SQL 노드 패턴 사용
+        Enhanced 모드: NL2SQL 노드 패턴 사용 (validate + retry 포함)
 
-        1. Schema Retrieval
-        2. Few-shot Retrieval
-        3. Prompt Build
-        4. SQL Generate
-        5. Execute
+        흐름:
+        1. Schema Retrieval (1회만)
+        2~6. retry 루프 (max_retries까지):
+            2. Few-shot Retrieval (retry 시 enhanced=True)
+            3. Prompt Build (retry 시 이전 오류 컨텍스트 주입)
+            4. SQL Generate
+            5. Validate SQL
+            6. Execute SQL
         """
         from app.graphs.nl2sql.nodes import (
             schema_retrieval_node,
             fewshot_retrieval_node,
             prompt_build_node,
             sql_generate_node,
+            validate_sql_node,
+            prepare_retry_node,
+            _is_retryable_error,
         )
-        from app.utils.common import strip_markdown_code_block
 
         # 상태 초기화
         state = {
@@ -205,79 +210,100 @@ Examples:
 
         log_step(logger, "SYSTEM", "TOOL", self.name, "SCHEMA", "Schema Retrieval 시작")
 
-        # 1. Schema Retrieval
+        # 1. Schema Retrieval (1회만 - 스키마는 변하지 않음)
         state.update(schema_retrieval_node(state))
         log_step(logger, "SYSTEM", "TOOL", self.name, "SCHEMA", "테이블 선택 완료", tables=state.get('selected_tables', []))
 
-        # 2. Few-shot Retrieval
-        state.update(fewshot_retrieval_node(state))
-        log_step(logger, "SYSTEM", "TOOL", self.name, "FEWSHOT", "Few-shot 검색 완료", count=state.get('fewshot_count', 0))
+        # 설정에서 max_retries 로드
+        settings_config = _get_settings_config()
+        max_retries = settings_config.get_value("nl2sql", "max_retries", 2)
 
-        # 3. Prompt Build
-        state.update(prompt_build_node(state))
+        last_error = "SQL 생성 실패"
 
-        # 4. SQL Generate
-        state.update(sql_generate_node(state))
+        # retry 루프: fewshot → prompt → generate → validate → execute
+        for attempt in range(max_retries + 1):
+            # 2. Few-shot Retrieval (retry 시 enhanced=True로 2배 검색)
+            state.update(fewshot_retrieval_node(state))
+            if attempt == 0:
+                log_step(logger, "SYSTEM", "TOOL", self.name, "FEWSHOT", "Few-shot 검색 완료", count=state.get('fewshot_count', 0))
 
-        sql = state.get("generated_sql", "")
-        if not sql:
-            error_msg = state.get("validation_error", "SQL 생성 실패")
+            # 3. Prompt Build (retry 시 이전 오류 컨텍스트 자동 포함)
+            state.update(prompt_build_node(state))
+
+            # 4. SQL Generate
+            state.update(sql_generate_node(state))
+
+            sql = state.get("generated_sql", "")
+            if not sql:
+                last_error = state.get("validation_error", "SQL 생성 실패")
+                if attempt < max_retries:
+                    state["validation_error"] = last_error
+                    state.update(prepare_retry_node(state))
+                    log_step(logger, "SYSTEM", "TOOL", self.name, "RETRY", f"SQL 생성 실패 → 재시도 #{attempt + 1}")
+                    continue
+                return ToolResult(success=False, error=last_error, metadata={"original_question": question, "selected_tables": state.get("selected_tables", []), "fewshot_count": state.get("fewshot_count", 0)})
+
+            log_step(logger, "SYSTEM", "TOOL", self.name, "SQL", f"SQL 생성 완료 | length={len(sql)}" + (f" | attempt={attempt + 1}" if attempt > 0 else ""))
+
+            # 5. Validate SQL (NL2SQL과 동일한 검증)
+            state.update(validate_sql_node(state))
+
+            if not state.get("validated", False):
+                validation_error = state.get("validation_error", "")
+                last_error = validation_error
+                if attempt < max_retries and _is_retryable_error(validation_error):
+                    state.update(prepare_retry_node(state))
+                    log_step(logger, "SYSTEM", "TOOL", self.name, "RETRY", f"검증 실패 → 재시도 #{attempt + 1} | error={truncate_text(validation_error, 80)}")
+                    continue
+                return ToolResult(success=False, error=validation_error, metadata={"original_question": question, "generated_sql": sql, "selected_tables": state.get("selected_tables", [])})
+
+            # 6. Execute SQL (validate=False: 이미 validate_sql_node에서 검증 완료)
+            try:
+                result = sql_executor.execute_sql(sql, validate=False)
+            except Exception as e:
+                error_str = str(e)
+                last_error = error_str
+                if attempt < max_retries and _is_retryable_error(error_str):
+                    state["validation_error"] = error_str
+                    state.update(prepare_retry_node(state))
+                    log_step(logger, "SYSTEM", "TOOL", self.name, "RETRY", f"실행 실패 → 재시도 #{attempt + 1} | error={truncate_text(error_str, 80)}")
+                    continue
+                return ToolResult(success=False, error=f"SQL 실행 오류: {error_str}", metadata={"original_question": question, "generated_sql": sql, "selected_tables": state.get("selected_tables", [])})
+
+            # 7. 결과 포맷팅
+            if result.row_count == 0:
+                formatted_result = "조회 결과가 없습니다."
+            elif result.row_count == 1:
+                formatted_result = self._format_single_result(result)
+            else:
+                formatted_result = self._format_multiple_results(result)
+
+            log_step(logger, "SYSTEM", "TOOL", self.name, "COMPLETE", "SQL 도구 완료", rows=result.row_count, time_ms=result.execution_time_ms, retries=attempt)
+
             return ToolResult(
-                success=False,
-                error=error_msg,
-                metadata={
-                    "original_question": question,
-                    "selected_tables": state.get("selected_tables", []),
-                    "fewshot_count": state.get("fewshot_count", 0),
-                }
-            )
-
-        log_step(logger, "SYSTEM", "TOOL", self.name, "SQL", f"SQL 생성 완료 | length={len(sql)}")
-
-        # 5. SQL 실행
-        try:
-            result = sql_executor.execute_sql(sql, validate=True)
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                error=f"SQL 실행 오류: {str(e)}",
+                success=True,
+                data=formatted_result,
                 metadata={
                     "original_question": question,
                     "generated_sql": sql,
+                    "row_count": result.row_count,
+                    "execution_time_ms": result.execution_time_ms,
+                    "cached": False,
                     "selected_tables": state.get("selected_tables", []),
+                    "fewshot_count": state.get("fewshot_count", 0),
+                    "retry_count": attempt,
+                    "sql_result": {
+                        "sql": sql,
+                        "columns": result.columns,
+                        "rows": result.rows[:100],
+                        "row_count": result.row_count,
+                        "execution_time_ms": result.execution_time_ms
+                    }
                 }
             )
 
-        # 6. 결과 포맷팅
-        if result.row_count == 0:
-            formatted_result = "조회 결과가 없습니다."
-        elif result.row_count == 1:
-            formatted_result = self._format_single_result(result)
-        else:
-            formatted_result = self._format_multiple_results(result)
-
-        log_step(logger, "SYSTEM", "TOOL", self.name, "COMPLETE", "SQL 도구 완료", rows=result.row_count, time_ms=result.execution_time_ms)
-
-        return ToolResult(
-            success=True,
-            data=formatted_result,
-            metadata={
-                "original_question": question,
-                "generated_sql": sql,
-                "row_count": result.row_count,
-                "execution_time_ms": result.execution_time_ms,
-                "cached": False,
-                "selected_tables": state.get("selected_tables", []),
-                "fewshot_count": state.get("fewshot_count", 0),
-                "sql_result": {
-                    "sql": sql,
-                    "columns": result.columns,
-                    "rows": result.rows[:100],
-                    "row_count": result.row_count,
-                    "execution_time_ms": result.execution_time_ms
-                }
-            }
-        )
+        # 모든 재시도 실패
+        return ToolResult(success=False, error=f"최대 재시도 횟수({max_retries}) 초과: {last_error}", metadata={"original_question": question, "selected_tables": state.get("selected_tables", [])})
 
     def _execute_legacy(self, question: str) -> ToolResult:
         """Legacy 모드: 기존 sql_generator 사용"""
