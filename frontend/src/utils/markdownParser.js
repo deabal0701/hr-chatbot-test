@@ -7,10 +7,12 @@
  *   2. 인라인 코드 (`...`)  → placeholder 보호
  *   3. 테이블 (| ... |)     → HTML <table> 변환
  *   4. 헤더 (##, ###)       → <span class="md-h2/h3">
- *   5. 볼드 (**text**)      → <strong>
- *   6. 리스트 (-, *, 1.)    → <span class="md-list-item">
- *   7. 줄바꿈 (\n)          → <br>
- *   8. placeholder 복원
+ *   5. 수평선 (---)         → <hr class="md-hr">
+ *   6. 볼드 (**text**)      → <strong>
+ *   7. 기울임 (*text*)      → <em>
+ *   8. 리스트 (-, *, 1.)    → <span class="md-list-item">
+ *   9. 줄바꿈 (\n)          → <br>
+ *  10. placeholder 복원
  */
 
 /**
@@ -164,22 +166,28 @@ export function formatMarkdownToHtml(content) {
   text = text.replace(/^### (.+)$/gm, '<span class="md-h3">$1</span>')
   text = text.replace(/^## (.+)$/gm, '<span class="md-h2">$1</span>')
 
-  // 5. 볼드 (**text**)
+  // 5. 수평선 (--- 또는 ***) → 줄 전체가 3개 이상의 -/* 로만 구성된 경우
+  text = text.replace(/^[\-\*]{3,}$/gm, '<hr class="md-hr">')
+
+  // 6. 볼드 (**text**)
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
 
-  // 6. 리스트 (순서없는: - , * / 순서있는: 1~99.)
+  // 7. 기울임 (*text*) — 볼드 처리 후 남은 단일 * 만 대상
+  text = text.replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+
+  // 8. 리스트 (순서없는: - , * / 순서있는: 1~99.)
   text = text.replace(/^[\-\*] (.+)$/gm, '<span class="md-list-item">• $1</span>')
   text = text.replace(/^(\d{1,2})\. (.+)$/gm, '<span class="md-list-item">$1. $2</span>')
 
-  // 7. 줄바꿈 (연속 개행 축소 후 <br> 변환)
+  // 9. 줄바꿈 (연속 개행 축소 후 <br> 변환)
   text = text.replace(/\n{2,}/g, '\n')
   text = text.replace(/\n/g, '<br>')
 
-  // 8. 블록 요소 사이 <br> 제거 (display:block + <br> 이중 줄바꿈 방지)
-  //    </span><br><span class="md-..."> 패턴에서 <br> 제거
-  text = text.replace(/(<\/span>)(<br>)+(<span class="md-)/g, '$1$3')
+  // 10. 블록 요소 사이 <br> 제거 (display:block + <br> 이중 줄바꿈 방지)
+  //     </span><br><span|<hr> 패턴에서 <br> 제거
+  text = text.replace(/(<\/span>|<hr class="md-hr">)(<br>)+(<span class="md-|<hr class="md-hr">)/g, '$1$3')
 
-  // 9. placeholder 복원
+  // 11. placeholder 복원
   placeholders.forEach((html, i) => {
     text = text.replace(`\x00${i}\x00`, html)
   })

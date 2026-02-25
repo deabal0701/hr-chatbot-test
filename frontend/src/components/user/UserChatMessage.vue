@@ -452,11 +452,13 @@ const copyContent = async () => {
       font-weight: 500;
     }
 
-    // 마크다운 테이블/코드/헤더/리스트 (mixin - User 사이즈)
+    // 마크다운 테이블/코드/헤더/리스트/수평선/기울임 (mixin - User 사이즈)
     @include mx.md-table-styles($font-size: 14px, $cell-padding: 12px 16px, $margin: 20px, $border-radius: 12px);
     @include mx.copy-table-btn($size: 32px, $offset: 8px, $icon-size: 16px, $border-radius: 6px);
     @include mx.md-header-styles($margin-top: 20px, $margin-bottom: 12px, $font-size: 16px);
     @include mx.md-list-styles($padding-left: 8px, $margin: 4px);
+    @include mx.md-hr-styles($margin: 20px);
+    @include mx.md-em-styles;
 
     :deep(strong) {
       font-weight: 700;

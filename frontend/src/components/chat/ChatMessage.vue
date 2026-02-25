@@ -355,7 +355,7 @@ const formatTime = (timestamp) => {
   word-break: break-word;
   line-height: 1.6;
 
-  // 마크다운 테이블/코드/헤더/리스트 (mixin)
+  // 마크다운 테이블/코드/헤더/리스트/수평선/기울임 (mixin)
   @include mx.md-table-styles;
   @include mx.copy-table-btn;
   @include mx.md-header-styles;
@@ -363,6 +363,8 @@ const formatTime = (timestamp) => {
   @include mx.inline-code-styles;
   @include mx.code-block-styles;
   @include mx.strong-styles;
+  @include mx.md-hr-styles;
+  @include mx.md-em-styles;
 }
 
 .message-meta {

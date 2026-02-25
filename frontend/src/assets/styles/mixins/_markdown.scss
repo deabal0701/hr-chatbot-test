@@ -150,3 +150,20 @@
     color: var(--text-color-primary);
   }
 }
+
+// 수평선 스타일
+@mixin md-hr-styles($margin: 16px) {
+  :deep(.md-hr) {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: $margin 0;
+  }
+}
+
+// 기울임 (em) 스타일
+@mixin md-em-styles {
+  :deep(em) {
+    font-style: italic;
+    color: var(--text-color-secondary);
+  }
+}
