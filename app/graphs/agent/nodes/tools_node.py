@@ -5,6 +5,8 @@ AIMessage의 tool_calls를 실행하고 결과를 ToolMessage로 반환합니다
 """
 
 import json
+import logging
+import time
 from typing import Any, Dict
 
 from langchain_core.messages import AIMessage, ToolMessage
@@ -89,7 +91,9 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
                 continue
 
             # Tool 실행
+            tool_start = time.time()
             result = tool_func.invoke(tool_args)
+            tool_time_ms = int((time.time() - tool_start) * 1000)
 
             # Tool 사용 기록
             if tool_name not in tools_used:
@@ -115,7 +119,10 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
                     "result": truncate_text(result, 500),
                 })
 
-            log_step(logger, request_id, "TOOLS", tool_name, "RESULT", "Tool 결과", length=len(str(result)))
+            log_step(logger, request_id, "TOOLS", tool_name, "RESULT", "Tool 결과", length=len(str(result)), time_ms=tool_time_ms)
+
+            if logger.isEnabledFor(logging.DEBUG):
+                log_step(logger, request_id, "TOOLS", tool_name, "RESULT", "TOOL_OUTPUT", level="DEBUG", content=truncate_text(str(result), 200))
 
             tool_messages.append(ToolMessage(
                 content=str(result),
@@ -124,8 +131,9 @@ def tools_node(state: Dict[str, Any]) -> Dict[str, Any]:
             ))
 
         except Exception as e:
+            tool_time_ms = int((time.time() - tool_start) * 1000) if 'tool_start' in dir() else 0
             error_msg = f"Tool execution error: {str(e)}"
-            log_step(logger, request_id, "TOOLS", tool_name, "ERROR", error_msg, level="ERROR")
+            log_step(logger, request_id, "TOOLS", tool_name, "ERROR", error_msg, level="ERROR", time_ms=tool_time_ms)
             tool_messages.append(ToolMessage(
                 content=error_msg,
                 tool_call_id=tool_id,

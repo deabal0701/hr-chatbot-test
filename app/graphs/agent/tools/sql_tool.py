@@ -279,7 +279,14 @@ Examples:
                     continue
                 return ToolResult(success=False, error=f"SQL 실행 오류: {error_str}", metadata={"original_question": question, "generated_sql": sql, "selected_tables": state.get("selected_tables", [])})
 
-            # 7. 결과 포맷팅
+            # 7. PII 마스킹 (NL2SQL pii_filter_node와 동일한 보호)
+            from app.core.pii.pii_service import pii_service
+            if pii_service.enabled and result.rows:
+                result.rows, pii_count = pii_service.mask_sql_rows(result.rows)
+                if pii_count > 0:
+                    log_step(logger, "SYSTEM", "TOOL", self.name, "PII", f"PII 마스킹 완료 | detected={pii_count}, rows={len(result.rows)}")
+
+            # 8. 결과 포맷팅
             if result.row_count == 0:
                 formatted_result = "조회 결과가 없습니다."
             elif result.row_count == 1:
@@ -331,6 +338,13 @@ Examples:
 
         # 2. SQL 실행
         result = sql_executor.execute_sql(sql, validate=True)
+
+        # 2.5. PII 마스킹 (NL2SQL pii_filter_node와 동일한 보호)
+        from app.core.pii.pii_service import pii_service
+        if pii_service.enabled and result.rows:
+            result.rows, pii_count = pii_service.mask_sql_rows(result.rows)
+            if pii_count > 0:
+                log_step(logger, "SYSTEM", "TOOL", self.name, "PII", f"PII 마스킹 완료 | detected={pii_count}, rows={len(result.rows)}")
 
         # 3. 결과 포맷팅
         if result.row_count == 0:

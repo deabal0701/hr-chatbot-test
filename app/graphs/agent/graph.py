@@ -298,6 +298,10 @@ class InsightAgentGraph:
             execution_time_ms = int((time.time() - start_time) * 1000)
             final_answer = self._extract_final_answer(result)
 
+            # 에러 여부 확인 (agent_node 또는 answer_node에서 설정)
+            graph_error = result.get("error")
+            has_error = bool(graph_error)
+
             # 미들웨어 출력 처리
             middleware_output = {
                 "request_id": request_id,
@@ -313,8 +317,8 @@ class InsightAgentGraph:
                 steps=self._extract_steps(result),
                 total_iterations=result.get("iteration_count", 0),
                 tools_used=result.get("tools_used", []),
-                success=True,
-                error=None,
+                success=not has_error,
+                error=graph_error,
                 metadata={
                     "request_id": request_id,
                     "session_id": session_id,

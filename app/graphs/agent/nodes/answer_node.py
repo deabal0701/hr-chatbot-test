@@ -10,6 +10,7 @@ NL2SQL의 응답 프롬프트(get_nl2sql_answer_prompt)를 사용하여 일관�
 """
 
 import json
+import logging
 from typing import Any, Dict
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -41,6 +42,17 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     log_step(logger, request_id, "AGENT", "ANSWER", "START", "최종 답변 생성 시작")
 
+    # agent_node에서 이미 오류로 final_answer가 설정된 경우, LLM 재호출 없이 에러 응답 반환
+    existing_answer = state.get("final_answer", "")
+    if existing_answer and existing_answer.startswith("오류:"):
+        error_answer = "죄송합니다. AI 모델 호출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        log_step(logger, request_id, "AGENT", "ANSWER", "SKIP", "agent_node 오류로 답변 생성 건너뜀", error=existing_answer)
+        return {
+            "messages": [AIMessage(content=error_answer)],
+            "final_answer": error_answer,
+            "error": existing_answer,
+        }
+
     # Tool 결과 수집
     tool_results = _extract_tool_results(messages)
 
@@ -61,7 +73,11 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 위 정보를 바탕으로 사용자 질문에 대한 최종 답변을 작성하세요."""
 
-    log_step(logger, request_id, "AGENT", "ANSWER", "LLM-INPUT", "LLM 호출", system_len=len(system_prompt), user_len=len(user_prompt))
+    log_step(logger, request_id, "AGENT", "ANSWER", "LLM-INPUT", "LLM 호출 (답변 생성)", system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), tool_results_length=len(tool_results))
+
+    if logger.isEnabledFor(logging.DEBUG):
+        log_step(logger, request_id, "AGENT", "ANSWER", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+        log_step(logger, request_id, "AGENT", "ANSWER", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
 
     try:
         # LLM 호출 (temperature=0.1로 약간의 창의성 허용)
@@ -72,9 +88,12 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=user_prompt)
         ])
 
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(logger, request_id, "AGENT", "ANSWER", "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=truncate_text(str(response.content), 200))
+
         answer = extract_llm_text_content(response.content)
 
-        log_step(logger, request_id, "AGENT", "ANSWER", "COMPLETE", "최종 답변 생성 완료", length=len(answer))
+        log_step(logger, request_id, "AGENT", "ANSWER", "COMPLETE", "최종 답변 생성 완료", answer_length=len(answer))
 
         return {
             "messages": [AIMessage(content=answer)],
@@ -83,11 +102,11 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     except Exception as e:
         log_step(logger, request_id, "AGENT", "ANSWER", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
-        # 오류 시 Tool 결과를 그대로 반환
-        fallback_answer = f"수집된 정보:\n{tool_results}"
+        error_answer = f"죄송합니다. 답변 생성 중 오류가 발생했습니다.\n\n오류 내용: {str(e)}\n\n잠시 후 다시 시도해주세요."
         return {
-            "messages": [AIMessage(content=fallback_answer)],
-            "final_answer": fallback_answer,
+            "messages": [AIMessage(content=error_answer)],
+            "final_answer": error_answer,
+            "error": str(e),
         }
 
 

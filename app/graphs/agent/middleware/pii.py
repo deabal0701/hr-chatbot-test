@@ -1,12 +1,15 @@
 """
-PII Middleware (껍데기)
+PII Middleware
 
-개인정보 감지 및 마스킹 미들웨어입니다.
+Agent 미들웨어에서 개인정보를 감지 및 마스킹합니다.
+core PIIService(app/core/pii/pii_service.py)를 사용하여
+NL2SQL과 동일한 PII 보호 수준을 제공합니다.
 
-TODO: 실제 PII 감지/마스킹 로직 구현
-- 주민번호, 전화번호, 이메일 등 패턴 감지
-- 입력에서 PII 감지 시 경고 로깅
-- 출력에서 PII 마스킹 적용
+보호 대상 (PIIService 기준):
+- 주민등록번호 (SSN): 880101-1234567
+- 전화번호 (Phone): 010-1234-5678
+- 계좌번호 (Bank Account): 다양한 은행 형식
+- 이메일 (Email): user@example.com
 """
 
 from typing import Any, Dict
@@ -19,48 +22,38 @@ logger = setup_logger(__name__)
 
 class PIIMiddleware(Middleware):
     """
-    개인정보 보호 미들웨어 (껍데기)
+    개인정보 보호 미들웨어
 
-    추후 구현 예정:
-    - 입력: PII 감지 및 경고
-    - 출력: PII 마스킹
-
-    현재는 아무 처리 없이 데이터를 그대로 통과시킵니다.
+    core PIIService를 사용하여 NL2SQL과 동일한 마스킹 적용:
+    - 입력(process_input): PII 감지 시 경고 로깅 (마스킹 안 함, 사용자 본인 입력)
+    - 출력(process_output): answer 텍스트 + sql_result rows PII 마스킹
     """
-
-    # TODO: 실제 PII 패턴 정의
-    # PII_PATTERNS = {
-    #     "주민번호": r"\d{6}-?\d{7}",
-    #     "전화번호": r"01[0-9]-?\d{3,4}-?\d{4}",
-    #     "이메일": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-    #     "계좌번호": r"\d{3,4}-?\d{2,4}-?\d{4,6}",
-    # }
 
     async def process_input(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        입력 처리 (PII 감지)
+        입력 처리 (PII 감지 경고)
 
-        TODO: 실제 PII 감지 로직 구현
-        - question에서 PII 패턴 검색
-        - 감지 시 경고 로깅
-        - data["_pii_detected"] = {...} 설정
-
-        Args:
-            data: 요청 데이터
-
-        Returns:
-            처리된 요청 데이터
+        사용자 질문에 PII가 포함된 경우 경고 로깅만 수행합니다.
+        사용자가 의도적으로 입력한 것이므로 마스킹은 하지 않습니다.
         """
-        request_id = data.get("request_id", "unknown")
-        log_step(logger, request_id, "MIDDLEWARE", "PII", "INPUT", "PII 감지 (미구현 - 패스스루)", level="DEBUG")
+        from app.core.pii.pii_service import pii_service
 
-        # TODO: 실제 구현
-        # question = data.get("question", "")
-        # detected = self._detect_pii(question)
-        # if detected:
-        #     data["_pii_detected"] = detected
-        #     log_step(logger, request_id, "MIDDLEWARE", "PII", "DETECT",
-        #             f"PII 감지: {list(detected.keys())}", level="WARNING")
+        request_id = data.get("request_id", "unknown")
+        question = data.get("question", "")
+
+        if not pii_service.enabled:
+            log_step(logger, request_id, "MIDDLEWARE", "PII", "INPUT", "PII 필터 비활성화")
+            return data
+
+        if not question:
+            return data
+
+        detected = pii_service.detect_only(question)
+        if detected:
+            pii_types = list({m.type for m in detected})
+            log_step(logger, request_id, "MIDDLEWARE", "PII", "INPUT", f"사용자 질문에 PII 감지 | types={pii_types}, count={len(detected)}", level="WARNING")
+        else:
+            log_step(logger, request_id, "MIDDLEWARE", "PII", "INPUT", "PII 미감지", level="DEBUG")
 
         return data
 
@@ -68,48 +61,40 @@ class PIIMiddleware(Middleware):
         """
         출력 처리 (PII 마스킹)
 
-        TODO: 실제 PII 마스킹 로직 구현
-        - answer에서 PII 패턴 검색
-        - 감지 시 마스킹 적용
-        - data["_pii_masked_count"] = N 설정
-
-        Args:
-            data: 응답 데이터
-
-        Returns:
-            처리된 응답 데이터
+        최종 답변(answer)과 SQL 결과(sql_result)에서 PII를 마스킹합니다.
         """
-        request_id = data.get("request_id", "unknown")
-        log_step(logger, request_id, "MIDDLEWARE", "PII", "OUTPUT", "PII 마스킹 (미구현 - 패스스루)", level="DEBUG")
+        from app.core.pii.pii_service import pii_service
 
-        # TODO: 실제 구현
-        # answer = data.get("answer", "")
-        # masked, count = self._mask_pii(answer)
-        # if count > 0:
-        #     data["answer"] = masked
-        #     data["_pii_masked_count"] = count
-        #     log_step(logger, request_id, "MIDDLEWARE", "PII", "MASK",
-        #             f"PII 마스킹 적용: {count}건")
+        request_id = data.get("request_id", "unknown")
+
+        if not pii_service.enabled:
+            log_step(logger, request_id, "MIDDLEWARE", "PII", "OUTPUT", "PII 필터 비활성화")
+            return data
+
+        total_masked = 0
+
+        # 1. answer 텍스트 마스킹
+        answer = data.get("answer", "")
+        if answer:
+            masked_answer, count = pii_service.mask_text(answer)
+            if count > 0:
+                data["answer"] = masked_answer
+                total_masked += count
+
+        # 2. sql_result rows 마스킹
+        sql_result = data.get("sql_result")
+        if sql_result and isinstance(sql_result, dict):
+            rows = sql_result.get("rows", [])
+            if rows:
+                masked_rows, count = pii_service.mask_sql_rows(rows)
+                if count > 0:
+                    sql_result["rows"] = masked_rows
+                    data["sql_result"] = sql_result
+                    total_masked += count
+
+        if total_masked > 0:
+            log_step(logger, request_id, "MIDDLEWARE", "PII", "OUTPUT", f"PII 마스킹 완료 | detected={total_masked}, answer={bool(answer)}, rows={len(sql_result.get('rows', [])) if sql_result else 0}")
+        else:
+            log_step(logger, request_id, "MIDDLEWARE", "PII", "OUTPUT", "PII 미감지", level="DEBUG")
 
         return data
-
-    # TODO: 실제 구현 시 주석 해제
-    # def _detect_pii(self, text: str) -> Dict[str, List[str]]:
-    #     """PII 감지"""
-    #     import re
-    #     detected = {}
-    #     for pii_type, pattern in self.PII_PATTERNS.items():
-    #         matches = re.findall(pattern, text)
-    #         if matches:
-    #             detected[pii_type] = matches
-    #     return detected
-
-    # def _mask_pii(self, text: str) -> tuple[str, int]:
-    #     """PII 마스킹"""
-    #     import re
-    #     count = 0
-    #     for pii_type, pattern in self.PII_PATTERNS.items():
-    #         matches = re.findall(pattern, text)
-    #         count += len(matches)
-    #         text = re.sub(pattern, f"[{pii_type} 마스킹됨]", text)
-    #     return text, count

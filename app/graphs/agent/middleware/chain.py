@@ -83,6 +83,8 @@ class MiddlewareChain:
             모든 미들웨어를 거친 요청 데이터
         """
         request_id = data.get("request_id", "unknown")
+        mw_names = [type(mw).__name__ for mw in self.middlewares]
+        log_step(logger, request_id, "MIDDLEWARE", "CHAIN", "INPUT", f"입력 미들웨어 실행 | count={len(self.middlewares)}, chain={mw_names}")
 
         for mw in self.middlewares:
             mw_name = type(mw).__name__
@@ -106,6 +108,8 @@ class MiddlewareChain:
             모든 미들웨어를 거친 응답 데이터
         """
         request_id = data.get("request_id", "unknown")
+        mw_names = [type(mw).__name__ for mw in reversed(self.middlewares)]
+        log_step(logger, request_id, "MIDDLEWARE", "CHAIN", "OUTPUT", f"출력 미들웨어 실행 | count={len(self.middlewares)}, chain={mw_names}")
 
         # 역순으로 처리
         for mw in reversed(self.middlewares):

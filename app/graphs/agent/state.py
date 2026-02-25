@@ -42,6 +42,9 @@ class AgentState(TypedDict):
     # ===== RAG Tool 결과 =====
     rag_sources: List[Dict]                                    # 검색된 문서 목록
 
+    # ===== 에러 =====
+    error: Optional[str]                                       # 에러 메시지 (LLM 호출 실패 등)
+
     # ===== 메타데이터 =====
     tools_used: List[str]                                      # 사용된 Tool 목록
 
@@ -90,6 +93,9 @@ def create_initial_state(
 
         # RAG 결과
         rag_sources=[],
+
+        # 에러
+        error=None,
 
         # 메타데이터
         tools_used=[],

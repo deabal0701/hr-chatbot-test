@@ -943,7 +943,7 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     if logger.isEnabledFor(logging.DEBUG):
         log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
         log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
-        log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary))
+        log_step(logger, request_id, "NL2SQL", "4a", "LLM-INPUT", "DATA_ROWS", level="DEBUG", content=str(rows_summary)[:100])
 
     try:
         response = llm.invoke(messages)

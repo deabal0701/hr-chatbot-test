@@ -6,6 +6,7 @@ Tool 호출이 필요하면 tool_calls를 포함한 AIMessage를 반환하고,
 최종 답변이 준비되면 content에 답변을 포함합니다.
 """
 
+import logging
 from typing import Any, Dict, List, Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -89,11 +90,19 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # 메시지 구성
     prompt_messages = [SystemMessage(content=system_prompt)] + list(messages)
 
-    log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-INPUT", f"LLM 호출 | messages={len(prompt_messages)}")
+    model_name = settings_config.get_value("llm", "model", "unknown")
+    log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-INPUT", f"LLM 호출 | model={model_name}, temperature={temperature}, messages={len(prompt_messages)}, tools={len(tools)}")
+
+    if logger.isEnabledFor(logging.DEBUG):
+        log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
+        log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-INPUT", "MESSAGES", level="DEBUG", content=str([(type(m).__name__, truncate_text(m.content, 100)) for m in messages]))
 
     try:
         # LLM 호출
         response = llm_with_tools.invoke(prompt_messages)
+
+        if logger.isEnabledFor(logging.DEBUG):
+            log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-OUTPUT", "LLM_RESPONSE", level="DEBUG", content=truncate_text(str(response.content), 200))
 
         # Tool 호출 여부 확인
         has_tool_calls = hasattr(response, 'tool_calls') and response.tool_calls
@@ -136,8 +145,10 @@ def should_continue(state: Dict[str, Any]) -> Literal["tools", "answer"]:
     request_id = state.get("request_id", "unknown")
     messages = state.get("messages", [])
 
+    iteration_count = state.get("iteration_count", 0)
+
     if not messages:
-        log_step(logger, request_id, "AGENT", "X", "BRANCH", "메시지 없음 → ANSWER")
+        log_step(logger, request_id, "AGENT", str(iteration_count), "BRANCH", "분기 결정 → ANSWER (메시지 없음)")
         return "answer"
 
     last_message = messages[-1]
@@ -147,8 +158,9 @@ def should_continue(state: Dict[str, Any]) -> Literal["tools", "answer"]:
         has_tool_calls = hasattr(last_message, 'tool_calls') and last_message.tool_calls
 
         if has_tool_calls:
-            log_step(logger, request_id, "AGENT", "X", "BRANCH", "Tool 호출 있음 → TOOLS")
+            tool_names = [tc.get('name', 'unknown') for tc in last_message.tool_calls]
+            log_step(logger, request_id, "AGENT", str(iteration_count), "BRANCH", f"분기 결정 → TOOLS | tools={tool_names}")
             return "tools"
 
-    log_step(logger, request_id, "AGENT", "X", "BRANCH", "Tool 호출 없음 → ANSWER")
+    log_step(logger, request_id, "AGENT", str(iteration_count), "BRANCH", "분기 결정 → ANSWER")
     return "answer"
