@@ -12,7 +12,7 @@
 import uuid
 from typing import Dict, Any
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.services.agent_service import agent_service
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 
 @router.post("/search")
-async def agent_search(request: AgentRequest, current_user: UserContext = Depends(get_current_user)):
+async def agent_search(agent_request: AgentRequest, request: Request, current_user: UserContext = Depends(get_current_user)):
     """
     AI Agent 기반 검색 (ReAct 패턴)
 
@@ -43,16 +43,16 @@ async def agent_search(request: AgentRequest, current_user: UserContext = Depend
     - 멀티턴 대화 지원 (session_id 사용)
     - 단계별 실행 과정 반환
     """
-    request_id = str(uuid.uuid4())[:8]
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
 
     # 테넌트 격리 (Phase 3: Agent 도구가 contextvars에서 tenant_id 읽음)
     set_tenant_id(get_tenant_scope(current_user))
 
     try:
         logger.info(f"[{request_id}] ========== Agent 검색 요청 처리 시작 ==========")
-        logger.info(f"[{request_id}] Agent 검색 요청: {truncate_text(request.question, 100)}")
+        logger.info(f"[{request_id}] Agent 검색 요청: {truncate_text(agent_request.question, 100)}")
 
-        result = await agent_service.search(question=request.question, session_id=request.session_id, request_id=request_id)
+        result = await agent_service.search(question=agent_request.question, session_id=agent_request.session_id, request_id=request_id)
 
         logger.info(f"[{request_id}] Agent 검색 완료: iterations={result.total_iterations}, tools={result.tools_used}, success={result.success}")
         logger.info(f"[{request_id}] ========== Agent 검색 요청 처리 완료 ==========")
@@ -67,7 +67,7 @@ async def agent_search(request: AgentRequest, current_user: UserContext = Depend
 
 
 @router.post("/search/stream")
-async def agent_search_stream(request: AgentRequest, current_user: UserContext = Depends(get_current_user)):
+async def agent_search_stream(agent_request: AgentRequest, request: Request, current_user: UserContext = Depends(get_current_user)):
     """
     AI Agent SSE 스트리밍 검색 (ReAct 패턴)
 
@@ -76,17 +76,17 @@ async def agent_search_stream(request: AgentRequest, current_user: UserContext =
 
     Response: text/event-stream (SSE)
     """
-    request_id = str(uuid.uuid4())[:8]
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
 
     # 테넌트 격리 (Phase 3)
     set_tenant_id(get_tenant_scope(current_user))
 
-    logger.info(f"[{request_id}] Agent SSE 검색 요청: {truncate_text(request.question, 100)}")
+    logger.info(f"[{request_id}] Agent SSE 검색 요청: {truncate_text(agent_request.question, 100)}")
 
     async def event_generator():
         async for event in agent_service.search_stream(
-            question=request.question,
-            session_id=request.session_id,
+            question=agent_request.question,
+            session_id=agent_request.session_id,
             request_id=request_id,
         ):
             yield event
