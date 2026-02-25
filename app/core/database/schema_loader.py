@@ -218,7 +218,7 @@ class SchemaLoaderService:
             return []
 
     def _get_sample_data(self, table_name: str, limit: int = 3) -> List[Dict[str, Any]]:
-        """테이블의 샘플 데이터 조회"""
+        """테이블의 샘플 데이터 조회 (PII 마스킹 적용)"""
         external_db_manager = _get_external_db_manager()
         adapter = external_db_manager.get_adapter()
 
@@ -239,7 +239,15 @@ class SchemaLoaderService:
                 result = []
                 for row in cur.fetchall():
                     result.append(adapter.row_to_dict(row, columns_meta))
-                return result
+
+            # PII 마스킹 (주민번호, 전화번호, 계좌번호, 이메일)
+            if result:
+                from app.core.pii.pii_service import pii_service
+                result, pii_count = pii_service.mask_sql_rows(result)
+                if pii_count > 0:
+                    logger.info(f"샘플 데이터 PII 마스킹: {table_name} ({pii_count}건)")
+
+            return result
         except Exception as e:
             logger.warning(f"샘플 데이터 조회 실패 ({table_name}): {e}")
             return []
