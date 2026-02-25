@@ -58,14 +58,23 @@ class SQLQueryTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return """Query the database using natural language.
+        return """Query the HR database using natural language.
 
 Use this tool when you need to:
-- Get counts, statistics, aggregations from structured tables
-- Find specific record information (e.g., "List records by criteria")
-- Analyze trends and patterns
-- Get category-wise or group-wise data
-- Query structured data from various database tables
+- Employee info: name, department, position, grade, hire/retire date, work status, employment type
+- Employee statistics: headcount, hires, resignations by department/year
+- Salary: gross pay, net pay, fixed/variable pay, deductions
+- Performance reviews: grade (S/A/B/C/D), score, feedback
+- Address/residence: region, city, regional distribution
+- Education: school, major, graduation year
+- Language scores: TOEIC, TOEFL, JLPT scores and grades
+- Certifications: license name, issuing org, validity
+- Career history: previous company, work months/years
+- Family info: relations, dependents
+- Military service: branch, rank, service status
+- Rewards/penalties: type, reason, amount
+- Training: course name, institution, completion status, cost
+- Leave/vacation: accrued, used, additional, carried-over days
 
 DO NOT use this tool for:
 - Policy questions (use search_documents instead)
@@ -73,15 +82,15 @@ DO NOT use this tool for:
 - Calculations only (use calculate instead)
 
 Args:
-    question: Natural language question about the database
+    question: Natural language question about HR database
 
 Returns:
     Query results formatted as natural language
 
 Examples:
-    - "2024년 총 매출은?" → Returns total sales
-    - "서울 지역 고객 목록" → Returns list of customers in Seoul
-    - "카테고리별 평균 가격은?" → Returns price statistics by category
+    - "2024년 입사자 수는?" → Returns hire count for 2024
+    - "서울 거주 직원 목록" → Returns employees living in Seoul
+    - "부서별 평균 급여는?" → Returns average salary by department
 """
 
     @property
@@ -387,30 +396,41 @@ Examples:
 @tool
 def query_database_tool(question: str) -> str:
     """
-    자연어로 회사 데이터베이스를 조회합니다.
+    자연어로 회사 인사 데이터베이스를 조회합니다.
 
     이 도구를 사용하는 경우:
-    - 직원 수, 통계 (예: "2024년 입사자 수", "서울 근무 직원 몇 명")
-    - 직원 정보 (이름, 직급, 부서, 입사일)
-    - 급여 정보 및 변경 이력
-    - 인사 이력 및 승진 기록
-    - 성과 평가 데이터
-    - 부서 정보
+    - 직원 기본정보: 이름, 부서, 직위, 직급, 입사일, 퇴사일, 재직상태, 고용형태, 성별, 채용유형
+    - 직원 수/통계: 입사자 수, 퇴사자 수, 부서별 인원, 재직자 수
+    - 급여 정보: 지급합계, 실지급액, 고정비, 변동비, 공제합계
+    - 인사평가: 평가등급(S/A/B/C/D), 평가점수, 평가의견
+    - 주소/거주지: 거주 시/도, 지역별 직원 분포
+    - 학력 정보: 학교명, 전공, 졸업연도
+    - 어학 성적: TOEIC, TOEFL, JLPT 등 시험종류, 점수, 등급
+    - 자격증 정보: 자격증명, 발급기관, 취득일, 유효상태
+    - 경력 정보: 전 직장명, 근무 개월수/연수
+    - 가족 정보: 가족관계, 부양가족 수
+    - 병역 정보: 군종류, 최종계급, 군필여부
+    - 상벌 정보: 포상/징계 구분, 포상금액
+    - 교육/훈련 이력: 과정명, 교육기관, 수료여부, 교육비용
+    - 연차 정보: 발생연차, 사용연차, 추가연차, 이월연차
 
     이 도구를 사용하지 않는 경우:
     - 회사 정책이나 규정 (search_documents_tool 사용)
     - 이미 조회한 데이터의 계산 (calculate_tool 사용)
 
     Args:
-        question: 데이터베이스 테이블에 대한 자연어 질문
+        question: 인사 데이터베이스에 대한 자연어 질문
 
     Returns:
         데이터베이스 테이블에서 조회한 포맷된 결과 (JSON 형태로 sql_result 포함)
 
     예시:
-        - "2024년에 입사한 직원은 몇 명?" → 2024년 입사자 수 반환
-        - "김철수의 현재 급여는?" → 직원의 현재 급여 반환
-        - "개발팀에 몇 명 있어?" → 개발팀 직원 수 반환
+        - "2024년에 입사한 직원은 몇 명?" → 입사자 수 반환
+        - "개발팀에 몇 명 있어?" → 부서별 직원 수 반환
+        - "서울 거주 직원 목록" → 지역별 직원 조회
+        - "TOEIC 900점 이상 직원은?" → 어학 성적 조회
+        - "정보처리기사 보유자" → 자격증 정보 조회
+        - "평가등급 S등급 직원" → 인사평가 데이터 조회
     """
     tool_instance = SQLQueryTool()
     result = tool_instance.execute(question=question)

@@ -64,13 +64,11 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
     iteration_count = state.get("iteration_count", 0)
     max_iterations = state.get("max_iterations", 10)
 
-    log_step(logger, request_id, "AGENT", str(iteration_count), "THINK",
-             f"Agent 노드 실행 | iteration={iteration_count}/{max_iterations}")
+    log_step(logger, request_id, "AGENT", str(iteration_count), "THINK", f"Agent 노드 실행 | iteration={iteration_count}/{max_iterations}")
 
     # 반복 횟수 체크
     if iteration_count >= max_iterations:
-        log_step(logger, request_id, "AGENT", str(iteration_count), "WARN",
-                 "최대 반복 횟수 도달", level="WARNING")
+        log_step(logger, request_id, "AGENT", str(iteration_count), "WARN", "최대 반복 횟수 도달", level="WARNING")
         return {
             "messages": [AIMessage(content="죄송합니다. 질문에 대한 답변을 찾는 데 너무 오래 걸리고 있습니다. 질문을 더 구체적으로 해주시겠어요?")],
             "iteration_count": iteration_count + 1,
@@ -91,8 +89,7 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # 메시지 구성
     prompt_messages = [SystemMessage(content=system_prompt)] + list(messages)
 
-    log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-INPUT",
-             f"LLM 호출 | messages={len(prompt_messages)}")
+    log_step(logger, request_id, "AGENT", str(iteration_count), "LLM-INPUT", f"LLM 호출 | messages={len(prompt_messages)}")
 
     try:
         # LLM 호출
@@ -103,12 +100,10 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
         if has_tool_calls:
             tool_names = [tc.get('name', 'unknown') for tc in response.tool_calls]
-            log_step(logger, request_id, "AGENT", str(iteration_count), "ACTION",
-                     f"Tool 호출 결정 | tools={tool_names}")
+            log_step(logger, request_id, "AGENT", str(iteration_count), "ACTION", f"Tool 호출 결정 | tools={tool_names}")
         else:
             answer_preview = truncate_text(response.content, 100) if response.content else "(empty)"
-            log_step(logger, request_id, "AGENT", str(iteration_count), "ANSWER",
-                     f"최종 답변 생성 | preview={answer_preview}")
+            log_step(logger, request_id, "AGENT", str(iteration_count), "ANSWER", f"최종 답변 생성 | preview={answer_preview}")
 
         return {
             "messages": [response],
@@ -116,8 +111,7 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        log_step(logger, request_id, "AGENT", str(iteration_count), "ERROR",
-                 f"LLM 호출 실패: {e}", level="ERROR")
+        log_step(logger, request_id, "AGENT", str(iteration_count), "ERROR", f"LLM 호출 실패: {e}", level="ERROR")
         return {
             "messages": [AIMessage(content=f"죄송합니다. 처리 중 오류가 발생했습니다: {str(e)}")],
             "iteration_count": iteration_count + 1,
