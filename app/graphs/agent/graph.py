@@ -229,8 +229,11 @@ class InsightAgentGraph:
         initial_state["messages"] = [HumanMessage(content=question)]
 
         try:
+            # enable_memory=False이면 매 요청마다 고유 thread_id → 이전 대화 이어지지 않음
+            enable_memory = config.enable_memory if hasattr(config, 'enable_memory') else True
+            thread_id = session_id if enable_memory else f"no-memory-{request_id}"
             graph_config: RunnableConfig = {
-                "configurable": {"thread_id": session_id},
+                "configurable": {"thread_id": thread_id},
             }
 
             # 스테이지 추적 변수
@@ -312,10 +315,13 @@ class InsightAgentGraph:
             }
             processed_output = await self.middleware.process_output(middleware_output)
 
+            # steps 추출 (도구 호출 단계만)
+            steps = self._extract_steps(result)
+
             response = AgentResponse(
                 answer=processed_output.get("answer", final_answer),
-                steps=self._extract_steps(result),
-                total_iterations=result.get("iteration_count", 0),
+                steps=steps,
+                total_iterations=len(steps),
                 tools_used=result.get("tools_used", []),
                 success=not has_error,
                 error=graph_error,
@@ -329,7 +335,7 @@ class InsightAgentGraph:
                 session_id=session_id,
             )
 
-            log_step(logger, request_id, "AGENT", "END", "COMPLETE", "ReAct Agent SSE 완료", iterations=result.get('iteration_count', 0), time_ms=execution_time_ms)
+            log_step(logger, request_id, "AGENT", "END", "COMPLETE", "ReAct Agent SSE 완료", iterations=len(steps), time_ms=execution_time_ms)
 
             complete_event = CompleteEvent(data=response.model_dump())
             yield format_sse("complete", complete_event.model_dump())
@@ -377,8 +383,11 @@ class InsightAgentGraph:
 
         try:
             # 4. 그래프 실행 (LangSmith 트레이싱은 @traceable에서 처리)
+            # enable_memory=False이면 매 요청마다 고유 thread_id → 이전 대화 이어지지 않음
+            enable_memory = config.enable_memory if hasattr(config, 'enable_memory') else True
+            thread_id = session_id if enable_memory else f"no-memory-{request_id}"
             graph_config: RunnableConfig = {
-                "configurable": {"thread_id": session_id},
+                "configurable": {"thread_id": thread_id},
             }
             result = await self.graph.ainvoke(initial_state, config=graph_config)
 
@@ -399,12 +408,15 @@ class InsightAgentGraph:
             processed_output = await self.middleware.process_output(middleware_output)
 
             # 8. 응답 구성
-            log_step(logger, request_id, "AGENT", "END", "COMPLETE", "ReAct Agent 완료", iterations=result.get('iteration_count', 0), tools=result.get('tools_used', []), time_ms=execution_time_ms)
+            # steps 추출 (도구 호출 단계만)
+            steps = self._extract_steps(result)
+
+            log_step(logger, request_id, "AGENT", "END", "COMPLETE", "ReAct Agent 완료", iterations=len(steps), tools=result.get('tools_used', []), time_ms=execution_time_ms)
 
             return AgentResponse(
                 answer=processed_output.get("answer", final_answer),
-                steps=self._extract_steps(result),
-                total_iterations=result.get("iteration_count", 0),
+                steps=steps,
+                total_iterations=len(steps),
                 tools_used=result.get("tools_used", []),
                 success=True,
                 error=None,
@@ -467,32 +479,39 @@ class InsightAgentGraph:
 
     def _extract_steps(self, result: Dict[str, Any]) -> list:
         """
-        실행 단계 추출
+        현재 턴의 실행 단계만 추출
 
-        messages에서 Tool 호출 및 결과를 추출하여
-        AgentStep 리스트로 반환합니다.
+        멀티턴 세션에서 이전 턴의 tool_calls가 포함되지 않도록
+        마지막 HumanMessage 이후의 messages만 처리합니다.
 
         Args:
             result: 그래프 실행 결과
 
         Returns:
-            AgentStep 리스트
+            AgentStep 리스트 (현재 턴만)
         """
         from langchain_core.messages import ToolMessage
 
         steps = []
         messages = result.get("messages", [])
+
+        # 현재 턴의 시작점 찾기: 마지막 HumanMessage 위치
+        current_turn_start = 0
+        for idx in range(len(messages) - 1, -1, -1):
+            if isinstance(messages[idx], HumanMessage):
+                current_turn_start = idx
+                break
+
+        current_turn_messages = messages[current_turn_start:]
+        logger.debug(f"[EXTRACT_STEPS] 전체 messages={len(messages)}, 현재 턴 시작={current_turn_start}, 현재 턴 messages={len(current_turn_messages)}")
+
         step_number = 0
-
-        logger.debug(f"[EXTRACT_STEPS] messages 수: {len(messages)}")
-
         i = 0
-        while i < len(messages):
-            msg = messages[i]
+        while i < len(current_turn_messages):
+            msg = current_turn_messages[i]
 
             # AIMessage with tool_calls
             if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
-                logger.debug(f"[EXTRACT_STEPS] AIMessage[{i}] tool_calls 수: {len(msg.tool_calls)}")
                 for tool_call in msg.tool_calls:
                     step_number += 1
                     tool_name = tool_call.get("name", "unknown")
@@ -503,10 +522,10 @@ class InsightAgentGraph:
                     observation = ""
                     sql_result = None
 
-                    for j in range(i + 1, len(messages)):
-                        if isinstance(messages[j], ToolMessage):
-                            if messages[j].tool_call_id == tool_id:
-                                raw_content = messages[j].content
+                    for j in range(i + 1, len(current_turn_messages)):
+                        if isinstance(current_turn_messages[j], ToolMessage):
+                            if current_turn_messages[j].tool_call_id == tool_id:
+                                raw_content = current_turn_messages[j].content
                                 observation = truncate_text(raw_content, 500)
 
                                 # SQL Tool인 경우 sql_result 추출 (관리자 UI 표시용)

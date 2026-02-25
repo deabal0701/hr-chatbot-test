@@ -53,8 +53,16 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "error": existing_answer,
         }
 
-    # Tool 결과 수집
-    tool_results = _extract_tool_results(messages)
+    # 현재 턴의 시작점 찾기: 마지막 HumanMessage 이후만 처리
+    current_turn_start = 0
+    for idx in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[idx], HumanMessage):
+            current_turn_start = idx
+            break
+    current_turn_messages = messages[current_turn_start:]
+
+    # Tool 결과 수집 (현재 턴만)
+    tool_results = _extract_tool_results(current_turn_messages)
 
     if not tool_results:
         log_step(logger, request_id, "AGENT", "ANSWER", "WARN", "Tool 결과 없음 - 기존 답변 유지", level="WARNING")
