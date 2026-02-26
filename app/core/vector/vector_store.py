@@ -258,6 +258,158 @@ class VectorStoreService:
             return documents
 
     # ============================================
+    # 키워드 검색 (pg_trgm)
+    # ============================================
+
+    def search_by_keyword(
+        self,
+        keyword_query: str,
+        top_k: int = 10,
+        filters: Optional[SearchFilters] = None,
+        tenant_id: Optional[str] = None,
+    ) -> List[DocumentSource]:
+        """pg_trgm word_similarity 기반 키워드 검색
+
+        주의: SQL 내 %> 연산자는 psycopg3 파라미터(%s) 충돌 방지를 위해 %%>로 작성.
+        """
+        filter_conditions = []
+        filter_params = []
+
+        if tenant_id:
+            filter_conditions.append("tenant_id = %s")
+            filter_params.append(tenant_id)
+
+        usage_type = "rag_knowledge"
+        if filters and filters.usage_type:
+            usage_type = filters.usage_type
+        filter_conditions.append("usage_type = %s")
+        filter_params.append(usage_type)
+
+        if filters:
+            if filters.doc_type:
+                filter_conditions.append("doc_type = %s")
+                filter_params.append(filters.doc_type)
+            if filters.language:
+                filter_conditions.append("language = %s")
+                filter_params.append(filters.language)
+            if filters.department and filters.department in ['개발', '기획', 'HR', '마케팅']:
+                filter_conditions.append("metadata->>'department' = %s")
+                filter_params.append(filters.department)
+
+        where_clause = ("WHERE " + " AND ".join(filter_conditions)) if filter_conditions else ""
+
+        threshold = _get_settings_service().get_value("rag", "trgm_word_sim_threshold", 0.1)
+
+        # %%> : psycopg3에서 % 리터럴은 %%로 이스케이프
+        query_sql = f"""
+            SELECT id, title, doc_type, content, context_data, metadata, language,
+                   GREATEST(
+                       word_similarity(%s, title),
+                       word_similarity(%s, content)
+                   ) AS keyword_score
+            FROM tb_docs
+            {where_clause}
+              AND (title %%> %s OR content %%> %s)
+            ORDER BY keyword_score DESC
+            LIMIT %s
+        """
+        # 파라미터: (kw, kw) + filter_params + (kw, kw, top_k)
+        query_params = [keyword_query, keyword_query] + filter_params + [keyword_query, keyword_query, top_k]
+
+        db_manager = _get_db_manager()
+        with db_manager.get_cursor() as cur:
+            cur.execute(query_sql, query_params)
+            rows = cur.fetchall()
+
+            documents = []
+            for row in rows:
+                keyword_score = float(row.get('keyword_score') or 0.0)
+                if keyword_score < threshold:
+                    continue
+                logger.debug(f"키워드 문서 ID={row['id']}, title='{truncate_text(row['title'], 30)}...', keyword_score={keyword_score:.4f}")
+                content = row.get('content', '')
+                snippet = self._create_snippet(content)
+                doc = DocumentSource(
+                    id=row['id'],
+                    title=row['title'],
+                    doc_type=row['doc_type'],
+                    content=content,
+                    content_snippet=snippet,
+                    metadata=row.get('metadata', {}),
+                    similarity_score=round(keyword_score, 4),
+                    context_data=row.get('context_data'),
+                )
+                documents.append(doc)
+
+            logger.debug(f"키워드 검색 완료: query='{truncate_text(keyword_query, 30)}', found={len(documents)}")
+            return documents
+
+    def search_by_pattern(
+        self,
+        pattern: str,
+        filters: Optional[SearchFilters] = None,
+        tenant_id: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[DocumentSource]:
+        """Doc ID 패턴으로 직접 조회 (title ILIKE 또는 metadata doc_id)"""
+        filter_conditions = []
+        filter_params = []
+
+        if tenant_id:
+            filter_conditions.append("tenant_id = %s")
+            filter_params.append(tenant_id)
+
+        usage_type = "rag_knowledge"
+        if filters and filters.usage_type:
+            usage_type = filters.usage_type
+        filter_conditions.append("usage_type = %s")
+        filter_params.append(usage_type)
+
+        if filters:
+            if filters.doc_type:
+                filter_conditions.append("doc_type = %s")
+                filter_params.append(filters.doc_type)
+
+        pattern_param = f"%{pattern}%"
+        filter_conditions.append("(title ILIKE %s OR metadata->>'doc_id' ILIKE %s)")
+        filter_params.extend([pattern_param, pattern_param])
+
+        where_clause = "WHERE " + " AND ".join(filter_conditions)
+
+        query_sql = f"""
+            SELECT id, title, doc_type, content, context_data, metadata, language
+            FROM tb_docs
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT %s
+        """
+        query_params = filter_params + [limit]
+
+        db_manager = _get_db_manager()
+        with db_manager.get_cursor() as cur:
+            cur.execute(query_sql, query_params)
+            rows = cur.fetchall()
+
+            documents = []
+            for row in rows:
+                content = row.get('content', '')
+                snippet = self._create_snippet(content)
+                doc = DocumentSource(
+                    id=row['id'],
+                    title=row['title'],
+                    doc_type=row['doc_type'],
+                    content=content,
+                    content_snippet=snippet,
+                    metadata=row.get('metadata', {}),
+                    similarity_score=1.0,
+                    context_data=row.get('context_data'),
+                )
+                documents.append(doc)
+
+            logger.debug(f"패턴 직접 조회 완료: pattern='{pattern}', found={len(documents)}")
+            return documents
+
+    # ============================================
     # 문서 삽입 (임베딩 포함)
     # ============================================
 

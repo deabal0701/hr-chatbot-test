@@ -24,6 +24,12 @@ class RAGState(TypedDict):
     # ===== 테넌트 격리 (Phase 3) =====
     tenant_id: Optional[str]
 
+    # ===== 하이브리드 검색 (query_analysis_node 출력) =====
+    vector_query: Optional[str]   # 벡터 검색용 (= 원본 question)
+    keyword_query: Optional[str]  # pg_trgm 검색용 (추출 키워드)
+    search_type: Optional[str]    # "normal" | "direct_lookup"
+    doc_pattern: Optional[str]    # direct_lookup 시 식별자 (예: "HR-001")
+
 
 def create_initial_state(
     question: str,
@@ -56,4 +62,8 @@ def create_initial_state(
         metadata={},
         request_id=request_id,
         tenant_id=tenant_id,
+        vector_query=None,
+        keyword_query=None,
+        search_type=None,
+        doc_pattern=None,
     )

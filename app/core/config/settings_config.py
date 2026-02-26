@@ -65,6 +65,18 @@ class SettingsConfig:
             "distance_metric": ("cosine", "string", "거리 측정 방식 (cosine, l2)", False),
             "similarity_threshold": ("0.7", "float", "유사도 임계값 (0.0-1.0)", False),
             "max_context_length": ("4000", "int", "최대 컨텍스트 길이", False),
+            # 하이브리드 검색
+            "keyword_extraction": ("rule", "string", "키워드 추출 방식: none | rule", False),
+            "direct_lookup_enabled": ("true", "boolean", "Doc ID 패턴 직접 조회 활성화 (예: HR-001)", False),
+            "search_mode": ("hybrid", "string", "검색 모드: vector | hybrid", False),
+            "hybrid_rrf_k": ("60", "integer", "RRF 상수 k (기본값 60, 변경 불필요)", False),
+            "hybrid_fetch_k_factor": ("2", "integer", "검색 후보 수 = top_k × factor (기본값 2)", False),
+            "trgm_word_sim_threshold": ("0.1", "float", "pg_trgm word_similarity 최소 임계값", False),
+            # 리랭커 (현재 passthrough)
+            "reranker_mode": ("none", "string", "리랭커 모드: none | llm | cross_encoder", False),
+            "reranker_top_n": ("5", "integer", "리랭킹 후 최종 반환 문서 수", False),
+            "reranker_llm_model": ("gpt-4.1-mini", "string", "LLM 리랭커 모델명", False),
+            "reranker_ce_model": ("BAAI/bge-reranker-v2-m3", "string", "Cross-Encoder 모델명 (HuggingFace)", False),
         },
         "nl2sql": {
             # 기본 실행 설정
