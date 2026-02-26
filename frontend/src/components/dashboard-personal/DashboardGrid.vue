@@ -1,6 +1,7 @@
 <template>
-  <div class="dashboard-grid">
+  <div ref="gridContainer" class="dashboard-grid">
     <grid-layout
+      v-if="gridReady"
       :layout="layoutModel"
       @update:layout="layoutModel = $event"
       @layout-updated="handleLayoutUpdated"
@@ -40,7 +41,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import DashboardWidget from './DashboardWidget.vue'
 
@@ -51,6 +52,43 @@ const props = defineProps({
 })
 
 defineEmits(['edit-widget', 'delete-widget', 'refresh-widget', 'layout-changed'])
+
+// vue3-grid-layout-next 초기화 타이밍 이슈 보정
+// ResizeObserver로 컨테이너가 실제 너비를 가질 때까지 대기 후 grid-layout 마운트
+const gridContainer = ref(null)
+const gridReady = ref(false)
+let resizeObserver = null
+
+onMounted(() => {
+  const el = gridContainer.value
+  if (!el) return
+
+  // 이미 너비가 있으면 바로 마운트
+  if (el.offsetWidth > 0) {
+    gridReady.value = true
+    return
+  }
+
+  // 너비가 0이면 ResizeObserver로 대기
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.contentRect.width > 0) {
+        gridReady.value = true
+        resizeObserver.disconnect()
+        resizeObserver = null
+        break
+      }
+    }
+  })
+  resizeObserver.observe(el)
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+})
 
 const store = useStore()
 
