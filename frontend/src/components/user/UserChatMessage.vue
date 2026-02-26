@@ -74,6 +74,9 @@
               :rows="message.sqlResult.rows"
             />
             <div class="export-bar">
+              <el-button size="small" :icon="DataAnalysis" @click="showDashboardModal = true">
+                대시보드에 추가
+              </el-button>
               <el-button size="small" :icon="Download" :loading="exporting" @click="exportToExcel">
                 Excel 다운로드
               </el-button>
@@ -197,13 +200,28 @@
         </div>
       </div>
     </div>
+
+    <!-- 대시보드 저장 모달 -->
+    <SaveToDashboardModal
+      v-if="message.sqlResult"
+      v-model="showDashboardModal"
+      :query="message.content || ''"
+      :sql="message.sql || ''"
+      :columns="message.sqlResult?.columns || []"
+      :rows="message.sqlResult?.rows || []"
+      :row-count="message.sqlResult?.row_count || 0"
+      :initial-chart-type="chartBuilderRef?.chartGenerated ? chartBuilderRef.chartType : ''"
+      :initial-x-column="chartBuilderRef?.xAxisColumn || ''"
+      :initial-y-columns="chartBuilderRef?.yAxisColumns || []"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { Document, ArrowDown, DataLine, CopyDocument, TrendCharts, Download } from '@element-plus/icons-vue'
+import { Document, ArrowDown, DataLine, CopyDocument, TrendCharts, Download, DataAnalysis } from '@element-plus/icons-vue'
 import ChartBuilder from '../chart/ChartBuilder.vue'
+import SaveToDashboardModal from '../dashboard-personal/SaveToDashboardModal.vue'
 import searchApi from '@/api/search'
 import { ElMessage } from 'element-plus'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
@@ -221,6 +239,7 @@ const showSql = ref(false)
 const showResult = ref(false)
 const chartBuilderRef = ref(null)
 const exporting = ref(false)
+const showDashboardModal = ref(false)
 const agentSqlExpanded = reactive({})
 
 // Agent 모드에서 SQL 결과가 있는 step 추출

@@ -22,6 +22,14 @@ const routes = [
     component: () => import('@/components/user/UserChatLayout.vue')
   },
 
+  // 개인 대시보드 (사용자 BI)
+  {
+    path: '/dashboard',
+    name: 'PersonalDashboard',
+    component: () => import('@/views/user/PersonalDashboardView.vue'),
+    meta: { title: '나의 대시보드' }
+  },
+
   // 관리자 라우트
   {
     path: '/admin',

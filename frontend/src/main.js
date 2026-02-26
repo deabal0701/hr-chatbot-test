@@ -9,6 +9,10 @@ import router from './router'
 import store from './store'
 import './assets/styles/main.scss'
 
+// vue3-grid-layout
+import { GridLayout, GridItem } from 'vue3-grid-layout-next'
+import 'vue3-grid-layout-next/dist/style.css'
+
 const app = createApp(App)
 
 // Element Plus Icons 등록
@@ -19,6 +23,10 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(ElementPlus, { locale: undefined }) // 한국어는 별도 설정 필요시 추가
 app.use(router)
 app.use(store)
+
+// Grid Layout 전역 컴포넌트 등록
+app.component('grid-layout', GridLayout)
+app.component('grid-item', GridItem)
 
 // 앱 마운트 전 저장된 테마 적용
 store.dispatch('app/initTheme')

@@ -22,11 +22,15 @@
       </button>
     </div>
 
-    <!-- New Chat Button -->
+    <!-- New Chat & Dashboard Buttons -->
     <div class="new-chat-section">
       <button class="new-chat-btn" @click="handleNewChat">
         <el-icon><EditPen /></el-icon>
         <span>새 채팅</span>
+      </button>
+      <button class="new-chat-btn dashboard-btn" @click="goToDashboard" :class="{ active: isDashboardRoute }">
+        <el-icon><DataAnalysis /></el-icon>
+        <span>나의 대시보드</span>
       </button>
     </div>
 
@@ -160,7 +164,7 @@ import { ref, computed, reactive } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton } from '@element-plus/icons-vue'
+import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
 
 const props = defineProps({
   isMobile: {
@@ -192,6 +196,13 @@ const handleUserCommand = async (command) => {
 // 로그인 페이지로 이동
 const goToLogin = () => {
   router.push({ path: '/login', query: { redirect: '/chat' } })
+}
+
+// ===== 대시보드 네비게이션 =====
+const isDashboardRoute = computed(() => router.currentRoute.value.path === '/dashboard')
+const goToDashboard = () => {
+  router.push('/dashboard')
+  if (props.isMobile) emit('close')
 }
 
 // ===== 비밀번호 변경 =====
@@ -399,10 +410,13 @@ const clearSearch = () => {
 .new-chat-section {
   padding: 12px 16px 0;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 
   .new-chat-btn {
     width: 100%;
-    height: 44px;
+    height: 42px;
     background-color: transparent;
     border: 1px dashed var(--user-sidebar-border);
     border-radius: 10px;
@@ -421,6 +435,18 @@ const clearSearch = () => {
       background-color: var(--user-sidebar-hover-bg);
       border-style: solid;
       border-color: var(--user-sidebar-text-muted);
+    }
+
+    &.dashboard-btn {
+      font-weight: 500;
+      font-size: 13px;
+      height: 38px;
+
+      &.active {
+        background-color: rgba(64, 158, 255, 0.08);
+        border: 1px solid var(--el-color-primary);
+        color: var(--el-color-primary);
+      }
     }
   }
 }
