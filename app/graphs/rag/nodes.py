@@ -234,7 +234,9 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 참고 문서:
 {context}
 
-위 문서를 참고하여 질문에 답변해주세요."""
+위 문서를 참고하여 질문에 마크다운 형식으로 답변해주세요.
+- 절차/단계가 있으면 번호 목록으로, 비교 항목이 있으면 표로 정리하세요.
+- 답변 끝에 참고한 문서의 제목을 《》로 감싸 표기하세요."""
 
     messages = [
         SystemMessage(content=system_prompt),
