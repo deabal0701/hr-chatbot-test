@@ -94,8 +94,7 @@ class HybridSearchEngine:
         rrf_k = int(sc.get_value("rag", "hybrid_rrf_k", 60))
         fetch_k = top_k * fetch_k_factor
 
-        log_step(logger, request_id, "RAG", "1", "RETRIEVE", "하이브리드 검색 시작",
-                 vector_query=vector_query[:40], keyword_query=keyword_query[:40], fetch_k=fetch_k)
+        log_step(logger, request_id, "RAG", "1", "RETRIEVE", "하이브리드 검색 시작", vector_query=vector_query[:40], keyword_query=keyword_query[:40], fetch_k=fetch_k)
 
         # 벡터 검색
         vector_docs = vs.search_similar_documents(
@@ -107,11 +106,9 @@ class HybridSearchEngine:
         try:
             keyword_docs = vs.search_by_keyword(keyword_query, fetch_k, filters, tenant_id)
         except Exception as e:
-            log_step(logger, request_id, "RAG", "1", "RETRIEVE",
-                     f"키워드 검색 실패 → 벡터 결과만 사용: {e}", level="WARNING")
+            log_step(logger, request_id, "RAG", "1", "RETRIEVE", f"키워드 검색 실패 → 벡터 결과만 사용: {e}", level="WARNING")
 
-        log_step(logger, request_id, "RAG", "1", "RETRIEVE", "RRF 병합",
-                 vector_docs=len(vector_docs), keyword_docs=len(keyword_docs), top_k=top_k)
+        log_step(logger, request_id, "RAG", "1", "RETRIEVE", "RRF 병합", vector_docs=len(vector_docs), keyword_docs=len(keyword_docs), top_k=top_k)
 
         return self._rrf_merge(vector_docs, keyword_docs, top_k, rrf_k)
 
