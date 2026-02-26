@@ -5,16 +5,18 @@
       :edit-mode="editMode"
       :widget-count="widgetCount"
       :dashboard-theme="dashboardTheme"
+      :exporting="exporting"
       @edit="handleEnterEdit"
       @cancel="handleCancelEdit"
       @save="handleSaveEdit"
       @refresh-all="handleRefreshAll"
       @go-chat="goToChat"
       @toggle-theme="handleToggleTheme"
+      @export-pdf="handleExportPdf"
     />
 
     <!-- 메인 영역 -->
-    <div class="dashboard-content">
+    <div ref="dashboardContentRef" class="dashboard-content">
       <!-- 빈 상태 -->
       <DashboardEmptyState
         v-if="!isLoading && widgetCount === 0"
@@ -59,6 +61,7 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { exportElementPdf, sanitizeFilename, formatTimestamp } from '@/utils/exportUtils'
 import DashboardToolbar from '@/components/dashboard-personal/DashboardToolbar.vue'
 import DashboardEmptyState from '@/components/dashboard-personal/DashboardEmptyState.vue'
 import DashboardGrid from '@/components/dashboard-personal/DashboardGrid.vue'
@@ -73,6 +76,8 @@ const showEditModal = ref(false)
 const showAddModal = ref(false)
 const editingWidget = ref(null)
 const windowWidth = ref(window.innerWidth)
+const dashboardContentRef = ref(null)
+const exporting = ref(false)
 
 // 반응형
 const isMobile = computed(() => windowWidth.value <= 768)
@@ -138,6 +143,21 @@ const handleWidgetSaved = () => { /* 모달에서 저장 완료 후 콜백 */ }
 const handleToggleTheme = () => {
   const cycle = { auto: 'light', light: 'dark', dark: 'auto' }
   store.dispatch('dashboard/setDashboardTheme', cycle[dashboardTheme.value] || 'auto')
+}
+
+// PDF 내보내기
+const handleExportPdf = async () => {
+  if (!dashboardContentRef.value) return
+  exporting.value = true
+  try {
+    const filename = `BI_대시보드_${formatTimestamp()}.pdf`
+    await exportElementPdf(dashboardContentRef.value, 'BI 대시보드', filename)
+    ElMessage.success('PDF가 저장되었습니다')
+  } catch {
+    ElMessage.error('PDF 내보내기에 실패했습니다')
+  } finally {
+    exporting.value = false
+  }
 }
 
 // 네비게이션

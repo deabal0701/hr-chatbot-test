@@ -13,6 +13,8 @@
     "axios": "^1.6.2",
     "echarts": "^6.0.0",
     "element-plus": "^2.4.4",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.0",
     "vue": "^3.3.13",
     "vue-echarts": "^8.0.1",
     "vue-router": "^4.2.5",
