@@ -15,6 +15,9 @@
         <span v-if="source.similarity_score && !source.vector_score && !source.keyword_score" class="similarity-score">
           {{ (source.similarity_score * 100).toFixed(1) }}%
         </span>
+        <span v-if="source.rrf_score" class="score-rrf-label">
+          (RRF {{ (source.rrf_score * 100).toFixed(2) }}%)
+        </span>
       </div>
     </div>
     <div class="source-snippet">
@@ -39,6 +42,9 @@
     <div class="source-detail">
       <div class="detail-meta">
         <el-tag type="info" effect="plain">{{ source.doc_type }}</el-tag>
+        <span v-if="source.rrf_score" class="similarity similarity-rrf">
+          RRF: {{ (source.rrf_score * 100).toFixed(2) }}%
+        </span>
         <span v-if="source.vector_score" class="similarity similarity-vector">
           벡터: {{ (source.vector_score * 100).toFixed(1) }}%
         </span>
@@ -169,6 +175,12 @@ const copyContent = async () => {
     border-radius: 3px;
   }
 
+  .score-rrf-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #e6a23c;
+  }
+
   .score-vector {
     color: #67c23a;
     background-color: rgba(103, 194, 58, 0.1);
@@ -196,6 +208,10 @@ const copyContent = async () => {
     .similarity {
       font-size: 14px;
       color: #67c23a;
+    }
+
+    .similarity-rrf {
+      color: #e6a23c;
     }
 
     .similarity-vector {

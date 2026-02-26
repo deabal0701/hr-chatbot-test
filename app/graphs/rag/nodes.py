@@ -248,6 +248,7 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     log_step(logger, request_id, "RAG", "3b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
 
     if logger.isEnabledFor(logging.DEBUG):
+        log_step(logger, request_id, "RAG", "3b", "LLM-INPUT", "SYSTEM_PROMPT", level="DEBUG", content=system_prompt)
         log_step(logger, request_id, "RAG", "3b", "LLM-INPUT", "USER_PROMPT", level="DEBUG", content=user_prompt)
         log_step(logger, request_id, "RAG", "3b", "LLM-INPUT", "CONTEXT", level="DEBUG", content=context)
 

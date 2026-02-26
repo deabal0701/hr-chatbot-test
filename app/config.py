@@ -108,8 +108,8 @@ class Settings(BaseSettings):
     @field_validator("llm_provider")
     @classmethod
     def validate_llm_provider(cls, v: str) -> str:
-        # Phase 3: OpenAI + Anthropic + Google
-        valid_providers = ["openai", "anthropic", "google"]
+        # Phase 3: OpenAI + Anthropic + Google (genai) / Google Vertex
+        valid_providers = ["openai", "anthropic", "google", "google_vertex"]
         v = v.lower()
         if v not in valid_providers:
             raise ValueError(f"llm_provider must be one of {valid_providers}")

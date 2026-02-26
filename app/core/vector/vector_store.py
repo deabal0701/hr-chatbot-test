@@ -17,6 +17,7 @@ import logging
 
 import numpy as np
 import psycopg
+from psycopg import sql as psql
 from langchain_openai import OpenAIEmbeddings
 
 from app.config import settings
@@ -95,7 +96,8 @@ class VectorStoreService:
         model = self.embedding_model
         return OpenAIEmbeddings(
             model=model,
-            openai_api_key=api_key
+            openai_api_key=api_key,
+            dimensions=int(self.embedding_dimension)
         )
 
     @property
@@ -306,7 +308,7 @@ class VectorStoreService:
                    ) AS keyword_score
             FROM tb_docs
             {where_clause}
-            ORDER BY keyword_score DESC
+            ORDER BY keyword_score DESC, id ASC
             LIMIT %s
         """
         # 파라미터: (kw, kw) + filter_params[%%> 포함] + (top_k,)
@@ -315,7 +317,10 @@ class VectorStoreService:
         db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
             # SET LOCAL: 현재 트랜잭션 내에서 pg_trgm 임계값 동적 적용 (%%> 연산자에 반영)
-            cur.execute("SET LOCAL pg_trgm.word_similarity_threshold = %s", (threshold,))
+            # SET 명령어는 파라미터 바인딩($1) 미지원 → sql.Literal로 float 값 삽입
+            cur.execute(psql.SQL("SET LOCAL pg_trgm.word_similarity_threshold = {}").format(
+                psql.Literal(threshold)
+            ))
             cur.execute(query_sql, query_params)
             rows = cur.fetchall()
 

@@ -274,6 +274,7 @@
                     style="width: 100%"
                     @change="onEmbeddingModelChange"
                     :loading="embeddingModelsLoading"
+                    disabled
                   >
                     <el-option
                       v-for="model in embeddingModels"
@@ -283,7 +284,7 @@
                     />
                   </el-select>
                   <div class="form-help">
-                    문서 임베딩에 사용할 OpenAI 모델을 선택하세요
+                    문서 임베딩에 사용할 OpenAI 모델을 선택하세요 (현재 DB: text-embedding-3-large 고정)
                   </div>
                 </el-form-item>
 
@@ -297,7 +298,7 @@
                     disabled
                   />
                   <div class="form-help">
-                    모델에 따라 자동 설정됩니다. (현재 DB: 1536 고정)
+                    모델에 따라 자동 설정됩니다. (현재 DB: 3072 고정)
                   </div>
                 </el-form-item>
               </div>

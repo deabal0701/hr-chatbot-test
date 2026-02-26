@@ -26,6 +26,7 @@ class DocumentSource(BaseModel):
     similarity_score: Optional[float] = None   # 최종 표시 유사도 (벡터 우선)
     vector_score: Optional[float] = None       # 벡터 코사인 유사도
     keyword_score: Optional[float] = None      # pg_trgm 키워드 유사도
+    rrf_score: Optional[float] = None          # RRF 융합 점수 (하이브리드 검색 시)
     context_data: Optional[str] = None  # 임베딩 제외 컨텍스트 (SQL, 패턴 등)
 
 

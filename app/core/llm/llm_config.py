@@ -37,6 +37,7 @@ class LLMConfigManager:
         "openai": "gpt-5-nano",  # 비용 효율적인 기본값(가장 싼걸로..)
         "anthropic": "claude-3-5-sonnet-20241022",
         "google_genai": "gemini-3-flash-preview",
+        "google_vertexai": "gemini-3-flash-preview",  # Vertex Express API (api_type=vertex)
     }
 
     # Gemini 지원 모델 (2.0 이상)
@@ -62,7 +63,7 @@ class LLMConfigManager:
         제공자별 API 키 가져오기
 
         Args:
-            provider: 제공자명 ('openai' | 'anthropic' | 'google_genai')
+            provider: 제공자명 ('openai' | 'anthropic' | 'google_genai' | 'google_vertexai')
 
         Returns:
             API 키
@@ -85,7 +86,9 @@ class LLMConfigManager:
                     "Admin UI에서 'anthropic.api_key'를 설정하거나 "
                     ".env에 ANTHROPIC_API_KEY를 추가하세요."
                 )
-        elif provider == "google_genai":
+        elif provider in ("google_genai", "google_vertexai"):
+            # google_genai: Google AI Studio API Key
+            # google_vertexai: Vertex Express API Key (동일한 google.api_key 사용)
             api_key = settings_service.get_value(
                 "google", "api_key",
                 getattr(settings, "google_api_key", None)
@@ -158,12 +161,16 @@ class LLMConfigManager:
         if provider is None:
             provider = settings_service.get_value("llm", "provider", settings.llm_provider)
 
-        # Provider 정규화: 프론트엔드 'google' → init_chat_model 'google_genai'
+        # Provider 정규화:
+        #   "google"        → "google_genai"   (Gemini API, 하위 호환 shorthand)
+        #   "google_vertex" → "google_vertexai" (Vertex Express API Key 방식)
         if provider == "google":
             provider = "google_genai"
+        elif provider == "google_vertex":
+            provider = "google_vertexai"
 
-        # Provider 검증 (Phase 3: openai, anthropic, google_genai 허용)
-        if provider not in ["openai", "anthropic", "google_genai"]:
+        # Provider 검증
+        if provider not in ["openai", "anthropic", "google_genai", "google_vertexai"]:
             logger.warning(f"지원하지 않는 provider='{provider}'. 'openai'로 fallback")
             provider = "openai"
 
