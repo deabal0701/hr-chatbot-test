@@ -5,9 +5,17 @@
         {{ source.doc_type }}
       </el-tag>
       <span class="source-title">{{ source.title }}</span>
-      <span v-if="source.similarity_score" class="similarity-score">
-        {{ (source.similarity_score * 100).toFixed(1) }}%
-      </span>
+      <div class="score-right">
+        <span v-if="source.vector_score" class="score-item score-vector">
+          V {{ (source.vector_score * 100).toFixed(1) }}%
+        </span>
+        <span v-if="source.keyword_score" class="score-item score-keyword">
+          K {{ (source.keyword_score * 100).toFixed(1) }}%
+        </span>
+        <span v-if="source.similarity_score && !source.vector_score && !source.keyword_score" class="similarity-score">
+          {{ (source.similarity_score * 100).toFixed(1) }}%
+        </span>
+      </div>
     </div>
     <div class="source-snippet">
       {{ truncate(source.content_snippet, 150) }}
@@ -31,7 +39,13 @@
     <div class="source-detail">
       <div class="detail-meta">
         <el-tag type="info" effect="plain">{{ source.doc_type }}</el-tag>
-        <span v-if="source.similarity_score" class="similarity">
+        <span v-if="source.vector_score" class="similarity similarity-vector">
+          벡터: {{ (source.vector_score * 100).toFixed(1) }}%
+        </span>
+        <span v-if="source.keyword_score" class="similarity similarity-keyword">
+          키워드: {{ (source.keyword_score * 100).toFixed(1) }}%
+        </span>
+        <span v-if="source.similarity_score && !source.vector_score && !source.keyword_score" class="similarity">
           유사도: {{ (source.similarity_score * 100).toFixed(1) }}%
         </span>
       </div>
@@ -142,6 +156,30 @@ const copyContent = async () => {
   }
 }
 
+.score-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  .score-item {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .score-vector {
+    color: #67c23a;
+    background-color: rgba(103, 194, 58, 0.1);
+  }
+
+  .score-keyword {
+    color: #409eff;
+    background-color: rgba(64, 158, 255, 0.1);
+  }
+}
+
 .source-snippet {
   font-size: 12px;
   color: var(--text-color-regular);
@@ -158,6 +196,14 @@ const copyContent = async () => {
     .similarity {
       font-size: 14px;
       color: #67c23a;
+    }
+
+    .similarity-vector {
+      color: #67c23a;
+    }
+
+    .similarity-keyword {
+      color: #409eff;
     }
   }
 

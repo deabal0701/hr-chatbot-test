@@ -2,9 +2,14 @@
   <div class="sidebar-container">
     <!-- 로고 -->
     <div class="sidebar-logo" :class="{ collapsed: isCollapsed }">
-      <el-icon :size="28" color="#409eff">
-        <ChatDotRound />
-      </el-icon>
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          <path d="M8 10h.01"></path>
+          <path d="M12 10h.01"></path>
+          <path d="M16 10h.01"></path>
+        </svg>
+      </div>
       <span v-if="!isCollapsed" class="logo-text">MUREUM</span>
     </div>
 
@@ -61,8 +66,6 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
-import { ChatDotRound } from '@element-plus/icons-vue'
-
 const route = useRoute()
 const store = useStore()
 
@@ -169,6 +172,28 @@ const menuActiveColor = '#409eff'
 
   &.collapsed {
     padding: 0;
+
+    .logo-icon {
+      margin: 0;
+    }
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background-color: var(--icon-bg, #333333);
+    border: 1px solid var(--icon-bg-border, #555555);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--icon-color, #ffffff);
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
   }
 
   .logo-text {

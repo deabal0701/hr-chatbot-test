@@ -23,7 +23,9 @@ class DocumentSource(BaseModel):
     content: str  # RAG 전체 내용 (LLM에 전달)
     content_snippet: str  # 미리보기용 스니펫 (API 응답, UI 표시)
     metadata: Dict[str, Any]
-    similarity_score: Optional[float] = None
+    similarity_score: Optional[float] = None   # 최종 표시 유사도 (벡터 우선)
+    vector_score: Optional[float] = None       # 벡터 코사인 유사도
+    keyword_score: Optional[float] = None      # pg_trgm 키워드 유사도
     context_data: Optional[str] = None  # 임베딩 제외 컨텍스트 (SQL, 패턴 등)
 
 

@@ -6,9 +6,14 @@
       <div ref="messagesContainer" class="chat-messages">
         <!-- 환영 메시지 -->
         <div v-if="messages.length === 0" class="welcome-message">
-          <el-icon :size="48" color="#409eff">
-            <ChatDotRound />
-          </el-icon>
+          <div class="welcome-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              <path d="M8 10h.01"></path>
+              <path d="M12 10h.01"></path>
+              <path d="M16 10h.01"></path>
+            </svg>
+          </div>
           <h3>MUREUM에 오신 것을 환영합니다</h3>
           <p>문서 기반 질문을 자유롭게 해주세요.</p>
           <div class="example-queries">
@@ -153,7 +158,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { ChatDotRound, Loading, Delete, Monitor, QuestionFilled } from '@element-plus/icons-vue'
+import { Loading, Delete, Monitor } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
@@ -318,6 +323,21 @@ watch(messages, async () => {
   text-align: center;
   padding: 60px 20px;
   color: var(--text-color-regular);
+
+  .welcome-icon {
+    width: 84px;
+    height: 84px;
+    border-radius: 24px;
+    background-color: var(--icon-bg, #333333);
+    border: 2px solid var(--icon-bg-border, #555555);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 28px;
+    color: var(--icon-color, #ffffff);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    transform: rotate(-5deg);
+  }
 
   h3 {
     margin: 20px 0 10px;

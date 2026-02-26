@@ -356,6 +356,147 @@
                   <div class="form-help">LLM에 전달할 최대 컨텍스트 길이 (문자)</div>
                 </el-form-item>
               </div>
+
+              <el-divider />
+
+              <!-- 섹션 4: 하이브리드 검색 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Connection /></el-icon>
+                  4단계: 하이브리드 검색 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                  <el-tag v-if="formData.rag.search_mode === 'vector'" size="small" type="warning">키워드 검색 비활성</el-tag>
+                </h4>
+                <p class="section-desc">벡터 검색과 키워드 검색(pg_trgm)을 결합하여 검색 정확도를 높입니다.</p>
+
+                <el-form-item label="검색 모드">
+                  <el-select v-model="formData.rag.search_mode" style="width: 100%">
+                    <el-option label="hybrid - 벡터 + 키워드 RRF 병합 (권장)" value="hybrid" />
+                    <el-option label="vector - 벡터 검색 전용" value="vector" />
+                  </el-select>
+                  <div class="form-help">hybrid: 벡터+pg_trgm 결과를 RRF로 병합 / vector: 벡터 전용</div>
+                </el-form-item>
+
+                <!-- hybrid 모드일 때만 표시 -->
+                <template v-if="formData.rag.search_mode === 'hybrid'">
+                  <el-form-item label="키워드 추출 방식">
+                    <el-select v-model="formData.rag.keyword_extraction" style="width: 100%">
+                      <el-option label="rule - 조사·어미 제거 후 pg_trgm 검색 (권장)" value="rule" />
+                      <el-option label="none - 원본 질의 그대로 사용" value="none" />
+                    </el-select>
+                    <div class="form-help">rule: '재택근무 정책은?' → '재택근무 정책' 추출 후 검색</div>
+                  </el-form-item>
+
+                  <el-form-item label="Doc ID 직접 조회">
+                    <el-switch v-model="formData.rag.direct_lookup_enabled" />
+                    <span class="switch-label">{{ formData.rag.direct_lookup_enabled ? '활성화' : '비활성화' }}</span>
+                    <div class="form-help">HR-001, POL-023 같은 문서 ID 패턴 감지 시 벡터 검색 없이 직접 조회</div>
+                  </el-form-item>
+
+                  <el-form-item label="키워드 유사도 임계값">
+                    <el-slider
+                      v-model="formData.rag.trgm_word_sim_threshold"
+                      :min="0.0"
+                      :max="1.0"
+                      :step="0.05"
+                      show-input
+                      style="width: 100%"
+                    />
+                    <div class="form-help">pg_trgm word_similarity 최소값 (낮을수록 더 많은 문서 포함, 기본값 0.1)</div>
+                  </el-form-item>
+
+                  <el-form-item label="RRF 후보 수 배수">
+                    <el-input-number
+                      v-model="formData.rag.hybrid_fetch_k_factor"
+                      :min="1"
+                      :max="5"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">각 검색 후보 수 = top_k × 배수 (기본값 2: top_k=5이면 각 10개 수집)</div>
+                  </el-form-item>
+
+                  <el-form-item label="RRF 상수 k">
+                    <el-input-number
+                      v-model="formData.rag.hybrid_rrf_k"
+                      :min="10"
+                      :max="200"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">RRF 점수 = 1/(k + 순위). 기본값 60 (논문·산업 표준, 변경 불필요)</div>
+                  </el-form-item>
+                </template>
+              </div>
+
+              <el-divider />
+
+              <!-- 섹션 5: 리랭커 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><Sort /></el-icon>
+                  5단계: 리랭커 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                  <el-tag v-if="formData.rag.reranker_mode === 'none'" size="small" type="info">현재 비활성</el-tag>
+                </h4>
+                <p class="section-desc">검색된 문서를 LLM 또는 CrossEncoder로 재평가하여 최종 순서를 정합니다.</p>
+
+                <el-form-item label="리랭커 모드">
+                  <el-select v-model="formData.rag.reranker_mode" style="width: 100%">
+                    <el-option label="none - 사용 안 함 (기본값)" value="none" />
+                    <el-option label="llm - LLM으로 관련도 재평가" value="llm" />
+                    <el-option label="cross_encoder - 전용 모델 사용" value="cross_encoder" />
+                  </el-select>
+                  <div class="form-help">none: passthrough (순위 변경 없음)</div>
+                </el-form-item>
+
+                <!-- LLM 모드일 때만 표시 -->
+                <template v-if="formData.rag.reranker_mode === 'llm'">
+                  <el-form-item label="LLM 리랭커 모델">
+                    <el-select
+                      v-model="formData.rag.reranker_llm_model"
+                      style="width: 100%"
+                      filterable
+                      allow-create
+                      :loading="llmModelsLoading"
+                      placeholder="모델을 선택하거나 직접 입력"
+                    >
+                      <el-option
+                        v-for="model in llmModelsOpenAI"
+                        :key="model.code_value"
+                        :label="model.code_name"
+                        :value="model.code_value"
+                      />
+                    </el-select>
+                    <div class="form-help">관련도 평가용 LLM (저가 모델 권장). 코드 관리 &gt; LLM_MODEL_OPENAI에서 목록 관리</div>
+                  </el-form-item>
+                </template>
+
+                <!-- CrossEncoder 모드일 때만 표시 -->
+                <template v-if="formData.rag.reranker_mode === 'cross_encoder'">
+                  <el-form-item label="Cross-Encoder 모델">
+                    <el-input
+                      v-model="formData.rag.reranker_ce_model"
+                      placeholder="BAAI/bge-reranker-v2-m3"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">
+                      HuggingFace 모델명 직접 입력. 최초 실행 시 자동 다운로드 (미구현, 추후 적용 예정).<br/>
+                      BAAI/bge-reranker-v2-m3 (다국어+한국어, ~568MB) 권장
+                    </div>
+                  </el-form-item>
+                </template>
+
+                <template v-if="formData.rag.reranker_mode !== 'none'">
+                  <el-form-item label="리랭킹 후 문서 수">
+                    <el-input-number
+                      v-model="formData.rag.reranker_top_n"
+                      :min="1"
+                      :max="20"
+                      style="width: 100%"
+                    />
+                    <div class="form-help">리랭킹 후 최종 답변 생성에 사용할 문서 수 (top_k 이하 권장)</div>
+                  </el-form-item>
+                </template>
+              </div>
             </el-form>
           </div>
         </el-tab-pane>
@@ -1148,7 +1289,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock, List } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock, List, Sort } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 import usersApi from '@/api/users'
@@ -1260,10 +1401,22 @@ const formData = reactive({
     reasoning_effort: 'medium'
   },
   rag: {
-    top_k: 10,
+    top_k: 5,
     distance_metric: 'cosine',
-    similarity_threshold: 0.7,
-    max_context_length: 4000
+    similarity_threshold: 0.35,
+    max_context_length: 4000,
+    // 하이브리드 검색
+    search_mode: 'hybrid',
+    keyword_extraction: 'rule',
+    direct_lookup_enabled: true,
+    trgm_word_sim_threshold: 0.1,
+    hybrid_fetch_k_factor: 2,
+    hybrid_rrf_k: 60,
+    // 리랭커
+    reranker_mode: 'none',
+    reranker_top_n: 5,
+    reranker_llm_model: 'gpt-4.1-mini',
+    reranker_ce_model: 'BAAI/bge-reranker-v2-m3'
   },
   nl2sql: {
     // 기본 실행 설정
@@ -1418,10 +1571,12 @@ const loadSettings = async () => {
 const parseValue = (value, valueType) => {
   switch (valueType) {
     case 'int':
+    case 'integer':
       return parseInt(value, 10)
     case 'float':
       return parseFloat(value)
     case 'bool':
+    case 'boolean':
       return value === 'true' || value === true
     case 'json':
       // JSON은 문자열 그대로 유지 (textarea에서 편집)

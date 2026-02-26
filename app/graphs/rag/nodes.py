@@ -101,7 +101,7 @@ def query_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     sc = _get_settings_config()
 
     # Doc ID 패턴 감지
-    direct_lookup_enabled = sc.get_value("rag", "direct_lookup_enabled", "true") == "true"
+    direct_lookup_enabled = sc.get_value("rag", "direct_lookup_enabled", True)
     doc_pattern = None
     search_type = "normal"
 
@@ -152,7 +152,7 @@ def retrieve_documents_node(state: Dict[str, Any]) -> Dict[str, Any]:
     request_id = state.get("request_id", "unknown")
 
     rag_settings = LLMConfigManager.get_rag_settings()
-    top_k = state.get("top_k") or rag_settings["top_k"]
+    top_k = state["top_k"]
     similarity_threshold = rag_settings["similarity_threshold"]
 
     filters = SearchFilters(**filters_dict) if filters_dict else None
@@ -241,9 +241,9 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         HumanMessage(content=user_prompt)
     ]
 
-    llm = _get_llm()
     settings_config = _get_settings_config()
     llm_model = settings_config.get_value("llm", "model", settings.llm_model)
+    llm = _get_llm()
 
     log_step(logger, request_id, "RAG", "3b", "LLM-INPUT", "LLM 호출 시작", model=llm_model, system_prompt_length=len(system_prompt), user_prompt_length=len(user_prompt), context_length=len(context))
 

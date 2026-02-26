@@ -138,6 +138,46 @@ class VectorStoreService:
             raise
 
     # ============================================
+    # 공통 필터 헬퍼
+    # ============================================
+
+    def _build_filter_conditions(
+        self,
+        filters: Optional[SearchFilters],
+        tenant_id: Optional[str],
+    ):
+        """공통 WHERE 조건 구성 (tenant, usage_type, doc_type, language, department)
+
+        Returns:
+            (conditions: List[str], params: List) — WHERE 절 구성용
+        """
+        conditions = []
+        params = []
+
+        if tenant_id:
+            conditions.append("tenant_id = %s")
+            params.append(tenant_id)
+
+        usage_type = "rag_knowledge"
+        if filters and filters.usage_type:
+            usage_type = filters.usage_type
+        conditions.append("usage_type = %s")
+        params.append(usage_type)
+
+        if filters:
+            if filters.doc_type:
+                conditions.append("doc_type = %s")
+                params.append(filters.doc_type)
+            if filters.language:
+                conditions.append("language = %s")
+                params.append(filters.language)
+            if filters.department:
+                conditions.append("metadata->>'department' = %s")
+                params.append(filters.department)
+
+        return conditions, params
+
+    # ============================================
     # 벡터 검색
     # ============================================
 
@@ -148,33 +188,7 @@ class VectorStoreService:
         query_embedding_array = np.array(query_embedding)
 
         # 필터 조건 구성
-        filter_conditions = []
-        filter_params = []
-
-        # 테넌트 격리 필터 (Phase 3: 자기 테넌트 문서만 검색)
-        if tenant_id:
-            filter_conditions.append("tenant_id = %s")
-            filter_params.append(tenant_id)
-
-        # usage_type 필터 (기본값: 'rag_knowledge' - Action 문서 제외)
-        usage_type = "rag_knowledge"
-        if filters and filters.usage_type:
-            usage_type = filters.usage_type
-        filter_conditions.append("usage_type = %s")
-        filter_params.append(usage_type)
-
-        if filters:
-            if filters.doc_type:
-                filter_conditions.append("doc_type = %s")
-                filter_params.append(filters.doc_type)
-
-            if filters.language:
-                filter_conditions.append("language = %s")
-                filter_params.append(filters.language)
-
-            if filters.department and filters.department in ['개발', '기획', 'HR', '마케팅']:
-                filter_conditions.append("metadata->>'department' = %s")
-                filter_params.append(filters.department)
+        filter_conditions, filter_params = self._build_filter_conditions(filters, tenant_id)
 
         where_clause = ""
         if filter_conditions:
@@ -248,6 +262,7 @@ class VectorStoreService:
                     content_snippet=snippet,
                     metadata=row.get('metadata', {}),
                     similarity_score=round(similarity, 4),
+                    vector_score=round(similarity, 4),
                     context_data=row.get('context_data')
                 )
                 documents.append(doc)
@@ -272,35 +287,17 @@ class VectorStoreService:
 
         주의: SQL 내 %> 연산자는 psycopg3 파라미터(%s) 충돌 방지를 위해 %%>로 작성.
         """
-        filter_conditions = []
-        filter_params = []
+        filter_conditions, filter_params = self._build_filter_conditions(filters, tenant_id)
 
-        if tenant_id:
-            filter_conditions.append("tenant_id = %s")
-            filter_params.append(tenant_id)
+        # %%> 조건을 filter_conditions에 포함 → WHERE 절이 항상 올바른 구조 유지
+        # %%> : psycopg3에서 % 리터럴은 %%로 이스케이프 → 실제 SQL: %> (pg_trgm 연산자)
+        filter_conditions.append("(title %%> %s OR content %%> %s)")
+        filter_params.extend([keyword_query, keyword_query])
 
-        usage_type = "rag_knowledge"
-        if filters and filters.usage_type:
-            usage_type = filters.usage_type
-        filter_conditions.append("usage_type = %s")
-        filter_params.append(usage_type)
+        where_clause = "WHERE " + " AND ".join(filter_conditions)
 
-        if filters:
-            if filters.doc_type:
-                filter_conditions.append("doc_type = %s")
-                filter_params.append(filters.doc_type)
-            if filters.language:
-                filter_conditions.append("language = %s")
-                filter_params.append(filters.language)
-            if filters.department and filters.department in ['개발', '기획', 'HR', '마케팅']:
-                filter_conditions.append("metadata->>'department' = %s")
-                filter_params.append(filters.department)
+        threshold = float(_get_settings_service().get_value("rag", "trgm_word_sim_threshold", 0.1))
 
-        where_clause = ("WHERE " + " AND ".join(filter_conditions)) if filter_conditions else ""
-
-        threshold = _get_settings_service().get_value("rag", "trgm_word_sim_threshold", 0.1)
-
-        # %%> : psycopg3에서 % 리터럴은 %%로 이스케이프
         query_sql = f"""
             SELECT id, title, doc_type, content, context_data, metadata, language,
                    GREATEST(
@@ -309,23 +306,22 @@ class VectorStoreService:
                    ) AS keyword_score
             FROM tb_docs
             {where_clause}
-              AND (title %%> %s OR content %%> %s)
             ORDER BY keyword_score DESC
             LIMIT %s
         """
-        # 파라미터: (kw, kw) + filter_params + (kw, kw, top_k)
-        query_params = [keyword_query, keyword_query] + filter_params + [keyword_query, keyword_query, top_k]
+        # 파라미터: (kw, kw) + filter_params[%%> 포함] + (top_k,)
+        query_params = [keyword_query, keyword_query] + filter_params + [top_k]
 
         db_manager = _get_db_manager()
         with db_manager.get_cursor() as cur:
+            # SET LOCAL: 현재 트랜잭션 내에서 pg_trgm 임계값 동적 적용 (%%> 연산자에 반영)
+            cur.execute("SET LOCAL pg_trgm.word_similarity_threshold = %s", (threshold,))
             cur.execute(query_sql, query_params)
             rows = cur.fetchall()
 
             documents = []
             for row in rows:
                 keyword_score = float(row.get('keyword_score') or 0.0)
-                if keyword_score < threshold:
-                    continue
                 logger.debug(f"키워드 문서 ID={row['id']}, title='{truncate_text(row['title'], 30)}...', keyword_score={keyword_score:.4f}")
                 content = row.get('content', '')
                 snippet = self._create_snippet(content)
@@ -337,6 +333,7 @@ class VectorStoreService:
                     content_snippet=snippet,
                     metadata=row.get('metadata', {}),
                     similarity_score=round(keyword_score, 4),
+                    keyword_score=round(keyword_score, 4),
                     context_data=row.get('context_data'),
                 )
                 documents.append(doc)
@@ -352,23 +349,7 @@ class VectorStoreService:
         limit: int = 10,
     ) -> List[DocumentSource]:
         """Doc ID 패턴으로 직접 조회 (title ILIKE 또는 metadata doc_id)"""
-        filter_conditions = []
-        filter_params = []
-
-        if tenant_id:
-            filter_conditions.append("tenant_id = %s")
-            filter_params.append(tenant_id)
-
-        usage_type = "rag_knowledge"
-        if filters and filters.usage_type:
-            usage_type = filters.usage_type
-        filter_conditions.append("usage_type = %s")
-        filter_params.append(usage_type)
-
-        if filters:
-            if filters.doc_type:
-                filter_conditions.append("doc_type = %s")
-                filter_params.append(filters.doc_type)
+        filter_conditions, filter_params = self._build_filter_conditions(filters, tenant_id)
 
         pattern_param = f"%{pattern}%"
         filter_conditions.append("(title ILIKE %s OR metadata->>'doc_id' ILIKE %s)")
@@ -408,29 +389,6 @@ class VectorStoreService:
 
             logger.debug(f"패턴 직접 조회 완료: pattern='{pattern}', found={len(documents)}")
             return documents
-
-    # ============================================
-    # 문서 삽입 (임베딩 포함)
-    # ============================================
-
-    def insert_document(self, title: str, doc_type: str, content: str, language: str = "ko", metadata: Optional[Dict[str, Any]] = None) -> int:
-        """문서 삽입 (임베딩 포함)"""
-        embedding = self.embed_text(content)
-        embedding_array = np.array(embedding)
-
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("""
-                INSERT INTO tb_docs (title, doc_type, language, content, metadata, embedding, embedding_model, indexed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (title, doc_type, language, content, psycopg.types.json.Json(metadata or {}), embedding_array, self.embedding_model, True))
-
-            result = cur.fetchone()
-            doc_id = result['id']
-
-            logger.info(f"문서 삽입 완료: ID={doc_id}, title='{title}'")
-            return doc_id
 
     def update_document_embedding(self, doc_id: int, content: str) -> bool:
         """문서 임베딩 업데이트"""

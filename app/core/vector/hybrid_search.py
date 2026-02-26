@@ -130,6 +130,7 @@ class HybridSearchEngine:
         """
         scores: Dict[int, float] = {}
         doc_map: Dict[int, DocumentSource] = {}
+        kw_doc_map: Dict[int, DocumentSource] = {}
 
         for rank, doc in enumerate(vector_docs, 1):
             scores[doc.id] = scores.get(doc.id, 0.0) + 1.0 / (rrf_k + rank)
@@ -137,15 +138,23 @@ class HybridSearchEngine:
 
         for rank, doc in enumerate(keyword_docs, 1):
             scores[doc.id] = scores.get(doc.id, 0.0) + 1.0 / (rrf_k + rank)
+            kw_doc_map[doc.id] = doc
             if doc.id not in doc_map:
                 doc_map[doc.id] = doc
 
         sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)[:top_k]
 
-        # RRF는 정렬(순서 결정)에만 사용, similarity_score는 원본 벡터 유사도 유지
+        # RRF는 정렬에만 사용, vector_score/keyword_score 각각 보존하여 반환
         result = []
         for doc_id in sorted_ids:
-            result.append(doc_map[doc_id])
+            doc = doc_map[doc_id]
+            kw_score = kw_doc_map[doc_id].keyword_score if doc_id in kw_doc_map else None
+            # 최종 유사도: 벡터 코사인 유사도 우선, 키워드 전용 결과는 키워드 점수 사용
+            final_score = doc.vector_score if doc.vector_score is not None else kw_score
+            result.append(doc.model_copy(update={
+                "keyword_score": kw_score,
+                "similarity_score": final_score,
+            }))
 
         return result
 
