@@ -27,7 +27,7 @@ const routes = [
     path: '/dashboard',
     name: 'PersonalDashboard',
     component: () => import('@/views/user/PersonalDashboardView.vue'),
-    meta: { title: '나의 대시보드' }
+    meta: { title: '나의 대시보드', requiresAuth: true }
   },
 
   // 관리자 라우트

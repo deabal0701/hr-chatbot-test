@@ -236,6 +236,7 @@ const loadSessions = async () => {
       s.request_type === 'nl2sql' || s.request_type === 'agent'
     )
   } catch (error) {
+    console.error('[AddWidget] Failed to load sessions:', error)
     sessionList.value = []
   } finally {
     isLoadingSessions.value = false

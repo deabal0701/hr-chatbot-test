@@ -195,7 +195,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
-import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, Sunny, Moon, QuestionFilled } from '@element-plus/icons-vue'
+import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, QuestionFilled } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 

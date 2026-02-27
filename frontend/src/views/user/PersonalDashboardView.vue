@@ -138,7 +138,7 @@ const handleDeleteWidget = async (widgetId) => {
 
 const handleRefreshWidget = (widgetId) => { store.dispatch('dashboard/refreshWidget', widgetId) }
 const handleRefreshAll = () => { store.dispatch('dashboard/refreshAllWidgets') }
-const handleWidgetSaved = () => { /* 모달에서 저장 완료 후 콜백 */ }
+const handleWidgetSaved = () => { store.dispatch('dashboard/fetchWidgets') }
 
 // 테마 토글 (auto → light → dark → auto)
 const handleToggleTheme = () => {
@@ -154,7 +154,8 @@ const handleExportPng = async () => {
     const filename = `BI_대시보드_${formatTimestamp()}.png`
     await captureElementPng(dashboardContentRef.value, filename)
     ElMessage.success('이미지가 저장되었습니다')
-  } catch {
+  } catch (err) {
+    console.error('[Dashboard] PNG export failed:', err)
     ElMessage.error('이미지 내보내기에 실패했습니다')
   } finally {
     exporting.value = false
@@ -169,7 +170,8 @@ const handleExportPdf = async () => {
     const filename = `BI_대시보드_${formatTimestamp()}.pdf`
     await exportElementPdf(dashboardContentRef.value, 'BI 대시보드', filename)
     ElMessage.success('PDF가 저장되었습니다')
-  } catch {
+  } catch (err) {
+    console.error('[Dashboard] PDF export failed:', err)
     ElMessage.error('PDF 내보내기에 실패했습니다')
   } finally {
     exporting.value = false

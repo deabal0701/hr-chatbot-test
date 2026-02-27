@@ -25,7 +25,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.checkpoint.memory import InMemorySaver
+from app.core.checkpoint import BoundedInMemorySaver
 
 from app.graphs.agent.state import AgentState, create_initial_state
 from app.graphs.agent.nodes.agent_node import agent_node, should_continue
@@ -71,7 +71,7 @@ class InsightAgentGraph:
     def __init__(self):
         """Agent 그래프 초기화"""
         # Checkpointer (멀티턴 대화)
-        self.checkpointer = InMemorySaver()
+        self.checkpointer = BoundedInMemorySaver(ttl_seconds=86400, max_sessions=1000)
 
         # 미들웨어 체인
         self.middleware = self._init_middleware()

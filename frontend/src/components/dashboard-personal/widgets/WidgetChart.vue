@@ -30,13 +30,15 @@ const props = defineProps({
 
 const chartOption = computed(() => {
   if (!props.rows.length) return {}
+  const cfg = props.chartConfig || {}
+  if (!cfg.x_column || !cfg.y_columns) return {}
 
   return buildChartOption({
     chartType: props.chartType,
-    xColumn: props.chartConfig.x_column,
-    yColumns: props.chartConfig.y_columns,
+    xColumn: cfg.x_column,
+    yColumns: cfg.y_columns,
     rows: props.rows,
-    pieTopN: props.chartConfig.pie_top_n || 10,
+    pieTopN: cfg.pie_top_n || 10,
     darkMode: props.darkMode,
     colorPalette: props.colorPalette
   })

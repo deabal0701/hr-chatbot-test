@@ -93,6 +93,7 @@ class ToolMetrics:
     """Tool 사용 메트릭 수집 (확장성)"""
 
     _metrics: Dict[str, List[Dict[str, Any]]] = {}
+    _MAX_RECORDS_PER_TOOL = 100
 
     @classmethod
     def record(cls, tool_name: str, execution_time_ms: int, success: bool, error: Optional[str] = None):
@@ -107,9 +108,13 @@ class ToolMetrics:
             "error": error
         })
 
-        # 메모리 관리: 최근 1000개만 유지
-        if len(cls._metrics[tool_name]) > 1000:
-            cls._metrics[tool_name] = cls._metrics[tool_name][-1000:]
+        if len(cls._metrics[tool_name]) > cls._MAX_RECORDS_PER_TOOL:
+            cls._metrics[tool_name] = cls._metrics[tool_name][-cls._MAX_RECORDS_PER_TOOL:]
+
+    @classmethod
+    def reset(cls):
+        """메트릭 초기화"""
+        cls._metrics.clear()
 
 
 

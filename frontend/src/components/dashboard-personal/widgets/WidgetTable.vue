@@ -33,6 +33,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { detectColumnTypes } from '@/composables/useChartOptions'
 
 const props = defineProps({
   columns: { type: Array, default: () => [] },
@@ -47,17 +48,11 @@ const MAX_DISPLAY = 100
 const displayRows = computed(() => props.rows.slice(0, MAX_DISPLAY))
 const overflowCount = computed(() => Math.max(0, props.rowCount - MAX_DISPLAY))
 
-// 숫자 컬럼 감지
+// 숫자 컬럼 감지 (최대 10행 샘플링, 50% 임계값)
 const numericColumns = computed(() => {
   if (!props.rows.length) return new Set()
-  const nums = new Set()
-  for (const col of props.columns) {
-    const val = props.rows[0][col]
-    if (val !== null && val !== undefined && typeof val === 'number') {
-      nums.add(col)
-    }
-  }
-  return nums
+  const { numeric } = detectColumnTypes(props.columns, props.rows)
+  return new Set(numeric)
 })
 
 const isNumericColumn = (col) => numericColumns.value.has(col)

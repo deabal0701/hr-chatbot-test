@@ -159,19 +159,25 @@ export async function exportElementPdf(element, title, filename) {
     const scaledH = img.height * scale
     const totalPages = Math.ceil(scaledH / availH)
 
+    // Canvas 하나를 재사용하여 메모리 누수 방지
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    const ctx = canvas.getContext('2d')
+
     for (let page = 0; page < totalPages; page++) {
       if (page > 0) pdf.addPage()
-      // 캔버스에서 해당 페이지 영역만 잘라서 그리기
       const srcY = (page * availH / scale)
       const srcH = Math.min(availH / scale, img.height - srcY)
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
       canvas.height = srcH
-      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(img, 0, srcY, img.width, srcH, 0, 0, img.width, srcH)
       const pageDataUrl = canvas.toDataURL('image/png')
       pdf.addImage(pageDataUrl, 'PNG', margin, margin, availW, srcH * scale)
     }
+
+    // Canvas 참조 정리
+    canvas.width = 0
+    canvas.height = 0
 
     pdf.save(filename)
   } finally {

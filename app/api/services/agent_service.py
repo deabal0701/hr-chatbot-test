@@ -154,15 +154,11 @@ class AgentService:
         checkpointer = agent_graph.checkpointer
         sessions = []
 
-        # InMemorySaver의 내부 storage에서 thread_id 추출
+        # storage의 최상위 키가 thread_id (str)
         if hasattr(checkpointer, 'storage'):
-            thread_ids = set()
-            for key in checkpointer.storage.keys():
-                if key and len(key) > 0:
-                    thread_ids.add(key[0])
-            sessions = sorted(list(thread_ids))
+            sessions = sorted([tid for tid in checkpointer.storage.keys() if tid])
 
-        logger.info(f"Active sessions (InMemorySaver): {len(sessions)}")
+        log_step(logger, "SYSTEM", "AGENT", "SESSION", "LIST", f"활성 세션 조회: {len(sessions)}개")
         return sessions
 
     def get_session_memory(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -220,26 +216,26 @@ class AgentService:
         """
         checkpointer = agent_graph.checkpointer
 
-        if not hasattr(checkpointer, 'storage'):
+        # BoundedInMemorySaver._evict_thread 또는 InMemorySaver.delete_thread 사용
+        if hasattr(checkpointer, '_evict_thread'):
+            checkpointer._evict_thread(session_id)
+        elif hasattr(checkpointer, 'delete_thread'):
+            checkpointer.delete_thread(session_id)
+        elif hasattr(checkpointer, 'storage'):
+            keys_to_delete = [
+                key for key in checkpointer.storage.keys()
+                if key and len(key) > 0 and key[0] == session_id
+            ]
+            for key in keys_to_delete:
+                del checkpointer.storage[key]
+        else:
             raise ValueError("Checkpointer storage not accessible")
 
-        keys_to_delete = [
-            key for key in checkpointer.storage.keys()
-            if key and len(key) > 0 and key[0] == session_id
-        ]
-
-        for key in keys_to_delete:
-            del checkpointer.storage[key]
-
-        logger.info(
-            f"Session deleted (InMemorySaver): {session_id}, "
-            f"checkpoints removed: {len(keys_to_delete)}"
-        )
+        log_step(logger, "SYSTEM", "AGENT", "SESSION", "DELETE", f"세션 삭제 완료: {session_id}")
 
         return {
             "success": True,
             "message": f"Session {session_id} deleted successfully",
-            "checkpoints_removed": len(keys_to_delete)
         }
 
     def get_session_metrics(self, session_id: str) -> Dict[str, Any]:
@@ -254,17 +250,17 @@ class AgentService:
         """
         checkpointer = agent_graph.checkpointer
 
-        # 해당 세션의 체크포인트 수 계산
+        # 해당 세션의 체크포인트 수 계산 (storage 최상위 키 = thread_id)
         checkpoint_count = 0
-        if hasattr(checkpointer, 'storage'):
+        if hasattr(checkpointer, 'storage') and session_id in checkpointer.storage:
             checkpoint_count = sum(
-                1 for key in checkpointer.storage.keys()
-                if key and len(key) > 0 and key[0] == session_id
+                len(ns_checkpoints)
+                for ns_checkpoints in checkpointer.storage[session_id].values()
             )
 
         # 최근 체크포인트에서 메시지 수 가져오기
         config = {"configurable": {"thread_id": session_id}}
-        checkpoint = checkpointer.get(config) # type: ignore
+        checkpoint = checkpointer.get(config)
 
         message_count = 0
         if checkpoint:

@@ -19,7 +19,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || ''
  * @param {Function} callbacks.onError - 오류 이벤트 (error) => void
  * @returns {AbortController} - 스트림 취소용 컨트롤러
  */
-export function streamSSE(url, body, callbacks) {
+export function streamSSE(url, body, callbacks, { idleTimeoutMs = 60000 } = {}) {
   const controller = new AbortController()
   const fullUrl = `${BASE_URL}${url}`
 
@@ -30,6 +30,19 @@ export function streamSSE(url, body, callbacks) {
     headers['Authorization'] = `Bearer ${token}`
   }
 
+  // Idle timeout: 마지막 이벤트 수신 후 일정 시간 무응답 시 자동 abort
+  let idleTimer = null
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      if (!controller.signal.aborted) {
+        controller.abort()
+        callbacks.onError?.({ code: 'IDLE_TIMEOUT', message: '서버 응답이 지연되어 연결을 종료합니다' })
+      }
+    }, idleTimeoutMs)
+  }
+  const clearIdleTimer = () => { if (idleTimer) { clearTimeout(idleTimer); idleTimer = null } }
+
   fetch(fullUrl, {
     method: 'POST',
     headers,
@@ -38,6 +51,7 @@ export function streamSSE(url, body, callbacks) {
   })
     .then(async (response) => {
       if (!response.ok) {
+        clearIdleTimer()
         let errorData
         try {
           errorData = await response.json()
@@ -54,10 +68,13 @@ export function streamSSE(url, body, callbacks) {
       const decoder = new TextDecoder()
       let buffer = ''
 
+      resetIdleTimer()
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
+        resetIdleTimer()
         buffer += decoder.decode(value, { stream: true })
 
         // SSE 이벤트 파싱 (이중 줄바꿈으로 구분)
@@ -93,11 +110,14 @@ export function streamSSE(url, body, callbacks) {
           }
         }
       }
+
+      clearIdleTimer()
     })
     .catch((err) => {
+      clearIdleTimer()
       if (err.name === 'AbortError') {
         if (import.meta.env.DEV) {
-          console.log('[SSE] Stream aborted by user')
+          console.log('[SSE] Stream aborted')
         }
         return
       }

@@ -85,6 +85,8 @@
             :chart-type="form.widgetType"
             :chart-config="previewChartConfig"
             :rows="rows"
+            :dark-mode="false"
+            :color-palette="null"
           />
           <WidgetKpi
             v-else-if="form.widgetType === 'kpi'"

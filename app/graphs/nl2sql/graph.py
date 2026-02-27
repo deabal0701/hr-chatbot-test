@@ -36,7 +36,7 @@ import time
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.checkpoint.memory import InMemorySaver
+from app.core.checkpoint import BoundedInMemorySaver
 from langchain_core.runnables import RunnableConfig
 
 from app.models.search import SearchResponse
@@ -92,7 +92,7 @@ class NL2SQLGraph:
 
     def __init__(self):
         # Checkpointer (멀티턴 대화)
-        self.checkpointer = InMemorySaver()
+        self.checkpointer = BoundedInMemorySaver(ttl_seconds=86400, max_sessions=1000)
         self.graph = self._build_graph()
 
         log_step(logger, "SYSTEM", "NL2SQL", "INIT", "SETUP", "NL2SQLGraph 초기화 완료 (멀티턴 지원)", level="DEBUG")
@@ -445,14 +445,9 @@ class NL2SQLGraph:
         """활성 세션 목록 조회"""
         try:
             if hasattr(self.checkpointer, 'storage'):
-                # InMemorySaver의 storage에서 thread_id 추출
-                sessions = set()
-                for key in self.checkpointer.storage.keys():
-                    if isinstance(key, tuple) and len(key) >= 1:
-                        thread_id = key[0]
-                        if isinstance(thread_id, str) and thread_id.startswith("nl2sql-"):
-                            sessions.add(thread_id)
-                return sorted(list(sessions))
+                # storage 최상위 키 = thread_id (str)
+                sessions = [tid for tid in self.checkpointer.storage.keys() if isinstance(tid, str) and tid.startswith("nl2sql-")]
+                return sorted(sessions)
         except Exception as e:
             logger.error(f"세션 목록 조회 실패: {e}")
         return []
@@ -472,19 +467,24 @@ class NL2SQLGraph:
     def delete_session(self, session_id: str) -> Dict[str, Any]:
         """세션 삭제"""
         try:
-            if hasattr(self.checkpointer, 'storage'):
-                # storage에서 해당 session_id 관련 항목 삭제
+            if hasattr(self.checkpointer, '_evict_thread'):
+                self.checkpointer._evict_thread(session_id)
+            elif hasattr(self.checkpointer, 'delete_thread'):
+                self.checkpointer.delete_thread(session_id)
+            elif hasattr(self.checkpointer, 'storage'):
                 keys_to_delete = [
                     key for key in self.checkpointer.storage.keys()
                     if isinstance(key, tuple) and len(key) >= 1 and key[0] == session_id
                 ]
                 for key in keys_to_delete:
                     del self.checkpointer.storage[key]
-                return {"success": True, "deleted_keys": len(keys_to_delete)}
+            else:
+                return {"success": False, "error": "Checkpointer storage not accessible"}
+            log_step(logger, "SYSTEM", "NL2SQL", "SESSION", "DELETE", f"세션 삭제 완료: {session_id}")
+            return {"success": True}
         except Exception as e:
             logger.error(f"세션 삭제 실패: {session_id} - {e}")
             return {"success": False, "error": str(e)}
-        return {"success": False, "error": "Unknown error"}
 
 
 # 싱글톤 인스턴스
