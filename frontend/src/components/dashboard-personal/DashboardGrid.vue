@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import DashboardWidget from './DashboardWidget.vue'
 
@@ -63,9 +63,9 @@ onMounted(() => {
   const el = gridContainer.value
   if (!el) return
 
-  // 이미 너비가 있으면 바로 마운트
+  // 이미 너비가 있으면 nextTick 후 마운트 (CSS 레이아웃 안정화 대기)
   if (el.offsetWidth > 0) {
-    gridReady.value = true
+    nextTick(() => { gridReady.value = true })
     return
   }
 

@@ -93,7 +93,13 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   store.dispatch('dashboard/fetchWidgets')
 })
-onUnmounted(() => { window.removeEventListener('resize', handleResize) })
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  // 편집 모드 중 페이지 이탈 시 편집 취소 (레이아웃 복원)
+  if (editMode.value) {
+    store.dispatch('dashboard/cancelEditMode')
+  }
+})
 
 // Vuex 연결
 const isLoading = computed(() => store.state.dashboard.isLoading)
