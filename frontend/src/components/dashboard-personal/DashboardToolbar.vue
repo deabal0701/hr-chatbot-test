@@ -23,6 +23,24 @@
             <el-icon :size="16"><component :is="themeIcon" /></el-icon>
           </el-button>
         </el-tooltip>
+        <el-dropdown trigger="click" @command="handleExportCommand">
+          <el-button :loading="exporting">
+            <el-icon><Download /></el-icon>
+            <span>내보내기</span>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="png">
+                <el-icon><PictureFilled /></el-icon>
+                이미지 저장 (PNG)
+              </el-dropdown-item>
+              <el-dropdown-item command="pdf">
+                <el-icon><Document /></el-icon>
+                PDF 저장
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-tooltip content="전체 새로고침" placement="bottom">
           <el-button :icon="Refresh" @click="$emit('refresh-all')" />
         </el-tooltip>
@@ -37,15 +55,21 @@
 
 <script setup>
 import { computed } from 'vue'
-import { ArrowLeft, DataAnalysis, Refresh, Edit, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
+import { ArrowLeft, DataAnalysis, Refresh, Edit, Sunny, Moon, Monitor, Download, PictureFilled, Document } from '@element-plus/icons-vue'
 
 const props = defineProps({
   editMode: { type: Boolean, default: false },
   widgetCount: { type: Number, default: 0 },
-  dashboardTheme: { type: String, default: 'auto' } // 'auto' | 'light' | 'dark'
+  dashboardTheme: { type: String, default: 'auto' }, // 'auto' | 'light' | 'dark'
+  exporting: { type: Boolean, default: false }
 })
 
-defineEmits(['edit', 'cancel', 'save', 'refresh-all', 'go-chat', 'toggle-theme'])
+const emit = defineEmits(['edit', 'cancel', 'save', 'refresh-all', 'go-chat', 'toggle-theme', 'export-png', 'export-pdf'])
+
+const handleExportCommand = (command) => {
+  if (command === 'png') emit('export-png')
+  else if (command === 'pdf') emit('export-pdf')
+}
 
 const themeIcon = computed(() => {
   const map = { auto: Monitor, light: Sunny, dark: Moon }

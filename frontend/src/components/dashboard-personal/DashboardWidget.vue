@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-widget" :class="{ 'is-edit-mode': editMode }">
+  <div ref="widgetRef" class="dashboard-widget" :class="{ 'is-edit-mode': editMode }">
     <!-- 제목바 (편집 모드에서 전체 헤더가 드래그 핸들) -->
     <div class="widget-header" :class="{ 'drag-handle': editMode }">
       <div class="widget-title-area">
@@ -30,6 +30,10 @@
               :class="{ 'is-toggled': viewMode === 'table' }"
               @click="toggleViewMode"
             />
+          </el-tooltip>
+          <!-- 이미지 다운로드 -->
+          <el-tooltip content="이미지 저장" placement="top">
+            <el-button :icon="Download" circle size="small" :loading="isCapturing" @click="handleCapturePng" />
           </el-tooltip>
           <el-tooltip content="새로고침" placement="top">
             <el-button :icon="Refresh" circle size="small" :loading="isRefreshing" @click="$emit('refresh', widget.widget_id)" />
@@ -76,8 +80,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { Edit, Delete, Refresh, Rank, DataAnalysis, Grid, PieChart, TrendCharts, Odometer } from '@element-plus/icons-vue'
+import { Edit, Delete, Refresh, Rank, DataAnalysis, Grid, PieChart, TrendCharts, Odometer, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { detectColumnTypes } from '@/composables/useChartOptions'
+import { captureElementPng, sanitizeFilename, formatTimestamp } from '@/utils/exportUtils'
 import WidgetTable from './widgets/WidgetTable.vue'
 import WidgetChart from './widgets/WidgetChart.vue'
 import WidgetKpi from './widgets/WidgetKpi.vue'
@@ -92,7 +98,25 @@ const props = defineProps({
 
 defineEmits(['edit', 'delete', 'refresh'])
 
+const widgetRef = ref(null)
+const isCapturing = ref(false)
 const viewMode = ref('default') // 'default' | 'table'
+
+// 위젯 이미지 다운로드
+const handleCapturePng = async () => {
+  if (!widgetRef.value) return
+  isCapturing.value = true
+  try {
+    const name = sanitizeFilename(props.widget.title || 'widget')
+    const filename = `${name}_${formatTimestamp()}.png`
+    await captureElementPng(widgetRef.value, filename)
+    ElMessage.success('이미지가 저장되었습니다')
+  } catch {
+    ElMessage.error('이미지 저장에 실패했습니다')
+  } finally {
+    isCapturing.value = false
+  }
+}
 
 const cachedData = computed(() => props.widget.cached_data || { columns: [], rows: [], row_count: 0 })
 

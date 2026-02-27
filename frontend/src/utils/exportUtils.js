@@ -81,7 +81,8 @@ export async function captureElementPng(element, filename) {
 
 /**
  * DOM 요소를 캡처하여 PDF로 저장 (html-to-image + jsPDF)
- * 헤더(제목+시각)를 임시 DOM으로 생성하여 함께 캡처 → 한글 깨짐 방지
+ * 원본 DOM을 직접 캡처 (cloneNode는 Canvas 픽셀 데이터를 복사하지 못함)
+ * 헤더(제목+시각)는 jsPDF 텍스트로 직접 추가
  * @param {HTMLElement} element - 캡처 대상 DOM
  * @param {string} title - PDF 제목
  * @param {string} filename - 저장 파일명
@@ -90,40 +91,38 @@ export async function exportElementPdf(element, title, filename) {
   const { toPng } = await import('html-to-image')
   const { default: jsPDF } = await import('jspdf')
 
-  // 임시 래퍼: 헤더(제목+시각) + 원본 콘텐츠를 하나의 DOM으로 묶어 캡처
-  const wrapper = document.createElement('div')
-  wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;background:#fff;padding:20px;'
-  wrapper.style.width = `${element.scrollWidth}px`
+  // 원본 DOM 직접 캡처 (Canvas 요소 포함)
+  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff' })
 
-  const header = document.createElement('div')
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e0e0e0;'
-  header.innerHTML = `<span style="font-size:18px;font-weight:700;color:#333;">${title}</span><span style="font-size:12px;color:#888;">${new Date().toLocaleString('ko-KR')}</span>`
+  const img = new Image()
+  img.src = dataUrl
+  await new Promise((resolve) => { img.onload = resolve })
 
-  const clone = element.cloneNode(true)
-  wrapper.appendChild(header)
-  wrapper.appendChild(clone)
-  document.body.appendChild(wrapper)
+  // PDF 방향 자동 판단 (가로/세로)
+  const orientation = img.width > img.height ? 'landscape' : 'portrait'
+  const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' })
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const margin = 10
+  const headerH = 12
 
-  try {
-    const dataUrl = await toPng(wrapper, { pixelRatio: 2, backgroundColor: '#ffffff' })
+  // 헤더: 제목 + 시각
+  pdf.setFontSize(14)
+  pdf.setTextColor(51, 51, 51)
+  pdf.text(title, margin, margin + 6)
+  pdf.setFontSize(9)
+  pdf.setTextColor(136, 136, 136)
+  pdf.text(new Date().toLocaleString('ko-KR'), pageW - margin, margin + 6, { align: 'right' })
+  pdf.setDrawColor(224, 224, 224)
+  pdf.line(margin, margin + headerH - 2, pageW - margin, margin + headerH - 2)
 
-    const img = new Image()
-    img.src = dataUrl
-    await new Promise((resolve) => { img.onload = resolve })
+  // 이미지 배치 (헤더 아래)
+  const availW = pageW - margin * 2
+  const availH = pageH - margin - (margin + headerH)
+  const ratio = Math.min(availW / img.width, availH / img.height)
+  const imgW = img.width * ratio
+  const imgH = img.height * ratio
 
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-    const pageW = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const margin = 10
-    const availW = pageW - margin * 2
-    const availH = pageH - margin * 2
-    const ratio = Math.min(availW / img.width, availH / img.height)
-    const imgW = img.width * ratio
-    const imgH = img.height * ratio
-
-    pdf.addImage(dataUrl, 'PNG', margin, margin, imgW, imgH)
-    pdf.save(filename)
-  } finally {
-    document.body.removeChild(wrapper)
-  }
+  pdf.addImage(dataUrl, 'PNG', margin, margin + headerH, imgW, imgH)
+  pdf.save(filename)
 }

@@ -12,6 +12,7 @@
       @refresh-all="handleRefreshAll"
       @go-chat="goToChat"
       @toggle-theme="handleToggleTheme"
+      @export-png="handleExportPng"
       @export-pdf="handleExportPdf"
     />
 
@@ -61,7 +62,7 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { exportElementPdf, sanitizeFilename, formatTimestamp } from '@/utils/exportUtils'
+import { captureElementPng, exportElementPdf, formatTimestamp } from '@/utils/exportUtils'
 import DashboardToolbar from '@/components/dashboard-personal/DashboardToolbar.vue'
 import DashboardEmptyState from '@/components/dashboard-personal/DashboardEmptyState.vue'
 import DashboardGrid from '@/components/dashboard-personal/DashboardGrid.vue'
@@ -143,6 +144,21 @@ const handleWidgetSaved = () => { /* 모달에서 저장 완료 후 콜백 */ }
 const handleToggleTheme = () => {
   const cycle = { auto: 'light', light: 'dark', dark: 'auto' }
   store.dispatch('dashboard/setDashboardTheme', cycle[dashboardTheme.value] || 'auto')
+}
+
+// PNG 내보내기
+const handleExportPng = async () => {
+  if (!dashboardContentRef.value) return
+  exporting.value = true
+  try {
+    const filename = `BI_대시보드_${formatTimestamp()}.png`
+    await captureElementPng(dashboardContentRef.value, filename)
+    ElMessage.success('이미지가 저장되었습니다')
+  } catch {
+    ElMessage.error('이미지 내보내기에 실패했습니다')
+  } finally {
+    exporting.value = false
+  }
 }
 
 // PDF 내보내기
