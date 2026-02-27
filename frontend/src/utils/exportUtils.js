@@ -78,19 +78,48 @@ function exportFilter(domNode) {
 }
 
 /**
+ * 스크롤 영역을 임시 확장하여 전체 콘텐츠를 캡처 가능하게 하고,
+ * 캡처 후 원래 스타일을 복원하는 헬퍼
+ * @param {HTMLElement} element - 확장 대상
+ * @returns {Function} 복원 함수
+ */
+function expandForCapture(element) {
+  const saved = {
+    overflow: element.style.overflow,
+    height: element.style.height,
+    maxHeight: element.style.maxHeight
+  }
+  element.style.overflow = 'visible'
+  element.style.height = 'auto'
+  element.style.maxHeight = 'none'
+  return () => {
+    element.style.overflow = saved.overflow
+    element.style.height = saved.height
+    element.style.maxHeight = saved.maxHeight
+  }
+}
+
+/**
  * DOM 요소를 PNG로 캡처하여 다운로드 (html-to-image)
- * export-exclude 클래스가 있는 요소는 캡처에서 제외
+ * - export-exclude 클래스 요소 제외
+ * - 스크롤 영역 전체 캡처 (overflow 임시 확장)
  */
 export async function captureElementPng(element, filename) {
   const { toPng } = await import('html-to-image')
-  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
-  downloadDataUrl(dataUrl, filename)
+  const restore = expandForCapture(element)
+  try {
+    const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
+    downloadDataUrl(dataUrl, filename)
+  } finally {
+    restore()
+  }
 }
 
 /**
  * DOM 요소를 캡처하여 PDF로 저장 (html-to-image + jsPDF)
- * 원본 DOM을 직접 캡처 (cloneNode는 Canvas 픽셀 데이터를 복사하지 못함)
- * 헤더(제목+시각)는 jsPDF 텍스트로 직접 추가
+ * - 한글 깨짐 방지: jsPDF text() 대신 임시 DOM 헤더를 삽입하여 브라우저가 렌더링
+ * - 스크롤 영역 전체 캡처: overflow 임시 확장
+ * - 이미지가 한 페이지를 초과하면 자동 분할 (멀티페이지)
  * @param {HTMLElement} element - 캡처 대상 DOM
  * @param {string} title - PDF 제목
  * @param {string} filename - 저장 파일명
@@ -99,38 +128,54 @@ export async function exportElementPdf(element, title, filename) {
   const { toPng } = await import('html-to-image')
   const { default: jsPDF } = await import('jspdf')
 
-  // 원본 DOM 직접 캡처 (Canvas 요소 포함, export-exclude 클래스 제외)
-  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
+  // 1. 임시 헤더 DOM 삽입 (한글 깨짐 방지 — 브라우저가 직접 렌더링)
+  const headerDiv = document.createElement('div')
+  headerDiv.className = 'export-exclude-restore'
+  headerDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 4px 10px;margin-bottom:12px;border-bottom:2px solid #e0e0e0;'
+  headerDiv.innerHTML = `<span style="font-size:18px;font-weight:700;color:#333;">${title}</span><span style="font-size:12px;color:#999;">${new Date().toLocaleString('ko-KR')}</span>`
+  element.insertBefore(headerDiv, element.firstChild)
 
-  const img = new Image()
-  img.src = dataUrl
-  await new Promise((resolve) => { img.onload = resolve })
+  // 2. 스크롤 영역 확장 (화면에 보이지 않는 위젯도 캡처)
+  const restore = expandForCapture(element)
 
-  // PDF 방향 자동 판단 (가로/세로)
-  const orientation = img.width > img.height ? 'landscape' : 'portrait'
-  const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' })
-  const pageW = pdf.internal.pageSize.getWidth()
-  const pageH = pdf.internal.pageSize.getHeight()
-  const margin = 10
-  const headerH = 12
+  try {
+    // 3. 원본 DOM 직접 캡처 (Canvas 포함, export-exclude 제외)
+    const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
 
-  // 헤더: 제목 + 시각
-  pdf.setFontSize(14)
-  pdf.setTextColor(51, 51, 51)
-  pdf.text(title, margin, margin + 6)
-  pdf.setFontSize(9)
-  pdf.setTextColor(136, 136, 136)
-  pdf.text(new Date().toLocaleString('ko-KR'), pageW - margin, margin + 6, { align: 'right' })
-  pdf.setDrawColor(224, 224, 224)
-  pdf.line(margin, margin + headerH - 2, pageW - margin, margin + headerH - 2)
+    const img = new Image()
+    img.src = dataUrl
+    await new Promise((resolve) => { img.onload = resolve })
 
-  // 이미지 배치 (헤더 아래)
-  const availW = pageW - margin * 2
-  const availH = pageH - margin - (margin + headerH)
-  const ratio = Math.min(availW / img.width, availH / img.height)
-  const imgW = img.width * ratio
-  const imgH = img.height * ratio
+    // 4. PDF 생성 (가로 방향, 멀티페이지 지원)
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const margin = 10
+    const availW = pageW - margin * 2
+    const availH = pageH - margin * 2
 
-  pdf.addImage(dataUrl, 'PNG', margin, margin + headerH, imgW, imgH)
-  pdf.save(filename)
+    // 이미지를 페이지 너비에 맞추고, 높이가 초과하면 분할
+    const scale = availW / img.width
+    const scaledH = img.height * scale
+    const totalPages = Math.ceil(scaledH / availH)
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) pdf.addPage()
+      // 캔버스에서 해당 페이지 영역만 잘라서 그리기
+      const srcY = (page * availH / scale)
+      const srcH = Math.min(availH / scale, img.height - srcY)
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = srcH
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, srcY, img.width, srcH, 0, 0, img.width, srcH)
+      const pageDataUrl = canvas.toDataURL('image/png')
+      pdf.addImage(pageDataUrl, 'PNG', margin, margin, availW, srcH * scale)
+    }
+
+    pdf.save(filename)
+  } finally {
+    element.removeChild(headerDiv)
+    restore()
+  }
 }
