@@ -71,11 +71,19 @@ export function downloadDataUrl(dataUrl, filename) {
 }
 
 /**
+ * 캡처 시 export-exclude 클래스 요소를 제외하는 필터
+ */
+function exportFilter(domNode) {
+  return !domNode.classList?.contains('export-exclude')
+}
+
+/**
  * DOM 요소를 PNG로 캡처하여 다운로드 (html-to-image)
+ * export-exclude 클래스가 있는 요소는 캡처에서 제외
  */
 export async function captureElementPng(element, filename) {
   const { toPng } = await import('html-to-image')
-  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff' })
+  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
   downloadDataUrl(dataUrl, filename)
 }
 
@@ -91,8 +99,8 @@ export async function exportElementPdf(element, title, filename) {
   const { toPng } = await import('html-to-image')
   const { default: jsPDF } = await import('jspdf')
 
-  // 원본 DOM 직접 캡처 (Canvas 요소 포함)
-  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff' })
+  // 원본 DOM 직접 캡처 (Canvas 요소 포함, export-exclude 클래스 제외)
+  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
 
   const img = new Image()
   img.src = dataUrl

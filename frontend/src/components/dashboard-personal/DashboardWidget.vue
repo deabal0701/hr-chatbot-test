@@ -9,7 +9,7 @@
         </el-icon>
         <span class="widget-title">{{ widget.title }}</span>
       </div>
-      <div class="widget-actions">
+      <div class="widget-actions export-exclude">
         <template v-if="editMode">
           <el-tooltip content="수정" placement="top">
             <el-button :icon="Edit" circle size="small" @click="$emit('edit', widget)" />
