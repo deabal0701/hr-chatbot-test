@@ -97,6 +97,8 @@ class SettingsConfig:
             # 멀티턴 대화 설정
             "multiturn_enabled": ("true", "bool", "멀티턴 대화 활성화", False),
             "multiturn_max_turns": ("5", "int", "최대 대화 턴 수 (1-20, 기본 5)", False),
+            # 답변 생성 설정
+            "skip_answer_generation": ("false", "bool", "LLM 답변 생성 스킵 (SQL 결과만 반환)", False),
             # 테이블 카탈로그
             "table_catalog": ("", "json", "NL2SQL 테이블 카탈로그 (JSON, 업체별 스키마 정의)", False),
         },
@@ -117,6 +119,7 @@ class SettingsConfig:
             "enable_streaming": ("false", "bool", "스트리밍 응답 (확장)", False),
             "enabled_tools": ("query_database_tool,search_documents_tool,calculate_tool", "string", "사용 가능한 도구 (쉼표 구분)", False),
             "intent_context": ("", "text", "의도 파악용 경량 컨텍스트 (빈값이면 기본값 사용)", False),
+            "skip_answer_generation": ("false", "bool", "LLM 답변 생성 스킵 (도구 결과만 반환)", False),
         },
         "external_database": {
             "enabled": ("false", "bool", "외부 비즈니스 DB 사용 여부", False),

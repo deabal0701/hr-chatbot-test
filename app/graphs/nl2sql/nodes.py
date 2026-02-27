@@ -853,6 +853,22 @@ def pii_filter_node(state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
+def _format_markdown_table(result) -> str:
+    """SQL 결과를 마크다운 테이블로 변환 (LLM 스킵 시 사용)"""
+    if not result.columns or not result.rows:
+        return f"조회 결과: {result.row_count}건"
+
+    cols = result.columns
+    header = "| " + " | ".join(cols) + " |"
+    separator = "| " + " | ".join(["---"] * len(cols)) + " |"
+    rows = []
+    for row in result.rows:
+        values = [str(row.get(c, "")) for c in cols]
+        rows.append("| " + " | ".join(values) + " |")
+
+    return "\n".join([header, separator] + rows)
+
+
 def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     답변 생성 노드
@@ -873,6 +889,18 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     if not result or result.row_count == 0:
         log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "결과 없음 - 기본 응답 반환")
         state["answer"] = "조회된 결과가 없습니다."
+        return state
+
+    # 설정 체크: LLM 답변 생성 스킵
+    settings_config = _get_settings_config()
+    skip_answer = settings_config.get_value("nl2sql", "skip_answer_generation", False)
+
+    if skip_answer:
+        log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "LLM 스킵 - SQL 결과만 반환", row_count=result.row_count)
+        if result.row_count <= 5:
+            state["answer"] = _format_markdown_table(result)
+        else:
+            state["answer"] = f"조회 결과: {result.row_count}건"
         return state
 
     log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "답변 생성 시작", row_count=result.row_count)

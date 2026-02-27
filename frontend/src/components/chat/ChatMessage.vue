@@ -342,6 +342,7 @@ const formatTime = (timestamp) => {
     border-bottom-left-radius: 4px;
     box-shadow: var(--box-shadow-light);
     transition: var(--theme-transition);
+    min-width: 720px;
 
     &.error {
       background-color: #fef0f0;

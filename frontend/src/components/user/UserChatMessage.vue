@@ -414,6 +414,7 @@ const copyContent = async () => {
 .message-content {
   flex: 1;
   max-width: calc(100% - 100px);
+  min-width: 720px;
 }
 
 // 사용자 메시지

@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from app.core.llm.llm_config import LLMConfigManager
 from app.core.llm.prompt_service import prompt_service
+from app.core.config.settings_config import settings_config
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text, extract_llm_text_content
 
@@ -68,6 +69,16 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         log_step(logger, request_id, "AGENT", "ANSWER", "WARN", "Tool 결과 없음 - 기존 답변 유지", level="WARNING")
         # Tool 결과가 없으면 마지막 AIMessage 내용을 그대로 사용
         return _use_last_ai_message(state, messages)
+
+    # 설정 체크: LLM 답변 생성 스킵
+    skip_answer = settings_config.get_value("agent", "skip_answer_generation", False)
+
+    if skip_answer:
+        log_step(logger, request_id, "AGENT", "ANSWER", "SKIP", "LLM 스킵 - 도구 결과만 반환", tool_results_length=len(tool_results))
+        return {
+            "messages": [AIMessage(content=tool_results)],
+            "final_answer": tool_results,
+        }
 
     # NL2SQL의 응답 프롬프트 사용 (프롬프트 공유)
     system_prompt = prompt_service.get_nl2sql_answer_prompt()

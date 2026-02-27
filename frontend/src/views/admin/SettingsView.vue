@@ -741,7 +741,27 @@
 
               <el-divider />
 
-              <!-- 섹션 6: PII 감지/마스킹 설정 -->
+              <!-- 섹션 6: 답변 생성 설정 -->
+              <div class="setting-section">
+                <h4 class="section-title">
+                  <el-icon><ChatLineSquare /></el-icon>
+                  답변 생성 설정
+                  <el-tag size="small" type="success">즉시 적용</el-tag>
+                </h4>
+                <p class="section-desc">SQL 실행 결과를 LLM이 자연어로 정리할지, 결과 데이터만 반환할지 설정합니다.</p>
+
+                <el-form-item label="LLM 답변 생성 스킵">
+                  <el-switch v-model="formData.nl2sql.skip_answer_generation" />
+                  <span class="switch-label">{{ formData.nl2sql.skip_answer_generation ? '스킵 (결과만 반환)' : '정상 (LLM 답변 생성)' }}</span>
+                  <div class="form-help">
+                    활성화 시 LLM 호출을 건너뛰고 SQL 실행 결과만 반환합니다 (응답 속도 향상, 비용 절감)
+                  </div>
+                </el-form-item>
+              </div>
+
+              <el-divider />
+
+              <!-- 섹션 7: PII 감지/마스킹 설정 -->
               <div class="setting-section">
                 <h4 class="section-title">
                   <el-icon><Lock /></el-icon>
@@ -966,6 +986,12 @@
                 <el-switch v-model="formData.agent.enable_memory" />
                 <span class="switch-label">{{ formData.agent.enable_memory ? '활성화' : '비활성화' }}</span>
                 <div class="form-help">멀티턴 대화를 위한 세션 메모리 사용</div>
+              </el-form-item>
+
+              <el-form-item label="LLM 답변 생성 스킵">
+                <el-switch v-model="formData.agent.skip_answer_generation" />
+                <span class="switch-label">{{ formData.agent.skip_answer_generation ? '스킵 (결과만 반환)' : '정상 (LLM 답변 생성)' }}</span>
+                <div class="form-help">활성화 시 도구 실행 결과를 LLM으로 정리하지 않고 그대로 반환합니다 (응답 속도 향상, 비용 절감)</div>
               </el-form-item>
 
               <el-form-item label="사용 가능한 도구">
@@ -1290,7 +1316,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, Lock, List, Sort } from '@element-plus/icons-vue'
+import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, ChatLineSquare, Lock, List, Sort } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 import usersApi from '@/api/users'
@@ -1438,6 +1464,8 @@ const formData = reactive({
     // 멀티턴 대화 설정
     multiturn_enabled: true,
     multiturn_max_turns: 5,
+    // 답변 생성 설정
+    skip_answer_generation: false,
     // 테이블 카탈로그
     table_catalog: ''
   },
@@ -1463,6 +1491,7 @@ const formData = reactive({
     max_iterations: 10,
     timeout_seconds: 60,
     enable_memory: true,
+    skip_answer_generation: false,
     enabled_tools: ['query_database_tool', 'search_documents_tool', 'calculate_tool']
   },
   chunking: {

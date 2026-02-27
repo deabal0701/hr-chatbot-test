@@ -1,7 +1,7 @@
 # 개인 BI 대시보드 설계서
 
-> **현행화 일자**: 2026-02-26
-> **구현 상태**: 프론트엔드 프로토타입 완료 (localStorage 기반), 백엔드 미구현
+> **현행화 일자**: 2026-02-27
+> **구현 상태**: 프론트엔드 프로토타입 완료 (localStorage 기반), 백엔드 설계 완료 (미구현)
 
 ---
 
@@ -27,23 +27,32 @@
 |------|------|------|
 | 대시보드 위치 | 별도 페이지 (`/dashboard`) | Chat과 분리된 독립적 BI 화면 |
 | 위젯 배치 방식 | 드래그앤드롭 그리드 (vue3-grid-layout-next) | 사용자 자유도 극대화 |
-| 데이터 갱신 | 수동 새로고침 | 성능 부담 최소화, 캐시 데이터 기본 표시 |
+| 데이터 갱신 | 수동 새로고침 (SQL 재실행) | 성능 부담 최소화, 캐시 데이터 기본 표시 |
 | 위젯 유형 | 테이블/Bar/H-Bar/Line/Pie/Scatter/KPI | 다양한 BI 시각화 커버 |
 | 테마 | auto/light/dark 3단계 토글 | 사용자 기본 다크모드와 독립 제어 가능 |
 | 컬러 팔레트 | 6종 프리셋 (기본/비비드/파스텔/따뜻한/시원한/어스톤) | 위젯별 차트 색상 개인화 |
-| 저장소 (현재) | localStorage | 프로토타입 단계, 백엔드 연동 전 |
+| 저장소 | PostgreSQL DB (`tb_dashboard_widget`) | 서버 저장으로 브라우저 간 동기화, 데이터 영속성 보장 |
+| 테마 저장소 | localStorage | UI 프리퍼런스, DB 저장 불필요 |
+| SQL 편집 | WidgetEditModal 내 편집 + 테스트 실행 | 별도 모달 불필요, 기존 UI 확장 |
+| 컬럼 별칭 | `chart_config.column_aliases` JSONB 내 저장 | 선택적 매핑, 추가 테이블 불필요 |
+| 인증 방식 | `get_current_active_user` (로그인만 필수) | 개인 기능이므로 메뉴 권한 불필요 |
+| 데이터 스코프 | `user_id` 기반 (본인 위젯만 접근) | 개인 대시보드이므로 USER 레벨 격리 |
 
 ### 1.4 구현 상태 요약
 
 | 영역 | 상태 | 비고 |
 |------|------|------|
 | 프론트엔드 컴포넌트 | ✅ 완료 | 12개 컴포넌트 + composable |
-| Vuex 스토어 | ✅ 완료 | localStorage 기반 CRUD |
+| Vuex 스토어 | ✅ 완료 | localStorage 기반 CRUD (API 연동 전) |
 | 라우터 | ✅ 완료 | `/dashboard` 등록 |
 | Chat 연동 | ✅ 완료 | UserChatMessage "대시보드에 추가" 버튼 |
 | 사이드바 메뉴 | ✅ 완료 | UserChatSidebar "대시보드" 항목 |
-| 백엔드 API | ❌ 미구현 | 설계만 완료 |
-| 데이터베이스 | ❌ 미구현 | DDL 설계만 완료 |
+| 컬럼 별칭 | ❌ 미구현 | 설계 완료 (16장 참조) |
+| SQL 편집 | ❌ 미구현 | 설계 완료 (17장 참조) |
+| 백엔드 API | ❌ 미구현 | 설계 완료 (9장 참조, 7개 엔드포인트) |
+| 데이터베이스 | ❌ 미구현 | DDL 설계 완료 (10장 참조) |
+| API 클라이언트 | ❌ 미구현 | `personalDashboard.js` 작성 필요 |
+| Vuex API 연동 | ❌ 미구현 | localStorage → API 호출로 전환 필요 |
 
 ---
 
@@ -83,6 +92,13 @@
 │                                                                  │
 │  [KPI 설정 - KPI 선택 시 표시]                                   │
 │  값 컬럼: [total_count  ▼]  단위: [명_________]                  │
+│                                                                  │
+│  ── 컬럼 표시명 (선택사항) ──────────────────────────────────────│
+│  원본 컬럼명           표시명                                     │
+│  department_name   [부서명_______________] ← placeholder: 원본명 │
+│  employee_count    [직원수_______________]                        │
+│  avg_salary        [___________________] ← 빈칸이면 원본명 유지  │
+│  (빈칸 = 원본 컬럼명 사용, 영한/영영 모두 가능)                  │
 │                                                                  │
 │                          [취소]  [저장]                           │
 └──────────────────────────────────────────────────────────────────┘
@@ -159,10 +175,14 @@
 
 ### 2.5 Flow E: 대시보드에서 직접 위젯 추가
 
+편집 모드에서 "+" 플로팅 버튼 클릭 시 AddWidgetModal이 열리며, **탭으로 2가지 모드**를 제공한다.
+
+#### Flow E-1: 히스토리에서 선택 (기존)
+
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  편집 모드에서 "+" 플로팅 버튼 클릭                          │
-│  → AddWidgetModal 열림                                      │
+│  [히스토리에서 선택]  [직접 질문하기]     ← 탭 전환         │
+│  ─────────────────                                        │
 │                                                            │
 │  Step 1: 대화 히스토리에서 세션 선택                         │
 │    → history API로 최근 100개 세션 로드                     │
@@ -173,9 +193,33 @@
 │    → 결과가 1개뿐이면 자동 선택                             │
 │                                                            │
 │  Step 3: 위젯 설정 + 미리보기 → "추가"                      │
-│    → 위젯 생성 + localStorage에 저장                        │
+│    → 위젯 생성 + 저장                                       │
 └────────────────────────────────────────────────────────────┘
 ```
+
+#### Flow E-2: 직접 질문하기 (신규)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  [히스토리에서 선택]  [직접 질문하기]     ← 탭 전환         │
+│                       ────────────────                     │
+│                                                            │
+│  Step 1: 자연어 질문 입력 + [실행] 클릭                     │
+│    → POST /api/v1/search/stream { query, mode: "nl2sql" }  │
+│    → SSE 이벤트로 실행 진행 상황 실시간 표시                 │
+│    → 실행 취소 가능 (AbortController)                       │
+│                                                            │
+│  Step 2: 실행 결과 확인                                     │
+│    → 생성된 SQL 표시                                        │
+│    → 결과 테이블 미리보기 (최대 10행)                       │
+│    → 실패 시: 에러 메시지 + 질문 재입력 유도                │
+│                                                            │
+│  Step 3: 위젯 설정 + 미리보기 → "추가"                      │
+│    → 위젯 생성 + 저장 (히스토리 모드와 동일한 위젯 설정 UI) │
+└────────────────────────────────────────────────────────────┘
+```
+
+**참조 API**: 기존 Chat의 `searchApi.searchStream()` (SSE) 재사용 — 별도 API 불필요
 
 ### 2.6 Flow F: 뷰 전환 (표 ↔ 차트)
 
@@ -328,46 +372,217 @@
 └──────────────────────────────────────────────────────┘
 ```
 
-### 3.5 WidgetEditModal (위젯 수정)
+### 3.5 WidgetEditModal (위젯 수정 + SQL 편집 + 컬럼 별칭)
 
-SaveToDashboardModal과 동일 구조에 기존 위젯 설정을 초기값으로 로드:
-- 제목, 위젯 유형, 차트 설정(X/Y축, 컬러 팔레트), KPI 설정 변경 가능
-- 쿼리/SQL은 읽기 전용 표시
-
-### 3.6 AddWidgetModal (대시보드에서 직접 추가)
+SaveToDashboardModal과 동일 구조에 기존 위젯 설정을 초기값으로 로드.
+**SQL 편집 기능**과 **컬럼 별칭 기능**이 추가되어 기존 읽기 전용에서 변경됨.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  위젯 추가                                    [X]    │
+│  위젯 수정                                    [X]    │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
-│  대화 히스토리                                       │
-│  ┌──────────────────────────────────────────┐        │
-│  │ 대화를 선택하세요                     ▼  │        │
-│  └──────────────────────────────────────────┘        │
-│  (최근 100개 세션, nl2sql/agent 필터, 검색 가능)     │
+│  위젯 제목 / 위젯 유형 / 차트 설정                    │
+│  (SaveToDashboardModal과 동일 구조)                   │
 │                                                      │
-│  쿼리 결과 선택 (세션 선택 후 표시)                  │
-│  ┌──────────────────────────────────────────┐        │
-│  │ 쿼리 결과를 선택하세요                ▼  │        │
-│  └──────────────────────────────────────────┘        │
-│  (trace_data.sql_result가 있는 레코드만 표시)        │
-│  (결과 1개 시 자동 선택)                             │
+│  ── 컬럼 표시명 (선택사항) ──────────────────────────│
+│  원본 컬럼명           표시명                         │
+│  dept_nm           [부서명_________]                  │
+│  emp_cnt           [Employee Count_]                  │
+│  avg_sal           [________________]                 │
+│  (빈칸 = 원본 컬럼명 사용, 영한/영영 모두 가능)      │
 │                                                      │
-│  ── 실행 결과 (선택 후 표시) ──                      │
-│  ┌──────────────────────────────────────────┐        │
-│  │ 부서명    │ 직원수                       │        │
-│  │ 개발팀    │ 42                           │        │
-│  │ 인사팀    │ 15                           │        │
-│  └──────────────────────────────────────────┘        │
-│  ... 외 N건                                          │
+│  ── 쿼리 정보 (접기/펼치기) ─────────────────────── │
 │                                                      │
-│  (이하 SaveToDashboardModal과 동일한 위젯 설정 UI)   │
+│  원본 질문 (읽기 전용)                                │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ 부서별 직원 수를 알려줘                         │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  SQL (수정 가능)                                     │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ SELECT dept_nm, COUNT(*) as emp_cnt            │  │
+│  │ FROM employee                                  │  │
+│  │ GROUP BY dept_nm                               │  │
+│  │ ORDER BY emp_cnt DESC                          │  │
+│  └────────────────────────────────────────────────┘  │
+│  [SQL 실행]  ← SQL 변경 시 활성화                     │
+│                                                      │
+│  ── 실행 결과 미리보기 (SQL 실행 후 표시) ──         │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ dept_nm     │ emp_cnt                          │  │
+│  │ 개발팀       │ 42                              │  │
+│  │ 영업팀       │ 35                              │  │
+│  └────────────────────────────────────────────────┘  │
+│  5건 조회됨 (15ms)                                   │
+│  ※ 에러 시: 빨간 박스에 에러 메시지 표시              │
 │                                                      │
 ├──────────────────────────────────────────────────────┤
-│                           [취소]  [추가 (Primary)]   │
+│                           [취소]  [저장 (Primary)]   │
 └──────────────────────────────────────────────────────┘
 ```
+
+**SQL 편집 동작 규칙**:
+1. SQL textarea에 변경 발생 → `sqlModified = true` → [SQL 실행] 버튼 활성화
+2. [SQL 실행] 클릭 → `POST /api/v1/dashboard/execute-sql` 호출
+   - 성공: 미리보기 테이블 표시 (최대 10행) + `execution_time_ms`
+   - 실패: 에러 메시지 인라인 표시 (검증 실패, 실행 오류)
+3. [저장] 클릭 시:
+   - SQL 변경 + 실행 결과 있음 → 수정된 SQL + 새 cached_data 포함하여 PUT
+   - SQL 변경 + 실행 미완료 → `ElMessage.warning('SQL을 먼저 실행해주세요')` 경고
+   - SQL 미변경 → 제목/유형/설정/별칭만 PUT (기존 동작)
+
+### 3.6 AddWidgetModal (대시보드에서 직접 추가)
+
+`el-tabs`로 **히스토리에서 선택** / **직접 질문하기** 2가지 모드를 제공한다.
+
+#### 탭 1: 히스토리에서 선택 (기존)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  위젯 추가                                        [X]    │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  [히스토리에서 선택]  [직접 질문하기]       ← el-tabs     │
+│  ─────────────────                                       │
+│                                                          │
+│  대화 히스토리                                           │
+│  ┌──────────────────────────────────────────┐            │
+│  │ 대화를 선택하세요                     ▼  │            │
+│  └──────────────────────────────────────────┘            │
+│  (최근 100개 세션, nl2sql/agent 필터, 검색 가능)         │
+│                                                          │
+│  쿼리 결과 선택 (세션 선택 후 표시)                      │
+│  ┌──────────────────────────────────────────┐            │
+│  │ 쿼리 결과를 선택하세요                ▼  │            │
+│  └──────────────────────────────────────────┘            │
+│  (trace_data.sql_result가 있는 레코드만 표시)            │
+│  (결과 1개 시 자동 선택)                                 │
+│                                                          │
+│  ── 실행 결과 (선택 후 표시) ──                          │
+│  ┌──────────────────────────────────────────┐            │
+│  │ 부서명    │ 직원수                       │            │
+│  │ 개발팀    │ 42                           │            │
+│  │ 인사팀    │ 15                           │            │
+│  └──────────────────────────────────────────┘            │
+│  ... 외 N건                                              │
+│                                                          │
+│  (이하 공통 위젯 설정 UI)                                │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│                              [취소]  [추가 (Primary)]    │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### 탭 2: 직접 질문하기 (신규)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  위젯 추가                                        [X]    │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  [히스토리에서 선택]  [직접 질문하기]       ← el-tabs     │
+│                       ────────────────                    │
+│                                                          │
+│  질문 입력                                               │
+│  ┌──────────────────────────────────────┐                │
+│  │ 2024년 부서별 직원 수를 알려줘        │  [실행] [취소] │
+│  └──────────────────────────────────────┘                │
+│  (el-input + el-button, Enter 키로도 실행 가능)          │
+│                                                          │
+│  ── 실행 진행 상황 (실행 중 표시) ──────────────────     │
+│  ✓ 쿼리 분석 완료                                        │
+│  ✓ SQL 생성 완료                                         │
+│  ● SQL 실행 중...                  [실행 취소]           │
+│  ─────────────────────────────────────────────────       │
+│                                                          │
+│  ── 실행 결과 (완료 후 표시) ──────────────────────      │
+│  생성된 SQL:                                             │
+│  ┌─────────────────────────────────────────────┐         │
+│  │ SELECT department_name, COUNT(*) as cnt     │         │
+│  │ FROM employee                               │         │
+│  │ WHERE hire_date >= '2024-01-01'             │         │
+│  │ GROUP BY department_name                    │         │
+│  └─────────────────────────────────────────────┘         │
+│                                                          │
+│  결과 데이터 (15건, 0.12초):                             │
+│  ┌──────────────────────────────────────────┐            │
+│  │ department_name │ cnt                    │            │
+│  │ 개발팀          │ 42                     │            │
+│  │ 인사팀          │ 15                     │            │
+│  └──────────────────────────────────────────┘            │
+│  ... 외 N건                                              │
+│                                                          │
+│  ── 실행 실패 시 (에러 표시) ───────────────────────     │
+│  ⚠ SQL 생성에 실패했습니다. 다른 표현으로 질문해 보세요.  │
+│  ─────────────────────────────────────────────────       │
+│                                                          │
+│  (이하 공통 위젯 설정 UI — 결과 확보 후 표시)            │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│                              [취소]  [추가 (Primary)]    │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### 직접 질문 탭 상태 관리
+
+```javascript
+// AddWidgetModal 내부 상태 (직접 질문 모드)
+const activeTab = ref('history')     // 'history' | 'direct'
+const directQuery = ref('')          // 사용자 입력 질문
+const isExecuting = ref(false)       // NL2SQL 실행 중
+const abortController = ref(null)    // 실행 취소용
+const streamProgress = ref([])       // SSE 진행 단계 [{message, done}]
+const executeError = ref('')         // 실행 에러 메시지
+const executedSql = ref('')          // 생성된 SQL
+const executionTimeMs = ref(0)       // 실행 시간
+```
+
+#### 직접 질문 실행 흐름
+
+```
+1. 사용자 질문 입력 → [실행] 클릭 (또는 Enter)
+   → isExecuting = true
+   → streamProgress = []
+   → abortController = new AbortController()
+
+2. SSE 스트리밍 호출
+   → searchApi.searchStream({ query: directQuery, mode: 'nl2sql' }, callbacks)
+   → onNodeStart: streamProgress에 진행 단계 추가 (● 실행 중...)
+   → onNodeComplete: 해당 단계 완료 처리 (✓ 완료)
+
+3. 실행 완료 (onComplete)
+   → executedSql = event.sql
+   → resultColumns = event.sql_result.columns
+   → resultRows = event.sql_result.rows
+   → executionTimeMs = event.sql_result.execution_time_ms
+   → form.queryText = directQuery  (위젯의 query 필드)
+   → form.title = directQuery.slice(0, 100)
+   → isExecuting = false
+   → 위젯 설정 UI 활성화
+
+4. 실행 실패 (onError)
+   → executeError = 에러 메시지
+   → isExecuting = false
+
+5. [실행 취소] 클릭
+   → abortController.abort()
+   → isExecuting = false
+   → streamProgress 초기화
+
+6. 재실행
+   → 질문 수정 후 [실행] 다시 클릭 → 2번부터 반복
+```
+
+#### 공통 위젯 설정 UI
+
+두 탭 모두 NL2SQL 결과를 확보한 후 동일한 위젯 설정 UI를 표시한다:
+- 위젯 제목, 위젯 유형, 차트 설정 (X축/Y축/컬러팔레트)
+- KPI 설정 (값 컬럼/단위 접미사)
+- 컬럼 별칭 입력 (16장 참조)
+- 미리보기 (차트/KPI)
+
+**구현 참조**: `searchApi.searchStream()` (`frontend/src/api/search.js`, `sse.js`) 재사용
 
 ---
 
@@ -541,12 +756,16 @@ frontend/src/
 app/
 ├── api/
 │   ├── routes/
-│   │   └── (personal_dashboard.py)        ❌ 미구현
+│   │   └── personal_dashboard.py          ❌ 7개 API 엔드포인트
 │   └── services/
-│       └── (personal_dashboard_service.py) ❌ 미구현
+│       └── personal_dashboard_service.py   ❌ CRUD + refresh + execute-sql
 ├── models/
-│   └── (personal_dashboard.py)            ❌ 미구현
+│   └── personal_dashboard.py              ❌ Pydantic 모델
 └── main.py                                ❌ 라우터 미등록
+
+frontend/src/
+└── api/
+    └── personalDashboard.js               ❌ Axios API 클라이언트
 ```
 
 ### 6.3 수정된 기존 파일
@@ -559,6 +778,14 @@ app/
 | `frontend/src/components/user/UserChatSidebar.vue` | "대시보드" 네비게이션 메뉴 추가 | ✅ |
 | `frontend/src/components/chart/ChartBuilder.vue` | 차트 옵션 로직을 composable로 추출 | ✅ |
 | `app/main.py` | personal_dashboard 라우터 등록 | ❌ |
+| `frontend/src/store/modules/dashboard.js` | localStorage → API 호출로 전환 | ❌ |
+| `frontend/src/composables/useChartOptions.js` | `buildChartOption`에 `columnAliases` 파라미터 추가 | ❌ |
+| `frontend/src/components/dashboard-personal/DashboardWidget.vue` | columnAliases 하위 전달 | ❌ |
+| `frontend/src/components/dashboard-personal/widgets/WidgetTable.vue` | columnAliases prop, label 매핑 | ❌ |
+| `frontend/src/components/dashboard-personal/widgets/WidgetChart.vue` | columnAliases prop 전달 | ❌ |
+| `frontend/src/components/dashboard-personal/SaveToDashboardModal.vue` | 컬럼 별칭 입력 UI 추가 | ❌ |
+| `frontend/src/components/dashboard-personal/WidgetEditModal.vue` | SQL 편집 + 컬럼 별칭 UI 추가 | ❌ |
+| `docs/sql/psql-hermes_db.sql` | `tb_dashboard_widget` DDL 추가 | ❌ |
 
 ---
 
@@ -567,11 +794,11 @@ app/
 ### 7.1 Dashboard Store 모듈
 
 **파일**: `store/modules/dashboard.js`
-**저장소**: localStorage (키: `mureum_dashboard_widgets`, `mureum_dashboard_theme`)
+**저장소**: Backend API (`/api/v1/dashboard/widgets`) + localStorage (테마만)
 
 ```javascript
 state: () => ({
-  widgets: [],             // 위젯 목록 (localStorage에서 로드)
+  widgets: [],             // 위젯 목록 (API에서 로드)
   isLoading: false,        // 초기 로딩 상태
   editMode: false,         // 편집 모드 여부
   pendingLayout: null,     // 편집 모드 진입 시 백업 (취소용)
@@ -588,18 +815,18 @@ dashboardTheme            // 현재 테마
 gridLayout                // vue-grid-layout용 [{i, x, y, w, h, minW, minH}] 변환
 
 // Actions
-fetchWidgets()            // localStorage 로드 (빈 경우 빈 배열)
-saveWidget(config)        // 위젯 생성 → localStorage 저장
-updateWidget(id, updates) // 위젯 수정 → localStorage 저장
-deleteWidget(id)          // 위젯 삭제 → localStorage 저장
-saveLayout(layout)        // 레이아웃 일괄 저장
-refreshWidget(id)         // [프로토타입] 1초 딜레이 시뮬레이션
-refreshAllWidgets()       // 모든 위젯 순차 새로고침
-enterEditMode()           // 현재 레이아웃 백업 + 편집 모드 진입
-cancelEditMode()          // 백업 레이아웃 복원 + 편집 모드 종료
-saveEditMode()            // 레이아웃 저장 + 편집 모드 종료
-setDashboardTheme(theme)  // 테마 변경 → localStorage 저장
-resetToMock()             // 6개 데모 위젯으로 리셋
+fetchWidgets()            // GET /api/v1/dashboard/widgets → SET_WIDGETS
+saveWidget(config)        // POST /api/v1/dashboard/widgets → ADD_WIDGET
+updateWidget(id, updates) // PUT /api/v1/dashboard/widgets/{id} → UPDATE_WIDGET
+deleteWidget(id)          // DELETE /api/v1/dashboard/widgets/{id} → REMOVE_WIDGET
+saveLayout(layout)        // PUT /api/v1/dashboard/layout → UPDATE_LAYOUT
+refreshWidget(id)         // POST /api/v1/dashboard/widgets/{id}/refresh → cached_data 갱신
+refreshAllWidgets()       // 모든 위젯 순차 refreshWidget 호출
+enterEditMode()           // 현재 레이아웃 백업 + 편집 모드 진입 (로컬)
+cancelEditMode()          // 백업 레이아웃 복원 + 편집 모드 종료 (로컬)
+saveEditMode()            // saveLayout API 호출 + 편집 모드 종료
+setDashboardTheme(theme)  // 테마 변경 → localStorage 저장 (UI 프리퍼런스)
+resetToMock()             // 6개 데모 위젯을 API를 통해 순차 생성
 ```
 
 ### 7.2 위젯 데이터 구조
@@ -617,7 +844,11 @@ resetToMock()             // 6개 데모 위젯으로 리셋
     pie_top_n: null,               // Pie Top N (null=전체)
     kpi_column: null,              // KPI 값 컬럼
     kpi_suffix: null,              // KPI 단위 ("명", "%", "원")
-    color_palette: "default"       // 컬러 팔레트 (default|vivid|pastel|warm|cool|earth)
+    color_palette: "default",      // 컬러 팔레트 (default|vivid|pastel|warm|cool|earth)
+    column_aliases: {              // 컬럼 표시명 매핑 (선택사항, null 또는 {} = 미사용)
+      "department_name": "부서명", // 원본 → 표시명 (영한, 영영 모두 가능)
+      "count": "직원수"            // 매핑하지 않은 컬럼은 원본명 사용
+    }
   },
   cached_data: {
     columns: ["department_name", "count"],
@@ -652,29 +883,55 @@ resetToMock()             // 6개 데모 위젯으로 리셋
 UserChatMessage.vue
   → message.sqlResult (columns, rows), message.sql, message.content
   → SaveToDashboardModal (props로 전달)
-  → 사용자가 제목/유형/차트설정/컬러팔레트 입력
+  → 사용자가 제목/유형/차트설정/컬러팔레트/컬럼별칭 입력
   → store.dispatch('dashboard/saveWidget', config)
-  → localStorage 저장
+  → POST /api/v1/dashboard/widgets → 서버 저장 → widget_id 발급
+  → commit ADD_WIDGET (서버 반환 객체)
 
 [대시보드 로드]
 PersonalDashboardView.onMounted
   → store.dispatch('dashboard/fetchWidgets')
-  → localStorage 로드
+  → GET /api/v1/dashboard/widgets → {items: [...], total: N}
   → commit SET_WIDGETS
   → DashboardGrid ← Vuex gridLayout getter 바인딩
   → DashboardWidget ← v-for 개별 위젯
 
-[대시보드에서 추가]
-AddWidgetModal
+[대시보드에서 추가 - 히스토리 탭]
+AddWidgetModal (탭: 히스토리에서 선택)
   → historyApi.listSessions() → 세션 목록 로드 (nl2sql/agent 필터)
   → historyApi.getSessionHistory() → NL2SQL 결과 있는 레코드 필터
-  → 결과 선택 → 위젯 설정 → store.dispatch('dashboard/saveWidget')
-  → localStorage 저장
+  → 결과 선택 → 위젯 설정 + 컬럼별칭 → store.dispatch('dashboard/saveWidget')
+  → POST /api/v1/dashboard/widgets → 서버 저장
 
-[위젯 새로고침 - 프로토타입]
+[대시보드에서 추가 - 직접 질문 탭]
+AddWidgetModal (탭: 직접 질문하기)
+  → 사용자 질문 입력 → [실행] 클릭
+  → searchApi.searchStream({ query, mode: 'nl2sql' }, callbacks)
+  → SSE 이벤트: 진행 상황 표시 (쿼리 분석 → SQL 생성 → 실행)
+  → onComplete: sql, sql_result.columns, sql_result.rows 추출
+  → 위젯 설정 + 컬럼별칭 → store.dispatch('dashboard/saveWidget')
+  → POST /api/v1/dashboard/widgets → 서버 저장
+
+[위젯 수정 + SQL 편집]
+WidgetEditModal
+  → 제목/유형/차트설정/컬럼별칭 수정
+  → SQL 수정 시: POST /api/v1/dashboard/execute-sql → 미리보기 표시
+  → 저장: PUT /api/v1/dashboard/widgets/{id} → 서버 갱신
+  → commit UPDATE_WIDGET (서버 반환 객체)
+
+[위젯 새로고침]
 DashboardWidget 새로고침 버튼
   → store.dispatch('dashboard/refreshWidget', widgetId)
-  → 1초 딜레이 → last_refreshed_at 갱신 (실제 SQL 미실행)
+  → POST /api/v1/dashboard/widgets/{id}/refresh
+  → 서버에서 저장된 SQL 재실행 (sql_executor) → PII 필터
+  → 최신 cached_data + last_refreshed_at 반환
+  → commit UPDATE_WIDGET
+  → 실패 시: ElMessage.error 표시
+
+[레이아웃 저장]
+편집 모드에서 "레이아웃 저장" 클릭
+  → PUT /api/v1/dashboard/layout → 모든 위젯의 grid_position 일괄 갱신
+  → commit UPDATE_LAYOUT + 편집 모드 종료
 ```
 
 ### 7.5 데모 위젯 목록
@@ -720,26 +977,39 @@ buildChartOption({
   pieTopN,         // Pie Top N (기본 10)
   whiteBg,         // 흰색 배경 모드 (Excel 내보내기 등)
   darkMode,        // true/false/null (null이면 CSS 변수에서 추론)
-  colorPalette     // 팔레트 키 (기본 'default')
+  colorPalette,    // 팔레트 키 (기본 'default')
+  columnAliases    // 컬럼 표시명 매핑 (선택사항, null이면 원본명 사용)
+                   // 예: {"dept_nm": "부서명", "emp_cnt": "Employee Count"}
 })
 ```
 
+**columnAliases 적용 지점**:
+- 범례(Legend) `data` → `yCols.map(col => aliases[col] || col)`
+- 시리즈 `name` → `aliases[col] || col`
+- 산점도 축명 → `aliases[xColumn] || xColumn`
+- 산점도 툴팁 → alias 적용된 컬럼명 표시
+- **미적용**: 데이터 바인딩 키 (`:prop`, `r[col]` 등은 원본 컬럼명 유지)
+
 ---
 
-## 9. Backend API 설계 (미구현)
+## 9. Backend API 설계
 
-> 아래는 향후 백엔드 연동 시 구현할 API 설계입니다. 현재는 프로토타입으로 localStorage만 사용합니다.
+> **상태**: 설계 완료, 구현 예정
+> **인증**: 모든 엔드포인트에 `Depends(get_current_active_user)` 적용 (로그인 필수, 메뉴 권한 불필요)
+> **데이터 스코프**: `user_id` 기반 본인 위젯만 접근 (개인 대시보드)
+> **URL 네임스페이스**: admin dashboard (`GET /api/v1/dashboard/summary`)와 동일 prefix 사용, 경로 충돌 없음
 
 ### 9.1 엔드포인트
 
-| Method | Path | 설명 | Status | 응답 data |
-|--------|------|------|--------|-----------|
-| GET | `/api/v1/dashboard/widgets` | 위젯 목록 | 200 | `{items: [...], total: N}` |
-| POST | `/api/v1/dashboard/widgets` | 위젯 생성 | 201 | 생성된 위젯 객체 |
-| PUT | `/api/v1/dashboard/widgets/{id}` | 위젯 수정 | 200 | 수정된 위젯 객체 |
-| DELETE | `/api/v1/dashboard/widgets/{id}` | 위젯 삭제 | 200 | `{message, deleted_count}` |
-| PUT | `/api/v1/dashboard/layout` | 레이아웃 저장 | 200 | `{message, updated_count}` |
-| POST | `/api/v1/dashboard/widgets/{id}/refresh` | 데이터 갱신 | 200 | `{widget_id, cached_data, last_refreshed_at}` |
+| # | Method | Path | 설명 | Status | 응답 data |
+|---|--------|------|------|--------|-----------|
+| 1 | GET | `/api/v1/dashboard/widgets` | 내 위젯 목록 | 200 | `{items: [...], total: N}` |
+| 2 | POST | `/api/v1/dashboard/widgets` | 위젯 생성 | 201 | 생성된 위젯 객체 |
+| 3 | PUT | `/api/v1/dashboard/widgets/{id}` | 위젯 수정 (제목/유형/SQL/설정/별칭) | 200 | 수정된 위젯 객체 |
+| 4 | DELETE | `/api/v1/dashboard/widgets/{id}` | 위젯 삭제 | 200 | `{message, deleted_count}` |
+| 5 | PUT | `/api/v1/dashboard/layout` | 레이아웃 일괄 저장 | 200 | `{message, updated_count}` |
+| 6 | POST | `/api/v1/dashboard/widgets/{id}/refresh` | 저장된 SQL 재실행 → 데이터 갱신 | 200 | `{widget_id, cached_data, last_refreshed_at}` |
+| 7 | POST | `/api/v1/dashboard/execute-sql` | SQL 테스트 실행 (편집 미리보기용) | 200 | `{columns, rows, row_count, execution_time_ms}` |
 
 ### 9.2 요청/응답 예시
 
@@ -754,7 +1024,11 @@ buildChartOption({
   "chart_config": {
     "x_column": "department_name",
     "y_columns": ["cnt"],
-    "color_palette": "default"
+    "color_palette": "default",
+    "column_aliases": {
+      "department_name": "부서명",
+      "cnt": "직원수"
+    }
   },
   "cached_data": {
     "columns": ["department_name", "cnt"],
@@ -768,12 +1042,57 @@ buildChartOption({
   "success": true,
   "data": {
     "widget_id": 1,
+    "user_id": 5,
+    "tenant_id": 2,
     "title": "부서별 직원 수",
     "widget_type": "bar",
+    "query": "부서별 직원 수를 알려줘",
+    "sql": "SELECT department_name, COUNT(*) as cnt FROM employee GROUP BY department_name",
+    "chart_config": {
+      "x_column": "department_name",
+      "y_columns": ["cnt"],
+      "color_palette": "default",
+      "column_aliases": {"department_name": "부서명", "cnt": "직원수"}
+    },
+    "cached_data": {
+      "columns": ["department_name", "cnt"],
+      "rows": [{"department_name": "개발팀", "cnt": 42}],
+      "row_count": 15,
+      "cached_at": "2026-02-27T10:30:00"
+    },
     "grid_position": {"x": 0, "y": 0, "w": 6, "h": 10},
-    ...
+    "sort_order": 0,
+    "created_at": "2026-02-27T10:30:00",
+    "updated_at": "2026-02-27T10:30:00",
+    "last_refreshed_at": "2026-02-27T10:30:00"
   }
 }
+```
+
+**위젯 수정 (PUT)** - SQL 편집 + 컬럼 별칭 포함:
+```json
+// Request (변경된 필드만 전송)
+{
+  "title": "부서별 인원 현황",
+  "sql": "SELECT department_name, COUNT(*) as cnt FROM employee WHERE is_active = true GROUP BY department_name",
+  "chart_config": {
+    "x_column": "department_name",
+    "y_columns": ["cnt"],
+    "color_palette": "vivid",
+    "column_aliases": {
+      "department_name": "Department",
+      "cnt": "Head Count"
+    }
+  },
+  "cached_data": {
+    "columns": ["department_name", "cnt"],
+    "rows": [{"department_name": "개발팀", "cnt": 38}],
+    "row_count": 7,
+    "cached_at": "2026-02-27T11:00:00"
+  }
+}
+
+// Response (200) — 전체 위젯 객체 반환
 ```
 
 **레이아웃 저장 (PUT)**:
@@ -799,6 +1118,7 @@ buildChartOption({
 
 **데이터 새로고침 (POST)**:
 ```json
+// Request: body 없음 (저장된 SQL 재실행)
 // Response (200)
 {
   "success": true,
@@ -806,41 +1126,222 @@ buildChartOption({
     "widget_id": 1,
     "cached_data": {
       "columns": ["department_name", "cnt"],
-      "rows": [...],
-      "row_count": 15,
-      "cached_at": "2026-02-26T10:30:00"
+      "rows": [{"department_name": "개발팀", "cnt": 45}, ...],
+      "row_count": 7,
+      "cached_at": "2026-02-27T14:30:00"
     },
-    "last_refreshed_at": "2026-02-26T10:30:00"
+    "last_refreshed_at": "2026-02-27T14:30:00"
   }
 }
 ```
 
-### 9.3 Backend 파일 구조 (미구현)
+**SQL 테스트 실행 (POST)** — SQL 편집 미리보기용:
+```json
+// Request
+{
+  "sql": "SELECT department_name, COUNT(*) as cnt FROM employee GROUP BY department_name ORDER BY cnt DESC"
+}
+
+// Response (200) — 성공
+{
+  "success": true,
+  "data": {
+    "columns": ["department_name", "cnt"],
+    "rows": [{"department_name": "개발팀", "cnt": 45}, {"department_name": "영업팀", "cnt": 38}],
+    "row_count": 7,
+    "execution_time_ms": 15
+  }
+}
+
+// Response (400) — SQL 검증 실패
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "데이터 조회만 가능합니다. 데이터 변경이 포함된 질문은 처리할 수 없습니다."
+  }
+}
+```
+
+### 9.3 Backend 파일 구조
 
 ```
 app/
 ├── api/
 │   ├── routes/
-│   │   └── personal_dashboard.py      # API 엔드포인트
+│   │   └── personal_dashboard.py        # 7개 API 엔드포인트 (❌ 미구현)
 │   └── services/
-│       └── personal_dashboard_service.py  # 비즈니스 로직
-└── models/
-    └── personal_dashboard.py          # Pydantic 모델
+│       └── personal_dashboard_service.py # CRUD + refresh + execute-sql (❌ 미구현)
+├── models/
+│   └── personal_dashboard.py            # Pydantic 모델 (❌ 미구현)
+└── main.py                              # 라우터 등록 필요 (❌ 미등록)
+
+frontend/src/
+└── api/
+    └── personalDashboard.js             # Axios API 클라이언트 (❌ 미생성)
 ```
 
-### 9.4 새로고침 시 보안 (구현 예정)
+### 9.4 Pydantic 모델
 
-- 저장된 SQL을 `sql_executor.py` 통해 실행 (기존 보안 체크 적용)
-  - SELECT-only 검증
-  - 키워드 블랙리스트 (DROP, DELETE, UPDATE 등)
-  - 테이블 화이트리스트
-  - 30초 타임아웃
-  - 행 수 제한
-- PII 필터는 기존 `pii_service.py` 적용
+```python
+# app/models/personal_dashboard.py
+
+class ChartConfig(BaseModel):
+    x_column: Optional[str] = None
+    y_columns: Optional[List[str]] = None
+    pie_top_n: Optional[int] = None
+    kpi_column: Optional[str] = None
+    kpi_suffix: Optional[str] = None
+    color_palette: Optional[str] = "default"
+    column_aliases: Optional[Dict[str, str]] = None  # {"eng_col": "표시명"}
+
+class CachedData(BaseModel):
+    columns: List[str] = []
+    rows: List[Dict[str, Any]] = []
+    row_count: int = 0
+    cached_at: Optional[str] = None
+
+class GridPosition(BaseModel):
+    x: int = 0
+    y: int = 0
+    w: int = 6
+    h: int = 10
+
+class WidgetCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    widget_type: str = Field(default="table")
+    query: Optional[str] = None
+    sql: Optional[str] = None
+    chart_config: Optional[ChartConfig] = None
+    cached_data: Optional[CachedData] = None
+    grid_position: Optional[GridPosition] = None
+
+class WidgetUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    widget_type: Optional[str] = None
+    query: Optional[str] = None
+    sql: Optional[str] = None
+    chart_config: Optional[ChartConfig] = None
+    cached_data: Optional[CachedData] = None
+
+class WidgetResponse(BaseModel):
+    widget_id: int
+    user_id: int
+    tenant_id: Optional[int] = None
+    title: str
+    widget_type: str
+    query: Optional[str] = None
+    sql: Optional[str] = None
+    chart_config: dict = {}
+    cached_data: dict = {}
+    grid_position: dict = {}
+    sort_order: int = 0
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    last_refreshed_at: Optional[str] = None
+
+class LayoutItem(BaseModel):
+    widget_id: int
+    x: int
+    y: int
+    w: int
+    h: int
+
+class LayoutSaveRequest(BaseModel):
+    layout: List[LayoutItem]
+
+class ExecuteSqlRequest(BaseModel):
+    sql: str = Field(..., min_length=1)
+```
+
+### 9.5 Service 계층
+
+```python
+# app/api/services/personal_dashboard_service.py
+
+class PersonalDashboardService:
+    """개인 대시보드 위젯 CRUD + SQL 실행 서비스"""
+
+    MAX_WIDGETS_PER_USER = 20    # 사용자당 최대 위젯 수
+    MAX_CACHED_ROWS = 500        # cached_data 최대 행 수
+
+    def list_widgets(self, user_id: int) -> dict:
+        """사용자 위젯 목록 조회 → {items: [...], total: N}"""
+
+    def create_widget(self, user_id: int, tenant_id: int, data: WidgetCreate) -> dict:
+        """위젯 생성 (MAX_WIDGETS_PER_USER 제한, 자동 grid_position 배치)"""
+
+    def update_widget(self, user_id: int, widget_id: int, data: WidgetUpdate) -> dict:
+        """위젯 수정 (소유권 검증, SQL/chart_config/column_aliases 포함)"""
+
+    def delete_widget(self, user_id: int, widget_id: int) -> dict:
+        """위젯 삭제 (소유권 검증)"""
+
+    def save_layout(self, user_id: int, layout: List[LayoutItem]) -> dict:
+        """레이아웃 일괄 저장 (소유권 검증)"""
+
+    def refresh_widget(self, user_id: int, widget_id: int) -> dict:
+        """위젯 데이터 새로고침
+        → sql_executor.execute_sql(stored_sql)
+        → pii_service.detect_and_mask(results)
+        → cached_data + last_refreshed_at 갱신"""
+
+    def execute_sql(self, sql: str) -> dict:
+        """SQL 테스트 실행 (저장 안함, 미리보기용)
+        → sql_executor.validate_sql(sql)
+        → sql_executor.execute_sql(sql)
+        → pii_service.detect_and_mask(results)
+        → {columns, rows, row_count, execution_time_ms} 반환"""
+
+    # 내부 메서드
+    def _get_widget(self, user_id: int, widget_id: int) -> dict:
+        """위젯 조회 + 소유권 검증 (user_id 불일치 시 NOT_FOUND)"""
+
+    def _auto_grid_position(self, user_id: int, widget_type: str) -> dict:
+        """기존 위젯 배치를 분석하여 빈 위치에 자동 배치"""
+```
+
+**참조 패턴**:
+- `dashboard_service.py`: 싱글톤 인스턴스, `db_manager.get_cursor()` 패턴
+- `user_service.py`: scope 필터, 소유권 검증 패턴
+- `sql_executor.py`: SQL 검증/실행 재사용
+
+### 9.6 SQL 실행 보안
+
+모든 SQL 실행 (refresh, execute-sql)에 동일한 보안 체인 적용:
+
+| 보안 레이어 | 적용 | 기존 코드 재사용 |
+|------------|------|-----------------|
+| SELECT-only 강제 | sqlparse 기반 문 타입 검증 | `sql_executor.validate_sql()` |
+| DDL/DML 차단 | FORBIDDEN_KEYWORDS 블랙리스트 | `sql_executor.FORBIDDEN_KEYWORDS` |
+| 복수 SQL문 차단 | 세미콜론 분리 다중 쿼리 검증 | `sql_executor.validate_sql()` |
+| 테이블 화이트리스트 | 허용 테이블만 조회 가능 | `external_db_manager.get_allowed_tables()` |
+| 타임아웃 | 30초 (DB 설정 가능) | `sql_executor.timeout` |
+| 행 수 제한 | LIMIT 자동 추가 (DB 설정 가능) | `sql_executor.max_rows` |
+| PII 필터 | 결과 데이터 PII 마스킹 | `pii_service.detect_and_mask()` |
+| 인증 필수 | JWT 토큰 검증 | `Depends(get_current_active_user)` |
+| 소유권 검증 | user_id 기반 위젯 접근 제어 | `_get_widget(user_id, widget_id)` |
+
+### 9.7 Frontend API 클라이언트
+
+```javascript
+// frontend/src/api/personalDashboard.js
+import api from './index'
+
+export default {
+  getWidgets: () => api.get('/api/v1/dashboard/widgets'),
+  createWidget: (data) => api.post('/api/v1/dashboard/widgets', data),
+  updateWidget: (id, data) => api.put(`/api/v1/dashboard/widgets/${id}`, data),
+  deleteWidget: (id) => api.delete(`/api/v1/dashboard/widgets/${id}`),
+  saveLayout: (layout) => api.put('/api/v1/dashboard/layout', { layout }),
+  refreshWidget: (id) => api.post(`/api/v1/dashboard/widgets/${id}/refresh`),
+  executeSql: (sql) => api.post('/api/v1/dashboard/execute-sql', { sql })
+}
+```
 
 ---
 
-## 10. 데이터베이스 설계 (미구현)
+## 10. 데이터베이스 설계
 
 ### 10.1 신규 테이블
 
@@ -848,13 +1349,15 @@ app/
 -- 개인 대시보드 위젯
 CREATE TABLE tb_dashboard_widget (
     widget_id         SERIAL PRIMARY KEY,
-    user_id           INTEGER NOT NULL,
+    user_id           INTEGER NOT NULL REFERENCES tb_user(user_id),
+    tenant_id         INTEGER REFERENCES tb_tenant(tenant_id),
     title             VARCHAR(200) NOT NULL,
-    widget_type       VARCHAR(20) NOT NULL DEFAULT 'table',
+    widget_type       VARCHAR(20) NOT NULL DEFAULT 'table'
+                      CHECK (widget_type IN ('table','bar','hbar','line','pie','scatter','kpi')),
     query             TEXT,                                    -- 원본 자연어 질문
-    sql               TEXT,                                    -- 생성된 SQL
-    chart_config      JSONB DEFAULT '{}',                      -- 차트 설정
-    cached_data       JSONB DEFAULT '{}',                      -- 캐시 결과
+    sql               TEXT,                                    -- 생성된/수정된 SQL
+    chart_config      JSONB DEFAULT '{}',                      -- 차트 설정 + column_aliases
+    cached_data       JSONB DEFAULT '{}',                      -- 캐시 결과 (최대 500행)
     grid_position     JSONB DEFAULT '{"x":0,"y":0,"w":6,"h":10}',
     sort_order        INTEGER DEFAULT 0,
     is_active         BOOLEAN DEFAULT TRUE,
@@ -864,6 +1367,7 @@ CREATE TABLE tb_dashboard_widget (
 );
 
 CREATE INDEX idx_dashboard_widget_user ON tb_dashboard_widget(user_id);
+CREATE INDEX idx_dashboard_widget_tenant ON tb_dashboard_widget(tenant_id);
 ```
 
 ### 10.2 JSONB 필드 스키마
@@ -1013,26 +1517,42 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 | 1-12 | AddWidgetModal | 히스토리 기반 추가 | ✅ |
 | 1-13 | UserChatSidebar 수정 | "대시보드" 메뉴 | ✅ |
 
-### Phase 2: 백엔드 구현 (예정)
+### Phase 2: 백엔드 API + DB 연동 (예정)
 
 | 순서 | 작업 | 산출물 | 상태 |
 |------|------|--------|------|
-| 2-1 | DB 테이블 생성 (`tb_dashboard_widget`) | DDL 스크립트 | ❌ |
+| 2-1 | DB 테이블 생성 (`tb_dashboard_widget`) | DDL 스크립트 (`docs/sql/psql-hermes_db.sql` 추가) | ❌ |
 | 2-2 | Pydantic 모델 작성 | `app/models/personal_dashboard.py` | ❌ |
-| 2-3 | Service 계층 작성 | `app/api/services/personal_dashboard_service.py` | ❌ |
-| 2-4 | Route 작성 + main.py 등록 | `app/api/routes/personal_dashboard.py` | ❌ |
+| 2-3 | Service 계층 작성 (CRUD + refresh + execute-sql) | `app/api/services/personal_dashboard_service.py` | ❌ |
+| 2-4 | Route 작성 (7개 엔드포인트) + main.py 등록 | `app/api/routes/personal_dashboard.py` | ❌ |
 | 2-5 | API 클라이언트 작성 | `frontend/src/api/personalDashboard.js` | ❌ |
-| 2-6 | Vuex 스토어 API 연동 | `store/modules/dashboard.js` 수정 | ❌ |
+| 2-6 | Vuex 스토어 API 연동 (localStorage → API) | `store/modules/dashboard.js` 수정 | ❌ |
 
-### Phase 3: 테스트 (예정)
+### Phase 3: 컬럼 별칭 + SQL 편집 (예정)
+
+| 순서 | 작업 | 산출물 | 상태 |
+|------|------|--------|------|
+| 3-1 | `buildChartOption()`에 columnAliases 파라미터 추가 | `useChartOptions.js` 수정 | ❌ |
+| 3-2 | WidgetTable에 columnAliases prop + 헤더 매핑 | `WidgetTable.vue` 수정 | ❌ |
+| 3-3 | WidgetChart에 columnAliases prop 전달 | `WidgetChart.vue` 수정 | ❌ |
+| 3-4 | DashboardWidget에서 columnAliases 하위 전달 | `DashboardWidget.vue` 수정 | ❌ |
+| 3-5 | SaveToDashboardModal에 컬럼 별칭 입력 UI | `SaveToDashboardModal.vue` 수정 | ❌ |
+| 3-6 | WidgetEditModal에 SQL 편집 UI + 컬럼 별칭 UI | `WidgetEditModal.vue` 수정 | ❌ |
+| 3-7 | AddWidgetModal에 탭 UI + 직접 질문 모드 추가 | `AddWidgetModal.vue` 수정 | ❌ |
+
+### Phase 4: 통합 테스트 (예정)
 
 | 순서 | 작업 | 검증 항목 | 상태 |
 |------|------|----------|------|
-| 3-1 | Backend API 테스트 | CRUD + refresh 엔드포인트 | ❌ |
-| 3-2 | Chat 저장 기능 테스트 | 모달 → 저장 → 대시보드 반영 | ❌ |
-| 3-3 | 드래그앤드롭 테스트 | 이동/리사이즈 → 저장 → 새로고침 유지 | ❌ |
-| 3-4 | 데이터 갱신 테스트 | SQL 재실행 → 최신 데이터 반영 | ❌ |
-| 3-5 | 반응형 테스트 | 모바일/태블릿 레이아웃 확인 | ❌ |
+| 4-1 | Backend API 테스트 | CRUD + refresh + execute-sql 엔드포인트 | ❌ |
+| 4-2 | Chat 저장 기능 테스트 | 모달 → 컬럼 별칭 입력 → 저장 → 대시보드 반영 | ❌ |
+| 4-3 | 드래그앤드롭 테스트 | 이동/리사이즈 → 저장 → 새로고침 유지 | ❌ |
+| 4-4 | 데이터 갱신 테스트 | SQL 재실행 → 최신 데이터 반영 | ❌ |
+| 4-5 | SQL 편집 테스트 | SQL 수정 → 실행 → 미리보기 → 저장 | ❌ |
+| 4-6 | 컬럼 별칭 테스트 | 별칭 입력 → 테이블 헤더/차트 범례 반영 | ❌ |
+| 4-7 | 직접 질문 위젯 추가 테스트 | 질문 입력 → NL2SQL 실행 → 결과 확인 → 위젯 저장 | ❌ |
+| 4-8 | 직접 질문 실행 취소 테스트 | 실행 중 취소 → 상태 초기화 → 재실행 가능 확인 | ❌ |
+| 4-9 | 반응형 테스트 | 모바일/태블릿 레이아웃 확인 | ❌ |
 
 ---
 
@@ -1045,8 +1565,15 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 | SQL 재실행 실패 | 위젯 에러 상태 | 에러 오버레이 + 재시도/삭제 옵션 (설계) | ❌ 미구현 |
 | 다크/라이트 모드 전환 | 차트 색상 불일치 | darkMode prop 기반 직접 색상 결정 | ✅ 해결 |
 | 차트 로직 중복 | 유지보수 부담 | useChartOptions.js composable 공유 | ✅ 해결 |
-| localStorage 용량 제한 | 위젯 데이터 유실 | 백엔드 DB 연동으로 해결 예정 | ❌ 미해결 |
-| 브라우저간 데이터 미동기화 | 다른 기기에서 접근 불가 | 백엔드 DB 연동으로 해결 예정 | ❌ 미해결 |
+| localStorage 용량 제한 | 위젯 데이터 유실 | Phase 2 백엔드 DB 연동으로 해결 | ❌ 미구현 |
+| 브라우저간 데이터 미동기화 | 다른 기기에서 접근 불가 | Phase 2 백엔드 DB 연동으로 해결 | ❌ 미구현 |
+| SQL 편집 보안 (SQL Injection) | 악의적 SQL 실행 | sql_executor 보안 체인 재사용 (SELECT-only, 키워드 블랙리스트, 테이블 화이트리스트, 타임아웃) | ❌ 미구현 |
+| SQL 편집 후 저장 실수 | 잘못된 SQL 영구 저장 | "SQL 실행" 성공 필수 → 미실행 SQL은 저장 차단 | ❌ 미구현 |
+| 컬럼 별칭 매핑 깨짐 | SQL 변경 시 컬럼명 불일치 | SQL 편집 후 실행 시 새 columns 반환 → 기존 aliases와 자동 교차 검증 | ❌ 미구현 |
+| PII 노출 | SQL 결과에 개인정보 포함 | pii_service.detect_and_mask() 적용 (refresh, execute-sql 모두) | ❌ 미구현 |
+| 동시 레이아웃 저장 충돌 | 다른 탭에서 동시 수정 | updated_at 기반 낙관적 잠금 또는 마지막 쓰기 우선 정책 | ❌ 미구현 |
+| NL2SQL 직접 실행 장시간 대기 | 모달 내 UX 저하 | SSE 진행 상황 실시간 표시 + AbortController 기반 실행 취소 버튼 | ❌ 미구현 |
+| NL2SQL 직접 실행 실패 | 위젯 생성 불가 | 에러 메시지 인라인 표시 + 질문 재입력 유도 (모달 닫지 않음) | ❌ 미구현 |
 
 ---
 
@@ -1159,3 +1686,302 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 | `frontend/src/views/user/PersonalDashboardView.vue` | PDF 핸들러 + content ref | ✅ |
 | `frontend/src/components/dashboard-personal/widgets/WidgetChart.vue` | `getChartImage` expose (기존) | ✅ |
 | `frontend/package.json` | html-to-image, jspdf 추가 | ✅ |
+
+---
+
+## 16. 컬럼 별칭(Column Aliases) 기능 설계
+
+### 16.1 개요
+
+NL2SQL 결과의 컬럼명은 DB 원본 그대로(영문, snake_case)이므로 사용자가 읽기 어렵다.
+컬럼 별칭 기능으로 원본 컬럼명을 원하는 표시명으로 매핑하여 차트와 테이블에서 사용한다.
+
+- **기본 동작**: 별칭 미설정 시 원본 컬럼명 표시 (기존 동작 유지)
+- **매핑 방향**: 영문→한글, 영문→영문, 한글→한글 모두 가능
+- **저장 위치**: `chart_config.column_aliases` (JSONB 내부, 별도 DB 컬럼 불필요)
+
+```
+예시:
+  dept_nm      → "부서명"
+  emp_cnt      → "Employee Count"
+  avg_salary   → "평균 급여"
+  department   → "Department Name"
+```
+
+### 16.2 데이터 구조
+
+```json
+// chart_config 내부
+{
+  "x_column": "dept_nm",
+  "y_columns": ["emp_cnt", "avg_salary"],
+  "column_aliases": {
+    "dept_nm": "부서명",
+    "emp_cnt": "인원수",
+    "avg_salary": "평균 급여"
+  }
+}
+```
+
+- **키**: 원본 컬럼명 (DB 결과의 실제 컬럼명)
+- **값**: 표시할 별칭 (빈 문자열 또는 null이면 원본 사용)
+- **전체 컬럼 필수 아님**: 별칭을 설정한 컬럼만 포함
+
+### 16.3 별칭 해석 함수
+
+모든 위젯 컴포넌트에서 공통 사용하는 별칭 해석 헬퍼:
+
+```javascript
+// 사용 패턴 (각 컴포넌트 내부)
+const getAlias = (col) => {
+  return props.columnAliases?.[col] || col
+}
+```
+
+또는 `useChartOptions.js` 내부에서:
+
+```javascript
+function buildChartOption({ ..., columnAliases }) {
+  const getAlias = (col) => columnAliases?.[col] || col
+  // ... 범례, 시리즈명, 축명에 getAlias 적용
+}
+```
+
+### 16.4 적용 지점 (6곳)
+
+| # | 위치 | 파일 | 현재 코드 | 변경 후 |
+|---|------|------|----------|---------|
+| 1 | 테이블 헤더 | `WidgetTable.vue:16` | `:label="col"` | `:label="getAlias(col)"` |
+| 2 | 차트 범례 | `useChartOptions.js:198` | `data: yCols` | `data: yCols.map(c => getAlias(c))` |
+| 3 | 차트 시리즈명 | `useChartOptions.js:243` | `name: col` | `name: getAlias(col)` |
+| 4 | 산점도 축 이름 | `useChartOptions.js:168` | `name: xColumn` | `name: getAlias(xColumn)` |
+| 5 | 산점도 툴팁 | `useChartOptions.js:163` | `${xColumn}` | `${getAlias(xColumn)}` |
+| 6 | KPI 표시 | `WidgetKpi.vue` | 컬럼명 직접 사용 | `getAlias(kpiColumn)` |
+
+**참고**: 모달 컴포넌트의 컬럼 선택 드롭다운(`:label="col"`)은 원본 컬럼명을 유지한다.
+편집 UI에서는 원본 컬럼명을 보여야 매핑 관계가 명확하기 때문이다.
+
+### 16.5 편집 UI
+
+#### SaveToDashboardModal (저장 시 별칭 설정)
+
+차트/테이블 설정 영역 하단에 "컬럼 표시명" 접이식 섹션 추가:
+
+```
+┌─────────────────────────────────────────┐
+│ ▼ 컬럼 표시명 (선택)                       │
+│                                         │
+│  dept_nm    [부서명            ]         │
+│  emp_cnt    [인원수            ]         │
+│  avg_salary [                  ]  ← 빈칸 = 원본 사용 │
+└─────────────────────────────────────────┘
+```
+
+- 모든 columns에 대해 입력 필드 표시
+- placeholder에 원본 컬럼명 표시 (빈칸 = 원본 사용임을 시각적으로 안내)
+- 테이블 유형에서도 표시 (테이블 헤더에 적용되므로)
+- 접이식(Collapse) 기본 접힌 상태 → 필요할 때만 펼침
+
+#### WidgetEditModal (수정 시 별칭 변경)
+
+기존 "표시 설정" 섹션 내에 동일한 UI 추가:
+- 기존 저장된 `column_aliases` 값을 폼에 로드
+- SQL 편집 후 실행 시 새 columns 목록과 교차 검증 (아래 16.6 참조)
+
+### 16.6 SQL 편집 시 별칭 동기화
+
+SQL을 수정하면 결과 컬럼이 변경될 수 있으므로 별칭 매핑 동기화가 필요:
+
+```
+1. 사용자가 SQL 수정 → "SQL 실행" 클릭
+2. 실행 결과에서 새 columns 목록 획득
+3. 기존 column_aliases와 비교:
+   - 여전히 존재하는 컬럼: 별칭 유지
+   - 새로 추가된 컬럼: 빈칸으로 표시 (원본 사용)
+   - 삭제된 컬럼: aliases에서 자동 제거
+4. 별칭 입력 UI를 새 columns 기준으로 갱신
+```
+
+### 16.7 prop 전달 경로
+
+```
+DashboardWidget.vue
+  ├─ widget.chart_config.column_aliases  (JSONB에서 추출)
+  │
+  ├─→ WidgetTable   :column-aliases="widget.chart_config?.column_aliases"
+  ├─→ WidgetChart   :column-aliases="widget.chart_config?.column_aliases"
+  └─→ WidgetKpi     :column-aliases="widget.chart_config?.column_aliases"
+```
+
+각 위젯 컴포넌트는 `columnAliases` prop을 선언하고,
+내부에서 `getAlias()` 헬퍼를 통해 표시명을 결정한다.
+
+### 16.8 제약 사항
+
+- 별칭 최대 길이: 50자 (UI 표시 공간 제한)
+- 빈 문자열/null → 원본 컬럼명 사용
+- 중복 별칭 허용 (다른 컬럼에 같은 별칭 가능 — 사용자 책임)
+- 별칭은 표시 전용이며, 데이터 바인딩(`prop`, `row[col]`)에는 영향 없음
+
+---
+
+## 17. SQL 편집 기능 설계
+
+### 17.1 개요
+
+저장된 위젯의 SQL을 WidgetEditModal에서 수정하고, 테스트 실행하여 결과를 미리본 뒤 저장하는 기능.
+기존 NL2SQL 파이프라인의 보안 체인(`sql_executor`)을 재사용하여 안전한 SQL 실행을 보장한다.
+
+### 17.2 UI 레이아웃 (WidgetEditModal 내)
+
+```
+┌─────────────────────────────────────────────────────┐
+│ 위젯 수정                                              │
+│                                                     │
+│ [기본 정보]  제목 / 위젯 유형 / 차트 설정                    │
+│                                                     │
+│ ▼ 쿼리 정보                                            │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ 원본 질문: 2024년 부서별 인원수는?                      │ │
+│ │                                                 │ │
+│ │ SQL:                                            │ │
+│ │ ┌───────────────────────────────────────────┐   │ │
+│ │ │ SELECT department_name, COUNT(*) as cnt   │   │ │
+│ │ │ FROM employee                             │   │ │
+│ │ │ WHERE hire_date >= '2024-01-01'           │   │ │
+│ │ │ GROUP BY department_name                  │   │ │
+│ │ └───────────────────────────────────────────┘   │ │
+│ │                         [SQL 실행]  [SQL 초기화]   │ │
+│ │                                                 │ │
+│ │ ┌─ 실행 결과 (15건, 0.12초) ──────────────────┐   │ │
+│ │ │ department_name  │ cnt                     │   │ │
+│ │ │ ─────────────────┼────                     │   │ │
+│ │ │ 개발팀            │ 42                      │   │ │
+│ │ │ 인사팀            │ 15                      │   │ │
+│ │ │ ...              │ ...                     │   │ │
+│ │ └───────────────────────────────────────────┘   │ │
+│ └─────────────────────────────────────────────────┘ │
+│                                                     │
+│ ▼ 컬럼 표시명 (선택)                                    │
+│   department_name  [부서명           ]               │
+│   cnt              [인원수           ]               │
+│                                                     │
+│                              [취소]  [저장]           │
+└─────────────────────────────────────────────────────┘
+```
+
+### 17.3 SQL 편집 컴포넌트 상세
+
+| 요소 | 구현 | 비고 |
+|------|------|------|
+| SQL 입력 | `<el-input type="textarea" :rows="6">` | `font-family: monospace` |
+| SQL 실행 버튼 | `<el-button>` | `POST /api/v1/dashboard/execute-sql` |
+| SQL 초기화 버튼 | `<el-button>` | 원본 SQL로 복원 (`widget.sql`) |
+| 실행 결과 테이블 | `<el-table :data="previewRows" size="small">` | 최대 10행 표시 |
+| 실행 시간 | `execution_time_ms` | "15건, 0.12초" 형태 |
+| 에러 표시 | `<el-alert type="error">` | SQL 검증/실행 오류 메시지 |
+| 로딩 상태 | `<el-button :loading="executing">` | 실행 중 스피너 |
+
+### 17.4 상태 관리
+
+```javascript
+// WidgetEditModal 내부 상태
+const sqlText = ref('')          // 현재 SQL 텍스트
+const originalSql = ref('')      // 원본 SQL (초기화용)
+const sqlModified = ref(false)   // SQL 변경 여부
+const sqlExecuted = ref(false)   // SQL 실행 완료 여부
+const executing = ref(false)     // 실행 중 로딩
+
+// SQL 실행 결과
+const previewColumns = ref([])
+const previewRows = ref([])
+const previewRowCount = ref(0)
+const executionTimeMs = ref(0)
+const executeError = ref('')
+```
+
+### 17.5 SQL 편집 흐름
+
+```
+1. 모달 열기
+   → sqlText = widget.sql
+   → originalSql = widget.sql
+   → sqlModified = false, sqlExecuted = false
+
+2. SQL 텍스트 수정
+   → watch(sqlText) → sqlModified = (sqlText !== originalSql)
+   → sqlExecuted = false (수정하면 실행 결과 무효화)
+
+3. [SQL 실행] 클릭
+   → executing = true
+   → POST /api/v1/dashboard/execute-sql { sql: sqlText }
+   → 성공:
+     - previewColumns, previewRows, previewRowCount, executionTimeMs 설정
+     - sqlExecuted = true
+     - executeError = ''
+     - 컬럼 별칭 UI 갱신 (새 columns 기준, 16.6 참조)
+   → 실패:
+     - executeError = 에러 메시지
+     - sqlExecuted = false
+   → executing = false
+
+4. [SQL 초기화] 클릭
+   → sqlText = originalSql
+   → sqlModified = false, sqlExecuted = false
+   → 실행 결과 초기화
+
+5. [저장] 클릭
+   → if (sqlModified && !sqlExecuted):
+       ElMessage.warning('수정한 SQL을 먼저 실행해주세요')
+       return
+   → if (sqlModified && sqlExecuted):
+       PUT /api/v1/dashboard/widgets/{id} {
+         sql: sqlText,
+         cached_data: { columns: previewColumns, rows: previewRows, ... },
+         chart_config: { ..., column_aliases: updatedAliases }
+       }
+   → else:
+       PUT /api/v1/dashboard/widgets/{id} {
+         title, widget_type, chart_config (별칭 포함)
+       }
+```
+
+### 17.6 보안 체인
+
+SQL 편집 기능은 기존 `sql_executor.py`의 보안 체인을 그대로 재사용:
+
+```
+사용자 입력 SQL
+  → sql_executor.validate_sql(sql)
+    ├── sqlparse: SELECT문만 허용
+    ├── FORBIDDEN_KEYWORDS 검사 (DROP, DELETE, UPDATE, INSERT, ALTER, CREATE, TRUNCATE...)
+    ├── 복수 SQL문 차단 (세미콜론 분리)
+    └── 테이블 화이트리스트 검증 (external_db_manager.get_allowed_tables())
+  → sql_executor.execute_sql(sql, timeout=30, max_rows=설정값)
+    ├── LIMIT 자동 추가 (없을 경우)
+    ├── 30초 타임아웃
+    └── 외부 DB 연결 (external_db_manager)
+  → pii_service.detect_and_mask(results)
+    └── PII 감지 및 마스킹
+  → 결과 반환
+```
+
+### 17.7 에러 처리
+
+| 에러 유형 | 원인 | 사용자 메시지 |
+|----------|------|-------------|
+| VALIDATION | SELECT문이 아님 | "SELECT 쿼리만 실행할 수 있습니다" |
+| VALIDATION | 금지 키워드 포함 | "허용되지 않는 SQL 키워드가 포함되어 있습니다" |
+| VALIDATION | 허용되지 않은 테이블 | "접근 권한이 없는 테이블입니다: {table_name}" |
+| TIMEOUT | 30초 초과 | "쿼리 실행 시간이 초과되었습니다 (30초)" |
+| DB_ERROR | SQL 문법 오류 | "SQL 실행 오류: {db_error_message}" |
+| DB_ERROR | 연결 실패 | "데이터베이스 연결에 실패했습니다" |
+
+### 17.8 제약 사항
+
+- SELECT문만 허용 (DML/DDL 완전 차단)
+- 실행 결과는 최대 500행까지 cached_data에 저장
+- 미리보기는 최대 10행까지 표시
+- SQL 편집 후 반드시 실행 성공해야 저장 가능
+- PII 마스킹은 서버에서 적용 (프론트엔드에서 추가 처리 불필요)
+- 원본 질문(`query` 필드)은 수정 불가 (SQL만 수정 가능)
