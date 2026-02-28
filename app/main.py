@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants, menus, departments, dashboard
+from app.api.routes import auth, documents, search, agent, codes, history, export, users, roles, tenants, menus, departments, dashboard, personal_dashboard
 from app.api.routes import settings as settings_router
 from app.config import settings
 from app.api.services.history_service import history_service
@@ -92,6 +92,7 @@ app.include_router(tenants.router)  # 테넌트 관리 라우터 (Phase 4)
 app.include_router(menus.router)    # 메뉴 관리 라우터 (Phase 4)
 app.include_router(departments.router)  # 부서(조직) 관리 라우터
 app.include_router(dashboard.router)  # 대시보드 라우터
+app.include_router(personal_dashboard.router)  # 개인 대시보드 라우터
 
 
 # 기본 엔드포인트

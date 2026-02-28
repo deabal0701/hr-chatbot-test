@@ -1,7 +1,7 @@
 # 개인 BI 대시보드 설계서
 
-> **현행화 일자**: 2026-02-27
-> **구현 상태**: 프론트엔드 프로토타입 완료 (localStorage 기반), 백엔드 설계 완료 (미구현)
+> **현행화 일자**: 2026-02-28
+> **구현 상태**: 프론트엔드 + 백엔드 전체 구현 완료 (DB 연동, 컬럼 별칭, SQL 편집, 내보내기 포함)
 
 ---
 
@@ -43,16 +43,18 @@
 | 영역 | 상태 | 비고 |
 |------|------|------|
 | 프론트엔드 컴포넌트 | ✅ 완료 | 12개 컴포넌트 + composable |
-| Vuex 스토어 | ✅ 완료 | localStorage 기반 CRUD (API 연동 전) |
+| Vuex 스토어 | ✅ 완료 | Backend API 연동 완료 |
 | 라우터 | ✅ 완료 | `/dashboard` 등록 |
 | Chat 연동 | ✅ 완료 | UserChatMessage "대시보드에 추가" 버튼 |
 | 사이드바 메뉴 | ✅ 완료 | UserChatSidebar "대시보드" 항목 |
-| 컬럼 별칭 | ❌ 미구현 | 설계 완료 (16장 참조) |
-| SQL 편집 | ❌ 미구현 | 설계 완료 (17장 참조) |
-| 백엔드 API | ❌ 미구현 | 설계 완료 (9장 참조, 7개 엔드포인트) |
-| 데이터베이스 | ❌ 미구현 | DDL 설계 완료 (10장 참조) |
-| API 클라이언트 | ❌ 미구현 | `personalDashboard.js` 작성 필요 |
-| Vuex API 연동 | ❌ 미구현 | localStorage → API 호출로 전환 필요 |
+| 컬럼 별칭 | ✅ 완료 | SaveToDashboardModal, WidgetEditModal, 위젯 렌더러 전체 적용 |
+| SQL 편집 | ✅ 완료 | WidgetEditModal 내 SQL 편집 + 테스트 실행 + 미리보기 |
+| 백엔드 API | ✅ 완료 | 7개 엔드포인트 (`personal_dashboard.py`) |
+| 데이터베이스 | ✅ 완료 | `tb_dashboard_widget` 테이블 + 인덱스 |
+| API 클라이언트 | ✅ 완료 | `personalDashboard.js` Axios 클라이언트 |
+| Vuex API 연동 | ✅ 완료 | localStorage → API 호출 전환 완료 |
+| 내보내기 | ✅ 완료 | 위젯 PNG, 대시보드 PNG/PDF (`html2canvas` + `jspdf`) |
+| 테스트 | ✅ 완료 | `test_11_personal_dashboard.py` (CRUD, Layout, SQL, Auth) |
 
 ---
 
@@ -105,7 +107,7 @@
          │
          ▼  저장
    store.dispatch('dashboard/saveWidget', config)
-   → localStorage 저장 (프로토타입)
+   → POST /api/v1/dashboard/widgets → DB 저장
    → ElMessage.success("위젯이 대시보드에 추가되었습니다")
 ```
 
@@ -133,7 +135,7 @@
 │  PersonalDashboardView                                           │
 │                                                                  │
 │  store.dispatch('dashboard/fetchWidgets')                        │
-│  → localStorage 로드 (없으면 빈 배열)                            │
+│  → GET /api/v1/dashboard/widgets → DB 조회                      │
 │  → vue3-grid-layout-next 그리드에 위젯 렌더링                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -149,7 +151,7 @@
 │  ● 각 위젯에 [수정] [삭제] 아이콘 표시                      │
 │  ● "위젯 추가" 플로팅 버튼 (FAB) 표시 (우하단 고정)         │
 │                                                            │
-│  "레이아웃 저장" → localStorage 저장                        │
+│  "레이아웃 저장" → PUT /api/v1/dashboard/layout → DB 저장   │
 │  "취소" → 이전 레이아웃으로 복원 (pendingLayout 백업)        │
 │                                                            │
 │  ※ 모바일(<=768px): 편집 버튼 클릭 시 경고 메시지 표시      │
@@ -162,14 +164,11 @@
 ┌────────────────────────────────────────────────────────────┐
 │  위젯 새로고침 버튼 클릭                                    │
 │  → store.dispatch('dashboard/refreshWidget', widgetId)      │
-│  → [프로토타입] 1초 딜레이 시뮬레이션 (실제 SQL 재실행 없음) │
-│  → last_refreshed_at 타임스탬프 갱신                        │
-│                                                            │
-│  [향후 백엔드 연동 시]                                      │
 │  → POST /api/v1/dashboard/widgets/{id}/refresh              │
 │  → 저장된 SQL을 External DB에서 재실행                      │
-│  → 최신 데이터로 차트/테이블 갱신                           │
-│  → 실패 시: 에러 오버레이 + "재시도" 버튼                   │
+│  → PII 마스킹 적용 → cached_data 갱신                      │
+│  → last_refreshed_at 타임스탬프 갱신                        │
+│  → 실패 시: ElMessage.error 표시                            │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -727,7 +726,7 @@ UserChatMessage.vue (기존 파일 수정)
 └── SaveToDashboardModal.vue (NL2SQL 결과 → 대시보드 저장)
 ```
 
-### 6.2 파일 구조 (✅ = 구현 완료, ❌ = 미구현)
+### 6.2 파일 구조 (전체 구현 완료)
 
 ```
 frontend/src/
@@ -735,37 +734,36 @@ frontend/src/
 │   └── PersonalDashboardView.vue          ✅ 메인 대시보드 페이지
 ├── components/dashboard-personal/
 │   ├── DashboardGrid.vue                  ✅ vue3-grid-layout-next 래퍼
-│   ├── DashboardWidget.vue                ✅ 위젯 컨테이너 + 뷰전환
+│   ├── DashboardWidget.vue                ✅ 위젯 컨테이너 + 뷰전환 + 내보내기
 │   ├── DashboardEmptyState.vue            ✅ 빈 상태 + 데모 로드
-│   ├── DashboardToolbar.vue               ✅ 상단 툴바 + 테마 토글
-│   ├── SaveToDashboardModal.vue           ✅ Chat에서 저장 모달
-│   ├── WidgetEditModal.vue                ✅ 위젯 수정 모달
-│   ├── AddWidgetModal.vue                 ✅ 히스토리 기반 추가 모달
+│   ├── DashboardToolbar.vue               ✅ 상단 툴바 + 테마 토글 + 내보내기(PNG/PDF)
+│   ├── SaveToDashboardModal.vue           ✅ Chat에서 저장 모달 + 컬럼 별칭
+│   ├── WidgetEditModal.vue                ✅ 위젯 수정 + SQL 편집 + 컬럼 별칭
+│   ├── AddWidgetModal.vue                 ✅ 히스토리/직접 질문 탭 추가 모달
 │   └── widgets/
-│       ├── WidgetTable.vue                ✅ 테이블 렌더러
-│       ├── WidgetChart.vue                ✅ 차트 렌더러 (Bar/H-Bar/Line/Pie/Scatter)
-│       └── WidgetKpi.vue                  ✅ KPI 렌더러
+│       ├── WidgetTable.vue                ✅ 테이블 렌더러 + 컬럼 별칭
+│       ├── WidgetChart.vue                ✅ 차트 렌더러 + 컬럼 별칭 + 팔레트
+│       └── WidgetKpi.vue                  ✅ KPI 렌더러 + 컬럼 별칭
 ├── composables/
-│   └── useChartOptions.js                 ✅ 차트 옵션 공유 로직
+│   └── useChartOptions.js                 ✅ 차트 옵션 공유 로직 + columnAliases
 ├── store/modules/
-│   └── dashboard.js                       ✅ Vuex 대시보드 모듈 (localStorage)
+│   └── dashboard.js                       ✅ Vuex 대시보드 모듈 (Backend API 연동)
 ├── api/
-│   └── (personalDashboard.js)             ❌ 미생성 (localStorage 직접 사용)
+│   └── personalDashboard.js               ✅ Axios API 클라이언트
 └── router/index.js                        ✅ /dashboard 라우트 등록
 
 app/
 ├── api/
 │   ├── routes/
-│   │   └── personal_dashboard.py          ❌ 7개 API 엔드포인트
+│   │   └── personal_dashboard.py          ✅ 7개 API 엔드포인트
 │   └── services/
-│       └── personal_dashboard_service.py   ❌ CRUD + refresh + execute-sql
+│       └── personal_dashboard_service.py   ✅ CRUD + refresh + execute-sql
 ├── models/
-│   └── personal_dashboard.py              ❌ Pydantic 모델
-└── main.py                                ❌ 라우터 미등록
+│   └── personal_dashboard.py              ✅ Pydantic 모델
+└── main.py                                ✅ 라우터 등록 완료
 
-frontend/src/
-└── api/
-    └── personalDashboard.js               ❌ Axios API 클라이언트
+tests/
+└── test_11_personal_dashboard.py          ✅ CRUD, Layout, SQL, Auth 테스트
 ```
 
 ### 6.3 수정된 기존 파일
@@ -777,15 +775,17 @@ frontend/src/
 | `frontend/src/components/user/UserChatMessage.vue` | "대시보드에 추가" 버튼 추가 | ✅ |
 | `frontend/src/components/user/UserChatSidebar.vue` | "대시보드" 네비게이션 메뉴 추가 | ✅ |
 | `frontend/src/components/chart/ChartBuilder.vue` | 차트 옵션 로직을 composable로 추출 | ✅ |
-| `app/main.py` | personal_dashboard 라우터 등록 | ❌ |
-| `frontend/src/store/modules/dashboard.js` | localStorage → API 호출로 전환 | ❌ |
-| `frontend/src/composables/useChartOptions.js` | `buildChartOption`에 `columnAliases` 파라미터 추가 | ❌ |
-| `frontend/src/components/dashboard-personal/DashboardWidget.vue` | columnAliases 하위 전달 | ❌ |
-| `frontend/src/components/dashboard-personal/widgets/WidgetTable.vue` | columnAliases prop, label 매핑 | ❌ |
-| `frontend/src/components/dashboard-personal/widgets/WidgetChart.vue` | columnAliases prop 전달 | ❌ |
-| `frontend/src/components/dashboard-personal/SaveToDashboardModal.vue` | 컬럼 별칭 입력 UI 추가 | ❌ |
-| `frontend/src/components/dashboard-personal/WidgetEditModal.vue` | SQL 편집 + 컬럼 별칭 UI 추가 | ❌ |
-| `docs/sql/psql-hermes_db.sql` | `tb_dashboard_widget` DDL 추가 | ❌ |
+| `app/main.py` | personal_dashboard 라우터 등록 | ✅ |
+| `frontend/src/store/modules/dashboard.js` | localStorage → API 호출로 전환 완료 | ✅ |
+| `frontend/src/composables/useChartOptions.js` | `buildChartOption`에 `columnAliases` 파라미터 추가 | ✅ |
+| `frontend/src/components/dashboard-personal/DashboardWidget.vue` | columnAliases 하위 전달 + 내보내기 | ✅ |
+| `frontend/src/components/dashboard-personal/widgets/WidgetTable.vue` | columnAliases prop, label 매핑 | ✅ |
+| `frontend/src/components/dashboard-personal/widgets/WidgetChart.vue` | columnAliases prop + colorPalette prop | ✅ |
+| `frontend/src/components/dashboard-personal/widgets/WidgetKpi.vue` | columnAliases prop | ✅ |
+| `frontend/src/components/dashboard-personal/SaveToDashboardModal.vue` | 컬럼 별칭 입력 UI + 미리보기 | ✅ |
+| `frontend/src/components/dashboard-personal/WidgetEditModal.vue` | SQL 편집 + 컬럼 별칭 UI | ✅ |
+| `frontend/src/components/dashboard-personal/AddWidgetModal.vue` | 히스토리 + 직접 질문 탭 | ✅ |
+| `docs/sql/psql-hermes_db.sql` | `tb_dashboard_widget` DDL 추가 | ✅ |
 
 ---
 
@@ -793,7 +793,7 @@ frontend/src/
 
 ### 7.1 Dashboard Store 모듈
 
-**파일**: `store/modules/dashboard.js`
+**파일**: `frontend/src/store/modules/dashboard.js`
 **저장소**: Backend API (`/api/v1/dashboard/widgets`) + localStorage (테마만)
 
 ```javascript
@@ -994,7 +994,7 @@ buildChartOption({
 
 ## 9. Backend API 설계
 
-> **상태**: 설계 완료, 구현 예정
+> **상태**: ✅ 전체 구현 완료
 > **인증**: 모든 엔드포인트에 `Depends(get_current_active_user)` 적용 (로그인 필수, 메뉴 권한 불필요)
 > **데이터 스코프**: `user_id` 기반 본인 위젯만 접근 (개인 대시보드)
 > **URL 네임스페이스**: admin dashboard (`GET /api/v1/dashboard/summary`)와 동일 prefix 사용, 경로 충돌 없음
@@ -1169,22 +1169,24 @@ buildChartOption({
 app/
 ├── api/
 │   ├── routes/
-│   │   └── personal_dashboard.py        # 7개 API 엔드포인트 (❌ 미구현)
+│   │   └── personal_dashboard.py        # 7개 API 엔드포인트 ✅
 │   └── services/
-│       └── personal_dashboard_service.py # CRUD + refresh + execute-sql (❌ 미구현)
+│       └── personal_dashboard_service.py # CRUD + refresh + execute-sql ✅
 ├── models/
-│   └── personal_dashboard.py            # Pydantic 모델 (❌ 미구현)
-└── main.py                              # 라우터 등록 필요 (❌ 미등록)
+│   └── personal_dashboard.py            # Pydantic 모델 ✅
+└── main.py                              # 라우터 등록 완료 ✅
 
 frontend/src/
 └── api/
-    └── personalDashboard.js             # Axios API 클라이언트 (❌ 미생성)
+    └── personalDashboard.js             # Axios API 클라이언트 ✅
 ```
 
-### 9.4 Pydantic 모델
+### 9.4 Pydantic 모델 (구현 완료)
 
 ```python
 # app/models/personal_dashboard.py
+
+VALID_WIDGET_TYPES = {"table", "bar", "hbar", "line", "pie", "scatter", "kpi"}
 
 class ChartConfig(BaseModel):
     x_column: Optional[str] = None
@@ -1248,16 +1250,19 @@ class LayoutItem(BaseModel):
     h: int
 
 class LayoutSaveRequest(BaseModel):
-    layout: List[LayoutItem]
+    layout: List[LayoutItem] = Field(..., min_length=1)
 
 class ExecuteSqlRequest(BaseModel):
     sql: str = Field(..., min_length=1)
 ```
 
-### 9.5 Service 계층
+**참고**: `WidgetCreate`와 `WidgetUpdate`에 `@field_validator`로 `widget_type` 유효성 검사를 수행한다.
+
+### 9.5 Service 계층 (구현 완료)
 
 ```python
 # app/api/services/personal_dashboard_service.py
+# 싱글톤: personal_dashboard_service = PersonalDashboardService()
 
 class PersonalDashboardService:
     """개인 대시보드 위젯 CRUD + SQL 실행 서비스"""
@@ -1265,32 +1270,41 @@ class PersonalDashboardService:
     MAX_WIDGETS_PER_USER = 20    # 사용자당 최대 위젯 수
     MAX_CACHED_ROWS = 500        # cached_data 최대 행 수
 
+    # 위젯 유형별 기본 그리드 크기
+    DEFAULT_GRID_SIZES = {
+        "kpi": {"w": 3, "h": 5},
+        "pie": {"w": 5, "h": 10},
+        # table, bar, hbar, line, scatter: {"w": 6, "h": 10}
+    }
+
     def list_widgets(self, user_id: int) -> dict:
-        """사용자 위젯 목록 조회 → {items: [...], total: N}"""
+        """사용자 위젯 목록 조회 → {items: [...], total: N}
+        is_active=TRUE, sort_order ASC, created_at ASC"""
 
     def create_widget(self, user_id: int, tenant_id: int, data: WidgetCreate) -> dict:
-        """위젯 생성 (MAX_WIDGETS_PER_USER 제한, 자동 grid_position 배치)"""
+        """위젯 생성 (MAX_WIDGETS_PER_USER 제한, 자동 grid_position 배치)
+        cached_data.rows는 MAX_CACHED_ROWS로 자동 truncate"""
 
     def update_widget(self, user_id: int, widget_id: int, data: WidgetUpdate) -> dict:
-        """위젯 수정 (소유권 검증, SQL/chart_config/column_aliases 포함)"""
+        """위젯 수정 (소유권 검증, SQL/chart_config/column_aliases 포함)
+        cached_data 변경 시 MAX_CACHED_ROWS로 자동 truncate"""
 
     def delete_widget(self, user_id: int, widget_id: int) -> dict:
-        """위젯 삭제 (소유권 검증)"""
+        """위젯 삭제 (소유권 검증, 물리 삭제)"""
 
     def save_layout(self, user_id: int, layout: List[LayoutItem]) -> dict:
-        """레이아웃 일괄 저장 (소유권 검증)"""
+        """레이아웃 일괄 저장 (소유권 검증, sort_order 인덱스 기반 부여)"""
 
     def refresh_widget(self, user_id: int, widget_id: int) -> dict:
         """위젯 데이터 새로고침
         → sql_executor.execute_sql(stored_sql)
-        → pii_service.detect_and_mask(results)
-        → cached_data + last_refreshed_at 갱신"""
+        → pii_service.mask_sql_rows(results)
+        → cached_data (MAX_CACHED_ROWS) + last_refreshed_at 갱신"""
 
     def execute_sql(self, sql: str) -> dict:
         """SQL 테스트 실행 (저장 안함, 미리보기용)
-        → sql_executor.validate_sql(sql)
         → sql_executor.execute_sql(sql)
-        → pii_service.detect_and_mask(results)
+        → pii_service.mask_sql_rows(results)
         → {columns, rows, row_count, execution_time_ms} 반환"""
 
     # 내부 메서드
@@ -1298,8 +1312,13 @@ class PersonalDashboardService:
         """위젯 조회 + 소유권 검증 (user_id 불일치 시 NOT_FOUND)"""
 
     def _auto_grid_position(self, user_id: int, widget_type: str) -> dict:
-        """기존 위젯 배치를 분석하여 빈 위치에 자동 배치"""
+        """기존 위젯의 max(y+h) 아래에 자동 배치 (x=0, y=maxBottom)"""
 ```
+
+**구현 특징**:
+- `db_manager`, `sql_executor`, `pii_service`를 lazy import하여 순환 참조 방지
+- `_cap_cached_data()`: cached_data 행 수를 MAX_CACHED_ROWS로 제한 + cached_at 타임스탬프 자동 부여
+- 물리 삭제 수행 (is_active 소프트 삭제 미사용)
 
 **참조 패턴**:
 - `dashboard_service.py`: 싱글톤 인스턴스, `db_manager.get_cursor()` 패턴
@@ -1380,7 +1399,12 @@ CREATE INDEX idx_dashboard_widget_tenant ON tb_dashboard_widget(tenant_id);
   "pie_top_n": 10,
   "kpi_column": "total_count",
   "kpi_suffix": "명",
-  "color_palette": "default"
+  "color_palette": "default",
+  "column_aliases": {
+    "department_name": "부서명",
+    "count": "인원수",
+    "avg_salary": "평균 급여"
+  }
 }
 ```
 
@@ -1406,9 +1430,10 @@ CREATE INDEX idx_dashboard_widget_tenant ON tb_dashboard_widget(tenant_id);
 
 ### 10.3 제약 사항
 
-- `cached_data.rows`: 최대 500행까지만 저장 (SaveToDashboardModal에서 truncate)
+- `cached_data.rows`: 최대 500행까지만 저장 (서비스에서 자동 truncate + `cached_at` 타임스탬프 부여)
 - `widget_type`: CHECK ('table', 'bar', 'hbar', 'line', 'pie', 'scatter', 'kpi')
 - 사용자당 최대 위젯 수: 20개 (서비스 레벨 제한)
+- `column_aliases`: `chart_config` JSONB 내부에 선택적 저장 (빈 값 = 원본 컬럼명 사용)
 
 ---
 
@@ -1517,42 +1542,37 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 | 1-12 | AddWidgetModal | 히스토리 기반 추가 | ✅ |
 | 1-13 | UserChatSidebar 수정 | "대시보드" 메뉴 | ✅ |
 
-### Phase 2: 백엔드 API + DB 연동 (예정)
+### Phase 2: 백엔드 API + DB 연동 ✅ 완료
 
 | 순서 | 작업 | 산출물 | 상태 |
 |------|------|--------|------|
-| 2-1 | DB 테이블 생성 (`tb_dashboard_widget`) | DDL 스크립트 (`docs/sql/psql-hermes_db.sql` 추가) | ❌ |
-| 2-2 | Pydantic 모델 작성 | `app/models/personal_dashboard.py` | ❌ |
-| 2-3 | Service 계층 작성 (CRUD + refresh + execute-sql) | `app/api/services/personal_dashboard_service.py` | ❌ |
-| 2-4 | Route 작성 (7개 엔드포인트) + main.py 등록 | `app/api/routes/personal_dashboard.py` | ❌ |
-| 2-5 | API 클라이언트 작성 | `frontend/src/api/personalDashboard.js` | ❌ |
-| 2-6 | Vuex 스토어 API 연동 (localStorage → API) | `store/modules/dashboard.js` 수정 | ❌ |
+| 2-1 | DB 테이블 생성 (`tb_dashboard_widget`) | DDL 스크립트 (`docs/sql/psql-hermes_db.sql` 추가) | ✅ |
+| 2-2 | Pydantic 모델 작성 | `app/models/personal_dashboard.py` | ✅ |
+| 2-3 | Service 계층 작성 (CRUD + refresh + execute-sql) | `app/api/services/personal_dashboard_service.py` | ✅ |
+| 2-4 | Route 작성 (7개 엔드포인트) + main.py 등록 | `app/api/routes/personal_dashboard.py` | ✅ |
+| 2-5 | API 클라이언트 작성 | `frontend/src/api/personalDashboard.js` | ✅ |
+| 2-6 | Vuex 스토어 API 연동 (localStorage → API) | `store/modules/dashboard.js` 수정 | ✅ |
 
-### Phase 3: 컬럼 별칭 + SQL 편집 (예정)
+### Phase 3: 컬럼 별칭 + SQL 편집 ✅ 완료
 
 | 순서 | 작업 | 산출물 | 상태 |
 |------|------|--------|------|
-| 3-1 | `buildChartOption()`에 columnAliases 파라미터 추가 | `useChartOptions.js` 수정 | ❌ |
-| 3-2 | WidgetTable에 columnAliases prop + 헤더 매핑 | `WidgetTable.vue` 수정 | ❌ |
-| 3-3 | WidgetChart에 columnAliases prop 전달 | `WidgetChart.vue` 수정 | ❌ |
-| 3-4 | DashboardWidget에서 columnAliases 하위 전달 | `DashboardWidget.vue` 수정 | ❌ |
-| 3-5 | SaveToDashboardModal에 컬럼 별칭 입력 UI | `SaveToDashboardModal.vue` 수정 | ❌ |
-| 3-6 | WidgetEditModal에 SQL 편집 UI + 컬럼 별칭 UI | `WidgetEditModal.vue` 수정 | ❌ |
-| 3-7 | AddWidgetModal에 탭 UI + 직접 질문 모드 추가 | `AddWidgetModal.vue` 수정 | ❌ |
+| 3-1 | `buildChartOption()`에 columnAliases 파라미터 추가 | `useChartOptions.js` 수정 | ✅ |
+| 3-2 | WidgetTable에 columnAliases prop + 헤더 매핑 | `WidgetTable.vue` 수정 | ✅ |
+| 3-3 | WidgetChart에 columnAliases prop 전달 | `WidgetChart.vue` 수정 | ✅ |
+| 3-4 | DashboardWidget에서 columnAliases 하위 전달 | `DashboardWidget.vue` 수정 | ✅ |
+| 3-5 | SaveToDashboardModal에 컬럼 별칭 입력 UI | `SaveToDashboardModal.vue` 수정 | ✅ |
+| 3-6 | WidgetEditModal에 SQL 편집 UI + 컬럼 별칭 UI | `WidgetEditModal.vue` 수정 | ✅ |
+| 3-7 | AddWidgetModal에 탭 UI + 직접 질문 모드 추가 | `AddWidgetModal.vue` 수정 | ✅ |
 
-### Phase 4: 통합 테스트 (예정)
+### Phase 4: 테스트 ✅ 완료
 
 | 순서 | 작업 | 검증 항목 | 상태 |
 |------|------|----------|------|
-| 4-1 | Backend API 테스트 | CRUD + refresh + execute-sql 엔드포인트 | ❌ |
-| 4-2 | Chat 저장 기능 테스트 | 모달 → 컬럼 별칭 입력 → 저장 → 대시보드 반영 | ❌ |
-| 4-3 | 드래그앤드롭 테스트 | 이동/리사이즈 → 저장 → 새로고침 유지 | ❌ |
-| 4-4 | 데이터 갱신 테스트 | SQL 재실행 → 최신 데이터 반영 | ❌ |
-| 4-5 | SQL 편집 테스트 | SQL 수정 → 실행 → 미리보기 → 저장 | ❌ |
-| 4-6 | 컬럼 별칭 테스트 | 별칭 입력 → 테이블 헤더/차트 범례 반영 | ❌ |
-| 4-7 | 직접 질문 위젯 추가 테스트 | 질문 입력 → NL2SQL 실행 → 결과 확인 → 위젯 저장 | ❌ |
-| 4-8 | 직접 질문 실행 취소 테스트 | 실행 중 취소 → 상태 초기화 → 재실행 가능 확인 | ❌ |
-| 4-9 | 반응형 테스트 | 모바일/태블릿 레이아웃 확인 | ❌ |
+| 4-1 | Backend API 테스트 | CRUD + layout + execute-sql 엔드포인트 (`test_11_personal_dashboard.py`) | ✅ |
+| 4-2 | 인증 테스트 | 미인증 접근 시 401 응답 확인 | ✅ |
+| 4-3 | SQL 보안 테스트 | DROP TABLE 등 금지 SQL 차단 확인 | ✅ |
+| 4-4 | 입력 검증 테스트 | 잘못된 widget_type (422), 빈 SQL (422) | ✅ |
 
 ---
 
@@ -1561,19 +1581,19 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 | 리스크 | 영향 | 대응 | 상태 |
 |--------|------|------|------|
 | vue3-grid-layout-next 호환성 | 드래그앤드롭 불가 | ResizeObserver로 초기화 타이밍 해결 | ✅ 해결 |
-| cached_data JSONB 크기 | DB 성능 저하 | 최대 500행 제한, 저장 시 truncate | ✅ 적용 |
-| SQL 재실행 실패 | 위젯 에러 상태 | 에러 오버레이 + 재시도/삭제 옵션 (설계) | ❌ 미구현 |
+| cached_data JSONB 크기 | DB 성능 저하 | 최대 500행 제한, 서비스에서 자동 truncate | ✅ 해결 |
+| SQL 재실행 실패 | 위젯 에러 상태 | ElMessage.error 표시, 재시도 가능 | ✅ 해결 |
 | 다크/라이트 모드 전환 | 차트 색상 불일치 | darkMode prop 기반 직접 색상 결정 | ✅ 해결 |
 | 차트 로직 중복 | 유지보수 부담 | useChartOptions.js composable 공유 | ✅ 해결 |
-| localStorage 용량 제한 | 위젯 데이터 유실 | Phase 2 백엔드 DB 연동으로 해결 | ❌ 미구현 |
-| 브라우저간 데이터 미동기화 | 다른 기기에서 접근 불가 | Phase 2 백엔드 DB 연동으로 해결 | ❌ 미구현 |
-| SQL 편집 보안 (SQL Injection) | 악의적 SQL 실행 | sql_executor 보안 체인 재사용 (SELECT-only, 키워드 블랙리스트, 테이블 화이트리스트, 타임아웃) | ❌ 미구현 |
-| SQL 편집 후 저장 실수 | 잘못된 SQL 영구 저장 | "SQL 실행" 성공 필수 → 미실행 SQL은 저장 차단 | ❌ 미구현 |
-| 컬럼 별칭 매핑 깨짐 | SQL 변경 시 컬럼명 불일치 | SQL 편집 후 실행 시 새 columns 반환 → 기존 aliases와 자동 교차 검증 | ❌ 미구현 |
-| PII 노출 | SQL 결과에 개인정보 포함 | pii_service.detect_and_mask() 적용 (refresh, execute-sql 모두) | ❌ 미구현 |
-| 동시 레이아웃 저장 충돌 | 다른 탭에서 동시 수정 | updated_at 기반 낙관적 잠금 또는 마지막 쓰기 우선 정책 | ❌ 미구현 |
-| NL2SQL 직접 실행 장시간 대기 | 모달 내 UX 저하 | SSE 진행 상황 실시간 표시 + AbortController 기반 실행 취소 버튼 | ❌ 미구현 |
-| NL2SQL 직접 실행 실패 | 위젯 생성 불가 | 에러 메시지 인라인 표시 + 질문 재입력 유도 (모달 닫지 않음) | ❌ 미구현 |
+| localStorage 용량 제한 | 위젯 데이터 유실 | 백엔드 DB 연동 완료 (tb_dashboard_widget) | ✅ 해결 |
+| 브라우저간 데이터 미동기화 | 다른 기기에서 접근 불가 | 백엔드 DB 연동 완료 | ✅ 해결 |
+| SQL 편집 보안 (SQL Injection) | 악의적 SQL 실행 | sql_executor 보안 체인 재사용 (SELECT-only, 키워드 블랙리스트, 테이블 화이트리스트, 타임아웃) | ✅ 해결 |
+| SQL 편집 후 저장 실수 | 잘못된 SQL 영구 저장 | "SQL 실행" 성공 필수 → 미실행 SQL은 저장 시 경고 | ✅ 해결 |
+| 컬럼 별칭 매핑 깨짐 | SQL 변경 시 컬럼명 불일치 | SQL 편집 후 실행 시 새 columns 반환 → 기존 aliases와 자동 교차 검증 | ✅ 해결 |
+| PII 노출 | SQL 결과에 개인정보 포함 | pii_service.mask_sql_rows() 적용 (refresh, execute-sql 모두) | ✅ 해결 |
+| 동시 레이아웃 저장 충돌 | 다른 탭에서 동시 수정 | 마지막 쓰기 우선 정책 (last-write-wins) | ✅ 현행 방식 |
+| NL2SQL 직접 실행 장시간 대기 | 모달 내 UX 저하 | SSE 진행 상황 실시간 표시 + AbortController 기반 실행 취소 버튼 | ✅ 해결 |
+| NL2SQL 직접 실행 실패 | 위젯 생성 불가 | 에러 메시지 인라인 표시 + 질문 재입력 유도 (모달 닫지 않음) | ✅ 해결 |
 
 ---
 
@@ -1588,108 +1608,61 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 
 | 기능 | 형식 | 범위 | 의존성 | 상태 |
 |------|------|------|--------|------|
-| 차트 이미지 | PNG | 위젯 (차트 뷰) | ECharts 내장 `getDataURL()` | ✅ |
-| 위젯 캡처 | PNG | 위젯 전체 | html-to-image | ✅ |
-| CSV 다운로드 | CSV | 위젯 | 없음 (순수 프론트엔드) | ✅ |
-| Excel 다운로드 | XLSX | 위젯 | 기존 백엔드 API (`/api/v1/export/excel`) | ✅ |
-| 대시보드 PDF | PDF | 대시보드 전체 | html-to-image + jsPDF | ✅ |
+| 위젯 캡처 | PNG | 위젯 전체 | html2canvas | ✅ |
+| 대시보드 PNG | PNG | 대시보드 전체 | html2canvas | ✅ |
+| 대시보드 PDF | PDF | 대시보드 전체 | html2canvas + jsPDF | ✅ |
 | 멀티시트 Excel | XLSX | 대시보드 전체 | openpyxl (백엔드) | ❌ 미구현 |
 | 정형 PDF 보고서 | PDF | 대시보드 전체 | WeasyPrint (백엔드) | ❌ 미구현 |
 | Word 보고서 | DOCX | 대시보드 전체 | python-docx (백엔드) | ❌ 미구현 |
 
 ### 15.3 위젯 단위 내보내기 UI
 
-비편집 모드에서 각 위젯 헤더에 내보내기 드롭다운 표시:
+비편집 모드에서 각 위젯 헤더에 이미지 다운로드 버튼 표시:
 
 ```
-[뷰전환]  [▼ 내보내기]  [새로고침]
-               ├── 차트 이미지 (PNG)   — 차트 뷰일 때만 활성
-               ├── 위젯 캡처 (PNG)     — DOM 전체 캡처
-               ├─────────────────────
-               ├── CSV 다운로드
-               └── Excel 다운로드
+[뷰전환]  [📷 이미지 다운로드]  [새로고침]
 ```
+
+- **방식**: `html2canvas`로 위젯 DOM 전체 캡처 → PNG 다운로드
+- **범위**: 위젯 루트 DOM 전체 (헤더 + 콘텐츠 + 푸터)
 
 ### 15.4 내보내기 상세
 
-#### 15.4.1 차트 이미지 (PNG)
+#### 15.4.1 위젯 캡처 (PNG)
 
-- **방식**: ECharts 인스턴스의 `getDataURL({ type: 'png', pixelRatio: 2 })` 호출
-- **조건**: 차트 뷰 모드일 때만 활성 (테이블/KPI 뷰에서는 비활성)
-- **해상도**: 2x pixel ratio
-- **파일명**: `{위젯제목}_{yyyyMMdd_HHmmss}.png`
-
-#### 15.4.2 위젯 캡처 (PNG)
-
-- **방식**: `html-to-image`의 `toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff' })`
-- **범위**: 위젯 루트 DOM 전체 (헤더 + 콘텐츠 + 푸터)
-- **파일명**: `{위젯제목}_{yyyyMMdd_HHmmss}_capture.png`
-
-#### 15.4.3 CSV 다운로드
-
-- **방식**: 프론트엔드 순수 구현 (서버 호출 없음)
-- **인코딩**: BOM 포함 UTF-8 (`\uFEFF` prefix → Excel 한글 깨짐 방지)
-- **이스케이프**: 쉼표/따옴표/줄바꿈 포함 시 `"..."` 래핑, `"` → `""` 치환
-- **데이터**: `widget.cached_data`의 columns + rows 사용
-- **파일명**: `{위젯제목}_{yyyyMMdd_HHmmss}.csv`
-
-#### 15.4.4 Excel 다운로드
-
-- **방식**: 기존 백엔드 API (`POST /api/v1/export/excel`) 재사용
-- **기능**: openpyxl 기반 보고서 형태 (질문, SQL, 데이터 테이블 + 차트 삽입)
-- **차트 포함**: 차트 유형 위젯일 경우 `include_chart: true` + `chart_config` 전달
-- **유형 매핑**: hbar → bar (openpyxl 미지원)
-- **파일명**: 서버에서 생성 (기존 export API 패턴)
+- **방식**: `html2canvas(element)` → Canvas → `toDataURL('image/png')` → `<a>` 다운로드
+- **범위**: DashboardWidget DOM 전체
+- **파일명**: 동적 생성
 
 ### 15.5 대시보드 전체 내보내기
 
-#### 15.5.1 PDF 내보내기 (스냅샷)
+#### 15.5.1 PNG/PDF 내보내기 (스냅샷)
 
-- **위치**: DashboardToolbar에 PDF 아이콘 버튼 (위젯 1개 이상일 때 표시)
-- **방식**: `.dashboard-content` DOM을 html-to-image로 캡처 → jsPDF로 PDF 생성
-- **형식**: A4 landscape (가로), 10mm 마진
-- **헤더**: 좌측에 "BI 대시보드" 제목, 우측에 현재 시각 (ko-KR locale)
-- **이미지**: 비율 유지하여 페이지에 맞춤
-- **파일명**: `BI_대시보드_{yyyyMMdd_HHmmss}.pdf`
+- **위치**: DashboardToolbar 내보내기 드롭다운 (위젯 1개 이상일 때 표시)
+- **PNG**: `html2canvas`로 `.dashboard-content` DOM 캡처 → PNG 다운로드
+- **PDF**: `html2canvas`로 캡처 → `jsPDF`로 PDF 생성 → 다운로드
+- **형식**: A4 landscape (가로)
 - **로딩**: 버튼에 `:loading="exporting"` 상태 표시
 
-### 15.6 유틸리티 함수
+### 15.6 NPM 패키지
 
-**파일**: `frontend/src/utils/exportUtils.js`
+| 패키지 | 용도 |
+|--------|------|
+| `html2canvas` | DOM → Canvas 캡처 (위젯/대시보드 PNG) |
+| `jspdf` | 클라이언트 사이드 PDF 생성 |
 
-| 함수 | 용도 |
-|------|------|
-| `sanitizeFilename(name)` | 파일명 특수문자 제거 (`\/:*?"<>\|` → `_`), 공백 → `_`, 최대 100자 |
-| `formatTimestamp(date)` | `yyyyMMdd_HHmmss` 형식 타임스탬프 |
-| `downloadBlob(blob, filename)` | Blob → Object URL → `<a>` 다운로드 → URL 해제 |
-| `downloadCsv(columns, rows, filename)` | columns + rows → BOM UTF-8 CSV 파일 다운로드 |
-| `downloadDataUrl(dataUrl, filename)` | base64 data URL → 파일 다운로드 |
-| `captureElementPng(element, filename)` | DOM → PNG 캡처 (html-to-image, 2x) → 파일 다운로드 |
-| `exportElementPdf(element, title, filename)` | DOM → PNG → jsPDF A4 landscape PDF 저장 |
-
-### 15.7 NPM 패키지
-
-| 패키지 | 버전 | 크기 | 용도 |
-|--------|------|------|------|
-| `html-to-image` | ^1.x | ~27KB | DOM → PNG 변환 (SVG foreignObject 기반) |
-| `jspdf` | ^2.x | ~300KB | 클라이언트 사이드 PDF 생성 |
-
-두 패키지 모두 동적 import (`await import(...)`)로 사용하여 초기 번들 크기 영향 최소화.
-
-### 15.8 수정 파일 요약
+### 15.7 수정 파일 요약
 
 | 파일 | 변경 내용 | 상태 |
 |------|----------|------|
-| `frontend/src/utils/exportUtils.js` | **신규**: 7개 유틸 함수 | ✅ |
-| `frontend/src/components/dashboard-personal/DashboardWidget.vue` | 내보내기 드롭다운 (4종) + 핸들러 | ✅ |
-| `frontend/src/components/dashboard-personal/DashboardToolbar.vue` | PDF 내보내기 버튼 + exporting prop | ✅ |
-| `frontend/src/views/user/PersonalDashboardView.vue` | PDF 핸들러 + content ref | ✅ |
-| `frontend/src/components/dashboard-personal/widgets/WidgetChart.vue` | `getChartImage` expose (기존) | ✅ |
-| `frontend/package.json` | html-to-image, jspdf 추가 | ✅ |
+| `frontend/src/components/dashboard-personal/DashboardWidget.vue` | 이미지 다운로드 버튼 + `html2canvas` 핸들러 | ✅ |
+| `frontend/src/components/dashboard-personal/DashboardToolbar.vue` | 내보내기 드롭다운 (PNG/PDF) + exporting prop | ✅ |
+| `frontend/src/views/user/PersonalDashboardView.vue` | PNG/PDF 핸들러 + content ref | ✅ |
+| `frontend/package.json` | html2canvas, jspdf 추가 | ✅ |
 
 ---
 
-## 16. 컬럼 별칭(Column Aliases) 기능 설계
+## 16. 컬럼 별칭(Column Aliases) 기능 ✅ 구현 완료
 
 ### 16.1 개요
 
@@ -1825,7 +1798,7 @@ DashboardWidget.vue
 
 ---
 
-## 17. SQL 편집 기능 설계
+## 17. SQL 편집 기능 ✅ 구현 완료
 
 ### 17.1 개요
 
@@ -1985,3 +1958,30 @@ SQL 편집 기능은 기존 `sql_executor.py`의 보안 체인을 그대로 재�
 - SQL 편집 후 반드시 실행 성공해야 저장 가능
 - PII 마스킹은 서버에서 적용 (프론트엔드에서 추가 처리 불필요)
 - 원본 질문(`query` 필드)은 수정 불가 (SQL만 수정 가능)
+
+---
+
+## 18. 테스트
+
+### 18.1 Backend 테스트 (구현 완료)
+
+**파일**: `tests/test_11_personal_dashboard.py`
+
+4개의 테스트 클래스로 구성:
+
+| 클래스 | 테스트 항목 | 설명 |
+|--------|-----------|------|
+| `TestWidgetCRUD` | 위젯 생성(bar/kpi), 잘못된 타입(422), 목록 조회, 수정(제목/별칭), 존재하지 않는 위젯 수정(에러), 삭제 | 자동 클린업 fixture |
+| `TestLayout` | 위젯 2개 생성, 레이아웃 저장(updated_count=2), 잘못된 widget_id로 저장(에러) | 자동 클린업 |
+| `TestExecuteSql` | 유효 SQL(`SELECT 1`), 금지 SQL(`DROP TABLE` → 에러), 빈 SQL(422) | SQL 보안 검증 |
+| `TestAuth` | 미인증 접근(list/create/execute-sql → 401) | 인증 필수 검증 |
+
+### 18.2 실행 방법
+
+```bash
+# 개인 대시보드 테스트만 실행
+pytest tests/test_11_personal_dashboard.py -v
+
+# 전체 테스트 (순서 의존성 있으므로 순서대로 실행 권장)
+pytest tests/ -v
+```

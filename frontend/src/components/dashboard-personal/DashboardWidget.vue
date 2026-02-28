@@ -52,6 +52,7 @@
         :row-count="cachedData.row_count"
         :max-height="contentHeight - 20"
         :dark-mode="darkMode"
+        :column-aliases="widget.chart_config?.column_aliases"
       />
       <!-- 차트 보기 모드 -->
       <WidgetChart
@@ -61,6 +62,7 @@
         :rows="cachedData.rows"
         :dark-mode="darkMode"
         :color-palette="widget.chart_config?.color_palette"
+        :column-aliases="widget.chart_config?.column_aliases"
       />
       <!-- KPI 보기 모드 -->
       <WidgetKpi
@@ -68,6 +70,7 @@
         :rows="cachedData.rows"
         :kpi-column="widget.chart_config?.kpi_column"
         :kpi-suffix="widget.chart_config?.kpi_suffix"
+        :column-aliases="widget.chart_config?.column_aliases"
       />
     </div>
 

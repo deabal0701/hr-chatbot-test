@@ -277,7 +277,9 @@ const clearChat = () => {
 
 // 사용자 화면 새 창으로 열기
 const openUserChat = () => {
-  window.open('/chat', '_blank', 'width=800,height=900')
+  const width = window.screen.availWidth
+  const height = window.screen.availHeight
+  window.open('/chat', '_blank', `width=${width},height=${height},left=0,top=0`)
 }
 
 // 가이드에서 예시 사용

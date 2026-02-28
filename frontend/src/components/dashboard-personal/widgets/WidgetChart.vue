@@ -25,7 +25,8 @@ const props = defineProps({
   chartConfig: { type: Object, default: () => ({}) },
   rows: { type: Array, default: () => [] },
   darkMode: { type: Boolean, default: null },
-  colorPalette: { type: String, default: null }
+  colorPalette: { type: String, default: null },
+  columnAliases: { type: Object, default: null }
 })
 
 const chartOption = computed(() => {
@@ -40,7 +41,8 @@ const chartOption = computed(() => {
     rows: props.rows,
     pieTopN: cfg.pie_top_n || 10,
     darkMode: props.darkMode,
-    colorPalette: props.colorPalette
+    colorPalette: props.colorPalette,
+    columnAliases: props.columnAliases
   })
 })
 </script>

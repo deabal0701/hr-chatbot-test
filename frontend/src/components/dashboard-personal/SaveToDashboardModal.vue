@@ -77,6 +77,18 @@
         </el-row>
       </template>
 
+      <!-- 컬럼 표시명 (별칭) -->
+      <el-collapse v-if="columns.length > 0" class="alias-collapse">
+        <el-collapse-item title="컬럼 표시명 설정" name="aliases">
+          <div class="alias-grid">
+            <div v-for="col in columns" :key="col" class="alias-row">
+              <span class="alias-col-name">{{ col }}</span>
+              <el-input v-model="aliasInputs[col]" :placeholder="col" size="small" clearable />
+            </div>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+
       <!-- 미리보기 -->
       <el-form-item v-if="canPreview" label="미리보기">
         <div class="preview-area">
@@ -87,12 +99,14 @@
             :rows="rows"
             :dark-mode="false"
             :color-palette="null"
+            :column-aliases="computedAliases"
           />
           <WidgetKpi
             v-else-if="form.widgetType === 'kpi'"
             :rows="rows"
             :kpi-column="form.kpiColumn"
             :kpi-suffix="form.kpiSuffix"
+            :column-aliases="computedAliases"
           />
         </div>
       </el-form-item>
@@ -106,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
 import { detectColumnTypes } from '@/composables/useChartOptions'
@@ -146,6 +160,17 @@ const form = ref({
   kpiSuffix: ''
 })
 
+const aliasInputs = reactive({})
+
+// 비어있지 않은 별칭만 추출
+const computedAliases = computed(() => {
+  const result = {}
+  for (const [col, alias] of Object.entries(aliasInputs)) {
+    if (alias && alias.trim()) result[col] = alias.trim()
+  }
+  return Object.keys(result).length > 0 ? result : null
+})
+
 // 모달 열릴 때 초기값 설정
 watch(visible, (val) => {
   if (val) {
@@ -164,6 +189,10 @@ watch(visible, (val) => {
     // KPI 초기값
     form.value.kpiColumn = numeric.length > 0 ? numeric[0] : ''
     form.value.kpiSuffix = ''
+
+    // 별칭 초기화
+    Object.keys(aliasInputs).forEach(k => delete aliasInputs[k])
+    props.columns.forEach(col => { aliasInputs[col] = '' })
   }
 })
 
@@ -221,7 +250,8 @@ const handleSave = () => {
       y_columns: Array.isArray(form.value.yColumns) ? form.value.yColumns : (form.value.yColumns ? [form.value.yColumns] : null),
       pie_top_n: form.value.widgetType === 'pie' ? form.value.pieTopN : null,
       kpi_column: form.value.widgetType === 'kpi' ? form.value.kpiColumn : null,
-      kpi_suffix: form.value.widgetType === 'kpi' ? form.value.kpiSuffix : null
+      kpi_suffix: form.value.widgetType === 'kpi' ? form.value.kpiSuffix : null,
+      column_aliases: computedAliases.value
     },
     cached_data: {
       columns: props.columns,
@@ -243,6 +273,45 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
+.alias-collapse {
+  margin-bottom: 16px;
+  border: none;
+
+  :deep(.el-collapse-item__header) {
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+    height: 36px;
+    line-height: 36px;
+  }
+
+  :deep(.el-collapse-item__wrap) {
+    border-bottom: none;
+  }
+}
+
+.alias-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.alias-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .alias-col-name {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    min-width: 80px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
 .preview-area {
   width: 100%;
   height: 280px;

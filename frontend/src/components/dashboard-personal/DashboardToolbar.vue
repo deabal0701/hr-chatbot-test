@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard-toolbar">
     <div class="toolbar-left">
-      <el-tooltip content="채팅으로 이동" placement="bottom">
+      <el-tooltip content="대화로 이동" placement="bottom">
         <el-button :icon="ArrowLeft" circle size="small" class="back-btn" @click="$emit('go-chat')" />
       </el-tooltip>
       <el-icon class="toolbar-icon" :size="22"><DataAnalysis /></el-icon>

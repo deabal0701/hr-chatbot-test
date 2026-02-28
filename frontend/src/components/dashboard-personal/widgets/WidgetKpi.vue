@@ -12,7 +12,8 @@ import { computed } from 'vue'
 const props = defineProps({
   rows: { type: Array, default: () => [] },
   kpiColumn: { type: String, default: '' },
-  kpiSuffix: { type: String, default: '' }
+  kpiSuffix: { type: String, default: '' },
+  columnAliases: { type: Object, default: null }
 })
 
 const rawValue = computed(() => {
@@ -32,9 +33,8 @@ const rawValue = computed(() => {
 })
 
 const columnName = computed(() => {
-  if (props.kpiColumn) return props.kpiColumn
-  if (!props.rows.length) return ''
-  return Object.keys(props.rows[0])[0] || ''
+  const raw = props.kpiColumn || (props.rows.length ? Object.keys(props.rows[0])[0] : '')
+  return props.columnAliases?.[raw] || raw
 })
 
 const suffix = computed(() => props.kpiSuffix || '')

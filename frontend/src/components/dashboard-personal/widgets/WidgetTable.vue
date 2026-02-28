@@ -13,7 +13,7 @@
         v-for="col in columns"
         :key="col"
         :prop="col"
-        :label="col"
+        :label="columnAliases?.[col] || col"
         :min-width="120"
         :align="isNumericColumn(col) ? 'right' : 'left'"
         show-overflow-tooltip
@@ -40,7 +40,8 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   rowCount: { type: Number, default: 0 },
   maxHeight: { type: Number, default: 280 },
-  darkMode: { type: Boolean, default: false }
+  darkMode: { type: Boolean, default: false },
+  columnAliases: { type: Object, default: null }
 })
 
 const MAX_DISPLAY = 100

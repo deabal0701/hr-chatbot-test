@@ -71,7 +71,7 @@ const DEFAULT_COLORS = CHART_PALETTES.default.colors
 /**
  * 차트 옵션 생성
  */
-export function buildChartOption({ chartType, xColumn, yColumns, rows, pieTopN = 10, whiteBg = false, darkMode = null, colorPalette = null }) {
+export function buildChartOption({ chartType, xColumn, yColumns, rows, pieTopN = 10, whiteBg = false, darkMode = null, colorPalette = null, columnAliases = null }) {
   let textColor, subTextColor, borderColor
   if (darkMode === true) {
     textColor = '#e5e5e5'; subTextColor = '#8c8c8c'; borderColor = '#303030'
@@ -82,6 +82,9 @@ export function buildChartOption({ chartType, xColumn, yColumns, rows, pieTopN =
     subTextColor = getThemeColor('--text-color-secondary')
     borderColor = getThemeColor('--border-color-lighter')
   }
+
+  // 컬럼 별칭 헬퍼
+  const getAlias = (col) => columnAliases?.[col] || col
 
   const paletteColors = (colorPalette && CHART_PALETTES[colorPalette]?.colors) || DEFAULT_COLORS
   const baseStyle = {
@@ -95,15 +98,15 @@ export function buildChartOption({ chartType, xColumn, yColumns, rows, pieTopN =
   const resolvedType = isHorizontal ? 'bar' : chartType
 
   if (resolvedType === 'pie') {
-    return buildPieOption({ xColumn, yColumns, rows, pieTopN, baseStyle, textColor, subTextColor })
+    return buildPieOption({ xColumn, yColumns, rows, pieTopN, baseStyle, textColor, subTextColor, getAlias })
   } else if (resolvedType === 'scatter') {
-    return buildScatterOption({ xColumn, yColumns, rows, baseStyle, subTextColor, borderColor })
+    return buildScatterOption({ xColumn, yColumns, rows, baseStyle, subTextColor, borderColor, getAlias })
   } else {
-    return buildAxisOption({ chartType: resolvedType, xColumn, yColumns, rows, baseStyle, subTextColor, borderColor, isHorizontal })
+    return buildAxisOption({ chartType: resolvedType, xColumn, yColumns, rows, baseStyle, subTextColor, borderColor, isHorizontal, getAlias })
   }
 }
 
-function buildPieOption({ xColumn, yColumns, rows, pieTopN, baseStyle, textColor, subTextColor }) {
+function buildPieOption({ xColumn, yColumns, rows, pieTopN, baseStyle, textColor, subTextColor, getAlias }) {
   const yCol = Array.isArray(yColumns) ? yColumns[0] : yColumns
 
   let pieData = rows
@@ -156,16 +159,16 @@ function buildPieOption({ xColumn, yColumns, rows, pieTopN, baseStyle, textColor
   }
 }
 
-function buildScatterOption({ xColumn, yColumns, rows, baseStyle, subTextColor, borderColor }) {
+function buildScatterOption({ xColumn, yColumns, rows, baseStyle, subTextColor, borderColor, getAlias }) {
   const yCols = Array.isArray(yColumns) ? yColumns : [yColumns]
   return {
     ...baseStyle,
-    tooltip: { trigger: 'item', formatter: (p) => `${p.seriesName}<br/>${xColumn}: ${p.value[0]}<br/>${p.seriesName}: ${p.value[1]}` },
-    legend: { data: yCols, bottom: 0, textStyle: { color: subTextColor, fontSize: 12 } },
+    tooltip: { trigger: 'item', formatter: (p) => `${p.seriesName}<br/>${getAlias(xColumn)}: ${p.value[0]}<br/>${p.seriesName}: ${p.value[1]}` },
+    legend: { data: yCols.map(getAlias), bottom: 0, textStyle: { color: subTextColor, fontSize: 12 } },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
       type: 'value',
-      name: xColumn,
+      name: getAlias(xColumn),
       nameTextStyle: { color: subTextColor, fontSize: 11 },
       axisLabel: { color: subTextColor, fontSize: 11 },
       axisLine: { lineStyle: { color: borderColor } },
@@ -178,7 +181,7 @@ function buildScatterOption({ xColumn, yColumns, rows, baseStyle, subTextColor, 
       splitLine: { lineStyle: { color: borderColor, type: 'dashed', opacity: 0.5 } }
     },
     series: yCols.map(col => ({
-      name: col,
+      name: getAlias(col),
       type: 'scatter',
       data: rows.map(r => [Number(r[xColumn]) || 0, Number(r[col]) || 0]),
       symbolSize: 10
@@ -186,7 +189,7 @@ function buildScatterOption({ xColumn, yColumns, rows, baseStyle, subTextColor, 
   }
 }
 
-function buildAxisOption({ chartType, xColumn, yColumns, rows, baseStyle, subTextColor, borderColor, isHorizontal = false }) {
+function buildAxisOption({ chartType, xColumn, yColumns, rows, baseStyle, subTextColor, borderColor, isHorizontal = false, getAlias }) {
   const yCols = Array.isArray(yColumns) ? yColumns : [yColumns]
   const xData = rows.map(r => String(r[xColumn] ?? ''))
   const needZoom = xData.length > 30
@@ -195,7 +198,7 @@ function buildAxisOption({ chartType, xColumn, yColumns, rows, baseStyle, subTex
     ...baseStyle,
     tooltip: { trigger: 'axis' },
     legend: {
-      data: yCols,
+      data: yCols.map(getAlias),
       bottom: needZoom ? 30 : 0,
       textStyle: { color: subTextColor, fontSize: 12 }
     },
@@ -240,7 +243,7 @@ function buildAxisOption({ chartType, xColumn, yColumns, rows, baseStyle, subTex
       splitLine: { lineStyle: { color: borderColor, type: 'dashed', opacity: 0.5 } }
     },
     series: yCols.map((col, idx) => {
-      const base = { name: col, type: chartType, data: rows.map(r => Number(r[col]) || 0) }
+      const base = { name: getAlias(col), type: chartType, data: rows.map(r => Number(r[col]) || 0) }
       if (chartType === 'bar') {
         base.barMaxWidth = 40
         base.itemStyle = isHorizontal ? { borderRadius: [0, 3, 3, 0] } : { borderRadius: [3, 3, 0, 0] }

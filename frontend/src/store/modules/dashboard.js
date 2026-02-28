@@ -1,20 +1,10 @@
 /**
  * 개인 대시보드 Vuex 모듈
- * 프로토타입: localStorage 기반 (Backend 연동 전)
+ * Backend API 연동 (personalDashboard API)
  */
+import personalDashboardApi from '@/api/personalDashboard'
 
-const STORAGE_KEY = 'mureum_dashboard_widgets'
 const THEME_STORAGE_KEY = 'mureum_dashboard_theme'
-
-// localStorage에서 위젯 로드
-function loadFromStorage() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY)
-    return data ? JSON.parse(data) : []
-  } catch {
-    return []
-  }
-}
 
 // 대시보드 테마 로드 ('auto' | 'light' | 'dark')
 function loadTheme() {
@@ -34,30 +24,17 @@ function saveTheme(theme) {
   }
 }
 
-// localStorage에 위젯 저장
-function saveToStorage(widgets) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets))
-  } catch {
-    // ignore
-  }
-}
-
-// 목업 데이터 (초기 데모용)
+// 목업 데이터 (초기 데모용 - resetToMock에서 API로 생성)
 function getMockWidgets() {
   return [
     {
-      widget_id: 1,
       title: '부서별 직원 수',
       widget_type: 'bar',
       query: '부서별 직원 수를 알려줘',
       sql: 'SELECT department_name, COUNT(*) as employee_count FROM employee GROUP BY department_name ORDER BY employee_count DESC',
       chart_config: {
         x_column: 'department_name',
-        y_columns: ['employee_count'],
-        pie_top_n: null,
-        kpi_column: null,
-        kpi_suffix: null
+        y_columns: ['employee_count']
       },
       cached_data: {
         columns: ['department_name', 'employee_count'],
@@ -70,26 +47,18 @@ function getMockWidgets() {
           { department_name: '기획팀', employee_count: 20 },
           { department_name: '디자인팀', employee_count: 12 }
         ],
-        row_count: 7,
-        cached_at: new Date().toISOString()
+        row_count: 7
       },
-      grid_position: { x: 0, y: 0, w: 6, h: 10 },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_refreshed_at: new Date().toISOString()
+      grid_position: { x: 0, y: 0, w: 6, h: 10 }
     },
     {
-      widget_id: 2,
       title: '월별 입사자 추이 (2024)',
       widget_type: 'line',
       query: '2024년 월별 입사자 수 추이를 알려줘',
       sql: "SELECT TO_CHAR(hire_date, 'YYYY-MM') as month, COUNT(*) as hire_count FROM employee WHERE hire_date >= '2024-01-01' GROUP BY month ORDER BY month",
       chart_config: {
         x_column: 'month',
-        y_columns: ['hire_count'],
-        pie_top_n: null,
-        kpi_column: null,
-        kpi_suffix: null
+        y_columns: ['hire_count']
       },
       cached_data: {
         columns: ['month', 'hire_count'],
@@ -107,16 +76,11 @@ function getMockWidgets() {
           { month: '2024-11', hire_count: 4 },
           { month: '2024-12', hire_count: 3 }
         ],
-        row_count: 12,
-        cached_at: new Date().toISOString()
+        row_count: 12
       },
-      grid_position: { x: 6, y: 0, w: 6, h: 10 },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_refreshed_at: new Date().toISOString()
+      grid_position: { x: 6, y: 0, w: 6, h: 10 }
     },
     {
-      widget_id: 3,
       title: '직급별 인원 분포',
       widget_type: 'pie',
       query: '직급별 인원 분포를 알려줘',
@@ -124,9 +88,7 @@ function getMockWidgets() {
       chart_config: {
         x_column: 'position_name',
         y_columns: ['cnt'],
-        pie_top_n: 10,
-        kpi_column: null,
-        kpi_suffix: null
+        pie_top_n: 10
       },
       cached_data: {
         columns: ['position_name', 'cnt'],
@@ -138,64 +100,43 @@ function getMockWidgets() {
           { position_name: '부장', cnt: 12 },
           { position_name: '이사', cnt: 5 }
         ],
-        row_count: 6,
-        cached_at: new Date().toISOString()
+        row_count: 6
       },
-      grid_position: { x: 0, y: 10, w: 5, h: 10 },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_refreshed_at: new Date().toISOString()
+      grid_position: { x: 0, y: 10, w: 5, h: 10 }
     },
     {
-      widget_id: 4,
       title: '전체 직원 수',
       widget_type: 'kpi',
       query: '전체 직원 수는?',
       sql: 'SELECT COUNT(*) as total_count FROM employee',
       chart_config: {
-        x_column: null,
-        y_columns: null,
-        pie_top_n: null,
         kpi_column: 'total_count',
         kpi_suffix: '명'
       },
       cached_data: {
         columns: ['total_count'],
         rows: [{ total_count: 342 }],
-        row_count: 1,
-        cached_at: new Date().toISOString()
+        row_count: 1
       },
-      grid_position: { x: 5, y: 10, w: 3, h: 5 },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_refreshed_at: new Date().toISOString()
+      grid_position: { x: 5, y: 10, w: 3, h: 5 }
     },
     {
-      widget_id: 5,
       title: '평균 연봉',
       widget_type: 'kpi',
       query: '전체 직원 평균 연봉은?',
       sql: 'SELECT ROUND(AVG(salary)) as avg_salary FROM employee',
       chart_config: {
-        x_column: null,
-        y_columns: null,
-        pie_top_n: null,
         kpi_column: 'avg_salary',
         kpi_suffix: '만원'
       },
       cached_data: {
         columns: ['avg_salary'],
         rows: [{ avg_salary: 5280 }],
-        row_count: 1,
-        cached_at: new Date().toISOString()
+        row_count: 1
       },
-      grid_position: { x: 8, y: 10, w: 3, h: 5 },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_refreshed_at: new Date().toISOString()
+      grid_position: { x: 8, y: 10, w: 3, h: 5 }
     },
     {
-      widget_id: 6,
       title: '부서별 평균 근속년수',
       widget_type: 'table',
       query: '부서별 평균 근속년수를 알려줘',
@@ -212,18 +153,12 @@ function getMockWidgets() {
           { department_name: '마케팅팀', avg_years: 3.9, emp_count: 25 },
           { department_name: '디자인팀', avg_years: 3.2, emp_count: 12 }
         ],
-        row_count: 7,
-        cached_at: new Date().toISOString()
+        row_count: 7
       },
-      grid_position: { x: 5, y: 15, w: 6, h: 8 },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_refreshed_at: new Date().toISOString()
+      grid_position: { x: 5, y: 15, w: 6, h: 8 }
     }
   ]
 }
-
-let nextWidgetId = 100
 
 export default {
   namespaced: true,
@@ -234,7 +169,7 @@ export default {
     editMode: false,
     pendingLayout: null,
     refreshingWidgets: {},
-    dashboardTheme: loadTheme() // 'auto' | 'light' | 'dark'
+    dashboardTheme: loadTheme()
   }),
 
   mutations: {
@@ -252,18 +187,15 @@ export default {
     },
     ADD_WIDGET(state, widget) {
       state.widgets.push(widget)
-      saveToStorage(state.widgets)
     },
     UPDATE_WIDGET(state, { widgetId, updates }) {
       const idx = state.widgets.findIndex(w => w.widget_id === widgetId)
       if (idx !== -1) {
-        state.widgets[idx] = { ...state.widgets[idx], ...updates, updated_at: new Date().toISOString() }
-        saveToStorage(state.widgets)
+        state.widgets[idx] = { ...state.widgets[idx], ...updates }
       }
     },
     REMOVE_WIDGET(state, widgetId) {
       state.widgets = state.widgets.filter(w => w.widget_id !== widgetId)
-      saveToStorage(state.widgets)
     },
     UPDATE_LAYOUT(state, layoutItems) {
       for (const item of layoutItems) {
@@ -300,64 +232,71 @@ export default {
   },
 
   actions: {
-    fetchWidgets({ commit }) {
+    async fetchWidgets({ commit }) {
       commit('SET_LOADING', true)
-      // 프로토타입: localStorage에서 로드, 없으면 목업
-      const stored = loadFromStorage()
-      const widgets = stored.length > 0 ? stored : getMockWidgets()
-      if (stored.length === 0) saveToStorage(widgets)
-      commit('SET_WIDGETS', widgets)
-      commit('SET_LOADING', false)
-    },
-
-    saveWidget({ commit }, widgetConfig) {
-      const widget = {
-        widget_id: nextWidgetId++,
-        ...widgetConfig,
-        grid_position: widgetConfig.grid_position || { x: 0, y: 0, w: 6, h: 10 },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_refreshed_at: new Date().toISOString()
+      try {
+        const res = await personalDashboardApi.getWidgets()
+        commit('SET_WIDGETS', res.items || [])
+      } catch (err) {
+        console.error('[Dashboard] 위젯 목록 조회 실패:', err)
+        commit('SET_WIDGETS', [])
+      } finally {
+        commit('SET_LOADING', false)
       }
-      commit('ADD_WIDGET', widget)
-      return widget
     },
 
-    updateWidget({ commit }, { widgetId, updates }) {
-      commit('UPDATE_WIDGET', { widgetId, updates })
+    async saveWidget({ commit }, widgetConfig) {
+      const res = await personalDashboardApi.createWidget(widgetConfig)
+      commit('ADD_WIDGET', res)
+      return res
     },
 
-    deleteWidget({ commit }, widgetId) {
+    async updateWidget({ commit }, { widgetId, updates }) {
+      const res = await personalDashboardApi.updateWidget(widgetId, updates)
+      commit('UPDATE_WIDGET', { widgetId, updates: res })
+      return res
+    },
+
+    async deleteWidget({ commit }, widgetId) {
+      await personalDashboardApi.deleteWidget(widgetId)
       commit('REMOVE_WIDGET', widgetId)
     },
 
-    saveLayout({ commit, state }) {
-      const layoutItems = state.widgets.map(w => ({
+    async saveLayout({ state }) {
+      const layoutItems = state.widgets.map((w, idx) => ({
         widget_id: w.widget_id,
-        ...w.grid_position
+        x: w.grid_position.x,
+        y: w.grid_position.y,
+        w: w.grid_position.w,
+        h: w.grid_position.h
       }))
-      commit('UPDATE_LAYOUT', layoutItems)
+      await personalDashboardApi.saveLayout(layoutItems)
     },
 
-    refreshWidget({ commit, state }, widgetId) {
+    async refreshWidget({ commit, state }, widgetId) {
       commit('SET_WIDGET_REFRESHING', { widgetId, refreshing: true })
-      // 프로토타입: 1초 딜레이 시뮬레이션
-      setTimeout(() => {
-        const widget = state.widgets.find(w => w.widget_id === widgetId)
-        if (widget) {
-          commit('UPDATE_WIDGET', {
-            widgetId,
-            updates: { last_refreshed_at: new Date().toISOString() }
-          })
-        }
+      try {
+        const res = await personalDashboardApi.refreshWidget(widgetId)
+        commit('UPDATE_WIDGET', {
+          widgetId,
+          updates: {
+            cached_data: res.cached_data,
+            last_refreshed_at: res.last_refreshed_at
+          }
+        })
+      } catch (err) {
+        console.error('[Dashboard] 위젯 새로고침 실패:', err)
+        throw err
+      } finally {
         commit('SET_WIDGET_REFRESHING', { widgetId, refreshing: false })
-      }, 1000)
+      }
     },
 
-    refreshAllWidgets({ dispatch, state }) {
-      for (const widget of state.widgets) {
-        dispatch('refreshWidget', widget.widget_id)
-      }
+    async refreshAllWidgets({ dispatch, state }) {
+      const promises = state.widgets
+        .filter(w => w.sql)
+        .map(w => dispatch('refreshWidget', w.widget_id).catch(() => {}))
+      await Promise.allSettled(promises)
     },
 
     enterEditMode({ commit, state }) {
@@ -369,15 +308,13 @@ export default {
     cancelEditMode({ commit, state }) {
       if (state.pendingLayout) {
         commit('SET_WIDGETS', state.pendingLayout)
-        saveToStorage(state.pendingLayout)
       }
       commit('SET_PENDING_LAYOUT', null)
       commit('SET_EDIT_MODE', false)
     },
 
-    saveEditMode({ dispatch, commit, state }) {
-      dispatch('saveLayout')
-      saveToStorage(state.widgets)
+    async saveEditMode({ dispatch, commit }) {
+      await dispatch('saveLayout')
       commit('SET_PENDING_LAYOUT', null)
       commit('SET_EDIT_MODE', false)
     },
@@ -386,11 +323,19 @@ export default {
       commit('SET_DASHBOARD_THEME', theme)
     },
 
-    // 목업 데이터 리셋
-    resetToMock({ commit }) {
-      const widgets = getMockWidgets()
-      saveToStorage(widgets)
-      commit('SET_WIDGETS', widgets)
+    // 목업 데이터 리셋 (API를 통해 생성)
+    async resetToMock({ commit, state, dispatch }) {
+      // 기존 위젯 모두 삭제
+      for (const w of [...state.widgets]) {
+        await personalDashboardApi.deleteWidget(w.widget_id).catch(() => {})
+      }
+      // 목업 위젯 순차 생성
+      const mocks = getMockWidgets()
+      for (const mock of mocks) {
+        await personalDashboardApi.createWidget(mock).catch(() => {})
+      }
+      // 재조회
+      await dispatch('fetchWidgets')
     }
   }
 }

@@ -2,166 +2,221 @@
   <el-dialog
     v-model="visible"
     title="위젯 추가"
-    width="620px"
+    width="680px"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"
   >
-    <el-form label-position="top" :model="form">
-      <!-- 대화 히스토리 선택 -->
-      <el-form-item label="대화 히스토리">
-        <el-select
-          v-model="selectedSessionKey"
-          placeholder="대화를 선택하세요"
-          filterable
-          :loading="isLoadingSessions"
-          style="width: 100%"
-          @change="handleSessionSelect"
-        >
-          <el-option
-            v-for="session in sessionList"
-            :key="session.session_key"
-            :label="session.title"
-            :value="session.session_key"
-          >
-            <div class="session-option">
-              <span class="session-title">{{ session.title }}</span>
-              <span class="session-meta">
-                <el-tag size="small" :type="session.request_type === 'nl2sql' ? 'primary' : 'info'" disable-transitions>
-                  {{ session.request_type }}
-                </el-tag>
-                <span class="session-date">{{ formatDate(session.last_activity || session.created_at) }}</span>
-              </span>
-            </div>
-          </el-option>
-        </el-select>
-      </el-form-item>
+    <el-tabs v-model="activeTab">
+      <!-- 탭 1: 대화 히스토리 -->
+      <el-tab-pane label="대화 히스토리" name="history">
+        <el-form label-position="top">
+          <!-- 대화 히스토리 선택 -->
+          <el-form-item label="대화 히스토리">
+            <el-select
+              v-model="selectedSessionKey"
+              placeholder="대화를 선택하세요"
+              filterable
+              :loading="isLoadingSessions"
+              style="width: 100%"
+              @change="handleSessionSelect"
+            >
+              <el-option
+                v-for="session in sessionList"
+                :key="session.session_key"
+                :label="session.title"
+                :value="session.session_key"
+              >
+                <div class="session-option">
+                  <span class="session-title">{{ session.title }}</span>
+                  <span class="session-meta">
+                    <el-tag size="small" :type="session.request_type === 'nl2sql' ? 'primary' : 'info'" disable-transitions>
+                      {{ session.request_type }}
+                    </el-tag>
+                    <span class="session-date">{{ formatDate(session.last_activity || session.created_at) }}</span>
+                  </span>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
 
-      <!-- 세션 내 메시지 선택 (NL2SQL 결과가 있는 것만) -->
-      <el-form-item v-if="nlsqlMessages.length > 0" label="쿼리 결과 선택">
-        <el-select
-          v-model="selectedMessageIndex"
-          placeholder="쿼리 결과를 선택하세요"
-          style="width: 100%"
-          @change="handleMessageSelect"
-        >
-          <el-option
-            v-for="(msg, idx) in nlsqlMessages"
-            :key="idx"
-            :label="msg.question"
-            :value="idx"
-          >
-            <div class="session-option">
-              <span class="session-title">{{ msg.question }}</span>
-              <span class="session-meta">
-                <span class="session-date">{{ msg.rowCount }}건</span>
-              </span>
-            </div>
-          </el-option>
-        </el-select>
-      </el-form-item>
+          <!-- 세션 내 메시지 선택 -->
+          <el-form-item v-if="nlsqlMessages.length > 0" label="쿼리 결과 선택">
+            <el-select
+              v-model="selectedMessageIndex"
+              placeholder="쿼리 결과를 선택하세요"
+              style="width: 100%"
+              @change="handleMessageSelect"
+            >
+              <el-option
+                v-for="(msg, idx) in nlsqlMessages"
+                :key="idx"
+                :label="msg.question"
+                :value="idx"
+              >
+                <div class="session-option">
+                  <span class="session-title">{{ msg.question }}</span>
+                  <span class="session-meta">
+                    <span class="session-date">{{ msg.rowCount }}건</span>
+                  </span>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
 
-      <!-- 로딩 -->
-      <div v-if="isLoadingSession" class="loading-placeholder">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>대화 내용을 불러오는 중...</span>
-      </div>
-
-      <!-- 결과 없음 안내 -->
-      <el-alert
-        v-if="selectedSessionKey && !isLoadingSession && nlsqlMessages.length === 0 && sessionLoaded"
-        title="이 대화에는 NL2SQL 쿼리 결과가 없습니다."
-        type="info"
-        :closable="false"
-        show-icon
-      />
-
-      <!-- 실행 결과 미리보기 -->
-      <template v-if="hasResult">
-        <el-form-item label="실행 결과">
-          <div class="result-preview">
-            <el-table :data="resultRows.slice(0, 5)" size="small" border max-height="180">
-              <el-table-column v-for="col in resultColumns" :key="col" :prop="col" :label="col" :min-width="80" show-overflow-tooltip />
-            </el-table>
-            <div v-if="resultRows.length > 5" class="overflow-notice">... 외 {{ resultRows.length - 5 }}건</div>
+          <!-- 로딩 -->
+          <div v-if="isLoadingSession" class="loading-placeholder">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>대화 내용을 불러오는 중...</span>
           </div>
-        </el-form-item>
 
-        <!-- 위젯 제목 -->
-        <el-form-item label="위젯 제목">
-          <el-input v-model="form.title" placeholder="위젯 제목" maxlength="100" show-word-limit />
-        </el-form-item>
+          <!-- 결과 없음 -->
+          <el-alert
+            v-if="selectedSessionKey && !isLoadingSession && nlsqlMessages.length === 0 && sessionLoaded"
+            title="이 대화에는 NL2SQL 쿼리 결과가 없습니다."
+            type="info"
+            :closable="false"
+            show-icon
+          />
+        </el-form>
+      </el-tab-pane>
 
-        <!-- 위젯 유형 -->
-        <el-form-item label="위젯 유형">
-          <el-radio-group v-model="form.widgetType">
-            <el-radio-button value="table">테이블</el-radio-button>
-            <el-radio-button value="bar">Bar</el-radio-button>
-            <el-radio-button value="hbar">H-Bar</el-radio-button>
-            <el-radio-button value="line">Line</el-radio-button>
-            <el-radio-button value="pie">Pie</el-radio-button>
-            <el-radio-button value="scatter">Scatter</el-radio-button>
-            <el-radio-button value="kpi">KPI</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
+      <!-- 탭 2: 직접 질문하기 -->
+      <el-tab-pane label="직접 질문하기" name="direct">
+        <el-form label-position="top">
+          <el-form-item label="질문">
+            <div class="direct-query-row">
+              <el-input
+                v-model="directQuery"
+                placeholder="예: 부서별 직원 수를 알려줘"
+                :disabled="isQuerying"
+                @keydown.enter.prevent="handleDirectQuery"
+              />
+              <el-button
+                type="primary"
+                :loading="isQuerying"
+                :disabled="!directQuery.trim()"
+                @click="handleDirectQuery"
+              >
+                실행
+              </el-button>
+              <el-button
+                v-if="isQuerying"
+                @click="handleCancelQuery"
+              >
+                취소
+              </el-button>
+            </div>
+          </el-form-item>
 
-        <!-- 차트 설정 -->
-        <template v-if="isChartType">
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item :label="form.widgetType === 'pie' ? '항목' : 'X축 컬럼'">
-                <el-select v-model="form.xColumn" style="width: 100%">
-                  <el-option v-for="col in resultColumns" :key="col" :label="col" :value="col" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item :label="form.widgetType === 'pie' ? '값' : 'Y축 컬럼'">
-                <el-select v-model="form.yColumns" :multiple="form.widgetType !== 'pie'" collapse-tags style="width: 100%">
-                  <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="컬러 팔레트">
-                <el-select v-model="form.colorPalette" style="width: 100%">
-                  <el-option
-                    v-for="(palette, key) in CHART_PALETTES"
-                    :key="key"
-                    :label="palette.label"
-                    :value="key"
-                  >
-                    <div class="palette-option">
-                      <span>{{ palette.label }}</span>
-                      <span class="palette-preview">
-                        <span v-for="(c, i) in palette.colors.slice(0, 5)" :key="i" class="palette-dot" :style="{ background: c }" />
-                      </span>
-                    </div>
-                  </el-option>
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </template>
+          <!-- SSE 진행 상황 -->
+          <div v-if="queryStages.length > 0" class="query-progress">
+            <div v-for="(stage, idx) in queryStages" :key="idx" class="stage-item" :class="{ 'is-active': idx === queryStages.length - 1 && isQuerying }">
+              <el-icon v-if="idx < queryStages.length - 1 || !isQuerying" class="stage-icon done"><CircleCheckFilled /></el-icon>
+              <el-icon v-else class="stage-icon loading is-loading"><Loading /></el-icon>
+              <span class="stage-label">{{ stage }}</span>
+            </div>
+          </div>
 
-        <template v-if="form.widgetType === 'kpi'">
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="값 컬럼">
-                <el-select v-model="form.kpiColumn" style="width: 100%">
-                  <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="단위">
-                <el-input v-model="form.kpiSuffix" placeholder="명, %" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </template>
+          <!-- 에러 -->
+          <el-alert
+            v-if="queryError"
+            :title="queryError"
+            type="error"
+            :closable="true"
+            show-icon
+            @close="queryError = ''"
+            style="margin-bottom: 12px"
+          />
+        </el-form>
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 공통: 실행 결과 미리보기 + 위젯 설정 (결과가 있을 때만) -->
+    <el-form v-if="hasResult" label-position="top" style="margin-top: 8px">
+      <el-form-item label="실행 결과">
+        <div class="result-preview">
+          <el-table :data="resultRows.slice(0, 5)" size="small" border max-height="180">
+            <el-table-column v-for="col in resultColumns" :key="col" :prop="col" :label="col" :min-width="80" show-overflow-tooltip />
+          </el-table>
+          <div v-if="resultRows.length > 5" class="overflow-notice">... 외 {{ resultRows.length - 5 }}건</div>
+        </div>
+      </el-form-item>
+
+      <!-- 위젯 제목 -->
+      <el-form-item label="위젯 제목">
+        <el-input v-model="form.title" placeholder="위젯 제목" maxlength="100" show-word-limit />
+      </el-form-item>
+
+      <!-- 위젯 유형 -->
+      <el-form-item label="위젯 유형">
+        <el-radio-group v-model="form.widgetType">
+          <el-radio-button value="table">테이블</el-radio-button>
+          <el-radio-button value="bar">Bar</el-radio-button>
+          <el-radio-button value="hbar">H-Bar</el-radio-button>
+          <el-radio-button value="line">Line</el-radio-button>
+          <el-radio-button value="pie">Pie</el-radio-button>
+          <el-radio-button value="scatter">Scatter</el-radio-button>
+          <el-radio-button value="kpi">KPI</el-radio-button>
+        </el-radio-group>
+      </el-form-item>
+
+      <!-- 차트 설정 -->
+      <template v-if="isChartType">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item :label="form.widgetType === 'pie' ? '항목' : 'X축 컬럼'">
+              <el-select v-model="form.xColumn" style="width: 100%">
+                <el-option v-for="col in resultColumns" :key="col" :label="col" :value="col" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="form.widgetType === 'pie' ? '값' : 'Y축 컬럼'">
+              <el-select v-model="form.yColumns" :multiple="form.widgetType !== 'pie'" collapse-tags style="width: 100%">
+                <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="컬러 팔레트">
+              <el-select v-model="form.colorPalette" style="width: 100%">
+                <el-option
+                  v-for="(palette, key) in CHART_PALETTES"
+                  :key="key"
+                  :label="palette.label"
+                  :value="key"
+                >
+                  <div class="palette-option">
+                    <span>{{ palette.label }}</span>
+                    <span class="palette-preview">
+                      <span v-for="(c, i) in palette.colors.slice(0, 5)" :key="i" class="palette-dot" :style="{ background: c }" />
+                    </span>
+                  </div>
+                </el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </template>
+
+      <template v-if="form.widgetType === 'kpi'">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="값 컬럼">
+              <el-select v-model="form.kpiColumn" style="width: 100%">
+                <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="단위">
+              <el-input v-model="form.kpiSuffix" placeholder="명, %" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </template>
     </el-form>
 
@@ -176,9 +231,10 @@
 import { ref, computed, watch } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, CircleCheckFilled } from '@element-plus/icons-vue'
 import { detectColumnTypes, CHART_PALETTES } from '@/composables/useChartOptions'
 import historyApi from '@/api/history'
+import searchApi from '@/api/search'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
@@ -192,6 +248,8 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
+const activeTab = ref('history')
+
 const form = ref({
   queryText: '',
   title: '',
@@ -204,18 +262,29 @@ const form = ref({
   colorPalette: 'default'
 })
 
-// 세션 목록
+// ============================
+// 탭 1: 히스토리
+// ============================
 const sessionList = ref([])
 const isLoadingSessions = ref(false)
 const selectedSessionKey = ref(null)
-
-// 세션 상세 메시지
 const isLoadingSession = ref(false)
 const sessionLoaded = ref(false)
 const nlsqlMessages = ref([])
 const selectedMessageIndex = ref(null)
 
-// 결과 데이터
+// ============================
+// 탭 2: 직접 질문
+// ============================
+const directQuery = ref('')
+const isQuerying = ref(false)
+const queryStages = ref([])
+const queryError = ref('')
+let streamController = null
+
+// ============================
+// 공통 결과 데이터
+// ============================
 const resultColumns = ref([])
 const resultRows = ref([])
 const selectedSql = ref('')
@@ -228,6 +297,9 @@ watch(visible, async (val) => {
   }
 })
 
+// ============================
+// 히스토리 탭 로직
+// ============================
 const loadSessions = async () => {
   isLoadingSessions.value = true
   try {
@@ -246,11 +318,9 @@ const loadSessions = async () => {
 const handleSessionSelect = async (sessionKey) => {
   if (!sessionKey) return
 
-  // 이전 선택 초기화
   nlsqlMessages.value = []
   selectedMessageIndex.value = null
-  resultColumns.value = []
-  resultRows.value = []
+  clearResult()
   sessionLoaded.value = false
   isLoadingSession.value = true
 
@@ -258,12 +328,10 @@ const handleSessionSelect = async (sessionKey) => {
     const response = await historyApi.getSessionHistory(sessionKey)
     const records = response.items || []
 
-    // NL2SQL 결과가 있는 레코드만 필터
     const filtered = records
       .filter(r => r.request_type === 'nl2sql' && r.trace_data?.sql_result?.columns?.length > 0)
       .map(r => ({
         question: r.question,
-        answer: r.answer,
         sql: r.trace_data.sql,
         columns: r.trace_data.sql_result.columns,
         rows: r.trace_data.sql_result.rows,
@@ -272,12 +340,11 @@ const handleSessionSelect = async (sessionKey) => {
 
     nlsqlMessages.value = filtered
 
-    // 결과가 하나뿐이면 자동 선택
     if (filtered.length === 1) {
       selectedMessageIndex.value = 0
       handleMessageSelect(0)
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('대화 내용을 불러오지 못했습니다.')
   } finally {
     isLoadingSession.value = false
@@ -288,16 +355,81 @@ const handleSessionSelect = async (sessionKey) => {
 const handleMessageSelect = (idx) => {
   const msg = nlsqlMessages.value[idx]
   if (!msg) return
+  setResult(msg.columns, msg.rows, msg.sql, msg.question)
+}
 
-  resultColumns.value = msg.columns
-  resultRows.value = msg.rows
-  selectedSql.value = msg.sql || ''
-  form.value.queryText = msg.question
-  form.value.title = msg.question.slice(0, 100)
+// ============================
+// 직접 질문 탭 로직
+// ============================
+const handleDirectQuery = () => {
+  if (!directQuery.value.trim() || isQuerying.value) return
 
-  // 자동 컬럼 설정
-  const { numeric, text } = detectColumnTypes(msg.columns, msg.rows)
-  form.value.xColumn = text[0] || msg.columns[0] || ''
+  isQuerying.value = true
+  queryStages.value = []
+  queryError.value = ''
+  clearResult()
+
+  streamController = searchApi.searchStream(
+    { query: directQuery.value, mode: 'nl2sql' },
+    {
+      onNodeStart: (event) => {
+        if (event.label) {
+          queryStages.value = [...queryStages.value, event.label]
+        }
+      },
+      onNodeComplete: () => {},
+      onComplete: (event) => {
+        isQuerying.value = false
+        streamController = null
+
+        const data = event.data || event
+        if (data.sql_result?.columns?.length > 0) {
+          setResult(
+            data.sql_result.columns,
+            data.sql_result.rows,
+            data.sql,
+            directQuery.value
+          )
+        } else {
+          queryError.value = data.answer || '쿼리 결과가 없습니다.'
+        }
+      },
+      onError: (error) => {
+        isQuerying.value = false
+        streamController = null
+        queryError.value = error.message || 'SSE 스트리밍 오류가 발생했습니다.'
+      }
+    }
+  )
+}
+
+const handleCancelQuery = () => {
+  if (streamController) {
+    streamController.abort()
+    streamController = null
+  }
+  isQuerying.value = false
+  queryStages.value = []
+}
+
+// ============================
+// 공통 유틸
+// ============================
+const clearResult = () => {
+  resultColumns.value = []
+  resultRows.value = []
+  selectedSql.value = ''
+}
+
+const setResult = (columns, rows, sql, query) => {
+  resultColumns.value = columns
+  resultRows.value = rows
+  selectedSql.value = sql || ''
+  form.value.queryText = query
+  form.value.title = query.slice(0, 100)
+
+  const { numeric, text } = detectColumnTypes(columns, rows)
+  form.value.xColumn = text[0] || columns[0] || ''
   form.value.yColumns = numeric.length > 0 ? [numeric[0]] : []
   form.value.kpiColumn = numeric[0] || ''
 }
@@ -337,7 +469,7 @@ const canSave = computed(() => {
   return true
 })
 
-const handleSave = () => {
+const handleSave = async () => {
   const widgetConfig = {
     title: form.value.title.trim(),
     widget_type: form.value.widgetType,
@@ -359,21 +491,24 @@ const handleSave = () => {
     }
   }
 
-  store.dispatch('dashboard/saveWidget', widgetConfig)
+  await store.dispatch('dashboard/saveWidget', widgetConfig)
   ElMessage.success('위젯이 추가되었습니다')
   emit('saved')
   visible.value = false
 }
 
 const handleClose = () => {
+  handleCancelQuery()
   form.value.queryText = ''
   form.value.title = ''
   selectedSessionKey.value = null
   selectedMessageIndex.value = null
   nlsqlMessages.value = []
-  resultColumns.value = []
-  resultRows.value = []
+  clearResult()
   sessionLoaded.value = false
+  directQuery.value = ''
+  queryStages.value = []
+  queryError.value = ''
   visible.value = false
 }
 </script>
@@ -420,7 +555,7 @@ const handleClose = () => {
 
     .session-date {
       font-size: 12px;
-      color: var(--text-color-secondary);
+      color: var(--el-text-color-secondary);
     }
   }
 }
@@ -431,13 +566,58 @@ const handleClose = () => {
   justify-content: center;
   gap: 8px;
   padding: 20px;
-  color: var(--text-color-secondary);
+  color: var(--el-text-color-secondary);
   font-size: 13px;
+}
+
+.direct-query-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+
+  .el-input {
+    flex: 1;
+  }
+}
+
+.query-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.stage-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  padding: 2px 8px;
+  background: var(--el-fill-color-light);
+  border-radius: 10px;
+
+  &.is-active {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+
+  .stage-icon {
+    font-size: 14px;
+
+    &.done {
+      color: var(--el-color-success);
+    }
+
+    &.loading {
+      color: var(--el-color-primary);
+    }
+  }
 }
 
 .result-preview {
   width: 100%;
-  border: 1px solid var(--border-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -446,7 +626,7 @@ const handleClose = () => {
   text-align: center;
   padding: 6px;
   font-size: 12px;
-  color: var(--text-color-secondary);
-  border-top: 1px solid var(--border-color-lighter);
+  color: var(--el-text-color-secondary);
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>
