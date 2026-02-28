@@ -137,9 +137,41 @@ onMounted(() => {
   justify-content: center;
   background-color: var(--bg-color-page);
   transition: var(--theme-transition);
+  position: relative;
+  overflow: hidden;
+
+  // 배경: 대각선 블루/틸 글로우
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99, 102, 241, 0.18) 0%, transparent 70%),
+      radial-gradient(ellipse 500px 350px at 80% 70%, rgba(6, 182, 212, 0.14) 0%, transparent 70%),
+      radial-gradient(ellipse 300px 300px at 50% 50%, rgba(64, 158, 255, 0.08) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  // 배경: 그리드 라인
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(64, 158, 255, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(64, 158, 255, 0.08) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 70% at center, black 0%, transparent 65%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at center, black 0%, transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   width: 400px;
   max-width: 90vw;
   padding: 40px 32px;
@@ -217,6 +249,8 @@ onMounted(() => {
 }
 
 .login-footer {
+  position: relative;
+  z-index: 1;
   margin-top: 24px;
   font-size: 12px;
   color: var(--text-color-secondary);
