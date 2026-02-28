@@ -324,7 +324,7 @@ const refreshTimeLabel = computed(() => {
   .el-popconfirm__main {
     color: #1d2129;
     font-size: 13px;
-    padding-top: 16px;
+    padding-top: 14px;
   }
 
   .el-popconfirm__action {
@@ -351,7 +351,7 @@ const refreshTimeLabel = computed(() => {
   // 다크모드
   &.widget-delete-dark {
     background: #1f1f1f !important;
-    border: 1px solid #404040 !important;
+    border: 1px solid #555555 !important;
 
     .el-popconfirm__main {
       color: #e5e5e5;
@@ -359,12 +359,12 @@ const refreshTimeLabel = computed(() => {
 
     .el-popper__arrow::before {
       background: #1f1f1f !important;
-      border-color: #404040 !important;
+      border-color: #555555 !important;
     }
 
     .el-button--default {
       background: #2c2c2c;
-      border-color: #505050;
+      border-color: #4c4d4f;
       color: #d0d0d0;
 
       &:hover {
