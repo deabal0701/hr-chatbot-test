@@ -465,13 +465,9 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .history-view {
   .filter-section {
     .filter-row {
-      @include mx.filter-row;
-
       .flex-1 {
         flex: 1;
       }
@@ -487,16 +483,8 @@ onMounted(() => {
     font-size: 12px;
   }
 
-  .title-link {
-    @include mx.title-link;
-  }
-
   .text-muted {
     color: var(--text-color-secondary);
-  }
-
-  .pagination-wrapper {
-    @include mx.pagination-wrapper;
   }
 
   .unit-label {

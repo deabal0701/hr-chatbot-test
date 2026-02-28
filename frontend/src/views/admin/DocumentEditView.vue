@@ -682,8 +682,6 @@ const handleSubmit = async () => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .document-edit-view {
   height: 100%;
   display: flex;
@@ -692,13 +690,6 @@ const handleSubmit = async () => {
   .page-header {
     align-items: center;
 
-    .header-left {
-      @include mx.page-header-left;
-    }
-
-    .header-right {
-      @include mx.page-header-right;
-    }
   }
 
   .form-container {
@@ -707,19 +698,11 @@ const handleSubmit = async () => {
   }
 
   .meta-section {
-    h3 {
-      @include mx.section-title;
-    }
-
     h4 {
       margin: 0 0 16px;
       font-size: 14px;
       font-weight: 500;
       color: var(--text-color-regular);
-    }
-
-    .form-tip {
-      @include mx.form-help;
     }
 
     .metadata-section {
@@ -761,8 +744,6 @@ const handleSubmit = async () => {
     flex-direction: column;
 
     .content-header {
-      @include mx.content-header;
-
       .content-header-right {
         display: flex;
         align-items: center;

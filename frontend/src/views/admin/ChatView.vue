@@ -302,7 +302,7 @@ watch(messages, async () => {
 .chat-view {
   display: flex;
   position: relative;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 84px);
   overflow: hidden;
 }
 
@@ -311,6 +311,7 @@ watch(messages, async () => {
   display: flex;
   flex-direction: column;
   padding: 0;
+  margin-bottom: 0;
   overflow: hidden;
 }
 

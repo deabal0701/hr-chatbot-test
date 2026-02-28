@@ -658,21 +658,11 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .codes-view {
   .group-selector {
     display: flex;
     gap: 12px;
     align-items: center;
-  }
-
-  .empty-state {
-    @include mx.empty-state;
-  }
-
-  .form-help {
-    @include mx.form-help;
   }
 
   .metadata-viewer {

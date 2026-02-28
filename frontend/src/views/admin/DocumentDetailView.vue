@@ -477,8 +477,6 @@ const getDocTypeTag = (type) => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .document-detail-view {
   height: 100%;
   display: flex;
@@ -487,13 +485,6 @@ const getDocTypeTag = (type) => {
   .page-header {
     align-items: center;
 
-    .header-left {
-      @include mx.page-header-left;
-    }
-
-    .header-right {
-      @include mx.page-header-right;
-    }
   }
 
   .detail-container {
@@ -501,20 +492,11 @@ const getDocTypeTag = (type) => {
     overflow: auto;
   }
 
-  .meta-section {
-    h3 {
-      @include mx.section-title;
-    }
-  }
 
   .embedding-section {
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--border-color-light);
-
-    h3 {
-      @include mx.section-title;
-    }
 
     .chunk-settings {
       display: flex;
@@ -546,10 +528,6 @@ const getDocTypeTag = (type) => {
     height: 100%;
     display: flex;
     flex-direction: column;
-
-    .content-header {
-      @include mx.content-header;
-    }
 
     .chunk-navigation {
       display: flex;

@@ -388,8 +388,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .roles-view {
   .toolbar {
     display: flex;
@@ -406,14 +404,6 @@ onMounted(() => {
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
-  }
-
-  .empty-state {
-    @include mx.empty-state;
-  }
-
-  .form-help {
-    @include mx.form-help;
   }
 
   .menu-dialog-desc {

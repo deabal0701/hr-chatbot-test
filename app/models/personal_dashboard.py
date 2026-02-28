@@ -1,7 +1,8 @@
-"""개인 대시보드 위젯 스키마
+"""개인 대시보드 스키마
 
 위치: app/models/personal_dashboard.py
-- 개인 대시보드 위젯 CRUD 요청/응답 모델
+- 대시보드 CRUD + 공유 요청/응답 모델
+- 위젯 CRUD 요청/응답 모델
 - 레이아웃 저장, SQL 실행 모델
 """
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,58 @@ from pydantic import BaseModel, Field, field_validator
 
 
 VALID_WIDGET_TYPES = {"table", "bar", "hbar", "line", "pie", "scatter", "kpi"}
+VALID_SHARE_SCOPES = {"all", "tenant"}
+
+
+# ===================================
+# 대시보드 CRUD
+# ===================================
+
+class DashboardCreate(BaseModel):
+    """대시보드 생성 요청"""
+    name: str = Field(..., min_length=1, max_length=100, description="대시보드 이름")
+    description: Optional[str] = Field(None, max_length=500, description="대시보드 설명")
+
+
+class DashboardUpdate(BaseModel):
+    """대시보드 수정 요청"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="대시보드 이름")
+    description: Optional[str] = Field(None, max_length=500, description="대시보드 설명")
+
+
+class DashboardShareRequest(BaseModel):
+    """대시보드 공유 설정 요청"""
+    is_shared: bool = Field(..., description="공유 여부")
+    share_scope: Optional[str] = Field(None, description="공유 범위 (all | tenant)")
+
+    @field_validator("share_scope")
+    @classmethod
+    def validate_share_scope(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_SHARE_SCOPES:
+            raise ValueError(f"유효하지 않은 공유 범위: {v} (허용: {', '.join(sorted(VALID_SHARE_SCOPES))})")
+        return v
+
+
+class DashboardResponse(BaseModel):
+    """대시보드 응답"""
+    dashboard_id: int
+    user_id: int
+    tenant_id: Optional[int] = None
+    name: str
+    description: Optional[str] = None
+    is_shared: bool = False
+    share_scope: Optional[str] = None
+    is_default: bool = False
+    widget_count: int = 0
+    sort_order: int = 0
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class SharedDashboardResponse(DashboardResponse):
+    """공유 대시보드 응답 (소유자 정보 포함)"""
+    owner_name: Optional[str] = None
+    owner_login_id: Optional[str] = None
 
 
 # ===================================
@@ -49,6 +102,7 @@ class GridPosition(BaseModel):
 
 class WidgetCreate(BaseModel):
     """위젯 생성 요청"""
+    dashboard_id: Optional[int] = Field(None, description="대시보드 ID (미지정시 기본 대시보드)")
     title: str = Field(..., min_length=1, max_length=200, description="위젯 제목")
     widget_type: str = Field(default="table", description="위젯 유형")
     query: Optional[str] = Field(None, description="원본 자연어 질문")
@@ -115,6 +169,7 @@ class LayoutItem(BaseModel):
 
 class LayoutSaveRequest(BaseModel):
     """레이아웃 일괄 저장 요청"""
+    dashboard_id: Optional[int] = Field(None, description="대시보드 ID (미지정시 기본 대시보드)")
     layout: List[LayoutItem] = Field(..., min_length=1, description="레이아웃 항목 목록")
 
 

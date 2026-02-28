@@ -62,10 +62,6 @@ const goToDetail = (requestId) => {
   display: flex;
   flex-direction: column;
 
-  .card-header {
-    @include mx.content-header;
-  }
-
   .activity-list {
     @include mx.activity-list;
   }

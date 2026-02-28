@@ -110,13 +110,7 @@ const formatLastRequest = (dateStr) => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .system-status {
-  .card-header {
-    @include mx.content-header;
-  }
-
   .doc-progress {
     width: 100%;
 

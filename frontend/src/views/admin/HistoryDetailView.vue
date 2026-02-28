@@ -392,8 +392,6 @@ const formatJson = (data) => {
     align-items: center;
 
     .header-left {
-      @include mx.page-header-left;
-
       h2 {
         font-size: 24px;
         font-weight: 600;
@@ -463,7 +461,6 @@ const formatJson = (data) => {
     }
 
     .content-header {
-      @include mx.content-header;
       margin-bottom: 12px;
 
       h3 {

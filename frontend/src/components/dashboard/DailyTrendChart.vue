@@ -91,13 +91,7 @@ const chartOption = computed(() => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .daily-trend-chart {
   min-height: 360px;
-
-  .card-header {
-    @include mx.content-header;
-  }
 }
 </style>

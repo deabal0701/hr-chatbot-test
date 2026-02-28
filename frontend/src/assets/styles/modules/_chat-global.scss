@@ -1,6 +1,8 @@
 // =============================================
-// 채팅 글로벌 스타일
+// 글로벌 공통 스타일
 // =============================================
+
+// ----- Chat -----
 
 .chat-container {
   height: 100%;
@@ -44,7 +46,8 @@
   }
 }
 
-// 카드 스타일
+// ----- 카드 -----
+
 .content-card {
   background-color: var(--bg-color-card);
   border-radius: 6px;
@@ -54,7 +57,8 @@
   transition: var(--theme-transition);
 }
 
-// 페이지 헤더
+// ----- 페이지 헤더 -----
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -73,9 +77,93 @@
     font-size: 14px;
     color: var(--text-color-secondary);
   }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    h2 {
+      margin: 0;
+    }
+  }
+
+  .header-right {
+    display: flex;
+    gap: 8px;
+  }
 }
 
-// 로딩 오버레이
+// ----- 카드 헤더 (섹션 제목 + 액션) -----
+
+.card-header,
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color-primary);
+  }
+}
+
+// ----- 레이아웃 유틸리티 -----
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
+.title-link {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-color-primary);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--el-color-primary-light-3);
+  }
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color-primary);
+}
+
+// ----- 폼 유틸리티 -----
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-color-secondary);
+  font-size: 14px;
+}
+
+.form-help,
+.form-tip {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-top: 4px;
+}
+
+// ----- 오버레이 -----
+
 .loading-overlay {
   position: absolute;
   top: 0;

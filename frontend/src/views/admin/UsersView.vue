@@ -816,8 +816,6 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .users-view {
   .toolbar {
     display: flex;
@@ -834,14 +832,6 @@ onMounted(async () => {
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
-  }
-
-  .empty-state {
-    @include mx.empty-state;
-  }
-
-  .pagination-wrapper {
-    @include mx.pagination-wrapper;
   }
 
   .text-disabled {

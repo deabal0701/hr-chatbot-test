@@ -905,8 +905,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .menus-view {
   position: relative;
 
@@ -1047,10 +1045,6 @@ onBeforeUnmount(() => {
     }
   }
 
-  .empty-state {
-    @include mx.empty-state;
-  }
-
   .empty-guide {
     text-align: center;
     color: var(--text-color-secondary);
@@ -1060,9 +1054,6 @@ onBeforeUnmount(() => {
     margin: 0;
   }
 
-  .form-help {
-    @include mx.form-help;
-  }
 }
 
 // 우클릭 컨텍스트 메뉴

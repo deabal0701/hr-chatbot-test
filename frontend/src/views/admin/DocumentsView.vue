@@ -460,16 +460,12 @@ const getDocTypeTag = (type) => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .documents-view {
   .filter-section {
     margin-bottom: 12px;
   }
 
   .filter-row {
-    @include mx.filter-row;
-
     .selected-info {
       font-size: 14px;
       color: var(--text-color-regular);
@@ -477,12 +473,5 @@ const getDocTypeTag = (type) => {
     }
   }
 
-  .title-link {
-    @include mx.title-link;
-  }
-
-  .pagination-wrapper {
-    @include mx.pagination-wrapper;
-  }
 }
 </style>

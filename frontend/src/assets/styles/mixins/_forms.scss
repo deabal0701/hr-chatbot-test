@@ -1,31 +1,17 @@
 // =============================================
 // 폼 관련 Mixin
+// 단순 클래스 스타일은 modules/_chat-global.scss 참조
 // =============================================
-
-// 폼 도움말 텍스트
-@mixin form-help {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  margin-top: 4px;
-}
-
-// 빈 상태 (Empty state)
-@mixin empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-color-secondary);
-  font-size: 14px;
-}
 
 // 설정 섹션 (SettingsView)
 @mixin settings-section {
-  padding: 20px 0;
+  padding: 12px 0;
 
   h3 {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 20px;
+    margin: 0 0 12px;
     font-size: 16px;
     font-weight: 500;
     color: var(--text-color-primary);
@@ -37,7 +23,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding-top: 20px;
+  padding-top: 12px;
   border-top: 1px solid var(--border-color-light);
-  margin-top: 20px;
+  margin-top: 12px;
 }

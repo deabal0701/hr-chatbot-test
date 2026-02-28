@@ -1,75 +1,7 @@
 // =============================================
 // 레이아웃 관련 Mixin
+// 단순 클래스 스타일은 modules/_chat-global.scss 참조
 // =============================================
-
-// 페이지 헤더 좌측 (뒤로가기 + 제목)
-@mixin page-header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  h2 {
-    margin: 0;
-  }
-}
-
-// 페이지 헤더 우측 (버튼 그룹)
-@mixin page-header-right {
-  display: flex;
-  gap: 8px;
-}
-
-// 필터 행 (HistoryView, DocumentsView)
-@mixin filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
-
-// 페이지네이션 래퍼
-@mixin pagination-wrapper {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 12px;
-}
-
-// 제목 링크 (테이블 내 ellipsis 링크)
-@mixin title-link {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--el-color-primary);
-  cursor: pointer;
-
-  &:hover {
-    color: var(--el-color-primary-light-3);
-  }
-}
-
-// 콘텐츠 헤더 (섹션 제목 + 액션)
-@mixin content-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-color-primary);
-  }
-}
-
-// 섹션 제목 (h3)
-@mixin section-title {
-  margin: 0 0 12px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-color-primary);
-}
 
 // 통계 행
 @mixin stats-row {
