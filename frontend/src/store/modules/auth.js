@@ -128,8 +128,9 @@ export default {
       commit('SET_LOGIN_ERROR', null)
       try {
         const data = await authApi.login(loginId, password)
-        // 이전 사용자의 채팅 데이터 초기화
+        // 이전 사용자의 상태 초기화
         dispatch('chat/clearChat', null, { root: true })
+        dispatch('dashboard/clearState', null, { root: true })
         commit('SET_AUTH', {
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
@@ -170,8 +171,9 @@ export default {
         // 서버 에러 무시 (이미 만료 등)
       } finally {
         commit('CLEAR_AUTH')
-        // 이전 사용자의 채팅 데이터 초기화
+        // 이전 사용자의 상태 초기화
         dispatch('chat/clearChat', null, { root: true })
+        dispatch('dashboard/clearState', null, { root: true })
       }
     },
 

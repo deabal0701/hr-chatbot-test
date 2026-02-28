@@ -7,9 +7,23 @@
     destroy-on-close
     @close="handleClose"
   >
-    <el-form label-position="top" :model="form">
+    <!-- 로딩 중 -->
+    <div v-if="isLoadingDashboards" class="dashboard-loading">
+      <el-icon class="is-loading"><Loading /></el-icon>
+      <span>대시보드 목록을 불러오는 중...</span>
+    </div>
+
+    <!-- 대시보드 없음 안내 -->
+    <div v-else-if="noDashboard" class="no-dashboard-notice">
+      <el-icon :size="40"><WarningFilled /></el-icon>
+      <p>저장할 대시보드가 없습니다.</p>
+      <p class="sub-text">대시보드 페이지에서 먼저 대시보드를 생성해주세요.</p>
+      <el-button type="primary" @click="goToDashboard">대시보드로 이동</el-button>
+    </div>
+
+    <el-form v-else label-position="top" :model="form">
       <!-- 대시보드 선택 -->
-      <el-form-item v-if="dashboardOptions.length > 1" label="대시보드">
+      <el-form-item label="대시보드">
         <el-select v-model="selectedDashboardId" placeholder="저장할 대시보드 선택" style="width: 100%">
           <el-option
             v-for="db in dashboardOptions"
@@ -125,8 +139,8 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="visible = false">취소</el-button>
-      <el-button type="primary" :disabled="!canSave" @click="handleSave">저장</el-button>
+      <el-button @click="visible = false">{{ noDashboard ? '닫기' : '취소' }}</el-button>
+      <el-button v-if="!noDashboard && !isLoadingDashboards" type="primary" :disabled="!canSave" @click="handleSave">저장</el-button>
     </template>
   </el-dialog>
 </template>
@@ -134,7 +148,9 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Loading, WarningFilled } from '@element-plus/icons-vue'
 import { detectColumnTypes } from '@/composables/useChartOptions'
 import WidgetChart from './widgets/WidgetChart.vue'
 import WidgetKpi from './widgets/WidgetKpi.vue'
@@ -156,6 +172,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'saved'])
 
 const store = useStore()
+const router = useRouter()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -186,12 +203,29 @@ const computedAliases = computed(() => {
   return Object.keys(result).length > 0 ? result : null
 })
 
+const isLoadingDashboards = ref(false)
+const noDashboard = computed(() => !isLoadingDashboards.value && dashboardOptions.value.length === 0)
+
+// 대시보드 목록 선택 초기화
+function initDashboardSelection() {
+  const defaultDb = dashboardOptions.value.find(d => d.is_default)
+  selectedDashboardId.value = defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
+}
+
 // 모달 열릴 때 초기값 설정
-watch(visible, (val) => {
+watch(visible, async (val) => {
   if (val) {
+    // 대시보드 목록이 비어있으면 로드
+    if (dashboardOptions.value.length === 0) {
+      isLoadingDashboards.value = true
+      try {
+        await store.dispatch('dashboard/fetchDashboards')
+      } finally {
+        isLoadingDashboards.value = false
+      }
+    }
     // 기본 대시보드 선택
-    const defaultDb = dashboardOptions.value.find(d => d.is_default)
-    selectedDashboardId.value = defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
+    initDashboardSelection()
 
     const { numeric, text } = detectColumnTypes(props.columns, props.rows)
     form.value.title = props.query.slice(0, 100)
@@ -249,6 +283,7 @@ const canPreview = computed(() => {
 })
 
 const canSave = computed(() => {
+  if (!selectedDashboardId.value) return false
   if (!form.value.title.trim()) return false
   if (form.value.widgetType === 'kpi') return !!form.value.kpiColumn
   if (isChartType.value) {
@@ -258,7 +293,7 @@ const canSave = computed(() => {
   return true // table은 항상 가능
 })
 
-const handleSave = () => {
+const handleSave = async () => {
   const widgetConfig = {
     dashboard_id: selectedDashboardId.value,
     title: form.value.title.trim(),
@@ -281,10 +316,19 @@ const handleSave = () => {
     }
   }
 
-  store.dispatch('dashboard/saveWidget', widgetConfig)
-  ElMessage.success('위젯이 대시보드에 추가되었습니다')
-  emit('saved')
+  try {
+    await store.dispatch('dashboard/saveWidget', widgetConfig)
+    ElMessage.success('위젯이 대시보드에 추가되었습니다')
+    emit('saved')
+    visible.value = false
+  } catch (err) {
+    ElMessage.error('위젯 저장에 실패했습니다')
+  }
+}
+
+const goToDashboard = () => {
   visible.value = false
+  router.push('/dashboard')
 }
 
 const handleClose = () => {
@@ -293,6 +337,42 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
+.dashboard-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: var(--el-text-color-secondary);
+}
+
+.no-dashboard-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 0;
+  text-align: center;
+
+  .el-icon {
+    color: var(--el-color-warning);
+    margin-bottom: 16px;
+  }
+
+  p {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+  }
+
+  .sub-text {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--el-text-color-secondary);
+    margin-bottom: 20px;
+  }
+}
+
 .alias-collapse {
   margin-bottom: 16px;
   border: none;

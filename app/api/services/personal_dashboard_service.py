@@ -114,24 +114,21 @@ class PersonalDashboardService:
         """대시보드 생성"""
         db_manager = _get_db_manager()
 
-        # 대시보드 수 제한 확인
+        # 대시보드 수 제한 + sort_order + 기본 여부를 단일 커서로 조회
         with db_manager.get_cursor() as cur:
-            cur.execute("SELECT COUNT(*) as cnt FROM tb_dashboard WHERE user_id = %s AND is_active = true", (user_id,))
-            count = cur.fetchone()["cnt"]
-            if count >= self.MAX_DASHBOARDS_PER_USER:
-                raise ValueError(f"사용자당 최대 {self.MAX_DASHBOARDS_PER_USER}개 대시보드만 생성할 수 있습니다 (현재: {count}개)")
+            cur.execute("""
+                SELECT COUNT(*) as cnt,
+                       COALESCE(MAX(sort_order), -1) + 1 as next_sort,
+                       COALESCE(SUM(CASE WHEN is_default THEN 1 ELSE 0 END), 0) as default_cnt
+                FROM tb_dashboard WHERE user_id = %s AND is_active = true
+            """, (user_id,))
+            row = cur.fetchone()
+            count, next_sort, default_cnt = row["cnt"], row["next_sort"], row["default_cnt"]
 
-        # sort_order 계산
-        with db_manager.get_cursor() as cur:
-            cur.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 as next_sort FROM tb_dashboard WHERE user_id = %s AND is_active = true", (user_id,))
-            next_sort = cur.fetchone()["next_sort"]
+        if count >= self.MAX_DASHBOARDS_PER_USER:
+            raise ValueError(f"사용자당 최대 {self.MAX_DASHBOARDS_PER_USER}개 대시보드만 생성할 수 있습니다 (현재: {count}개)")
 
-        # 기본 대시보드 존재 여부 확인 → 없으면 첫 번째를 기본으로
-        with db_manager.get_cursor() as cur:
-            cur.execute("SELECT COUNT(*) as cnt FROM tb_dashboard WHERE user_id = %s AND is_default = true AND is_active = true", (user_id,))
-            has_default = cur.fetchone()["cnt"] > 0
-
-        is_default = not has_default
+        is_default = default_cnt == 0
 
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("""
@@ -175,12 +172,18 @@ class PersonalDashboardService:
         return self._get_dashboard_with_count(dashboard_id)
 
     def delete_dashboard(self, user_id: int, dashboard_id: int) -> dict:
-        """대시보드 삭제 (기본 대시보드 불가, CASCADE로 위젯도 삭제)"""
+        """대시보드 삭제 (기본 대시보드는 다른 대시보드가 있으면 변경 필요, 마지막이면 허용)"""
         dashboard = self._get_dashboard(user_id, dashboard_id)
-        if dashboard.get("is_default"):
-            raise ValueError("기본 대시보드는 삭제할 수 없습니다")
-
         db_manager = _get_db_manager()
+
+        if dashboard.get("is_default"):
+            # 다른 대시보드가 있으면 기본 변경 먼저 필요
+            with db_manager.get_cursor() as cur:
+                cur.execute("SELECT COUNT(*) as cnt FROM tb_dashboard WHERE user_id = %s AND is_active = true", (user_id,))
+                count = cur.fetchone()["cnt"]
+            if count > 1:
+                raise ValueError("기본 대시보드를 삭제하려면 다른 대시보드를 기본으로 설정해주세요")
+
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute("DELETE FROM tb_dashboard WHERE dashboard_id = %s AND user_id = %s", (dashboard_id, user_id))
             deleted = cur.rowcount
@@ -228,27 +231,6 @@ class PersonalDashboardService:
         logger.info(f"[DASHBOARD] 공유 설정: dashboard_id={dashboard_id}, is_shared={data.is_shared}, scope={share_scope}")
         return self._get_dashboard_with_count(dashboard_id)
 
-    def get_or_create_default_dashboard(self, user_id: int, tenant_id: Optional[int]) -> int:
-        """기본 대시보드 ID 반환 (없으면 생성)"""
-        db_manager = _get_db_manager()
-        with db_manager.get_cursor() as cur:
-            cur.execute("SELECT dashboard_id FROM tb_dashboard WHERE user_id = %s AND is_default = true AND is_active = true", (user_id,))
-            row = cur.fetchone()
-            if row:
-                return row["dashboard_id"]
-
-        # 기본 대시보드 생성
-        with db_manager.get_cursor(commit=True) as cur:
-            cur.execute("""
-                INSERT INTO tb_dashboard (user_id, tenant_id, name, is_default, sort_order)
-                VALUES (%s, %s, %s, true, 0)
-                RETURNING dashboard_id
-            """, (user_id, tenant_id, "기본 대시보드"))
-            dashboard_id = cur.fetchone()["dashboard_id"]
-
-        logger.info(f"[DASHBOARD] 기본 대시보드 자동 생성: dashboard_id={dashboard_id}, user_id={user_id}")
-        return dashboard_id
-
     # ============================================
     # 위젯 CRUD
     # ============================================
@@ -257,9 +239,15 @@ class PersonalDashboardService:
         """대시보드 위젯 목록 조회 (공유 대시보드 읽기 허용)"""
         db_manager = _get_db_manager()
 
-        # dashboard_id 미지정 시 기본 대시보드
+        # dashboard_id 미지정 시 기본 대시보드 조회 (자동 생성 없음)
         if dashboard_id is None:
-            dashboard_id = self.get_or_create_default_dashboard(user_id, tenant_id)
+            with db_manager.get_cursor() as cur:
+                cur.execute("SELECT dashboard_id FROM tb_dashboard WHERE user_id = %s AND is_default = true AND is_active = true", (user_id,))
+                row = cur.fetchone()
+            if row:
+                dashboard_id = row["dashboard_id"]
+            else:
+                return {"items": [], "total": 0, "dashboard_id": None, "is_read_only": False}
 
         # 대시보드 소유권 또는 공유 접근 확인
         with db_manager.get_cursor() as cur:
@@ -295,12 +283,11 @@ class PersonalDashboardService:
         """위젯 생성"""
         db_manager = _get_db_manager()
 
-        # dashboard_id 결정 (미지정 시 기본 대시보드)
+        # dashboard_id 필수 검증
         dashboard_id = data.dashboard_id
         if dashboard_id is None:
-            dashboard_id = self.get_or_create_default_dashboard(user_id, tenant_id)
-        else:
-            self._get_dashboard(user_id, dashboard_id)
+            raise ValueError("dashboard_id는 필수입니다. 대시보드를 먼저 생성해주세요.")
+        self._get_dashboard(user_id, dashboard_id)
 
         # 대시보드당 위젯 수 제한 확인
         with db_manager.get_cursor() as cur:
@@ -406,11 +393,10 @@ class PersonalDashboardService:
         """레이아웃 일괄 저장"""
         db_manager = _get_db_manager()
 
-        # dashboard_id 결정
+        # dashboard_id 필수 검증
         if dashboard_id is None:
-            dashboard_id = self.get_or_create_default_dashboard(user_id, tenant_id)
-        else:
-            self._get_dashboard(user_id, dashboard_id)
+            raise ValueError("dashboard_id는 필수입니다. 대시보드를 먼저 생성해주세요.")
+        self._get_dashboard(user_id, dashboard_id)
 
         # 소유권 검증: 모든 widget_id가 해당 대시보드 소속인지
         widget_ids = [item.widget_id for item in layout]
@@ -650,20 +636,7 @@ class PersonalDashboardService:
     @staticmethod
     def _shared_dashboard_row_to_dict(row) -> dict:
         """공유 대시보드 DB row를 딕셔너리로 변환 (소유자 정보 포함)"""
-        if isinstance(row, dict):
-            d = dict(row)
-        else:
-            d = dict(row._asdict()) if hasattr(row, '_asdict') else dict(row)
-
-        for key in ("created_at", "updated_at"):
-            if key in d and d[key] is not None:
-                if isinstance(d[key], datetime):
-                    d[key] = d[key].isoformat()
-
-        if "widget_count" not in d:
-            d["widget_count"] = 0
-
-        return d
+        return PersonalDashboardService._dashboard_row_to_dict(row)
 
 
 # 싱글톤 인스턴스

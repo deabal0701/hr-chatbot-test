@@ -36,9 +36,8 @@
 
               <!-- 공유 대시보드 -->
               <template v-if="sharedDashboards.length > 0">
-                <el-dropdown-item divided disabled>
-                  <div class="dropdown-section-title">공유 대시보드</div>
-                </el-dropdown-item>
+                <el-dropdown-item divided disabled class="section-divider" />
+                <div class="dropdown-section-title">공유 대시보드</div>
                 <el-dropdown-item
                   v-for="db in sharedDashboards"
                   :key="db.dashboard_id"
@@ -68,7 +67,7 @@
         <el-button @click="$emit('cancel')">취소</el-button>
         <el-button type="primary" @click="$emit('save')">레이아웃 저장</el-button>
       </template>
-      <template v-else>
+      <template v-else-if="currentDashboard">
         <!-- 내보내기 (readOnly에서도 허용) -->
         <el-dropdown trigger="click" @command="handleExportCommand">
           <el-button :loading="exporting">
@@ -120,7 +119,7 @@
                   <el-icon><Star /></el-icon>
                   기본 대시보드로 설정
                 </el-dropdown-item>
-                <el-dropdown-item command="delete" divided :disabled="currentDashboard?.is_default">
+                <el-dropdown-item command="delete" divided :disabled="currentDashboard?.is_default && myDashboards.length > 1">
                   <el-icon><Delete /></el-icon>
                   <span class="text-danger">대시보드 삭제</span>
                 </el-dropdown-item>
@@ -280,6 +279,14 @@ const handleExportCommand = (command) => {
   font-weight: 600;
   color: var(--el-text-color-secondary);
   padding: 4px 12px;
+}
+
+:deep(.el-dropdown-menu__item.section-divider) {
+  min-height: 0;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  line-height: 0;
 }
 
 :deep(.el-dropdown-menu__item) {

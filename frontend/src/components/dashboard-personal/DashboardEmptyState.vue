@@ -6,25 +6,49 @@
         <v-chart :option="decorativeOption" :autoresize="true" />
       </div>
 
-      <h3>{{ readOnly ? '공유 대시보드에 위젯이 없습니다' : '위젯이 없습니다' }}</h3>
-      <p v-if="readOnly">이 공유 대시보드에는 아직 위젯이 추가되지 않았습니다.</p>
-      <p v-else>대화에서 NL2SQL 결과를 대시보드에 추가하거나,<br>아래 버튼으로 데모 위젯을 불러올 수 있습니다.</p>
-      <div v-if="!readOnly" class="empty-actions">
-        <el-button type="primary" @click="$emit('go-chat')">
-          <el-icon><ChatDotRound /></el-icon>
-          <span>대화로 이동</span>
-        </el-button>
-        <el-button @click="$emit('load-demo')">
-          <el-icon><MagicStick /></el-icon>
-          <span>데모 위젯 불러오기</span>
-        </el-button>
-      </div>
+      <!-- 대시보드 자체가 없는 상태 -->
+      <template v-if="noDashboard">
+        <h3>나만의 대시보드를 만들어 보세요</h3>
+        <p>대시보드를 생성하면 NL2SQL 결과를 차트와 테이블로<br>자유롭게 구성할 수 있습니다.</p>
+        <div class="empty-actions">
+          <el-button type="primary" @click="$emit('create-dashboard')">
+            <el-icon><Plus /></el-icon>
+            <span>대시보드 생성</span>
+          </el-button>
+          <el-button @click="$emit('go-chat')">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>대화로 이동</span>
+          </el-button>
+        </div>
+      </template>
+
+      <!-- 공유 대시보드에 위젯이 없는 상태 -->
+      <template v-else-if="readOnly">
+        <h3>공유 대시보드에 위젯이 없습니다</h3>
+        <p>이 공유 대시보드에는 아직 위젯이 추가되지 않았습니다.</p>
+      </template>
+
+      <!-- 내 대시보드에 위젯이 없는 상태 -->
+      <template v-else>
+        <h3>위젯이 없습니다</h3>
+        <p>대화에서 NL2SQL 결과를 대시보드에 추가하거나,<br>편집 모드에서 직접 위젯을 추가할 수 있습니다.</p>
+        <div class="empty-actions">
+          <el-button type="primary" @click="$emit('add-widget')">
+            <el-icon><Plus /></el-icon>
+            <span>위젯 추가</span>
+          </el-button>
+          <el-button @click="$emit('go-chat')">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>대화로 이동</span>
+          </el-button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ChatDotRound, MagicStick } from '@element-plus/icons-vue'
+import { ChatDotRound, Plus } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -34,10 +58,11 @@ import { GridComponent } from 'echarts/components'
 use([CanvasRenderer, BarChart, LineChart, GridComponent])
 
 defineProps({
+  noDashboard: { type: Boolean, default: false },
   readOnly: { type: Boolean, default: false }
 })
 
-defineEmits(['go-chat', 'load-demo'])
+defineEmits(['go-chat', 'create-dashboard', 'add-widget'])
 
 const decorativeOption = {
   animation: true,

@@ -30,12 +30,14 @@
 
     <!-- 메인 영역 -->
     <div ref="dashboardContentRef" class="dashboard-content">
-      <!-- 빈 상태 -->
+      <!-- 빈 상태: 대시보드 없음 또는 위젯 없음 -->
       <DashboardEmptyState
-        v-if="!isLoading && widgetCount === 0"
+        v-if="!isLoading && (noDashboard || widgetCount === 0)"
+        :no-dashboard="noDashboard"
         :read-only="isReadOnly"
+        @create-dashboard="handleCreateFirstDashboard"
         @go-chat="goToChat"
-        @load-demo="loadDemo"
+        @add-widget="handleAddWidgetFromEmpty"
       />
 
       <!-- 위젯 그리드 -->
@@ -161,6 +163,7 @@ const currentDashboardId = computed(() => store.state.dashboard.currentDashboard
 const myDashboards = computed(() => store.getters['dashboard/myDashboards'])
 const sharedDashboards = computed(() => store.getters['dashboard/sharedDashboardList'])
 const canShare = computed(() => store.getters['dashboard/canShare'])
+const noDashboard = computed(() => !currentDashboardId.value && myDashboards.value.length === 0)
 
 // 대시보드 테마
 const isUserDark = computed(() => store.getters['app/isUserDarkMode'])
@@ -208,6 +211,7 @@ const handleDeleteDashboard = async () => {
       { confirmButtonText: '삭제', cancelButtonText: '취소', type: 'warning' }
     )
     await store.dispatch('dashboard/deleteDashboard', currentDashboardId.value)
+    await store.dispatch('dashboard/fetchDashboards')
     router.replace({ query: {} })
     ElMessage.success('대시보드가 삭제되었습니다')
   } catch {
@@ -217,10 +221,22 @@ const handleDeleteDashboard = async () => {
 
 const handleDashboardManageSaved = async () => {
   await store.dispatch('dashboard/fetchDashboards')
+  // 대시보드가 없었다면 새로 생성된 기본 대시보드 자동 선택
+  if (!currentDashboardId.value) {
+    const defaultDb = myDashboards.value.find(d => d.is_default)
+    if (defaultDb) {
+      await store.dispatch('dashboard/selectDashboard', defaultDb.dashboard_id)
+    }
+  }
 }
 
 const handleDashboardShareSaved = async () => {
   await store.dispatch('dashboard/fetchDashboards')
+}
+
+const handleCreateFirstDashboard = () => {
+  editingDashboard.value = null
+  showManageModal.value = true
 }
 
 // ============================================
@@ -232,6 +248,11 @@ const handleEnterEdit = () => {
     return
   }
   store.dispatch('dashboard/enterEditMode')
+}
+
+const handleAddWidgetFromEmpty = () => {
+  store.dispatch('dashboard/enterEditMode')
+  showAddModal.value = true
 }
 
 const handleCancelEdit = () => { store.dispatch('dashboard/cancelEditMode') }
@@ -302,10 +323,6 @@ const handleExportPdf = async () => {
 
 // 네비게이션
 const goToChat = () => { router.push('/chat') }
-const loadDemo = () => {
-  store.dispatch('dashboard/resetToMock')
-  ElMessage.success('데모 위젯이 로드되었습니다')
-}
 </script>
 
 <style lang="scss" scoped>
