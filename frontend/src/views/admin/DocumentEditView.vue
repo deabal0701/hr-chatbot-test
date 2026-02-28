@@ -690,7 +690,7 @@ const handleSubmit = async () => {
   flex-direction: column;
 
   .page-header {
-    @include mx.page-header($align: center);
+    align-items: center;
 
     .header-left {
       @include mx.page-header-left;
@@ -838,7 +838,7 @@ const handleSubmit = async () => {
   .preview-summary {
     display: flex;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
 
   .preview-list {

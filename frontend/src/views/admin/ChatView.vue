@@ -317,7 +317,7 @@ watch(messages, async () => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 12px;
 
   // 관리자 화면: 어시스턴트 응답 폭 확장
   :deep(.message-bubble.assistant) {
@@ -457,7 +457,7 @@ watch(messages, async () => {
 }
 
 .sidebar-section {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   padding: 16px;
 
   h4 {
@@ -498,7 +498,7 @@ watch(messages, async () => {
 .sidebar-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .sidebar-half-card {

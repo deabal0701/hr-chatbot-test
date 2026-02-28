@@ -819,10 +819,6 @@ onMounted(async () => {
 @use '../../assets/styles/mixins' as mx;
 
 .users-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
   .toolbar {
     display: flex;
     align-items: center;

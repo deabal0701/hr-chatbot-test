@@ -2171,10 +2171,6 @@ onMounted(async () => {
 @use '../../assets/styles/mixins' as mx;
 
 .settings-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
   .tenant-selector-section {
     margin-bottom: 16px;
     padding: 12px 20px;
@@ -2238,8 +2234,8 @@ onMounted(async () => {
 
   // API 키 섹션 스타일 (Phase C)
   .api-key-section {
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: 12px;
+    margin-bottom: 12px;
     background-color: var(--el-fill-color-lighter);
     border-radius: 8px;
     border: 1px solid var(--el-border-color);
@@ -2451,8 +2447,8 @@ onMounted(async () => {
   .prompt-actions {
     display: flex;
     gap: 8px;
-    margin-top: 20px;
-    padding-top: 20px;
+    margin-top: 12px;
+    padding-top: 12px;
     border-top: 1px solid var(--el-border-color-lighter);
   }
 

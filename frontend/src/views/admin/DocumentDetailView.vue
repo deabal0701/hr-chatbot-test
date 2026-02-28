@@ -485,7 +485,7 @@ const getDocTypeTag = (type) => {
   flex-direction: column;
 
   .page-header {
-    @include mx.page-header($align: center);
+    align-items: center;
 
     .header-left {
       @include mx.page-header-left;
@@ -597,7 +597,7 @@ const getDocTypeTag = (type) => {
 
     .content-body {
       flex: 1;
-      padding: 20px;
+      padding: 12px;
       background-color: var(--bg-color-hover);
       border-radius: 8px;
       white-space: pre-wrap;

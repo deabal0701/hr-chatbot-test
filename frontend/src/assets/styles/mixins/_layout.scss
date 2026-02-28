@@ -2,15 +2,6 @@
 // 레이아웃 관련 Mixin
 // =============================================
 
-// 페이지 헤더 (Admin 뷰 공통)
-// $align: flex-start | center
-@mixin page-header($align: flex-start) {
-  display: flex;
-  justify-content: space-between;
-  align-items: $align;
-  margin-bottom: 20px;
-}
-
 // 페이지 헤더 좌측 (뒤로가기 + 제목)
 @mixin page-header-left {
   display: flex;
@@ -40,7 +31,7 @@
 @mixin pagination-wrapper {
   display: flex;
   justify-content: flex-start;
-  margin-top: 20px;
+  margin-top: 12px;
 }
 
 // 제목 링크 (테이블 내 ellipsis 링크)
@@ -55,16 +46,6 @@
   &:hover {
     color: var(--el-color-primary-light-3);
   }
-}
-
-// 콘텐츠 카드 (scoped 내에서 사용)
-@mixin content-card {
-  background-color: var(--bg-color-card);
-  border-radius: 6px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: var(--box-shadow);
-  transition: var(--theme-transition);
 }
 
 // 콘텐츠 헤더 (섹션 제목 + 액션)
@@ -84,7 +65,7 @@
 
 // 섹션 제목 (h3)
 @mixin section-title {
-  margin: 0 0 20px;
+  margin: 0 0 12px;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-color-primary);
@@ -92,7 +73,7 @@
 
 // 통계 행
 @mixin stats-row {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 
   .el-col {
     margin-bottom: 16px;

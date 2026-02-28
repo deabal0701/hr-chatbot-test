@@ -468,14 +468,6 @@ onMounted(() => {
 @use '../../assets/styles/mixins' as mx;
 
 .history-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
-  .content-card {
-    @include mx.content-card;
-  }
-
   .filter-section {
     .filter-row {
       @include mx.filter-row;

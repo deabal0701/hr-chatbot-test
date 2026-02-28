@@ -96,7 +96,6 @@ const chartOption = computed(() => {
 @use '../../assets/styles/mixins' as mx;
 
 .request-type-chart {
-  @include mx.content-card;
   min-height: 360px;
 
   .card-header {

@@ -312,10 +312,6 @@ onMounted(() => {
 @use '../../assets/styles/mixins' as mx;
 
 .tenants-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
   .toolbar {
     display: flex;
     align-items: center;

@@ -389,7 +389,7 @@ const formatJson = (data) => {
   flex-direction: column;
 
   .page-header {
-    @include mx.page-header($align: center);
+    align-items: center;
 
     .header-left {
       @include mx.page-header-left;
@@ -403,7 +403,6 @@ const formatJson = (data) => {
   }
 
   .content-card {
-    @include mx.content-card;
     padding: 24px;
   }
 
@@ -425,7 +424,7 @@ const formatJson = (data) => {
     }
 
     .action-section {
-      margin-top: 20px;
+      margin-top: 12px;
     }
 
     code {

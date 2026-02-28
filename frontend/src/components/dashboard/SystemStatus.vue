@@ -113,8 +113,6 @@ const formatLastRequest = (dateStr) => {
 @use '../../assets/styles/mixins' as mx;
 
 .system-status {
-  @include mx.content-card;
-
   .card-header {
     @include mx.content-header;
   }

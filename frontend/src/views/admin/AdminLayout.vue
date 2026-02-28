@@ -121,7 +121,7 @@ onMounted(() => {
 
 .admin-content {
   background-color: var(--bg-color-page);
-  padding: 20px;
+  padding: 12px;
   overflow-y: auto;
   transition: var(--theme-transition);
 }

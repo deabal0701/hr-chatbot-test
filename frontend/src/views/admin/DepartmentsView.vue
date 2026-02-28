@@ -27,7 +27,7 @@
     <div class="dept-layout">
       <!-- 왼쪽: 부서 트리 패널 -->
       <div class="dept-tree-panel">
-        <div class="panel-card">
+        <div class="panel-card content-card">
           <!-- 트리 툴바 -->
           <div class="tree-toolbar">
             <el-button type="primary" :icon="Plus" size="small" @click="handleAddRoot">추가</el-button>
@@ -95,7 +95,7 @@
 
       <!-- 오른쪽: 상세설정 패널 -->
       <div class="dept-detail-panel">
-        <div class="panel-card">
+        <div class="panel-card content-card">
           <!-- 미선택 상태 -->
           <div v-if="!panelMode" class="empty-state">
             <p class="empty-guide">왼쪽 트리에서 부서를 선택하거나<br/>[추가]를 클릭하세요</p>
@@ -754,10 +754,6 @@ onBeforeUnmount(() => {
 .departments-view {
   position: relative;
 
-  .page-header {
-    @include mx.page-header;
-  }
-
   // 2-패널 레이아웃
   .dept-layout {
     display: flex;
@@ -776,7 +772,6 @@ onBeforeUnmount(() => {
   }
 
   .panel-card {
-    @include mx.content-card;
     min-height: 500px;
   }
 
@@ -851,7 +846,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border-color-light);
 

@@ -56,7 +56,7 @@
       <el-table
         v-loading="isLoading"
         :data="codes"
-        style="width: 100%; margin-top: 20px"
+        style="width: 100%; margin-top: 12px"
         :default-sort="{ prop: 'sort_order', order: 'ascending' }"
       >
         <el-table-column prop="sort_order" label="순서" width="80" sortable />
@@ -661,10 +661,6 @@ onMounted(async () => {
 @use '../../assets/styles/mixins' as mx;
 
 .codes-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
   .group-selector {
     display: flex;
     gap: 12px;

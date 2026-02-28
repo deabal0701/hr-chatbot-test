@@ -463,12 +463,8 @@ const getDocTypeTag = (type) => {
 @use '../../assets/styles/mixins' as mx;
 
 .documents-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
   .filter-section {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
 
   .filter-row {

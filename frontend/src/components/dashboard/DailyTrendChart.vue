@@ -94,7 +94,6 @@ const chartOption = computed(() => {
 @use '../../assets/styles/mixins' as mx;
 
 .daily-trend-chart {
-  @include mx.content-card;
   min-height: 360px;
 
   .card-header {

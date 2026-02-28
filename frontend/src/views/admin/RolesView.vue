@@ -391,10 +391,6 @@ onMounted(() => {
 @use '../../assets/styles/mixins' as mx;
 
 .roles-view {
-  .page-header {
-    @include mx.page-header;
-  }
-
   .toolbar {
     display: flex;
     align-items: center;

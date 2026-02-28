@@ -190,11 +190,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
-
 .dashboard-view {
   .page-header {
-    @include mx.page-header(center);
+    align-items: center;
 
     .subtitle {
       margin: 4px 0 0;
@@ -210,7 +208,7 @@ onBeforeUnmount(() => {
   }
 
   .el-row {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     display: flex;
     flex-wrap: wrap;
     align-items: stretch;
@@ -241,7 +239,7 @@ onBeforeUnmount(() => {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px;
+      padding: 12px;
       background-color: var(--bg-color-hover);
       border-radius: 8px;
       text-decoration: none;

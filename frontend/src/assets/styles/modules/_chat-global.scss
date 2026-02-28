@@ -47,16 +47,19 @@
 // 카드 스타일
 .content-card {
   background-color: var(--bg-color-card);
-  border-radius: 4px;
-  padding: 20px;
-  margin-bottom: 20px;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
   box-shadow: var(--box-shadow);
   transition: var(--theme-transition);
 }
 
 // 페이지 헤더
 .page-header {
-  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
 
   h2 {
     margin: 0;

@@ -59,7 +59,6 @@ const goToDetail = (requestId) => {
 @use '../../assets/styles/mixins' as mx;
 
 .recent-activity {
-  @include mx.content-card;
   display: flex;
   flex-direction: column;
 
