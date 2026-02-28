@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     title="대시보드 공유 설정"
-    width="420px"
+    width="480px"
     class="dashboard-dark"
     :close-on-click-modal="false"
     destroy-on-close
@@ -24,15 +24,15 @@
         </el-form-item>
 
         <el-form-item v-if="form.isShared" label="공유 범위">
-          <el-radio-group v-model="form.shareScope">
-            <el-radio value="all" :disabled="!canShareAll">
-              전체 공유
+          <el-radio-group v-model="form.shareScope" class="scope-radio-group">
+            <div class="radio-option">
+              <el-radio value="all" :disabled="!canShareAll">전체 공유</el-radio>
               <span class="scope-desc">모든 사용자가 볼 수 있습니다</span>
-            </el-radio>
-            <el-radio value="tenant">
-              테넌트 공유
+            </div>
+            <div class="radio-option">
+              <el-radio value="tenant">테넌트 공유</el-radio>
               <span class="scope-desc">같은 테넌트 소속만 볼 수 있습니다</span>
-            </el-radio>
+            </div>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -144,18 +144,21 @@ const handleClose = () => {
     }
   }
 
+  :deep(.scope-radio-group) {
+    display: flex;
+    width: 100%;
+  }
+
+  .radio-option {
+    flex: 1;
+  }
+
   .scope-desc {
     display: block;
     font-size: 12px;
     color: var(--el-text-color-secondary);
-    margin-top: 2px;
-  }
-
-  :deep(.el-radio) {
-    display: flex;
-    align-items: flex-start;
-    height: auto;
-    margin-bottom: 12px;
+    margin-top: -12px;
+    padding-left: 24px;
   }
 }
 </style>
