@@ -1,7 +1,7 @@
 # 개인 BI 대시보드 설계서
 
 > **현행화 일자**: 2026-02-28
-> **구현 상태**: 프론트엔드 + 백엔드 전체 구현 완료 (DB 연동, 컬럼 별칭, SQL 편집, 내보내기 포함)
+> **구현 상태**: 프론트엔드 + 백엔드 전체 구현 완료 (멀티 대시보드, 공유, DB 연동, 컬럼 별칭, SQL 편집, 내보내기 포함)
 
 ---
 
@@ -11,6 +11,7 @@
 
 사용자 화면(Chat)에서 NL2SQL 쿼리 결과를 개인화하여 **경량 BI 도구** 역할을 하는 "개인 대시보드" 기능을 제공한다.
 자연어로 질문하고, 결과를 저장하고, 드래그앤드롭으로 자신만의 대시보드를 구성할 수 있다.
+**멀티 대시보드**를 지원하여 사용자당 최대 10개의 대시보드를 생성/선택할 수 있으며, 관리자(GLOBAL/TENANT)는 대시보드를 **공유**하여 다른 사용자가 읽기 전용으로 조회할 수 있다.
 
 ### 1.2 핵심 가치
 
@@ -31,30 +32,38 @@
 | 위젯 유형 | 테이블/Bar/H-Bar/Line/Pie/Scatter/KPI | 다양한 BI 시각화 커버 |
 | 테마 | auto/light/dark 3단계 토글 | 사용자 기본 다크모드와 독립 제어 가능 |
 | 컬러 팔레트 | 6종 프리셋 (기본/비비드/파스텔/따뜻한/시원한/어스톤) | 위젯별 차트 색상 개인화 |
-| 저장소 | PostgreSQL DB (`tb_dashboard_widget`) | 서버 저장으로 브라우저 간 동기화, 데이터 영속성 보장 |
+| 저장소 | PostgreSQL DB (`tb_dashboard` + `tb_dashboard_widget`) | 서버 저장으로 브라우저 간 동기화, 데이터 영속성 보장 |
 | 테마 저장소 | localStorage | UI 프리퍼런스, DB 저장 불필요 |
 | SQL 편집 | WidgetEditModal 내 편집 + 테스트 실행 | 별도 모달 불필요, 기존 UI 확장 |
 | 컬럼 별칭 | `chart_config.column_aliases` JSONB 내 저장 | 선택적 매핑, 추가 테이블 불필요 |
 | 인증 방식 | `get_current_active_user` (로그인만 필수) | 개인 기능이므로 메뉴 권한 불필요 |
 | 데이터 스코프 | `user_id` 기반 (본인 위젯만 접근) | 개인 대시보드이므로 USER 레벨 격리 |
+| 멀티 대시보드 | `tb_dashboard` 테이블로 대시보드 관리 | 사용자당 최대 10개, 대시보드당 최대 20개 위젯 |
+| 기본 대시보드 | 삭제 불가, 자동 생성 (`get_or_create_default_dashboard`) | 하위 호환성 보장 |
+| 공유 모델 | `is_shared` + `share_scope` (별도 공유 테이블 없음) | 단순 공유 — 전체/테넌트 범위만 필요 |
+| 공유 권한 | GLOBAL→all/tenant, TENANT→tenant만, USER→공유 불가 | 기존 RBAC 계층 준수 |
+| 공유 대시보드 접근 | 읽기 전용 (새로고침만 허용) | 데이터 무결성 보장 |
+| 라우트 | `/dashboard?id=X` (쿼리 파라미터) | 기존 라우트 유지, 기본 대시보드는 파라미터 없이 |
 
 ### 1.4 구현 상태 요약
 
 | 영역 | 상태 | 비고 |
 |------|------|------|
-| 프론트엔드 컴포넌트 | ✅ 완료 | 12개 컴포넌트 + composable |
-| Vuex 스토어 | ✅ 완료 | Backend API 연동 완료 |
+| 프론트엔드 컴포넌트 | ✅ 완료 | 14개 컴포넌트 + composable (DashboardManageModal, DashboardShareModal 추가) |
+| Vuex 스토어 | ✅ 완료 | Backend API 연동 + 멀티 대시보드 상태 관리 |
 | 라우터 | ✅ 완료 | `/dashboard` 등록 |
 | Chat 연동 | ✅ 완료 | UserChatMessage "대시보드에 추가" 버튼 |
 | 사이드바 메뉴 | ✅ 완료 | UserChatSidebar "대시보드" 항목 |
 | 컬럼 별칭 | ✅ 완료 | SaveToDashboardModal, WidgetEditModal, 위젯 렌더러 전체 적용 |
 | SQL 편집 | ✅ 완료 | WidgetEditModal 내 SQL 편집 + 테스트 실행 + 미리보기 |
-| 백엔드 API | ✅ 완료 | 7개 엔드포인트 (`personal_dashboard.py`) |
-| 데이터베이스 | ✅ 완료 | `tb_dashboard_widget` 테이블 + 인덱스 |
-| API 클라이언트 | ✅ 완료 | `personalDashboard.js` Axios 클라이언트 |
+| 백엔드 API | ✅ 완료 | 13개 엔드포인트 (대시보드 CRUD 6개 + 위젯 CRUD 7개) |
+| 데이터베이스 | ✅ 완료 | `tb_dashboard` + `tb_dashboard_widget` 테이블 + 인덱스 |
+| 멀티 대시보드 | ✅ 완료 | 사용자당 최대 10개, 기본 대시보드 자동 생성 |
+| 대시보드 공유 | ✅ 완료 | GLOBAL/TENANT 관리자 공유, 읽기 전용 접근 |
+| API 클라이언트 | ✅ 완료 | `personalDashboard.js` 대시보드 6개 + 위젯 7개 메서드 |
 | Vuex API 연동 | ✅ 완료 | localStorage → API 호출 전환 완료 |
 | 내보내기 | ✅ 완료 | 위젯 PNG, 대시보드 PNG/PDF (`html2canvas` + `jspdf`) |
-| 테스트 | ✅ 완료 | `test_11_personal_dashboard.py` (CRUD, Layout, SQL, Auth) |
+| 테스트 | ✅ 완료 | `test_11_personal_dashboard.py` (대시보드 CRUD, 공유, 멀티 대시보드 위젯, 위젯 CRUD, Layout, SQL, Auth) |
 
 ---
 
@@ -1365,9 +1374,31 @@ export default {
 ### 10.1 신규 테이블
 
 ```sql
--- 개인 대시보드 위젯
+-- 대시보드 (사용자당 최대 10개)
+CREATE TABLE tb_dashboard (
+    dashboard_id    SERIAL PRIMARY KEY,
+    user_id         INTEGER NOT NULL REFERENCES tb_user(user_id) ON DELETE CASCADE,
+    tenant_id       INTEGER REFERENCES tb_tenant(tenant_id),
+    name            VARCHAR(100) NOT NULL,
+    description     VARCHAR(500),
+    is_shared       BOOLEAN NOT NULL DEFAULT false,       -- 공유 여부
+    share_scope     VARCHAR(20),                          -- 'all' | 'tenant' | NULL
+    is_default      BOOLEAN NOT NULL DEFAULT false,       -- 기본 대시보드 (삭제 불가)
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_dashboard_user_id ON tb_dashboard(user_id);
+CREATE INDEX idx_dashboard_tenant_id ON tb_dashboard(tenant_id);
+CREATE INDEX idx_dashboard_shared ON tb_dashboard(is_shared, share_scope) WHERE is_shared = true;
+CREATE UNIQUE INDEX idx_dashboard_default_per_user ON tb_dashboard(user_id) WHERE is_default = true AND is_active = true;
+
+-- 대시보드 위젯 (대시보드당 최대 20개)
 CREATE TABLE tb_dashboard_widget (
     widget_id         SERIAL PRIMARY KEY,
+    dashboard_id      INTEGER NOT NULL REFERENCES tb_dashboard(dashboard_id) ON DELETE CASCADE,
     user_id           INTEGER NOT NULL REFERENCES tb_user(user_id),
     tenant_id         INTEGER REFERENCES tb_tenant(tenant_id),
     title             VARCHAR(200) NOT NULL,
@@ -1387,6 +1418,7 @@ CREATE TABLE tb_dashboard_widget (
 
 CREATE INDEX idx_dashboard_widget_user ON tb_dashboard_widget(user_id);
 CREATE INDEX idx_dashboard_widget_tenant ON tb_dashboard_widget(tenant_id);
+CREATE INDEX idx_widget_dashboard_id ON tb_dashboard_widget(dashboard_id);
 ```
 
 ### 10.2 JSONB 필드 스키마

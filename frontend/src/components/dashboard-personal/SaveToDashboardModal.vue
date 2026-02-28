@@ -8,6 +8,18 @@
     @close="handleClose"
   >
     <el-form label-position="top" :model="form">
+      <!-- 대시보드 선택 -->
+      <el-form-item v-if="dashboardOptions.length > 1" label="대시보드">
+        <el-select v-model="selectedDashboardId" placeholder="저장할 대시보드 선택" style="width: 100%">
+          <el-option
+            v-for="db in dashboardOptions"
+            :key="db.dashboard_id"
+            :label="db.name + (db.is_default ? ' (기본)' : '')"
+            :value="db.dashboard_id"
+          />
+        </el-select>
+      </el-form-item>
+
       <!-- 위젯 제목 -->
       <el-form-item label="위젯 제목">
         <el-input v-model="form.title" placeholder="위젯 제목을 입력하세요" maxlength="100" show-word-limit />
@@ -150,6 +162,9 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
+const dashboardOptions = computed(() => store.state.dashboard.dashboards || [])
+const selectedDashboardId = ref(null)
+
 const form = ref({
   title: '',
   widgetType: 'table',
@@ -174,6 +189,10 @@ const computedAliases = computed(() => {
 // 모달 열릴 때 초기값 설정
 watch(visible, (val) => {
   if (val) {
+    // 기본 대시보드 선택
+    const defaultDb = dashboardOptions.value.find(d => d.is_default)
+    selectedDashboardId.value = defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
+
     const { numeric, text } = detectColumnTypes(props.columns, props.rows)
     form.value.title = props.query.slice(0, 100)
     form.value.widgetType = props.initialChartType || 'table'
@@ -241,6 +260,7 @@ const canSave = computed(() => {
 
 const handleSave = () => {
   const widgetConfig = {
+    dashboard_id: selectedDashboardId.value,
     title: form.value.title.trim(),
     widget_type: form.value.widgetType,
     query: props.query,

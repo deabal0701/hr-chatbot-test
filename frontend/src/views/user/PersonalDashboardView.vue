@@ -6,6 +6,12 @@
       :widget-count="widgetCount"
       :dashboard-theme="dashboardTheme"
       :exporting="exporting"
+      :is-read-only="isReadOnly"
+      :current-dashboard="currentDashboard"
+      :current-dashboard-id="currentDashboardId"
+      :my-dashboards="myDashboards"
+      :shared-dashboards="sharedDashboards"
+      :can-share="canShare"
       @edit="handleEnterEdit"
       @cancel="handleCancelEdit"
       @save="handleSaveEdit"
@@ -14,6 +20,12 @@
       @toggle-theme="handleToggleTheme"
       @export-png="handleExportPng"
       @export-pdf="handleExportPdf"
+      @select-dashboard="handleSelectDashboard"
+      @create-dashboard="showManageModal = true; editingDashboard = null"
+      @rename-dashboard="handleRenameDashboard"
+      @set-default="handleSetDefault"
+      @delete-dashboard="handleDeleteDashboard"
+      @share="showShareModal = true"
     />
 
     <!-- 메인 영역 -->
@@ -21,6 +33,7 @@
       <!-- 빈 상태 -->
       <DashboardEmptyState
         v-if="!isLoading && widgetCount === 0"
+        :read-only="isReadOnly"
         @go-chat="goToChat"
         @load-demo="loadDemo"
       />
@@ -36,13 +49,13 @@
         @refresh-widget="handleRefreshWidget"
       />
 
-      <!-- 편집 모드: 위젯 추가 플로팅 버튼 -->
-      <div v-if="editMode" class="fab-container">
+      <!-- 편집 모드: 위젯 추가 플로팅 버튼 (readOnly일 때 숨김) -->
+      <div v-if="editMode && !isReadOnly" class="fab-container">
         <el-button type="primary" circle :icon="Plus" size="large" @click="showAddModal = true" />
       </div>
     </div>
 
-    <!-- 모달 -->
+    <!-- 위젯 모달 -->
     <WidgetEditModal
       v-model="showEditModal"
       :widget="editingWidget"
@@ -53,29 +66,49 @@
       v-model="showAddModal"
       @saved="handleWidgetSaved"
     />
+
+    <!-- 대시보드 관리 모달 -->
+    <DashboardManageModal
+      v-model="showManageModal"
+      :dashboard="editingDashboard"
+      @saved="handleDashboardManageSaved"
+    />
+
+    <!-- 대시보드 공유 모달 -->
+    <DashboardShareModal
+      v-model="showShareModal"
+      :dashboard="currentDashboard"
+      @saved="handleDashboardShareSaved"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useStore } from 'vuex'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { captureElementPng, exportElementPdf, formatTimestamp } from '@/utils/exportUtils'
 import DashboardToolbar from '@/components/dashboard-personal/DashboardToolbar.vue'
 import DashboardEmptyState from '@/components/dashboard-personal/DashboardEmptyState.vue'
 import DashboardGrid from '@/components/dashboard-personal/DashboardGrid.vue'
 import WidgetEditModal from '@/components/dashboard-personal/WidgetEditModal.vue'
 import AddWidgetModal from '@/components/dashboard-personal/AddWidgetModal.vue'
+import DashboardManageModal from '@/components/dashboard-personal/DashboardManageModal.vue'
+import DashboardShareModal from '@/components/dashboard-personal/DashboardShareModal.vue'
 
 const store = useStore()
 const router = useRouter()
+const route = useRoute()
 
 // 상태
 const showEditModal = ref(false)
 const showAddModal = ref(false)
+const showManageModal = ref(false)
+const showShareModal = ref(false)
 const editingWidget = ref(null)
+const editingDashboard = ref(null)
 const windowWidth = ref(window.innerWidth)
 const dashboardContentRef = ref(null)
 const exporting = ref(false)
@@ -89,15 +122,31 @@ const gridColNum = computed(() => {
 })
 
 const handleResize = () => { windowWidth.value = window.innerWidth }
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('resize', handleResize)
-  store.dispatch('dashboard/fetchWidgets')
+
+  // 대시보드 목록 로드
+  await store.dispatch('dashboard/fetchDashboards')
+
+  // route query에서 dashboard_id 확인
+  const queryId = route.query.id ? parseInt(route.query.id) : null
+  if (queryId) {
+    await store.dispatch('dashboard/selectDashboard', queryId)
+  } else {
+    await store.dispatch('dashboard/fetchWidgets')
+  }
 })
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  // 편집 모드 중 페이지 이탈 시 편집 취소 (레이아웃 복원)
   if (editMode.value) {
     store.dispatch('dashboard/cancelEditMode')
+  }
+})
+
+// route.query.id 변경 감지
+watch(() => route.query.id, async (newId) => {
+  if (newId) {
+    await store.dispatch('dashboard/selectDashboard', parseInt(newId))
   }
 })
 
@@ -106,8 +155,14 @@ const isLoading = computed(() => store.state.dashboard.isLoading)
 const editMode = computed(() => store.state.dashboard.editMode)
 const widgetCount = computed(() => store.getters['dashboard/widgetCount'])
 const dashboardTheme = computed(() => store.getters['dashboard/dashboardTheme'])
+const isReadOnly = computed(() => store.getters['dashboard/isReadOnly'])
+const currentDashboard = computed(() => store.getters['dashboard/currentDashboard'])
+const currentDashboardId = computed(() => store.state.dashboard.currentDashboardId)
+const myDashboards = computed(() => store.getters['dashboard/myDashboards'])
+const sharedDashboards = computed(() => store.getters['dashboard/sharedDashboardList'])
+const canShare = computed(() => store.getters['dashboard/canShare'])
 
-// 대시보드 테마: auto=사용자화면 모드 따라감, light/dark=고정
+// 대시보드 테마
 const isUserDark = computed(() => store.getters['app/isUserDarkMode'])
 const effectiveDark = computed(() => {
   if (dashboardTheme.value === 'auto') return isUserDark.value
@@ -115,7 +170,62 @@ const effectiveDark = computed(() => {
 })
 const dashboardThemeClass = computed(() => effectiveDark.value ? 'dashboard-dark' : 'dashboard-light')
 
+// ============================================
+// 대시보드 관리
+// ============================================
+const handleSelectDashboard = async (dashboardId) => {
+  await store.dispatch('dashboard/selectDashboard', dashboardId)
+  // URL 업데이트 (기본 대시보드가 아닌 경우)
+  const defaultDb = myDashboards.value.find(d => d.is_default)
+  if (defaultDb && dashboardId === defaultDb.dashboard_id) {
+    router.replace({ query: {} })
+  } else {
+    router.replace({ query: { id: dashboardId } })
+  }
+}
+
+const handleRenameDashboard = () => {
+  editingDashboard.value = currentDashboard.value
+  showManageModal.value = true
+}
+
+const handleSetDefault = async () => {
+  if (!currentDashboardId.value) return
+  try {
+    await store.dispatch('dashboard/setDefaultDashboard', currentDashboardId.value)
+    ElMessage.success('기본 대시보드가 변경되었습니다')
+  } catch (err) {
+    ElMessage.error('기본 대시보드 변경에 실패했습니다')
+  }
+}
+
+const handleDeleteDashboard = async () => {
+  if (!currentDashboard.value) return
+  try {
+    await ElMessageBox.confirm(
+      `"${currentDashboard.value.name}" 대시보드를 삭제하시겠습니까?\n포함된 위젯도 모두 삭제됩니다.`,
+      '대시보드 삭제',
+      { confirmButtonText: '삭제', cancelButtonText: '취소', type: 'warning' }
+    )
+    await store.dispatch('dashboard/deleteDashboard', currentDashboardId.value)
+    router.replace({ query: {} })
+    ElMessage.success('대시보드가 삭제되었습니다')
+  } catch {
+    // 취소
+  }
+}
+
+const handleDashboardManageSaved = async () => {
+  await store.dispatch('dashboard/fetchDashboards')
+}
+
+const handleDashboardShareSaved = async () => {
+  await store.dispatch('dashboard/fetchDashboards')
+}
+
+// ============================================
 // 편집 모드
+// ============================================
 const handleEnterEdit = () => {
   if (isMobile.value) {
     ElMessage.warning('모바일에서는 편집 모드를 지원하지 않습니다')
@@ -131,7 +241,9 @@ const handleSaveEdit = () => {
   ElMessage.success('레이아웃이 저장되었습니다')
 }
 
+// ============================================
 // 위젯 관리
+// ============================================
 const openEditModal = (widget) => {
   editingWidget.value = widget
   showEditModal.value = true
@@ -144,7 +256,10 @@ const handleDeleteWidget = async (widgetId) => {
 
 const handleRefreshWidget = (widgetId) => { store.dispatch('dashboard/refreshWidget', widgetId) }
 const handleRefreshAll = () => { store.dispatch('dashboard/refreshAllWidgets') }
-const handleWidgetSaved = () => { store.dispatch('dashboard/fetchWidgets') }
+const handleWidgetSaved = () => {
+  store.dispatch('dashboard/fetchWidgets')
+  store.dispatch('dashboard/fetchDashboards')
+}
 
 // 테마 토글 (auto → light → dark → auto)
 const handleToggleTheme = () => {
@@ -157,7 +272,8 @@ const handleExportPng = async () => {
   if (!dashboardContentRef.value) return
   exporting.value = true
   try {
-    const filename = `BI_대시보드_${formatTimestamp()}.png`
+    const name = currentDashboard.value?.name || 'BI_대시보드'
+    const filename = `${name}_${formatTimestamp()}.png`
     await captureElementPng(dashboardContentRef.value, filename)
     ElMessage.success('이미지가 저장되었습니다')
   } catch (err) {
@@ -173,8 +289,9 @@ const handleExportPdf = async () => {
   if (!dashboardContentRef.value) return
   exporting.value = true
   try {
-    const filename = `BI_대시보드_${formatTimestamp()}.pdf`
-    await exportElementPdf(dashboardContentRef.value, 'BI 대시보드', filename)
+    const name = currentDashboard.value?.name || 'BI 대시보드'
+    const filename = `${name}_${formatTimestamp()}.pdf`
+    await exportElementPdf(dashboardContentRef.value, name, filename)
     ElMessage.success('PDF가 저장되었습니다')
   } catch (err) {
     console.error('[Dashboard] PDF export failed:', err)

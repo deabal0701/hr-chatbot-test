@@ -6,9 +6,10 @@
         <v-chart :option="decorativeOption" :autoresize="true" />
       </div>
 
-      <h3>위젯이 없습니다</h3>
-      <p>대화에서 NL2SQL 결과를 대시보드에 추가하거나,<br>아래 버튼으로 데모 위젯을 불러올 수 있습니다.</p>
-      <div class="empty-actions">
+      <h3>{{ readOnly ? '공유 대시보드에 위젯이 없습니다' : '위젯이 없습니다' }}</h3>
+      <p v-if="readOnly">이 공유 대시보드에는 아직 위젯이 추가되지 않았습니다.</p>
+      <p v-else>대화에서 NL2SQL 결과를 대시보드에 추가하거나,<br>아래 버튼으로 데모 위젯을 불러올 수 있습니다.</p>
+      <div v-if="!readOnly" class="empty-actions">
         <el-button type="primary" @click="$emit('go-chat')">
           <el-icon><ChatDotRound /></el-icon>
           <span>대화로 이동</span>
@@ -31,6 +32,10 @@ import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent } from 'echarts/components'
 
 use([CanvasRenderer, BarChart, LineChart, GridComponent])
+
+defineProps({
+  readOnly: { type: Boolean, default: false }
+})
 
 defineEmits(['go-chat', 'load-demo'])
 

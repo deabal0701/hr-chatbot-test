@@ -96,7 +96,8 @@ const props = defineProps({
   editMode: { type: Boolean, default: false },
   isRefreshing: { type: Boolean, default: false },
   contentHeight: { type: Number, default: 260 },
-  darkMode: { type: Boolean, default: false }
+  darkMode: { type: Boolean, default: false },
+  readOnly: { type: Boolean, default: false }
 })
 
 defineEmits(['edit', 'delete', 'refresh'])

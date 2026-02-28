@@ -134,6 +134,18 @@
 
     <!-- 공통: 실행 결과 미리보기 + 위젯 설정 (결과가 있을 때만) -->
     <el-form v-if="hasResult" label-position="top" style="margin-top: 8px">
+      <!-- 대시보드 선택 -->
+      <el-form-item v-if="dashboardOptions.length > 1" label="대시보드">
+        <el-select v-model="selectedDashboardId" placeholder="저장할 대시보드 선택" style="width: 100%">
+          <el-option
+            v-for="db in dashboardOptions"
+            :key="db.dashboard_id"
+            :label="db.name + (db.is_default ? ' (기본)' : '')"
+            :value="db.dashboard_id"
+          />
+        </el-select>
+      </el-form-item>
+
       <el-form-item label="실행 결과">
         <div class="result-preview">
           <el-table :data="resultRows.slice(0, 5)" size="small" border max-height="180">
@@ -248,6 +260,9 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
+const dashboardOptions = computed(() => store.state.dashboard.dashboards || [])
+const selectedDashboardId = ref(null)
+
 const activeTab = ref('history')
 
 const form = ref({
@@ -290,9 +305,11 @@ const resultRows = ref([])
 const selectedSql = ref('')
 const hasResult = computed(() => resultColumns.value.length > 0)
 
-// 다이얼로그 열릴 때 세션 목록 로드
+// 다이얼로그 열릴 때 세션 목록 로드 + 기본 대시보드 선택
 watch(visible, async (val) => {
   if (val) {
+    const defaultDb = dashboardOptions.value.find(d => d.is_default)
+    selectedDashboardId.value = defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
     await loadSessions()
   }
 })
@@ -471,6 +488,7 @@ const canSave = computed(() => {
 
 const handleSave = async () => {
   const widgetConfig = {
+    dashboard_id: selectedDashboardId.value,
     title: form.value.title.trim(),
     widget_type: form.value.widgetType,
     query: form.value.queryText,

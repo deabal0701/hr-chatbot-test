@@ -1,6 +1,8 @@
 /**
  * 개인 대시보드 Vuex 모듈
  * Backend API 연동 (personalDashboard API)
+ * - 멀티 대시보드 관리 (CRUD + 기본/공유 설정)
+ * - 위젯 CRUD + 레이아웃
  */
 import personalDashboardApi from '@/api/personalDashboard'
 
@@ -164,6 +166,14 @@ export default {
   namespaced: true,
 
   state: () => ({
+    // 대시보드 관리
+    dashboards: [],
+    sharedDashboards: [],
+    currentDashboardId: null,
+    isLoadingDashboards: false,
+    isReadOnly: false,
+
+    // 위젯 관리
     widgets: [],
     isLoading: false,
     editMode: false,
@@ -173,6 +183,34 @@ export default {
   }),
 
   mutations: {
+    // 대시보드
+    SET_DASHBOARDS(state, { myDashboards, sharedDashboards }) {
+      state.dashboards = myDashboards
+      state.sharedDashboards = sharedDashboards
+    },
+    SET_LOADING_DASHBOARDS(state, loading) {
+      state.isLoadingDashboards = loading
+    },
+    SET_CURRENT_DASHBOARD_ID(state, id) {
+      state.currentDashboardId = id
+    },
+    SET_READ_ONLY(state, readOnly) {
+      state.isReadOnly = readOnly
+    },
+    UPDATE_DASHBOARD(state, dashboard) {
+      const idx = state.dashboards.findIndex(d => d.dashboard_id === dashboard.dashboard_id)
+      if (idx !== -1) {
+        state.dashboards[idx] = { ...state.dashboards[idx], ...dashboard }
+      }
+    },
+    REMOVE_DASHBOARD(state, dashboardId) {
+      state.dashboards = state.dashboards.filter(d => d.dashboard_id !== dashboardId)
+    },
+    ADD_DASHBOARD(state, dashboard) {
+      state.dashboards.push(dashboard)
+    },
+
+    // 위젯
     SET_WIDGETS(state, widgets) {
       state.widgets = widgets
     },
@@ -215,6 +253,22 @@ export default {
   },
 
   getters: {
+    // 대시보드
+    currentDashboard: (state) => {
+      if (!state.currentDashboardId) return null
+      return state.dashboards.find(d => d.dashboard_id === state.currentDashboardId)
+        || state.sharedDashboards.find(d => d.dashboard_id === state.currentDashboardId)
+    },
+    defaultDashboard: (state) => state.dashboards.find(d => d.is_default),
+    myDashboards: (state) => state.dashboards,
+    sharedDashboardList: (state) => state.sharedDashboards,
+    isReadOnly: (state) => state.isReadOnly,
+    canShare: (state, getters, rootState) => {
+      const roleCode = rootState.auth?.user?.role_code
+      return roleCode === 'GLOBAL' || roleCode === 'TENANT'
+    },
+
+    // 위젯
     widgetCount: (state) => state.widgets.length,
     isEditMode: (state) => state.editMode,
     widgetById: (state) => (id) => state.widgets.find(w => w.widget_id === id),
@@ -232,11 +286,91 @@ export default {
   },
 
   actions: {
-    async fetchWidgets({ commit }) {
+    // ============================================
+    // 대시보드 Actions
+    // ============================================
+
+    async fetchDashboards({ commit, state }) {
+      commit('SET_LOADING_DASHBOARDS', true)
+      try {
+        const res = await personalDashboardApi.getDashboards()
+        commit('SET_DASHBOARDS', {
+          myDashboards: res.my_dashboards || [],
+          sharedDashboards: res.shared_dashboards || []
+        })
+
+        // currentDashboardId가 없으면 기본 대시보드 선택
+        if (!state.currentDashboardId) {
+          const defaultDb = (res.my_dashboards || []).find(d => d.is_default)
+          if (defaultDb) {
+            commit('SET_CURRENT_DASHBOARD_ID', defaultDb.dashboard_id)
+          }
+        }
+      } catch (err) {
+        console.error('[Dashboard] 대시보드 목록 조회 실패:', err)
+      } finally {
+        commit('SET_LOADING_DASHBOARDS', false)
+      }
+    },
+
+    async selectDashboard({ commit, dispatch }, dashboardId) {
+      commit('SET_CURRENT_DASHBOARD_ID', dashboardId)
+      commit('SET_EDIT_MODE', false)
+      commit('SET_PENDING_LAYOUT', null)
+      await dispatch('fetchWidgets')
+    },
+
+    async createDashboard({ commit, dispatch }, data) {
+      const res = await personalDashboardApi.createDashboard(data)
+      commit('ADD_DASHBOARD', res)
+      return res
+    },
+
+    async updateDashboard({ commit }, { dashboardId, data }) {
+      const res = await personalDashboardApi.updateDashboard(dashboardId, data)
+      commit('UPDATE_DASHBOARD', res)
+      return res
+    },
+
+    async deleteDashboard({ commit, state, dispatch }, dashboardId) {
+      await personalDashboardApi.deleteDashboard(dashboardId)
+      commit('REMOVE_DASHBOARD', dashboardId)
+
+      // 삭제된 대시보드가 현재 선택된 대시보드인 경우 기본으로 전환
+      if (state.currentDashboardId === dashboardId) {
+        const defaultDb = state.dashboards.find(d => d.is_default)
+        if (defaultDb) {
+          await dispatch('selectDashboard', defaultDb.dashboard_id)
+        }
+      }
+    },
+
+    async setDefaultDashboard({ dispatch }, dashboardId) {
+      await personalDashboardApi.setDefaultDashboard(dashboardId)
+      await dispatch('fetchDashboards')
+    },
+
+    async shareDashboard({ commit }, { dashboardId, data }) {
+      const res = await personalDashboardApi.shareDashboard(dashboardId, data)
+      commit('UPDATE_DASHBOARD', res)
+      return res
+    },
+
+    // ============================================
+    // 위젯 Actions
+    // ============================================
+
+    async fetchWidgets({ commit, state }) {
       commit('SET_LOADING', true)
       try {
-        const res = await personalDashboardApi.getWidgets()
+        const res = await personalDashboardApi.getWidgets(state.currentDashboardId)
         commit('SET_WIDGETS', res.items || [])
+        commit('SET_READ_ONLY', !!res.is_read_only)
+
+        // 응답에서 dashboard_id가 돌아오면 업데이트 (기본 대시보드 자동 생성 시)
+        if (res.dashboard_id && !state.currentDashboardId) {
+          commit('SET_CURRENT_DASHBOARD_ID', res.dashboard_id)
+        }
       } catch (err) {
         console.error('[Dashboard] 위젯 목록 조회 실패:', err)
         commit('SET_WIDGETS', [])
@@ -245,8 +379,12 @@ export default {
       }
     },
 
-    async saveWidget({ commit }, widgetConfig) {
-      const res = await personalDashboardApi.createWidget(widgetConfig)
+    async saveWidget({ commit, state }, widgetConfig) {
+      const data = { ...widgetConfig }
+      if (state.currentDashboardId) {
+        data.dashboard_id = state.currentDashboardId
+      }
+      const res = await personalDashboardApi.createWidget(data)
       commit('ADD_WIDGET', res)
       return res
     },
@@ -270,7 +408,7 @@ export default {
         w: w.grid_position.w,
         h: w.grid_position.h
       }))
-      await personalDashboardApi.saveLayout(layoutItems)
+      await personalDashboardApi.saveLayout(layoutItems, state.currentDashboardId)
     },
 
     async refreshWidget({ commit, state }, widgetId) {
@@ -332,7 +470,11 @@ export default {
       // 목업 위젯 순차 생성
       const mocks = getMockWidgets()
       for (const mock of mocks) {
-        await personalDashboardApi.createWidget(mock).catch(() => {})
+        const data = { ...mock }
+        if (state.currentDashboardId) {
+          data.dashboard_id = state.currentDashboardId
+        }
+        await personalDashboardApi.createWidget(data).catch(() => {})
       }
       // 재조회
       await dispatch('fetchWidgets')
