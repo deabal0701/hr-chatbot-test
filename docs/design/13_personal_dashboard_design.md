@@ -1,7 +1,8 @@
 # 개인 BI 대시보드 설계서
 
-> **현행화 일자**: 2026-02-28
+> **현행화 일자**: 2026-02-28 (최종 코드 리뷰 및 버그 수정 반영)
 > **구현 상태**: 프론트엔드 + 백엔드 전체 구현 완료 (멀티 대시보드, 공유, DB 연동, 컬럼 별칭, SQL 편집, 내보내기 포함)
+> **테스트 상태**: 37/37 TC PASSED (`tests/test_12_personal_dashboard.py`)
 
 ---
 
@@ -63,7 +64,7 @@
 | API 클라이언트 | ✅ 완료 | `personalDashboard.js` 대시보드 6개 + 위젯 7개 메서드 |
 | Vuex API 연동 | ✅ 완료 | localStorage → API 호출 전환 완료 |
 | 내보내기 | ✅ 완료 | 위젯 PNG, 대시보드 PNG/PDF (`html2canvas` + `jspdf`) |
-| 테스트 | ✅ 완료 | `test_11_personal_dashboard.py` (대시보드 CRUD, 공유, 멀티 대시보드 위젯, 위젯 CRUD, Layout, SQL, Auth) |
+| 테스트 | ✅ 완료 | `test_12_personal_dashboard.py` 37 TC (대시보드 CRUD, 공유, 멀티 대시보드 위젯, 위젯 CRUD, Layout, SQL, Auth) |
 
 ---
 
@@ -318,26 +319,54 @@
 
 ### 3.3 빈 상태 (Empty State)
 
+3가지 빈 상태를 표시하며, 각 상태에 맞는 안내 메시지와 액션 버튼을 제공한다.
+
+#### A. 대시보드 없음 (noDashboard)
+
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │  TOOLBAR                                                             │
 │  [←] [📊] BI 대시보드                                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│                                                                      │
 │                         [📊 큰 아이콘]                               │
 │                                                                      │
-│                     위젯이 없습니다                                   │
-│           채팅에서 NL2SQL 결과를 대시보드에                           │
-│                 추가해보세요                                          │
+│                  대시보드가 없습니다                                   │
+│           새 대시보드를 만들어 시작해보세요                            │
 │                                                                      │
-│               [채팅으로 이동]  [데모 위젯 로드]                        │
-│                                                                      │
+│                     [대시보드 만들기]                                  │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- "데모 위젯 로드": 6개의 목업 위젯을 로드하여 기능 체험 가능
+#### B. 공유 대시보드 (readOnly)
+
+```
+│                  공유된 대시보드입니다                                │
+│         이 대시보드는 읽기 전용으로 수정할 수 없습니다                │
+```
+
+#### C. 내 대시보드 위젯 없음
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  TOOLBAR                                                             │
+│  [←] [📊] BI 대시보드                                                │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                         [📊 큰 아이콘]                               │
+│                                                                      │
+│                     위젯이 없습니다                                   │
+│       대화에서 NL2SQL 결과를 대시보드에 추가하거나,                   │
+│           편집 모드에서 직접 위젯을 추가할 수 있습니다.               │
+│                                                                      │
+│               [위젯 추가]  [대화로 이동]                              │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- "위젯 추가": 편집 모드 진입 + AddWidgetModal 자동 열기
+- "대화로 이동": Chat 페이지(`/chat`)로 이동
 
 ### 3.4 SaveToDashboardModal (Chat에서 저장)
 
@@ -711,28 +740,38 @@ const executionTimeMs = ref(0)       // 실행 시간
 ```
 PersonalDashboardView.vue
 ├── DashboardToolbar.vue
+│   ├── 대시보드 선택 드롭다운 (el-dropdown + my/shared 분리)
+│   │   ├── 내 대시보드 목록 (기본 대시보드 표시)
+│   │   ├── 공유 대시보드 목록
+│   │   └── [대시보드 관리] 버튼 → DashboardManageModal
 │   ├── 채팅으로 이동 버튼 (ArrowLeft)
 │   ├── 테마 토글 버튼 (Monitor/Sunny/Moon)
 │   ├── 전체 새로고침 버튼
+│   ├── 내보내기 드롭다운 (PNG/PDF)
+│   ├── 대시보드 공유 버튼 (GLOBAL/TENANT만 표시)
 │   ├── 편집 모드 전환 버튼
 │   └── 편집 모드: 취소 / 레이아웃 저장 버튼
-├── DashboardEmptyState.vue (위젯 0개일 때)
-│   ├── 채팅으로 이동 버튼
-│   └── 데모 위젯 로드 버튼
+│   ※ toolbar-right 영역: currentDashboard가 있을 때만 표시
+├── DashboardEmptyState.vue (3가지 빈 상태)
+│   ├── 대시보드 없음: [대시보드 만들기] 버튼
+│   ├── 공유 대시보드 (읽기 전용 안내)
+│   └── 위젯 없음: [위젯 추가] + [대화로 이동] 버튼
 ├── DashboardGrid.vue (vue3-grid-layout-next 래퍼)
 │   └── DashboardWidget.vue (v-for 각 위젯)
-│       ├── 위젯 헤더 (타입 아이콘, 제목, 뷰전환, 새로고침/수정/삭제)
+│       ├── 위젯 헤더 (타입 아이콘, 제목, 뷰전환, 이미지 다운로드, 새로고침/수정/삭제)
 │       ├── 위젯 콘텐츠 (동적):
 │       │   ├── WidgetTable.vue    (table 또는 뷰전환 시)
 │       │   ├── WidgetChart.vue    (bar/hbar/line/pie/scatter 또는 뷰전환 시)
 │       │   └── WidgetKpi.vue      (kpi)
 │       └── 위젯 푸터 (마지막 갱신 타임스탬프)
-├── WidgetEditModal.vue (위젯 수정)
-├── AddWidgetModal.vue (히스토리 기반 위젯 추가)
+├── WidgetEditModal.vue (위젯 수정 + SQL 편집 + 컬럼 별칭)
+├── AddWidgetModal.vue (히스토리/직접 질문 탭 추가 모달)
+├── DashboardManageModal.vue (대시보드 목록 관리 CRUD)
+├── DashboardShareModal.vue (대시보드 공유 설정)
 └── [+] FAB 플로팅 버튼 (편집 모드 시)
 
 UserChatMessage.vue (기존 파일 수정)
-└── SaveToDashboardModal.vue (NL2SQL 결과 → 대시보드 저장)
+└── SaveToDashboardModal.vue (NL2SQL 결과 → 대시보드 저장 + 대시보드 선택)
 ```
 
 ### 6.2 파일 구조 (전체 구현 완료)
@@ -744,11 +783,13 @@ frontend/src/
 ├── components/dashboard-personal/
 │   ├── DashboardGrid.vue                  ✅ vue3-grid-layout-next 래퍼
 │   ├── DashboardWidget.vue                ✅ 위젯 컨테이너 + 뷰전환 + 내보내기
-│   ├── DashboardEmptyState.vue            ✅ 빈 상태 + 데모 로드
-│   ├── DashboardToolbar.vue               ✅ 상단 툴바 + 테마 토글 + 내보내기(PNG/PDF)
-│   ├── SaveToDashboardModal.vue           ✅ Chat에서 저장 모달 + 컬럼 별칭
+│   ├── DashboardEmptyState.vue            ✅ 빈 상태 (3가지: 대시보드 없음/공유 읽기전용/위젯 없음)
+│   ├── DashboardToolbar.vue               ✅ 상단 툴바 + 대시보드 선택 + 테마 토글 + 내보내기(PNG/PDF)
+│   ├── SaveToDashboardModal.vue           ✅ Chat에서 저장 모달 + 대시보드 선택 + 컬럼 별칭
 │   ├── WidgetEditModal.vue                ✅ 위젯 수정 + SQL 편집 + 컬럼 별칭
 │   ├── AddWidgetModal.vue                 ✅ 히스토리/직접 질문 탭 추가 모달
+│   ├── DashboardManageModal.vue           ✅ 대시보드 목록 관리 (생성/수정/삭제/기본 설정)
+│   ├── DashboardShareModal.vue            ✅ 대시보드 공유 설정 (all/tenant 범위)
 │   └── widgets/
 │       ├── WidgetTable.vue                ✅ 테이블 렌더러 + 컬럼 별칭
 │       ├── WidgetChart.vue                ✅ 차트 렌더러 + 컬럼 별칭 + 팔레트
@@ -756,23 +797,23 @@ frontend/src/
 ├── composables/
 │   └── useChartOptions.js                 ✅ 차트 옵션 공유 로직 + columnAliases
 ├── store/modules/
-│   └── dashboard.js                       ✅ Vuex 대시보드 모듈 (Backend API 연동)
+│   └── dashboard.js                       ✅ Vuex 대시보드 모듈 (멀티 대시보드 + 위젯 API 연동)
 ├── api/
-│   └── personalDashboard.js               ✅ Axios API 클라이언트
+│   └── personalDashboard.js               ✅ Axios API 클라이언트 (대시보드 6개 + 위젯 7개 메서드)
 └── router/index.js                        ✅ /dashboard 라우트 등록
 
 app/
 ├── api/
 │   ├── routes/
-│   │   └── personal_dashboard.py          ✅ 7개 API 엔드포인트
+│   │   └── personal_dashboard.py          ✅ 13개 API 엔드포인트 (대시보드 6 + 위젯 7)
 │   └── services/
-│       └── personal_dashboard_service.py   ✅ CRUD + refresh + execute-sql
+│       └── personal_dashboard_service.py   ✅ 대시보드/위젯 CRUD + 공유 + refresh + execute-sql
 ├── models/
-│   └── personal_dashboard.py              ✅ Pydantic 모델
+│   └── personal_dashboard.py              ✅ Pydantic 모델 (대시보드 + 위젯 + 공유)
 └── main.py                                ✅ 라우터 등록 완료
 
 tests/
-└── test_11_personal_dashboard.py          ✅ CRUD, Layout, SQL, Auth 테스트
+└── test_12_personal_dashboard.py          ✅ 37 TC (6 클래스: CRUD, 공유, 위젯, Layout, SQL, Auth)
 ```
 
 ### 6.3 수정된 기존 파일
@@ -781,20 +822,23 @@ tests/
 |------|----------|------|
 | `frontend/src/router/index.js` | `/dashboard` 라우트 추가 | ✅ |
 | `frontend/src/store/index.js` | dashboard 모듈 등록 | ✅ |
+| `frontend/src/store/modules/auth.js` | logout 시 `dashboard/clearState` dispatch 추가 | ✅ |
 | `frontend/src/components/user/UserChatMessage.vue` | "대시보드에 추가" 버튼 추가 | ✅ |
 | `frontend/src/components/user/UserChatSidebar.vue` | "대시보드" 네비게이션 메뉴 추가 | ✅ |
 | `frontend/src/components/chart/ChartBuilder.vue` | 차트 옵션 로직을 composable로 추출 | ✅ |
 | `app/main.py` | personal_dashboard 라우터 등록 | ✅ |
-| `frontend/src/store/modules/dashboard.js` | localStorage → API 호출로 전환 완료 | ✅ |
+| `frontend/src/store/modules/dashboard.js` | 멀티 대시보드 + API 연동 (데모 위젯 코드 삭제) | ✅ |
 | `frontend/src/composables/useChartOptions.js` | `buildChartOption`에 `columnAliases` 파라미터 추가 | ✅ |
+| `frontend/src/components/dashboard-personal/DashboardEmptyState.vue` | 3가지 빈 상태 (데모→위젯추가 버튼 교체) | ✅ |
+| `frontend/src/components/dashboard-personal/DashboardToolbar.vue` | 대시보드 선택 + 공유 + 내보내기 + toolbar-right 조건부 렌더링 | ✅ |
 | `frontend/src/components/dashboard-personal/DashboardWidget.vue` | columnAliases 하위 전달 + 내보내기 | ✅ |
 | `frontend/src/components/dashboard-personal/widgets/WidgetTable.vue` | columnAliases prop, label 매핑 | ✅ |
 | `frontend/src/components/dashboard-personal/widgets/WidgetChart.vue` | columnAliases prop + colorPalette prop | ✅ |
 | `frontend/src/components/dashboard-personal/widgets/WidgetKpi.vue` | columnAliases prop | ✅ |
-| `frontend/src/components/dashboard-personal/SaveToDashboardModal.vue` | 컬럼 별칭 입력 UI + 미리보기 | ✅ |
+| `frontend/src/components/dashboard-personal/SaveToDashboardModal.vue` | 대시보드 선택 + 컬럼 별칭 입력 UI + 미리보기 | ✅ |
 | `frontend/src/components/dashboard-personal/WidgetEditModal.vue` | SQL 편집 + 컬럼 별칭 UI | ✅ |
-| `frontend/src/components/dashboard-personal/AddWidgetModal.vue` | 히스토리 + 직접 질문 탭 | ✅ |
-| `docs/sql/psql-hermes_db.sql` | `tb_dashboard_widget` DDL 추가 | ✅ |
+| `frontend/src/components/dashboard-personal/AddWidgetModal.vue` | 히스토리 + 직접 질문 탭 + 대시보드 선택 | ✅ |
+| `docs/sql/psql-hermes_db.sql` | `tb_dashboard` + `tb_dashboard_widget` DDL 추가 | ✅ |
 
 ---
 
@@ -803,19 +847,36 @@ tests/
 ### 7.1 Dashboard Store 모듈
 
 **파일**: `frontend/src/store/modules/dashboard.js`
-**저장소**: Backend API (`/api/v1/dashboard/widgets`) + localStorage (테마만)
+**저장소**: Backend API (`/api/v1/dashboard/`) + localStorage (테마만)
+**네임스페이스**: `dashboard` (namespaced: true)
 
 ```javascript
 state: () => ({
-  widgets: [],             // 위젯 목록 (API에서 로드)
-  isLoading: false,        // 초기 로딩 상태
+  // 대시보드 관리
+  dashboards: [],          // 내 대시보드 목록
+  sharedDashboards: [],    // 공유 대시보드 목록
+  currentDashboardId: null,// 현재 선택된 대시보드 ID
+  isLoadingDashboards: false,
+  isReadOnly: false,       // 공유 대시보드 읽기 전용
+
+  // 위젯 관리
+  widgets: [],             // 현재 대시보드의 위젯 목록
+  isLoading: false,        // 위젯 로딩 상태
   editMode: false,         // 편집 모드 여부
   pendingLayout: null,     // 편집 모드 진입 시 백업 (취소용)
   refreshingWidgets: {},   // { widgetId: true/false } 개별 위젯 로딩
-  dashboardTheme: 'auto'   // 'auto' | 'light' | 'dark'
+  dashboardTheme: 'auto'   // 'auto' | 'light' | 'dark' (localStorage 저장)
 })
 
-// Getters
+// Getters - 대시보드
+currentDashboard          // dashboards + sharedDashboards에서 currentDashboardId로 검색
+defaultDashboard          // dashboards.find(d => d.is_default)
+myDashboards              // dashboards
+sharedDashboardList       // sharedDashboards
+isReadOnly                // 공유 대시보드 읽기 전용
+canShare                  // GLOBAL/TENANT 역할만 공유 가능
+
+// Getters - 위젯
 widgetCount               // widgets.length
 isEditMode                // editMode
 widgetById(id)            // 위젯 검색
@@ -823,20 +884,35 @@ isWidgetRefreshing(id)    // 새로고침 중 여부
 dashboardTheme            // 현재 테마
 gridLayout                // vue-grid-layout용 [{i, x, y, w, h, minW, minH}] 변환
 
-// Actions
-fetchWidgets()            // GET /api/v1/dashboard/widgets → SET_WIDGETS
-saveWidget(config)        // POST /api/v1/dashboard/widgets → ADD_WIDGET
-updateWidget(id, updates) // PUT /api/v1/dashboard/widgets/{id} → UPDATE_WIDGET
-deleteWidget(id)          // DELETE /api/v1/dashboard/widgets/{id} → REMOVE_WIDGET
-saveLayout(layout)        // PUT /api/v1/dashboard/layout → UPDATE_LAYOUT
-refreshWidget(id)         // POST /api/v1/dashboard/widgets/{id}/refresh → cached_data 갱신
-refreshAllWidgets()       // 모든 위젯 순차 refreshWidget 호출
-enterEditMode()           // 현재 레이아웃 백업 + 편집 모드 진입 (로컬)
-cancelEditMode()          // 백업 레이아웃 복원 + 편집 모드 종료 (로컬)
+// Actions - 대시보드
+fetchDashboards()         // GET /api/v1/dashboard/dashboards → SET_DASHBOARDS + currentDashboardId 유효성 검증
+selectDashboard(id)       // 대시보드 전환 → fetchWidgets
+createDashboard(data)     // POST /api/v1/dashboard/dashboards → ADD_DASHBOARD
+updateDashboard(id, data) // PUT /api/v1/dashboard/dashboards/{id} → UPDATE_DASHBOARD
+deleteDashboard(id)       // DELETE → REMOVE_DASHBOARD → 마지막 대시보드 삭제 시 상태 초기화
+setDefaultDashboard(id)   // PUT /api/v1/dashboard/dashboards/{id}/default → fetchDashboards
+shareDashboard(id, data)  // PUT /api/v1/dashboard/dashboards/{id}/share → UPDATE_DASHBOARD
+
+// Actions - 위젯
+fetchWidgets()            // GET /api/v1/dashboard/widgets?dashboard_id → SET_WIDGETS + SET_READ_ONLY
+saveWidget(config)        // POST → ADD_WIDGET (현재 대시보드일 때만 로컬 반영)
+updateWidget(id, updates) // PUT → UPDATE_WIDGET
+deleteWidget(id)          // DELETE → REMOVE_WIDGET
+saveLayout()              // PUT /api/v1/dashboard/layout → 현재 대시보드 모든 위젯 grid_position 저장
+refreshWidget(id)         // POST .../refresh → cached_data 갱신
+refreshAllWidgets()       // 모든 SQL 위젯 병렬 refreshWidget (Promise.allSettled)
+enterEditMode()           // 현재 위젯 깊은 복사 백업 + 편집 모드 진입
+cancelEditMode()          // 백업 레이아웃 복원 + 편집 모드 종료
 saveEditMode()            // saveLayout API 호출 + 편집 모드 종료
-setDashboardTheme(theme)  // 테마 변경 → localStorage 저장 (UI 프리퍼런스)
-resetToMock()             // 6개 데모 위젯을 API를 통해 순차 생성
+clearState()              // 로그아웃 시 전체 상태 초기화
+setDashboardTheme(theme)  // 테마 변경 → localStorage 저장
 ```
+
+**주요 구현 특징**:
+- `deleteDashboard`: 삭제된 대시보드가 현재 선택된 대시보드인 경우 기본 대시보드로 전환, 마지막 대시보드 삭제 시 `currentDashboardId=null`, `widgets=[]` 초기화
+- `saveWidget`: `widgetConfig.dashboard_id`가 명시되어 있으면 그대로 사용, 없으면 `currentDashboardId` 사용. 현재 대시보드의 위젯만 로컬 상태에 반영
+- `fetchDashboards`: 현재 `currentDashboardId`가 유효하지 않으면 기본 대시보드로 자동 전환
+- `clearState`: `auth.js:logout`에서 `dispatch('dashboard/clearState')` 호출하여 사용자 전환 시 이전 상태 잔존 방지
 
 ### 7.2 위젯 데이터 구조
 
@@ -943,19 +1019,6 @@ DashboardWidget 새로고침 버튼
   → commit UPDATE_LAYOUT + 편집 모드 종료
 ```
 
-### 7.5 데모 위젯 목록
-
-빈 상태에서 "데모 위젯 로드" 시 생성되는 6개 위젯:
-
-| # | 제목 | 유형 | 크기 (w x h) | 설명 |
-|---|------|------|-------------|------|
-| 1 | 부서별 직원 수 | bar | 6 x 10 | 7개 부서 데이터 |
-| 2 | 월별 입사자 추이 (2024) | line | 6 x 10 | 12개월 추이 |
-| 3 | 직급별 인원 분포 | pie | 5 x 10 | 6개 직급 |
-| 4 | 전체 직원 수 | kpi | 3 x 5 | 342명 |
-| 5 | 평균 연봉 | kpi | 3 x 5 | 5,280만원 |
-| 6 | 부서별 평균 근속년수 | table | 6 x 8 | 7개 부서 |
-
 ---
 
 ## 8. 차트 옵션 Composable
@@ -1003,22 +1066,36 @@ buildChartOption({
 
 ## 9. Backend API 설계
 
-> **상태**: ✅ 전체 구현 완료
+> **상태**: ✅ 전체 구현 완료 (13개 엔드포인트)
 > **인증**: 모든 엔드포인트에 `Depends(get_current_active_user)` 적용 (로그인 필수, 메뉴 권한 불필요)
-> **데이터 스코프**: `user_id` 기반 본인 위젯만 접근 (개인 대시보드)
+> **데이터 스코프**: `user_id` 기반 본인 데이터만 접근 + 공유 대시보드 읽기 전용 접근
+> **보안**: 이중 검증 패턴 — 사전 소유권 검증(`_get_dashboard`/`_get_widget`) + SQL WHERE `AND user_id = %s`
 > **URL 네임스페이스**: admin dashboard (`GET /api/v1/dashboard/summary`)와 동일 prefix 사용, 경로 충돌 없음
 
 ### 9.1 엔드포인트
 
+#### 대시보드 CRUD (6개)
+
 | # | Method | Path | 설명 | Status | 응답 data |
 |---|--------|------|------|--------|-----------|
-| 1 | GET | `/api/v1/dashboard/widgets` | 내 위젯 목록 | 200 | `{items: [...], total: N}` |
-| 2 | POST | `/api/v1/dashboard/widgets` | 위젯 생성 | 201 | 생성된 위젯 객체 |
-| 3 | PUT | `/api/v1/dashboard/widgets/{id}` | 위젯 수정 (제목/유형/SQL/설정/별칭) | 200 | 수정된 위젯 객체 |
-| 4 | DELETE | `/api/v1/dashboard/widgets/{id}` | 위젯 삭제 | 200 | `{message, deleted_count}` |
-| 5 | PUT | `/api/v1/dashboard/layout` | 레이아웃 일괄 저장 | 200 | `{message, updated_count}` |
-| 6 | POST | `/api/v1/dashboard/widgets/{id}/refresh` | 저장된 SQL 재실행 → 데이터 갱신 | 200 | `{widget_id, cached_data, last_refreshed_at}` |
-| 7 | POST | `/api/v1/dashboard/execute-sql` | SQL 테스트 실행 (편집 미리보기용) | 200 | `{columns, rows, row_count, execution_time_ms}` |
+| 1 | GET | `/api/v1/dashboard/dashboards` | 내 대시보드 + 공유 대시보드 목록 | 200 | `{my_dashboards: [...], shared_dashboards: [...]}` |
+| 2 | POST | `/api/v1/dashboard/dashboards` | 대시보드 생성 (최대 10개) | 201 | 생성된 대시보드 객체 |
+| 3 | PUT | `/api/v1/dashboard/dashboards/{id}` | 대시보드 수정 (이름/설명) | 200 | 수정된 대시보드 객체 |
+| 4 | DELETE | `/api/v1/dashboard/dashboards/{id}` | 대시보드 삭제 (기본 대시보드 불가) | 200 | `{message, deleted_count}` |
+| 5 | PUT | `/api/v1/dashboard/dashboards/{id}/default` | 기본 대시보드 설정 | 200 | 수정된 대시보드 객체 |
+| 6 | PUT | `/api/v1/dashboard/dashboards/{id}/share` | 대시보드 공유 설정 (GLOBAL/TENANT만) | 200 | 수정된 대시보드 객체 |
+
+#### 위젯 CRUD + SQL (7개)
+
+| # | Method | Path | 설명 | Status | 응답 data |
+|---|--------|------|------|--------|-----------|
+| 7 | GET | `/api/v1/dashboard/widgets` | 위젯 목록 (dashboard_id 파라미터) | 200 | `{items: [...], total: N, dashboard_id, is_read_only}` |
+| 8 | POST | `/api/v1/dashboard/widgets` | 위젯 생성 (대시보드당 최대 20개) | 201 | 생성된 위젯 객체 |
+| 9 | PUT | `/api/v1/dashboard/widgets/{id}` | 위젯 수정 (제목/유형/SQL/설정/별칭) | 200 | 수정된 위젯 객체 |
+| 10 | DELETE | `/api/v1/dashboard/widgets/{id}` | 위젯 삭제 | 200 | `{message, deleted_count}` |
+| 11 | PUT | `/api/v1/dashboard/layout` | 레이아웃 일괄 저장 | 200 | `{message, updated_count}` |
+| 12 | POST | `/api/v1/dashboard/widgets/{id}/refresh` | 저장된 SQL 재실행 → 데이터 갱신 | 200 | `{widget_id, cached_data, last_refreshed_at}` |
+| 13 | POST | `/api/v1/dashboard/execute-sql` | SQL 테스트 실행 (편집 미리보기용) | 200 | `{columns, rows, row_count, execution_time_ms}` |
 
 ### 9.2 요청/응답 예시
 
@@ -1178,16 +1255,16 @@ buildChartOption({
 app/
 ├── api/
 │   ├── routes/
-│   │   └── personal_dashboard.py        # 7개 API 엔드포인트 ✅
+│   │   └── personal_dashboard.py        # 13개 API 엔드포인트 (대시보드 6 + 위젯 7) ✅
 │   └── services/
-│       └── personal_dashboard_service.py # CRUD + refresh + execute-sql ✅
+│       └── personal_dashboard_service.py # 대시보드/위젯 CRUD + 공유 + refresh + execute-sql ✅
 ├── models/
-│   └── personal_dashboard.py            # Pydantic 모델 ✅
+│   └── personal_dashboard.py            # Pydantic 모델 (대시보드 + 위젯 + 공유) ✅
 └── main.py                              # 라우터 등록 완료 ✅
 
 frontend/src/
 └── api/
-    └── personalDashboard.js             # Axios API 클라이언트 ✅
+    └── personalDashboard.js             # Axios API 클라이언트 (대시보드 6 + 위젯 7 메서드) ✅
 ```
 
 ### 9.4 Pydantic 모델 (구현 완료)
@@ -1196,6 +1273,24 @@ frontend/src/
 # app/models/personal_dashboard.py
 
 VALID_WIDGET_TYPES = {"table", "bar", "hbar", "line", "pie", "scatter", "kpi"}
+VALID_SHARE_SCOPES = {"all", "tenant"}
+
+# ─── 대시보드 모델 ───
+
+class DashboardCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+class DashboardUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+class DashboardShareRequest(BaseModel):
+    is_shared: bool = False
+    share_scope: Optional[str] = None
+    # @field_validator: share_scope는 is_shared=True일 때만 'all' | 'tenant' 허용
+
+# ─── 위젯 모델 ───
 
 class ChartConfig(BaseModel):
     x_column: Optional[str] = None
@@ -1219,6 +1314,7 @@ class GridPosition(BaseModel):
     h: int = 10
 
 class WidgetCreate(BaseModel):
+    dashboard_id: Optional[int] = None  # 미지정 시 기본 대시보드
     title: str = Field(..., min_length=1, max_length=200)
     widget_type: str = Field(default="table")
     query: Optional[str] = None
@@ -1235,22 +1331,6 @@ class WidgetUpdate(BaseModel):
     chart_config: Optional[ChartConfig] = None
     cached_data: Optional[CachedData] = None
 
-class WidgetResponse(BaseModel):
-    widget_id: int
-    user_id: int
-    tenant_id: Optional[int] = None
-    title: str
-    widget_type: str
-    query: Optional[str] = None
-    sql: Optional[str] = None
-    chart_config: dict = {}
-    cached_data: dict = {}
-    grid_position: dict = {}
-    sort_order: int = 0
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    last_refreshed_at: Optional[str] = None
-
 class LayoutItem(BaseModel):
     widget_id: int
     x: int
@@ -1259,13 +1339,14 @@ class LayoutItem(BaseModel):
     h: int
 
 class LayoutSaveRequest(BaseModel):
+    dashboard_id: Optional[int] = None  # 미지정 시 기본 대시보드
     layout: List[LayoutItem] = Field(..., min_length=1)
 
 class ExecuteSqlRequest(BaseModel):
     sql: str = Field(..., min_length=1)
 ```
 
-**참고**: `WidgetCreate`와 `WidgetUpdate`에 `@field_validator`로 `widget_type` 유효성 검사를 수행한다.
+**참고**: `WidgetCreate`/`WidgetUpdate`에 `@field_validator`로 `widget_type` 유효성 검사, `DashboardShareRequest`에 `share_scope` 유효성 검사를 수행한다.
 
 ### 9.5 Service 계층 (구현 완료)
 
@@ -1274,10 +1355,11 @@ class ExecuteSqlRequest(BaseModel):
 # 싱글톤: personal_dashboard_service = PersonalDashboardService()
 
 class PersonalDashboardService:
-    """개인 대시보드 위젯 CRUD + SQL 실행 서비스"""
+    """개인 대시보드 + 위젯 CRUD + 공유 + SQL 실행 서비스"""
 
-    MAX_WIDGETS_PER_USER = 20    # 사용자당 최대 위젯 수
-    MAX_CACHED_ROWS = 500        # cached_data 최대 행 수
+    MAX_DASHBOARDS_PER_USER = 10  # 사용자당 최대 대시보드 수
+    MAX_WIDGETS_PER_DASHBOARD = 20  # 대시보드당 최대 위젯 수
+    MAX_CACHED_ROWS = 500         # cached_data 최대 행 수
 
     # 위젯 유형별 기본 그리드 크기
     DEFAULT_GRID_SIZES = {
@@ -1286,25 +1368,51 @@ class PersonalDashboardService:
         # table, bar, hbar, line, scatter: {"w": 6, "h": 10}
     }
 
-    def list_widgets(self, user_id: int) -> dict:
-        """사용자 위젯 목록 조회 → {items: [...], total: N}
-        is_active=TRUE, sort_order ASC, created_at ASC"""
+    # ── 대시보드 CRUD ──
 
-    def create_widget(self, user_id: int, tenant_id: int, data: WidgetCreate) -> dict:
-        """위젯 생성 (MAX_WIDGETS_PER_USER 제한, 자동 grid_position 배치)
+    def list_dashboards(self, user_id, tenant_id, role_code) -> dict:
+        """내 대시보드 + 공유 대시보드 목록 → {my_dashboards: [...], shared_dashboards: [...]}
+        my_dashboards: user_id 기반, 공유: role_code/tenant_id 기반 범위 필터"""
+
+    def create_dashboard(self, user_id, tenant_id, data) -> dict:
+        """대시보드 생성 (MAX_DASHBOARDS_PER_USER 제한)
+        단일 쿼리로 COUNT/MAX(sort_order)/default_cnt 조회 (최적화)
+        첫 대시보드 자동 is_default=true"""
+
+    def update_dashboard(self, user_id, dashboard_id, data) -> dict:
+        """대시보드 이름/설명 수정 (소유권 검증)"""
+
+    def delete_dashboard(self, user_id, dashboard_id) -> dict:
+        """대시보드 삭제 (기본 대시보드 불가, CASCADE로 위젯도 삭제)
+        DELETE SQL에 AND user_id = %s 조건 포함 (이중 검증)"""
+
+    def set_default_dashboard(self, user_id, dashboard_id) -> dict:
+        """기본 대시보드 변경 (기존 기본 해제 → 새 기본 설정)"""
+
+    def share_dashboard(self, user_id, dashboard_id, data) -> dict:
+        """대시보드 공유 설정 (GLOBAL: all/tenant, TENANT: tenant만)"""
+
+    # ── 위젯 CRUD ──
+
+    def list_widgets(self, user_id, dashboard_id, tenant_id, role_code) -> dict:
+        """위젯 목록 조회 → {items: [...], total: N, dashboard_id, is_read_only}
+        공유 대시보드 접근 시 is_read_only=true 반환"""
+
+    def create_widget(self, user_id, tenant_id, data) -> dict:
+        """위젯 생성 (MAX_WIDGETS_PER_DASHBOARD 제한, 자동 grid_position 배치)
+        dashboard_id 미지정 시 기본 대시보드에 생성
         cached_data.rows는 MAX_CACHED_ROWS로 자동 truncate"""
 
-    def update_widget(self, user_id: int, widget_id: int, data: WidgetUpdate) -> dict:
-        """위젯 수정 (소유권 검증, SQL/chart_config/column_aliases 포함)
-        cached_data 변경 시 MAX_CACHED_ROWS로 자동 truncate"""
+    def update_widget(self, user_id, widget_id, data) -> dict:
+        """위젯 수정 (소유권 검증, SQL/chart_config/column_aliases 포함)"""
 
-    def delete_widget(self, user_id: int, widget_id: int) -> dict:
-        """위젯 삭제 (소유권 검증, 물리 삭제)"""
+    def delete_widget(self, user_id, widget_id) -> dict:
+        """위젯 삭제 (소유권 검증, DELETE SQL에 AND user_id = %s 이중 검증)"""
 
-    def save_layout(self, user_id: int, layout: List[LayoutItem]) -> dict:
-        """레이아웃 일괄 저장 (소유권 검증, sort_order 인덱스 기반 부여)"""
+    def save_layout(self, user_id, dashboard_id, layout) -> dict:
+        """레이아웃 일괄 저장 (소유권 검증, sort_order 인덱스 기반)"""
 
-    def refresh_widget(self, user_id: int, widget_id: int) -> dict:
+    def refresh_widget(self, user_id, widget_id) -> dict:
         """위젯 데이터 새로고침
         → sql_executor.execute_sql(stored_sql)
         → pii_service.mask_sql_rows(results)
@@ -1312,29 +1420,61 @@ class PersonalDashboardService:
 
     def execute_sql(self, sql: str) -> dict:
         """SQL 테스트 실행 (저장 안함, 미리보기용)
-        → sql_executor.execute_sql(sql)
-        → pii_service.mask_sql_rows(results)
         → {columns, rows, row_count, execution_time_ms} 반환"""
 
-    # 내부 메서드
-    def _get_widget(self, user_id: int, widget_id: int) -> dict:
+    # ── 내부 메서드 ──
+
+    def _get_dashboard(self, user_id, dashboard_id) -> dict:
+        """대시보드 조회 + 소유권 검증 (user_id 불일치 시 NOT_FOUND)"""
+
+    def _get_widget(self, user_id, widget_id) -> dict:
         """위젯 조회 + 소유권 검증 (user_id 불일치 시 NOT_FOUND)"""
 
-    def _auto_grid_position(self, user_id: int, widget_type: str) -> dict:
+    def _auto_grid_position(self, dashboard_id, widget_type) -> dict:
         """기존 위젯의 max(y+h) 아래에 자동 배치 (x=0, y=maxBottom)"""
+
+    def get_or_create_default_dashboard(self, user_id, tenant_id) -> dict:
+        """기본 대시보드 조회 또는 자동 생성 (위젯 생성 시 dashboard_id 미지정 케이스)"""
 ```
 
 **구현 특징**:
 - `db_manager`, `sql_executor`, `pii_service`를 lazy import하여 순환 참조 방지
 - `_cap_cached_data()`: cached_data 행 수를 MAX_CACHED_ROWS로 제한 + cached_at 타임스탬프 자동 부여
-- 물리 삭제 수행 (is_active 소프트 삭제 미사용)
+- 위젯 물리 삭제, 대시보드 삭제 시 CASCADE로 하위 위젯 자동 삭제
+- `create_dashboard`: 단일 SQL로 COUNT/MAX(sort_order)/default_cnt 동시 조회 (DB 라운드트립 최적화)
+- 삭제 쿼리에 `AND user_id = %s` 포함 (사전 소유권 검증 + SQL 레벨 이중 검증)
 
 **참조 패턴**:
 - `dashboard_service.py`: 싱글톤 인스턴스, `db_manager.get_cursor()` 패턴
 - `user_service.py`: scope 필터, 소유권 검증 패턴
 - `sql_executor.py`: SQL 검증/실행 재사용
 
-### 9.6 SQL 실행 보안
+### 9.6 데이터 접근 보안 (이중 검증 패턴)
+
+대시보드/위젯 삭제 및 수정 시 **이중 검증 패턴**으로 user_id 기반 데이터 격리를 보장한다:
+
+```
+1단계: 사전 소유권 검증
+  → _get_dashboard(user_id, dashboard_id) 또는 _get_widget(user_id, widget_id)
+  → SELECT ... WHERE dashboard_id = %s AND user_id = %s
+  → 불일치 시 NOT_FOUND 예외 (404)
+
+2단계: SQL WHERE 절 검증
+  → DELETE FROM tb_dashboard WHERE dashboard_id = %s AND user_id = %s
+  → DELETE FROM tb_dashboard_widget WHERE widget_id = %s AND user_id = %s
+  → 1단계를 통과해도 SQL에서 한번 더 user_id 확인
+```
+
+**적용 범위**:
+| 작업 | 1단계 (사전 검증) | 2단계 (SQL 조건) |
+|------|------------------|-----------------|
+| 대시보드 수정 | `_get_dashboard()` | `WHERE dashboard_id=%s AND user_id=%s` |
+| 대시보드 삭제 | `_get_dashboard()` | `WHERE dashboard_id=%s AND user_id=%s` |
+| 위젯 수정 | `_get_widget()` | `WHERE widget_id=%s AND user_id=%s` |
+| 위젯 삭제 | `_get_widget()` | `WHERE widget_id=%s AND user_id=%s` |
+| 위젯 새로고침 | `_get_widget()` | 소유권 확인 후 SQL 재실행 |
+
+### 9.7 SQL 실행 보안
 
 모든 SQL 실행 (refresh, execute-sql)에 동일한 보안 체인 적용:
 
@@ -1350,18 +1490,27 @@ class PersonalDashboardService:
 | 인증 필수 | JWT 토큰 검증 | `Depends(get_current_active_user)` |
 | 소유권 검증 | user_id 기반 위젯 접근 제어 | `_get_widget(user_id, widget_id)` |
 
-### 9.7 Frontend API 클라이언트
+### 9.8 Frontend API 클라이언트
 
 ```javascript
 // frontend/src/api/personalDashboard.js
 import api from './index'
 
 export default {
-  getWidgets: () => api.get('/api/v1/dashboard/widgets'),
+  // 대시보드 CRUD (6개)
+  getDashboards: () => api.get('/api/v1/dashboard/dashboards'),
+  createDashboard: (data) => api.post('/api/v1/dashboard/dashboards', data),
+  updateDashboard: (id, data) => api.put(`/api/v1/dashboard/dashboards/${id}`, data),
+  deleteDashboard: (id) => api.delete(`/api/v1/dashboard/dashboards/${id}`),
+  setDefaultDashboard: (id) => api.put(`/api/v1/dashboard/dashboards/${id}/default`),
+  shareDashboard: (id, data) => api.put(`/api/v1/dashboard/dashboards/${id}/share`, data),
+
+  // 위젯 CRUD (7개)
+  getWidgets: (dashboardId) => api.get('/api/v1/dashboard/widgets', { params: dashboardId ? { dashboard_id: dashboardId } : {} }),
   createWidget: (data) => api.post('/api/v1/dashboard/widgets', data),
   updateWidget: (id, data) => api.put(`/api/v1/dashboard/widgets/${id}`, data),
   deleteWidget: (id) => api.delete(`/api/v1/dashboard/widgets/${id}`),
-  saveLayout: (layout) => api.put('/api/v1/dashboard/layout', { layout }),
+  saveLayout: (layout, dashboardId) => api.put('/api/v1/dashboard/layout', { dashboard_id: dashboardId, layout }),
   refreshWidget: (id) => api.post(`/api/v1/dashboard/widgets/${id}/refresh`),
   executeSql: (sql) => api.post('/api/v1/dashboard/execute-sql', { sql })
 }
@@ -1464,8 +1613,12 @@ CREATE INDEX idx_widget_dashboard_id ON tb_dashboard_widget(dashboard_id);
 
 - `cached_data.rows`: 최대 500행까지만 저장 (서비스에서 자동 truncate + `cached_at` 타임스탬프 부여)
 - `widget_type`: CHECK ('table', 'bar', 'hbar', 'line', 'pie', 'scatter', 'kpi')
-- 사용자당 최대 위젯 수: 20개 (서비스 레벨 제한)
+- **사용자당 최대 대시보드 수**: 10개 (서비스 레벨 제한)
+- **대시보드당 최대 위젯 수**: 20개 (서비스 레벨 제한)
 - `column_aliases`: `chart_config` JSONB 내부에 선택적 저장 (빈 값 = 원본 컬럼명 사용)
+- **기본 대시보드**: 삭제 불가, `is_default=true` 유니크 제약 (사용자당 1개)
+- **공유 대시보드**: GLOBAL→all/tenant, TENANT→tenant만, USER→공유 불가
+- **공유 접근**: 읽기 전용 (새로고침만 허용, 수정/삭제/편집 불가)
 
 ---
 
@@ -1601,10 +1754,12 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 
 | 순서 | 작업 | 검증 항목 | 상태 |
 |------|------|----------|------|
-| 4-1 | Backend API 테스트 | CRUD + layout + execute-sql 엔드포인트 (`test_11_personal_dashboard.py`) | ✅ |
-| 4-2 | 인증 테스트 | 미인증 접근 시 401 응답 확인 | ✅ |
-| 4-3 | SQL 보안 테스트 | DROP TABLE 등 금지 SQL 차단 확인 | ✅ |
-| 4-4 | 입력 검증 테스트 | 잘못된 widget_type (422), 빈 SQL (422) | ✅ |
+| 4-1 | 대시보드 CRUD 테스트 | 생성/수정/삭제/기본 설정/최대 제한 (`test_12_personal_dashboard.py`) | ✅ |
+| 4-2 | 대시보드 공유 테스트 | 공유 설정/해제, 읽기 전용, 권한 검증 | ✅ |
+| 4-3 | 멀티 대시보드 위젯 테스트 | 대시보드별 위젯 분리, CASCADE 삭제, 접근 제어 | ✅ |
+| 4-4 | 위젯 CRUD 테스트 | 생성(bar/kpi), 수정(제목/별칭), 삭제, 잘못된 타입 | ✅ |
+| 4-5 | Layout + SQL 테스트 | 레이아웃 저장, 유효/금지 SQL 실행, 빈 SQL | ✅ |
+| 4-6 | 인증 테스트 | 미인증 접근 시 401 응답 확인 (대시보드/위젯/SQL 5개 엔드포인트) | ✅ |
 
 ---
 
@@ -1623,6 +1778,9 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 | SQL 편집 후 저장 실수 | 잘못된 SQL 영구 저장 | "SQL 실행" 성공 필수 → 미실행 SQL은 저장 시 경고 | ✅ 해결 |
 | 컬럼 별칭 매핑 깨짐 | SQL 변경 시 컬럼명 불일치 | SQL 편집 후 실행 시 새 columns 반환 → 기존 aliases와 자동 교차 검증 | ✅ 해결 |
 | PII 노출 | SQL 결과에 개인정보 포함 | pii_service.mask_sql_rows() 적용 (refresh, execute-sql 모두) | ✅ 해결 |
+| 사용자 전환 시 상태 잔존 | 이전 사용자 dashboardId로 API 호출 | `clearState` mutation + auth.js logout 시 dispatch | ✅ 해결 |
+| 마지막 대시보드 삭제 | currentDashboardId 미초기화 | else 분기에서 null/[] 초기화 처리 | ✅ 해결 |
+| SaveToDashboardModal dashboard_id 덮어쓰기 | 다른 대시보드에 저장 시 현재 대시보드로 변경 | saveWidget에서 `!data.dashboard_id` 조건 검사 | ✅ 해결 |
 | 동시 레이아웃 저장 충돌 | 다른 탭에서 동시 수정 | 마지막 쓰기 우선 정책 (last-write-wins) | ✅ 현행 방식 |
 | NL2SQL 직접 실행 장시간 대기 | 모달 내 UX 저하 | SSE 진행 상황 실시간 표시 + AbortController 기반 실행 취소 버튼 | ✅ 해결 |
 | NL2SQL 직접 실행 실패 | 위젯 생성 불가 | 에러 메시지 인라인 표시 + 질문 재입력 유도 (모달 닫지 않음) | ✅ 해결 |
@@ -1995,25 +2153,34 @@ SQL 편집 기능은 기존 `sql_executor.py`의 보안 체인을 그대로 재�
 
 ## 18. 테스트
 
-### 18.1 Backend 테스트 (구현 완료)
+### 18.1 Backend 테스트 (구현 완료 - 37 TC)
 
-**파일**: `tests/test_11_personal_dashboard.py`
+**파일**: `tests/test_12_personal_dashboard.py`
 
-4개의 테스트 클래스로 구성:
+6개의 테스트 클래스, 총 37개 테스트 케이스:
 
-| 클래스 | 테스트 항목 | 설명 |
-|--------|-----------|------|
-| `TestWidgetCRUD` | 위젯 생성(bar/kpi), 잘못된 타입(422), 목록 조회, 수정(제목/별칭), 존재하지 않는 위젯 수정(에러), 삭제 | 자동 클린업 fixture |
-| `TestLayout` | 위젯 2개 생성, 레이아웃 저장(updated_count=2), 잘못된 widget_id로 저장(에러) | 자동 클린업 |
-| `TestExecuteSql` | 유효 SQL(`SELECT 1`), 금지 SQL(`DROP TABLE` → 에러), 빈 SQL(422) | SQL 보안 검증 |
-| `TestAuth` | 미인증 접근(list/create/execute-sql → 401) | 인증 필수 검증 |
+| 클래스 | TC 수 | 테스트 항목 |
+|--------|-------|-----------|
+| `TestDashboardCRUD` | 8 | 대시보드 생성, 목록 조회(my/shared 분리), 수정(이름/설명), 기본 대시보드 변경, 기본 대시보드 삭제 불가, 일반 대시보드 삭제, 최대 10개 제한 |
+| `TestDashboardShare` | 5 | 공유 설정(all/tenant), 공유 해제, 공유 대시보드 읽기 전용 확인, 권한 없는 사용자 공유 시도 실패 |
+| `TestMultiDashboardWidget` | 6 | 다른 대시보드에 위젯 생성, 대시보드별 위젯 목록 분리, 대시보드 삭제 시 위젯 CASCADE 삭제, 다른 사용자 대시보드 접근 불가 |
+| `TestWidgetCRUD` | 8 | 위젯 생성(bar/kpi), 잘못된 타입(422), 목록 조회, 수정(제목/별칭), 존재하지 않는 위젯 수정(에러), 삭제 |
+| `TestLayoutAndSQL` | 5 | 레이아웃 저장(updated_count), 잘못된 widget_id, 유효 SQL 실행, 금지 SQL(DROP) 차단, 빈 SQL(422) |
+| `TestAuth` | 5 | 미인증 접근: 대시보드 목록/생성, 위젯 목록/생성, execute-sql → 모두 401 |
+
+**테스트 환경**:
+- `admin` (admin/Win1234!) + `user01` (user01/Win1234!) 사용
+- 각 테스트 클래스별 fixture로 테스트 데이터 자동 생성/정리
+- `conftest.py`의 `assert_success`, `assert_error` 헬퍼 활용
 
 ### 18.2 실행 방법
 
 ```bash
 # 개인 대시보드 테스트만 실행
-pytest tests/test_11_personal_dashboard.py -v
+pytest tests/test_12_personal_dashboard.py -v
 
 # 전체 테스트 (순서 의존성 있으므로 순서대로 실행 권장)
 pytest tests/ -v
+
+# 최근 실행 결과: 37 passed in 5.26s
 ```

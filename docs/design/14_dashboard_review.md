@@ -84,7 +84,14 @@
 2. `dashboard.js`에 `clearState` mutation/action 추가 (`currentDashboardId = null`, `widgets = []`)
 3. `fetchDashboards`에서 `currentDashboardId`가 `my_dashboards`에 없으면 강제 리셋
 
-**완료**: 데모 위젯(getMockWidgets/resetToMock) 삭제 → 공유 대시보드 위젯 복사 기능(loadSharedWidgets)으로 교체 완료
+**완료**: 데모 위젯(getMockWidgets/resetToMock) 전체 삭제 완료.
+- `dashboard.js`: `getMockWidgets()` 함수 (~130줄 목업 데이터) + `resetToMock` action 제거
+- `DashboardEmptyState.vue`: "데모 위젯 불러오기" 버튼 → "위젯 추가" 버튼으로 교체 (편집모드 진입 + AddWidgetModal 열기)
+- `PersonalDashboardView.vue`: `loadDemo` 핸들러 제거 → `handleAddWidgetFromEmpty` 추가
+- `deleteDashboard` 버그 수정: 마지막 대시보드 삭제 시 `currentDashboardId=null`, `widgets=[]` 초기화
+- `saveWidget` 버그 수정: `widgetConfig.dashboard_id`가 명시된 경우 `currentDashboardId`로 덮어쓰지 않도록 수정
+- `create_dashboard` 최적화: 3개 커서 → 단일 SQL (COUNT/MAX/SUM 동시 조회)
+- `_shared_dashboard_row_to_dict` 중복 제거: `_dashboard_row_to_dict` 위임으로 단순화
 
 ### 2-6. [Medium] recent_requests 쿼리에 날짜 필터 없음
 
@@ -148,7 +155,7 @@
 
 ## 6. 테스트 추가
 
-관리자 대시보드 테스트가 **전혀 없음** (개인 대시보드 테스트 `test_11_personal_dashboard.py`만 존재).
+관리자 대시보드 테스트가 **전혀 없음** (개인 대시보드 테스트 `test_12_personal_dashboard.py` — 37 TC PASSED).
 
 **생성 파일**: `tests/test_12_dashboard.py`
 
