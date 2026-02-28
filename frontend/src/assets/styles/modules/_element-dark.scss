@@ -286,3 +286,77 @@
     border-color: var(--border-color);
   }
 }
+
+// =============================================
+// Personal Dashboard 모달 다크 모드 강제 적용
+// el-dialog는 body에 텔레포트되어 [data-theme="dark"] 스코프 밖.
+// .dashboard-dark 클래스를 el-dialog에 직접 적용하여 다크 모드 강제.
+// --el-* 변수는 _variables.scss의 .dashboard-dark에서 이미 정의됨.
+// =============================================
+.el-dialog.dashboard-dark {
+  // Custom app variables (다크 모드 값)
+  --bg-color-card: #1f1f1f;
+  --bg-color-input: #2c2c2c;
+  --bg-color-hover: #2c2c2c;
+  --text-color-primary: #e5e5e5;
+  --text-color-secondary: #8c8c8c;
+  --text-color-placeholder: #5c5c5c;
+  --border-color: #4a4a4a;
+  --border-color-light: #3a3a3a;
+  --border-color-lighter: #303030;
+  --color-primary: #409eff;
+  --table-header-bg: #262626;
+  --table-row-hover-bg: #2c2c2c;
+  --table-border-color: #3a3a3a;
+  --loading-overlay-bg: rgba(0, 0, 0, 0.7);
+
+  // Dialog 자체 스타일
+  background-color: var(--bg-color-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-color-primary);
+
+  .el-dialog__title { color: var(--text-color-primary); }
+  .el-dialog__headerbtn .el-dialog__close { color: var(--text-color-secondary); &:hover { color: var(--text-color-primary); } }
+  .el-dialog__body { color: var(--text-color-primary); }
+
+  // Input / Select
+  .el-input__wrapper {
+    background-color: var(--bg-color-input);
+    box-shadow: 0 0 0 1px var(--border-color) inset;
+    &:hover { box-shadow: 0 0 0 1px var(--border-color-light) inset; }
+    &.is-focus { box-shadow: 0 0 0 1px var(--color-primary) inset; }
+  }
+  .el-input__inner { color: var(--text-color-primary); &::placeholder { color: var(--text-color-placeholder); } }
+  .el-textarea__inner { background-color: var(--bg-color-input); color: var(--text-color-primary); box-shadow: 0 0 0 1px var(--border-color) inset; &::placeholder { color: var(--text-color-placeholder); } }
+  .el-select .el-select__wrapper { background-color: var(--bg-color-input); box-shadow: 0 0 0 1px var(--border-color) inset; }
+
+  // Button (--el-button-* 는 _variables.scss .dashboard-dark .el-button에서 정의)
+  .el-button--default {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+    color: var(--text-color-primary);
+    &:hover { background-color: var(--bg-color-hover); border-color: var(--color-primary); color: var(--color-primary); }
+  }
+
+  // Tabs
+  .el-tabs__item { color: var(--text-color-secondary); &.is-active { color: var(--color-primary); } &:hover { color: var(--text-color-primary); } }
+  .el-tabs__nav-wrap::after { background-color: var(--border-color); }
+
+  // Table
+  .el-table {
+    background-color: var(--bg-color-card); color: var(--text-color-primary);
+    th.el-table__cell { background-color: var(--table-header-bg); color: var(--text-color-primary); }
+    tr { background-color: var(--bg-color-card); &:hover > td.el-table__cell { background-color: var(--table-row-hover-bg); } }
+    td.el-table__cell { border-color: var(--table-border-color); }
+    .el-table__inner-wrapper::before { background-color: var(--table-border-color); }
+  }
+
+  // Form / Radio
+  .el-form-item__label { color: var(--text-color-primary); }
+  .el-radio-button__inner { background-color: var(--bg-color-card); border-color: var(--border-color); color: var(--text-color-primary); }
+  .el-radio-button__original-radio:checked + .el-radio-button__inner { background-color: var(--color-primary); border-color: var(--color-primary); }
+
+  // Tag / Alert / Loading
+  .el-tag--info { background-color: var(--bg-color-hover); border-color: var(--border-color); color: var(--text-color-secondary); }
+  .el-loading-mask { background-color: var(--loading-overlay-bg); }
+}

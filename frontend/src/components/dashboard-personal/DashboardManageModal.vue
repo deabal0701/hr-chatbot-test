@@ -3,6 +3,7 @@
     v-model="visible"
     :title="isEdit ? '대시보드 수정' : '새 대시보드'"
     width="420px"
+    class="dashboard-dark"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"

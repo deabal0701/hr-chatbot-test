@@ -3,6 +3,7 @@
     v-model="visible"
     title="대시보드 공유 설정"
     width="420px"
+    class="dashboard-dark"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"

@@ -3,6 +3,7 @@
     v-model="visible"
     title="위젯 추가"
     width="680px"
+    class="dashboard-dark"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"
