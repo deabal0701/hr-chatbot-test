@@ -14,7 +14,15 @@
           <el-tooltip content="수정" placement="top">
             <el-button :icon="Edit" circle size="small" @click="$emit('edit', widget)" />
           </el-tooltip>
-          <el-popconfirm title="이 위젯을 삭제하시겠습니까?" confirm-button-text="삭제" cancel-button-text="취소" @confirm="$emit('delete', widget.widget_id)">
+          <el-popconfirm
+            title="이 위젯을 삭제하시겠습니까?"
+            confirm-button-text="삭제"
+            cancel-button-text="취소"
+            :width="240"
+            :popper-class="popconfirmClass"
+            confirm-button-type="danger"
+            @confirm="$emit('delete', widget.widget_id)"
+          >
             <template #reference>
               <el-button :icon="Delete" circle size="small" />
             </template>
@@ -101,6 +109,10 @@ const props = defineProps({
 })
 
 defineEmits(['edit', 'delete', 'refresh'])
+
+const popconfirmClass = computed(() =>
+  props.darkMode ? 'widget-delete-popconfirm widget-delete-dark' : 'widget-delete-popconfirm'
+)
 
 const widgetRef = ref(null)
 const isCapturing = ref(false)
@@ -299,6 +311,68 @@ const refreshTimeLabel = computed(() => {
   .refresh-time {
     font-size: 11px;
     color: var(--dashboard-text-muted);
+  }
+}
+</style>
+
+<!-- 전역 스타일: teleported popconfirm은 body에 렌더링되므로 scoped 불가 -->
+<style lang="scss">
+.widget-delete-popconfirm {
+  background: #ffffff !important;
+  border: 1px solid #e8ecf1 !important;
+
+  .el-popconfirm__main {
+    color: #1d2129;
+    font-size: 13px;
+    padding-top: 16px;
+  }
+
+  .el-popconfirm__action {
+    margin-top: 10px;
+  }
+
+  .el-popper__arrow::before {
+    background: #ffffff !important;
+    border-color: #e8ecf1 !important;
+  }
+
+  .el-button--default {
+    background: #f5f7fa;
+    border-color: #dcdfe6;
+    color: #606266;
+
+    &:hover {
+      background: #ecf5ff;
+      border-color: #c6e2ff;
+      color: #409eff;
+    }
+  }
+
+  // 다크모드
+  &.widget-delete-dark {
+    background: #1f1f1f !important;
+    border: 1px solid #404040 !important;
+
+    .el-popconfirm__main {
+      color: #e5e5e5;
+    }
+
+    .el-popper__arrow::before {
+      background: #1f1f1f !important;
+      border-color: #404040 !important;
+    }
+
+    .el-button--default {
+      background: #2c2c2c;
+      border-color: #505050;
+      color: #d0d0d0;
+
+      &:hover {
+        background: #383838;
+        border-color: #606060;
+        color: #ffffff;
+      }
+    }
   }
 }
 </style>

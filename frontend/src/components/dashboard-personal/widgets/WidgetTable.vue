@@ -3,7 +3,7 @@
     <el-table
       :data="displayRows"
       size="small"
-      :max-height="maxHeight"
+      :height="maxHeight"
       :style="{ width: '100%' }"
       :header-cell-style="headerStyle"
       :cell-style="cellStyle"
@@ -14,7 +14,7 @@
         :key="col"
         :prop="col"
         :label="columnAliases?.[col] || col"
-        :min-width="120"
+        :min-width="80"
         :align="isNumericColumn(col) ? 'right' : 'left'"
         show-overflow-tooltip
       >
@@ -100,6 +100,8 @@ const rowStyle = computed(() => ({ rowIndex }) => ({
 .widget-table {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 6px;
   border: 1px solid var(--dashboard-border);
@@ -112,6 +114,8 @@ const rowStyle = computed(() => ({ rowIndex }) => ({
     --el-table-bg-color: transparent !important;
     --el-table-tr-bg-color: transparent !important;
     background-color: transparent !important;
+    flex: 1;
+    min-height: 0;
 
     // 하단 보더라인 제거
     &::before,
@@ -128,6 +132,27 @@ const rowStyle = computed(() => ({ rowIndex }) => ({
     // 셀 내부 패딩 - show-overflow-tooltip과 호환
     .cell {
       padding: 0 20px 0 12px !important;
+    }
+
+    // gutter 영역 불필요한 공백 제거
+    .gutter {
+      width: 0 !important;
+    }
+
+    // body 스크롤 영역이 컨테이너에 맞게 채워지도록
+    .el-table__body-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+
+      .el-scrollbar__bar.is-horizontal {
+        display: none;
+      }
+    }
+
+    // 헤더 고정 시 불필요한 수평 스크롤 제거
+    .el-table__header-wrapper {
+      overflow: hidden;
     }
   }
 
