@@ -8,8 +8,8 @@
       :col-num="colNum"
       :row-height="30"
       :margin="[16, 16]"
-      :is-draggable="editMode"
-      :is-resizable="editMode"
+      :is-draggable="interactEnabled"
+      :is-resizable="interactEnabled"
       :vertical-compact="true"
       :use-css-transforms="true"
     >
@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import DashboardWidget from './DashboardWidget.vue'
 
@@ -52,6 +52,12 @@ const props = defineProps({
 })
 
 defineEmits(['edit-widget', 'delete-widget', 'refresh-widget', 'layout-changed'])
+
+// vue3-grid-layout-next 버그 우회:
+// 편집 모드 중 위젯 추가/삭제 시 is-draggable/is-resizable을 잠깐 토글하여
+// 새 grid-item에 대한 interact.js 핸들러를 재초기화
+const forceReinit = ref(false)
+const interactEnabled = computed(() => forceReinit.value ? false : props.editMode)
 
 // vue3-grid-layout-next 초기화 타이밍 이슈 보정
 // ResizeObserver로 컨테이너가 실제 너비를 가질 때까지 대기 후 grid-layout 마운트
@@ -113,6 +119,19 @@ watch(
   (isEdit) => {
     if (isEdit) {
       layoutModel.value = JSON.parse(JSON.stringify(store.getters['dashboard/gridLayout']))
+    }
+  }
+)
+
+// 편집 모드 중 위젯 추가/삭제 시 drag/resize 핸들러 재초기화
+watch(
+  () => layoutModel.value.length,
+  async (newLen, oldLen) => {
+    if (props.editMode && newLen !== oldLen) {
+      forceReinit.value = true
+      await nextTick()
+      await nextTick()
+      forceReinit.value = false
     }
   }
 )
