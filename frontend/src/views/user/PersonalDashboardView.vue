@@ -17,7 +17,7 @@
       @save="handleSaveEdit"
       @refresh-all="handleRefreshAll"
       @go-chat="goToChat"
-      @toggle-theme="handleToggleTheme"
+      @set-theme="handleSetTheme"
       @export-png="handleExportPng"
       @export-pdf="handleExportPdf"
       @select-dashboard="handleSelectDashboard"
@@ -261,10 +261,9 @@ const handleWidgetSaved = () => {
   store.dispatch('dashboard/fetchDashboards')
 }
 
-// 테마 토글 (auto → light → dark → auto)
-const handleToggleTheme = () => {
-  const cycle = { auto: 'light', light: 'dark', dark: 'auto' }
-  store.dispatch('dashboard/setDashboardTheme', cycle[dashboardTheme.value] || 'auto')
+// 테마 설정
+const handleSetTheme = (theme) => {
+  store.dispatch('dashboard/setDashboardTheme', theme)
 }
 
 // PNG 내보내기

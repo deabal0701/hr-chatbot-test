@@ -13,7 +13,7 @@
             {{ currentTitle }}
             <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
             <el-tag v-if="isReadOnly" size="small" type="info" class="shared-tag">공유됨</el-tag>
-            <el-tag v-if="currentDashboard?.is_shared" size="small" type="success" class="shared-tag">공유중</el-tag>
+            <el-tag v-if="currentDashboard?.is_shared" size="small" type="success" effect="plain" class="shared-tag">공유중</el-tag>
             <span v-if="widgetCount > 0" class="toolbar-subtitle">(위젯 {{ widgetCount }}개)</span>
           </h2>
           <template #dropdown>
@@ -69,12 +69,6 @@
         <el-button type="primary" @click="$emit('save')">레이아웃 저장</el-button>
       </template>
       <template v-else>
-        <el-tooltip :content="themeTooltip" placement="bottom">
-          <el-button circle size="small" @click="$emit('toggle-theme')">
-            <el-icon :size="16"><component :is="themeIcon" /></el-icon>
-          </el-button>
-        </el-tooltip>
-
         <!-- 내보내기 (readOnly에서도 허용) -->
         <el-dropdown trigger="click" @command="handleExportCommand">
           <el-button :loading="exporting">
@@ -99,19 +93,26 @@
           <el-button :icon="Refresh" @click="$emit('refresh-all')" />
         </el-tooltip>
 
-        <!-- 편집/공유/관리 버튼: readOnly일 때 숨김 -->
-        <template v-if="!isReadOnly">
-          <!-- 공유 버튼 (GLOBAL/TENANT만) -->
-          <el-tooltip v-if="canShare" content="공유 설정" placement="bottom">
-            <el-button :icon="Share" @click="$emit('share')" />
-          </el-tooltip>
+        <!-- 설정 드롭다운 -->
+        <el-dropdown trigger="click" @command="handleManageCommand">
+          <el-button :icon="Setting" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <!-- 테마 토글 (클릭 시 auto → light → dark 순환) -->
+              <el-dropdown-item command="toggle-theme">
+                <el-icon><component :is="themeIcon" /></el-icon>
+                테마: {{ themeLabel }}
+              </el-dropdown-item>
 
-          <!-- 대시보드 관리 드롭다운 -->
-          <el-dropdown trigger="click" @command="handleManageCommand">
-            <el-button :icon="Setting" />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="rename">
+              <!-- 공유 설정 -->
+              <el-dropdown-item v-if="!isReadOnly && canShare" command="share" divided>
+                <el-icon><Share /></el-icon>
+                공유 설정
+              </el-dropdown-item>
+
+              <!-- 대시보드 관리 -->
+              <template v-if="!isReadOnly">
+                <el-dropdown-item command="rename" divided>
                   <el-icon><Edit /></el-icon>
                   대시보드 이름 변경
                 </el-dropdown-item>
@@ -123,15 +124,16 @@
                   <el-icon><Delete /></el-icon>
                   <span class="text-danger">대시보드 삭제</span>
                 </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+              </template>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
-          <el-button type="primary" plain @click="$emit('edit')">
-            <el-icon><Edit /></el-icon>
-            <span>편집</span>
-          </el-button>
-        </template>
+        <!-- 편집 버튼 -->
+        <el-button v-if="!isReadOnly" type="primary" plain @click="$emit('edit')">
+          <el-icon><Edit /></el-icon>
+          <span>편집</span>
+        </el-button>
       </template>
     </div>
   </div>
@@ -158,7 +160,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'edit', 'cancel', 'save', 'refresh-all', 'go-chat', 'toggle-theme',
+  'edit', 'cancel', 'save', 'refresh-all', 'go-chat', 'set-theme',
   'export-png', 'export-pdf', 'select-dashboard', 'create-dashboard',
   'rename-dashboard', 'set-default', 'delete-dashboard', 'share'
 ])
@@ -176,14 +178,14 @@ const handleDashboardCommand = (cmd) => {
 }
 
 const handleManageCommand = (cmd) => {
-  if (cmd === 'rename') emit('rename-dashboard')
+  if (cmd === 'toggle-theme') {
+    const cycle = { auto: 'light', light: 'dark', dark: 'auto' }
+    emit('set-theme', cycle[props.dashboardTheme] || 'auto')
+  }
+  else if (cmd === 'share') emit('share')
+  else if (cmd === 'rename') emit('rename-dashboard')
   else if (cmd === 'set-default') emit('set-default')
   else if (cmd === 'delete') emit('delete-dashboard')
-}
-
-const handleExportCommand = (command) => {
-  if (command === 'png') emit('export-png')
-  else if (command === 'pdf') emit('export-pdf')
 }
 
 const themeIcon = computed(() => {
@@ -191,10 +193,16 @@ const themeIcon = computed(() => {
   return map[props.dashboardTheme] || Monitor
 })
 
-const themeTooltip = computed(() => {
-  const map = { auto: '테마: 자동 (클릭하여 변경)', light: '테마: 라이트 (클릭하여 변경)', dark: '테마: 다크 (클릭하여 변경)' }
-  return map[props.dashboardTheme] || '테마 변경'
+const themeLabel = computed(() => {
+  const map = { auto: '자동', light: '라이트', dark: '다크' }
+  return map[props.dashboardTheme] || '자동'
 })
+
+const handleExportCommand = (command) => {
+  if (command === 'png') emit('export-png')
+  else if (command === 'pdf') emit('export-pdf')
+}
+
 </script>
 
 <style lang="scss" scoped>
@@ -323,3 +331,4 @@ const themeTooltip = computed(() => {
   .toolbar-right span { display: none; }
 }
 </style>
+
