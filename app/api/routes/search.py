@@ -108,6 +108,7 @@ async def search_stream(search_request: SearchRequest, request: Request, current
             session_id=search_request.session_id,
             request_id=request_id,
             tenant_id=tenant_id,
+            skip_answer=search_request.skip_answer,
         ):
             yield event
 

@@ -70,6 +70,9 @@ const searchApi = {
     if (params.sessionId) {
       payload.session_id = params.sessionId
     }
+    if (params.skipAnswer) {
+      payload.skip_answer = true
+    }
     return streamSSE('/api/v1/search/stream', payload, callbacks)
   },
 

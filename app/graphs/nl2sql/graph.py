@@ -226,6 +226,7 @@ class NL2SQLGraph:
             session_id=session_id,
             max_turns=max_turns,
             tenant_id=inputs.get("tenant_id"),
+            skip_answer=inputs.get("skip_answer"),
         )
 
         # 기존 conversation_history 복원

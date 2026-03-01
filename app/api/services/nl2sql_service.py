@@ -51,7 +51,7 @@ class NL2SQLService:
         # 이력 저장은 HistoryMiddleware에서 처리
         return response
 
-    async def search_stream(self, query: str, session_id: Optional[str] = None, request_id: str = "unknown", tenant_id: Optional[str] = None) -> AsyncGenerator[str, None]:
+    async def search_stream(self, query: str, session_id: Optional[str] = None, request_id: str = "unknown", tenant_id: Optional[str] = None, skip_answer: Optional[bool] = None) -> AsyncGenerator[str, None]:
         """
         NL2SQL SSE 스트리밍 검색
 
@@ -67,14 +67,14 @@ class NL2SQLService:
         log_step(logger, request_id, "SERVICE", "NL2SQL", "START", "NL2SQL SSE 서비스 시작", query=truncate_text(query, 50))
         
         # inputs = {"question": "2024년 입사자 수는?", "session_id": "sess-abc", "request_id": "a1b2c3d4"}
-        inputs = self._prepare_inputs(query, session_id, request_id, tenant_id)
+        inputs = self._prepare_inputs(query, session_id, request_id, tenant_id, skip_answer)
 
         async for event in nl2sql_graph.astream_events(inputs):
             yield event
 
         log_step(logger, request_id, "SERVICE", "NL2SQL", "END", "NL2SQL SSE 서비스 완료")
 
-    def _prepare_inputs(self, query: str, session_id: Optional[str], request_id: str, tenant_id: Optional[str] = None) -> Dict[str, Any]:
+    def _prepare_inputs(self, query: str, session_id: Optional[str], request_id: str, tenant_id: Optional[str] = None, skip_answer: Optional[bool] = None) -> Dict[str, Any]:
         """
         그래프 입력 데이터 구성
 
@@ -83,6 +83,7 @@ class NL2SQLService:
             session_id: 세션 ID
             request_id: 요청 추적 ID
             tenant_id: 테넌트 ID (Phase 3)
+            skip_answer: LLM 답변 생성 스킵 여부
 
         Returns:
             Dict: 그래프 입력 데이터
@@ -92,6 +93,7 @@ class NL2SQLService:
             "session_id": session_id,
             "request_id": request_id,
             "tenant_id": tenant_id,
+            "skip_answer": skip_answer,
         }
 
     # =========================================================================

@@ -891,9 +891,11 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["answer"] = "조회된 결과가 없습니다."
         return state
 
-    # 설정 체크: LLM 답변 생성 스킵
-    settings_config = _get_settings_config()
-    skip_answer = settings_config.get_value("nl2sql", "skip_answer_generation", False)
+    # 설정 체크: LLM 답변 생성 스킵 (요청 파라미터 > DB 설정 > 기본값)
+    skip_answer = state.get("skip_answer")
+    if skip_answer is None:
+        settings_config = _get_settings_config()
+        skip_answer = settings_config.get_value("nl2sql", "skip_answer_generation", False)
 
     if skip_answer:
         log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "LLM 스킵 - SQL 결과만 반환", row_count=result.row_count)

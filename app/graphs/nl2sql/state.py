@@ -60,6 +60,9 @@ class NL2SQLState(TypedDict):
     # ===== 테넌트 격리 (Phase 3) =====
     tenant_id: Optional[str]             # 테넌트 ID (설정값 조회용)
 
+    # ===== 답변 생성 스킵 =====
+    skip_answer: Optional[bool]          # True면 generate_answer_node에서 LLM 호출 스킵
+
 
 def create_initial_state(
     question: str,
@@ -68,6 +71,7 @@ def create_initial_state(
     session_id: str = "",
     max_turns: int = 5,
     tenant_id: Optional[str] = None,
+    skip_answer: Optional[bool] = None,
 ) -> NL2SQLState:
     """
     초기 상태 생성
@@ -130,4 +134,7 @@ def create_initial_state(
 
         # 테넌트 격리 (Phase 3)
         tenant_id=tenant_id,
+
+        # 답변 생성 스킵
+        skip_answer=skip_answer,
     )

@@ -309,8 +309,9 @@ const hasResult = computed(() => resultColumns.value.length > 0)
 // 다이얼로그 열릴 때 세션 목록 로드 + 기본 대시보드 선택
 watch(visible, async (val) => {
   if (val) {
+    const currentId = store.state.dashboard.currentDashboardId
     const defaultDb = dashboardOptions.value.find(d => d.is_default)
-    selectedDashboardId.value = defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
+    selectedDashboardId.value = currentId || defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
     await loadSessions()
   }
 })
@@ -388,7 +389,7 @@ const handleDirectQuery = () => {
   clearResult()
 
   streamController = searchApi.searchStream(
-    { query: directQuery.value, mode: 'nl2sql' },
+    { query: directQuery.value, mode: 'nl2sql', skipAnswer: true },
     {
       onNodeStart: (event) => {
         if (event.label) {

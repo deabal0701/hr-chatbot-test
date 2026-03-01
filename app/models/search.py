@@ -28,6 +28,7 @@ class SearchRequest(BaseModel):
     mode: str = Field(default="auto", description="검색 모드 (auto/rag/nl2sql)")
     filters: Optional[SearchFilters] = Field(default_factory=SearchFilters)
     session_id: Optional[str] = Field(None, description="세션 ID (멀티턴 대화용, 없으면 자동 생성)")
+    skip_answer: Optional[bool] = Field(default=None, description="LLM 답변 생성 스킵 (SQL 결과만 반환)")
 
     model_config = {
         "json_schema_extra": {
