@@ -15,7 +15,7 @@
             </svg>
           </div>
           <h3>MUREUM에 오신 것을 환영합니다</h3>
-          <p>문서 기반 질문을 자유롭게 해주세요.</p>
+          <p>{{ welcomeDescription }}</p>
           <div class="example-queries">
             <p class="example-title">예시 질문:</p>
             <el-button
@@ -237,6 +237,13 @@ const agentExampleQueries = [
   '2024년 신규 입사자 명단과 온보딩 절차를 알려줘',
   '자격증 보유 현황과 자격증 취득 지원 제도는?'
 ]
+
+// 검색 모드별 환영 메시지 설명
+const welcomeDescription = computed(() => {
+  if (searchMode.value === 'nl2sql') return '데이터베이스 기반 질문을 자유롭게 해주세요.'
+  if (searchMode.value === 'agent') return 'AI Agent에게 복합 질문을 자유롭게 해주세요.'
+  return '문서 기반 질문을 자유롭게 해주세요.'
+})
 
 // 검색 모드별 입력 플레이스홀더
 const modePlaceholder = computed(() => {
