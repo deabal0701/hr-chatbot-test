@@ -839,7 +839,7 @@ onMounted(async () => {
   }
 
   :deep(.row-disabled) {
-    background-color: var(--el-fill-color-lighter, rgba(0, 0, 0, 0.06)) !important;
+    background-color: var(--el-fill-color-lighter) !important;
   }
 }
 </style>

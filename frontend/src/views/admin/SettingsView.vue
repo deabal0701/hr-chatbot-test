@@ -2198,7 +2198,7 @@ onMounted(async () => {
     .section-desc {
       margin: -10px 0 20px;
       font-size: 14px;
-      color: #606266;
+      color: var(--text-color-secondary);
     }
   }
 
@@ -2312,11 +2312,11 @@ onMounted(async () => {
     font-size: 13px;
 
     &.success {
-      color: #67c23a;
+      color: var(--color-success);
     }
 
     &.error {
-      color: #f56c6c;
+      color: var(--color-danger);
     }
   }
 
@@ -2361,12 +2361,12 @@ onMounted(async () => {
 
   // 연결 상태 표시
   .text-success {
-    color: #67c23a;
+    color: var(--color-success);
     font-size: 14px;
   }
 
   .text-error {
-    color: #f56c6c;
+    color: var(--color-danger);
     font-size: 14px;
   }
 
@@ -2377,7 +2377,7 @@ onMounted(async () => {
     gap: 4px;
 
     .el-icon {
-      color: #e6a23c;
+      color: var(--color-warning);
     }
   }
 
@@ -2398,7 +2398,7 @@ onMounted(async () => {
       margin-bottom: 4px;
 
       .el-icon {
-        color: #e6a23c;
+        color: var(--color-warning);
         flex-shrink: 0;
       }
     }
@@ -2456,7 +2456,7 @@ onMounted(async () => {
     max-height: 500px;
     overflow-y: auto;
     padding: 16px;
-    background-color: #f5f7fa;
+    background-color: var(--bg-color-code);
     border-radius: 4px;
 
     pre {
@@ -2469,18 +2469,18 @@ onMounted(async () => {
     }
   }
 
-  // PII 패턴 정보 스타일 (다크모드)
+  // PII 패턴 정보 스타일
   .pii-patterns-info {
-    background-color: #1a1a2e;
+    background-color: var(--bg-color-code);
     border-radius: 6px;
     padding: 12px 16px;
     margin-top: 8px;
-    border: 1px solid #2a2a3e;
+    border: 1px solid var(--border-color-light);
 
     .pii-patterns-title {
       font-size: 12px;
       font-weight: 600;
-      color: #a0a0b0;
+      color: var(--text-color-secondary);
       margin-bottom: 8px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -2494,11 +2494,11 @@ onMounted(async () => {
 
     .pii-pattern-item {
       font-size: 13px;
-      color: #c0c0d0;
+      color: var(--text-color-regular);
 
       code {
-        background-color: #2a2a3e;
-        color: #7ec8e3;
+        background-color: var(--bg-color-hover);
+        color: var(--color-primary);
         padding: 1px 6px;
         border-radius: 3px;
         font-family: 'Consolas', 'Monaco', 'Courier New', monospace;

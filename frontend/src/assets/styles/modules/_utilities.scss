@@ -2,13 +2,6 @@
 // 유틸리티 클래스 (레이아웃, 텍스트, 간격)
 // =============================================
 
-// SCSS 변수 (레거시 호환용)
-$primary-color: #409eff;
-$success-color: #67c23a;
-$warning-color: #e6a23c;
-$danger-color: #f56c6c;
-$info-color: #909399;
-
 // 레이아웃 유틸리티
 .flex {
   display: flex;
@@ -36,23 +29,23 @@ $info-color: #909399;
 }
 
 .text-primary {
-  color: $primary-color;
+  color: var(--color-primary);
 }
 
 .text-success {
-  color: $success-color;
+  color: var(--color-success);
 }
 
 .text-warning {
-  color: $warning-color;
+  color: var(--color-warning);
 }
 
 .text-danger {
-  color: $danger-color;
+  color: var(--color-danger);
 }
 
 .text-muted {
-  color: $info-color;
+  color: var(--text-color-secondary);
 }
 
 // 마진/패딩 유틸리티

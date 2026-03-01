@@ -54,31 +54,31 @@
       <h3 class="card-title">빠른 시작</h3>
       <div class="quick-actions">
         <router-link to="/admin/chat" class="action-item">
-          <el-icon :size="32" color="#409eff"><ChatDotRound /></el-icon>
+          <el-icon :size="32" class="icon-primary"><ChatDotRound /></el-icon>
           <span>자연어 검색</span>
           <p>AI 기반 문서 검색, 데이터 조회</p>
         </router-link>
 
         <router-link to="/admin/documents" class="action-item">
-          <el-icon :size="32" color="#67c23a"><FolderAdd /></el-icon>
+          <el-icon :size="32" class="icon-success"><FolderAdd /></el-icon>
           <span>문서 등록</span>
           <p>새로운 지식 문서 추가</p>
         </router-link>
 
         <div class="action-item" @click="goTo('/admin/documents?indexed=false')">
-          <el-icon :size="32" color="#e6a23c"><Upload /></el-icon>
+          <el-icon :size="32" class="icon-warning"><Upload /></el-icon>
           <span>임베딩 실행</span>
           <p>대기 중인 문서 처리</p>
         </div>
 
         <router-link to="/admin/users" class="action-item">
-          <el-icon :size="32" color="#409eff"><UserFilled /></el-icon>
+          <el-icon :size="32" class="icon-primary"><UserFilled /></el-icon>
           <span>사용자 관리</span>
           <p>사용자 생성/수정</p>
         </router-link>
 
         <router-link to="/admin/settings" class="action-item">
-          <el-icon :size="32" color="#909399"><Setting /></el-icon>
+          <el-icon :size="32" class="icon-info"><Setting /></el-icon>
           <span>설정 관리</span>
           <p>시스템 설정</p>
         </router-link>
@@ -229,6 +229,11 @@ onBeforeUnmount(() => {
     font-weight: 500;
     color: var(--text-color-primary);
   }
+
+  .icon-primary { color: var(--color-primary); }
+  .icon-success { color: var(--color-success); }
+  .icon-warning { color: var(--color-warning); }
+  .icon-info { color: var(--color-info); }
 
   .quick-actions {
     display: flex;

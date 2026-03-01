@@ -342,7 +342,7 @@ watch(messages, async () => {
     justify-content: center;
     margin: 0 auto 28px;
     color: var(--icon-color, #ffffff);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--box-shadow);
     transform: rotate(-5deg);
   }
 
@@ -399,7 +399,7 @@ watch(messages, async () => {
     transform: translateX(0);
 
     .chat-sidebar {
-      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--box-shadow);
     }
 
     .sidebar-trigger .trigger-arrow {

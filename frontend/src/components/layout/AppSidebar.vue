@@ -147,10 +147,11 @@ const sidebarMenuItems = computed(() => {
   })
 })
 
-// 다크모드에 따른 메뉴 색상 (_variables.scss 와 동기화)
-const menuBgColor = computed(() => isDarkMode.value ? '#1f1f1f' : '#304156')
-const menuTextColor = computed(() => isDarkMode.value ? '#a3a3a3' : '#bfcbd9')
-const menuActiveColor = '#409eff'
+// 다크모드에 따른 메뉴 색상 (_variables.scss CSS 변수에서 읽기)
+const getVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+const menuBgColor = computed(() => getVar('--sidebar-bg') || (isDarkMode.value ? '#1f1f1f' : '#304156'))
+const menuTextColor = computed(() => getVar('--sidebar-text') || (isDarkMode.value ? '#a3a3a3' : '#bfcbd9'))
+const menuActiveColor = computed(() => getVar('--sidebar-active-text') || '#409eff')
 </script>
 
 <style lang="scss" scoped>

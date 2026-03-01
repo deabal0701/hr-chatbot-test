@@ -163,40 +163,40 @@
         <el-table-column label="조회" width="60" align="center">
           <template #default="{ row }">
             <span v-if="row.is_directory" class="dir-placeholder">—</span>
-            <el-icon v-else-if="row.can_read" color="#67c23a"><Check /></el-icon>
-            <el-icon v-else color="#dcdfe6"><Close /></el-icon>
+            <el-icon v-else-if="row.can_read" class="perm-check"><Check /></el-icon>
+            <el-icon v-else class="perm-close"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="생성" width="60" align="center">
           <template #default="{ row }">
             <span v-if="row.is_directory" class="dir-placeholder">—</span>
-            <el-icon v-else-if="row.can_create" color="#67c23a"><Check /></el-icon>
-            <el-icon v-else color="#dcdfe6"><Close /></el-icon>
+            <el-icon v-else-if="row.can_create" class="perm-check"><Check /></el-icon>
+            <el-icon v-else class="perm-close"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="수정" width="60" align="center">
           <template #default="{ row }">
             <span v-if="row.is_directory" class="dir-placeholder">—</span>
-            <el-icon v-else-if="row.can_update" color="#67c23a"><Check /></el-icon>
-            <el-icon v-else color="#dcdfe6"><Close /></el-icon>
+            <el-icon v-else-if="row.can_update" class="perm-check"><Check /></el-icon>
+            <el-icon v-else class="perm-close"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="삭제" width="60" align="center">
           <template #default="{ row }">
             <span v-if="row.is_directory" class="dir-placeholder">—</span>
-            <el-icon v-else-if="row.can_delete" color="#67c23a"><Check /></el-icon>
-            <el-icon v-else color="#dcdfe6"><Close /></el-icon>
+            <el-icon v-else-if="row.can_delete" class="perm-check"><Check /></el-icon>
+            <el-icon v-else class="perm-close"><Close /></el-icon>
           </template>
         </el-table-column>
 
         <el-table-column label="내보내기" width="80" align="center">
           <template #default="{ row }">
             <span v-if="row.is_directory" class="dir-placeholder">—</span>
-            <el-icon v-else-if="row.can_export" color="#67c23a"><Check /></el-icon>
-            <el-icon v-else color="#dcdfe6"><Close /></el-icon>
+            <el-icon v-else-if="row.can_export" class="perm-check"><Check /></el-icon>
+            <el-icon v-else class="perm-close"><Close /></el-icon>
           </template>
         </el-table-column>
       </el-table>
@@ -410,6 +410,14 @@ onMounted(() => {
     margin: 0 0 12px;
     color: var(--text-color-secondary);
     font-size: 13px;
+  }
+
+  .perm-check {
+    color: var(--color-success);
+  }
+
+  .perm-close {
+    color: var(--text-color-placeholder);
   }
 
   .dir-placeholder {

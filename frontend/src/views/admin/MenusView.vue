@@ -1091,7 +1091,7 @@ onBeforeUnmount(() => {
       color: var(--color-danger);
 
       &:hover {
-        background-color: rgba(245, 108, 108, 0.1);
+        background-color: var(--el-color-danger-light-9, rgba(245, 108, 108, 0.1));
       }
     }
   }

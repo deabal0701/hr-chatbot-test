@@ -486,8 +486,8 @@ const formatJson = (data) => {
       }
 
       &.error-body {
-        background-color: #fef0f0;
-        color: #f56c6c;
+        background-color: var(--el-color-danger-light-9, #fef0f0);
+        color: var(--color-danger);
       }
     }
 
@@ -579,7 +579,7 @@ const formatJson = (data) => {
                   height: 20px;
                   border-radius: 50%;
                   background-color: var(--color-primary);
-                  color: white;
+                  color: #fff;
                   font-size: 12px;
                   font-weight: bold;
                   display: flex;
