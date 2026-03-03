@@ -239,7 +239,7 @@ class PersonalDashboardService:
         """대시보드 위젯 목록 조회 (공유 대시보드 읽기 허용)"""
         db_manager = _get_db_manager()
 
-        # dashboard_id 미지정 시 기본 대시보드 조회 (자동 생성 없음)
+        # dashboard_id 미지정 시 기본 대시보드 조회 할 수 있도록 함(자동 생성 없음)
         if dashboard_id is None:
             with db_manager.get_cursor() as cur:
                 cur.execute("SELECT dashboard_id FROM tb_dashboard WHERE user_id = %s AND is_default = true AND is_active = true", (user_id,))
@@ -602,32 +602,21 @@ class PersonalDashboardService:
     @staticmethod
     def _row_to_dict(row) -> dict:
         """DB row를 딕셔너리로 변환"""
-        if isinstance(row, dict):
-            d = dict(row)
-        else:
-            d = dict(row._asdict()) if hasattr(row, '_asdict') else dict(row)
-
+        d = dict(row)
         for key in ("created_at", "updated_at", "last_refreshed_at"):
-            if key in d and d[key] is not None:
-                if isinstance(d[key], datetime):
-                    d[key] = d[key].isoformat()
+            if key in d and d[key]:
+                d[key] = d[key].isoformat()
 
         return d
-
+    
     @staticmethod
     def _dashboard_row_to_dict(row) -> dict:
         """대시보드 DB row를 딕셔너리로 변환"""
-        if isinstance(row, dict):
-            d = dict(row)
-        else:
-            d = dict(row._asdict()) if hasattr(row, '_asdict') else dict(row)
-
+        d = dict(row)
         for key in ("created_at", "updated_at"):
-            if key in d and d[key] is not None:
-                if isinstance(d[key], datetime):
-                    d[key] = d[key].isoformat()
+            if key in d and d[key]:
+                d[key] = d[key].isoformat()
 
-        # widget_count가 없으면 0으로 설정
         if "widget_count" not in d:
             d["widget_count"] = 0
 

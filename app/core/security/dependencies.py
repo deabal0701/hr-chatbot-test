@@ -23,7 +23,7 @@ from app.models.auth import UserContext
 # "Bearer <token>" 형식 검증
 # token 부분만 분리
 # HTTPAuthorizationCredentials 객체로 감싸 반환
-_bearer_scheme = HTTPBearer(auto_error=True)            # 인증값 없으면 Exception 발생
+_bearer_scheme = HTTPBearer(auto_error=True)            # 인증값 없으면 Exception 발생(헤더에서 토큰을 추출)
 _bearer_scheme_optional = HTTPBearer(auto_error=False)  # 인증값 없어도 None 반환
 
 async def get_current_user(
