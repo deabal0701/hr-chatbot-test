@@ -144,6 +144,7 @@ export default {
           role: 'assistant',
           content: response.answer,
           queryType: response.query_type,
+          originalQuery: query,
           // RAG 전용 필드
           sources: response.sources,
           // 공통 필드
@@ -192,7 +193,8 @@ export default {
         isStreaming: true,
         streamProgress: [],
         currentStep: null,
-        queryType: state.searchMode
+        queryType: state.searchMode,
+        originalQuery: query
       })
 
       const callbacks = {

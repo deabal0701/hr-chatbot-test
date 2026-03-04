@@ -258,47 +258,11 @@
 
         <!-- 메뉴 권한 탭 -->
         <el-tab-pane label="메뉴 권한" name="menus">
-          <div v-if="allMenus.length === 0" class="empty-state">
-            <p>메뉴 정보를 불러오는 중...</p>
-          </div>
-          <el-table v-else :data="allMenus" style="width: 100%" size="small" :row-class-name="menuRowClassName">
-            <el-table-column label="메뉴" min-width="160">
-              <template #default="{ row }">
-                <span :style="{ paddingLeft: (row.depth || 0) * 16 + 'px' }" :class="{ 'text-disabled': !row.assignable }">
-                  {{ row.menu_name }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="조회" width="60" align="center">
-              <template #default="{ row }">
-                <el-checkbox
-                  v-model="menuPermMap[row.menu_id].can_read"
-                  :disabled="!row.assignable"
-                  @change="(val) => handleMenuPermChange(row.menu_id, 'can_read', val)"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column label="등록" width="60" align="center">
-              <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_create" :disabled="!row.assignable" />
-              </template>
-            </el-table-column>
-            <el-table-column label="수정" width="60" align="center">
-              <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_update" :disabled="!row.assignable" />
-              </template>
-            </el-table-column>
-            <el-table-column label="삭제" width="60" align="center">
-              <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_delete" :disabled="!row.assignable" />
-              </template>
-            </el-table-column>
-            <el-table-column label="내보내기" width="80" align="center">
-              <template #default="{ row }">
-                <el-checkbox v-model="menuPermMap[row.menu_id].can_export" :disabled="!row.assignable" />
-              </template>
-            </el-table-column>
-          </el-table>
+          <MenuPermissionTable
+            ref="menuPermTableRef"
+            :menus="allMenus"
+            v-model="menuPermMap"
+          />
         </el-tab-pane>
       </el-tabs>
 
@@ -319,6 +283,7 @@ import { Plus, Refresh, Edit, Delete, Search } from '@element-plus/icons-vue'
 import usersApi from '@/api/users'
 import rolesApi from '@/api/roles'
 import { formatDateTime } from '@/utils/format'
+import MenuPermissionTable from '@/components/user/MenuPermissionTable.vue'
 
 // 상태
 const isLoading = ref(false)
@@ -336,6 +301,7 @@ const searchKeyword = ref('')
 const dialogVisible = ref(false)
 const dialogMode = ref('create')
 const formRef = ref(null)
+const menuPermTableRef = ref(null)
 const currentUserId = ref(null)
 const activeTab = ref('basic')
 
@@ -460,21 +426,6 @@ const initMenuPermMap = () => {
   }
 }
 
-// 할당 불가 메뉴 행 스타일
-const menuRowClassName = ({ row }) => {
-  return row.assignable === false ? 'row-disabled' : ''
-}
-
-// 메뉴 권한 변경 핸들러 (조회 OFF → 나머지도 OFF)
-const handleMenuPermChange = (menuId, field, val) => {
-  if (field === 'can_read' && !val) {
-    menuPermMap[menuId].can_create = false
-    menuPermMap[menuId].can_update = false
-    menuPermMap[menuId].can_delete = false
-    menuPermMap[menuId].can_export = false
-  }
-}
-
 // 역할 변경 시 테넌트 자동 설정 + 기본 메뉴 로드
 const handleRoleChange = async (roleId) => {
   const role = allRoles.value.find(r => r.role_id === roleId)
@@ -515,25 +466,6 @@ const handleRoleChange = async (roleId) => {
   } catch {
     // 기본 메뉴 로드 실패 시 무시
   }
-}
-
-// menuPermMap → menus 배열 변환 (can_read가 true인 것만)
-const buildMenusPayload = () => {
-  const menus = []
-  for (const m of allMenus.value) {
-    const perm = menuPermMap[m.menu_id]
-    if (perm?.can_read) {
-      menus.push({
-        menu_id: m.menu_id,
-        can_create: perm.can_create,
-        can_read: perm.can_read,
-        can_update: perm.can_update,
-        can_delete: perm.can_delete,
-        can_export: perm.can_export
-      })
-    }
-  }
-  return menus
 }
 
 // 사용자 목록 로드
@@ -739,7 +671,7 @@ const handleSubmit = async () => {
 
   isSaving.value = true
   try {
-    const menus = buildMenusPayload()
+    const menus = menuPermTableRef.value?.buildMenusPayload() || []
 
     if (dialogMode.value === 'create') {
       await usersApi.create({
@@ -832,14 +764,6 @@ onMounted(async () => {
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
-  }
-
-  .text-disabled {
-    opacity: 0.4;
-  }
-
-  :deep(.row-disabled) {
-    background-color: var(--el-fill-color-lighter) !important;
   }
 }
 </style>

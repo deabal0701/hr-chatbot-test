@@ -205,7 +205,7 @@
     <SaveToDashboardModal
       v-if="message.sqlResult"
       v-model="showDashboardModal"
-      :query="message.content || ''"
+      :query="message.originalQuery || ''"
       :sql="message.sql || ''"
       :columns="message.sqlResult?.columns || []"
       :rows="message.sqlResult?.rows || []"

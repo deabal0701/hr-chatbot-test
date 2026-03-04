@@ -45,48 +45,14 @@
         </span>
       </div>
 
-      <!-- NL2SQL 결과 (통합 SearchResponse 구조) -->
+      <!-- NL2SQL 결과 -->
       <div v-if="message.sql" class="nl2sql-result">
-        <el-collapse>
-          <el-collapse-item title="실행된 SQL 쿼리" name="sql">
-            <pre class="sql-code">{{ message.sql }}</pre>
-          </el-collapse-item>
-          <el-collapse-item v-if="message.sqlResult" title="조회 결과" name="result">
-            <div class="result-summary">
-              총 {{ message.sqlResult.row_count }}개 행 조회됨
-            </div>
-            <el-table
-              v-if="message.sqlResult.rows.length > 0"
-              :data="message.sqlResult.rows.slice(0, 1000)"
-              size="small"
-              border
-              max-height="500"
-            >
-              <el-table-column
-                v-for="col in message.sqlResult.columns"
-                :key="col"
-                :prop="col"
-                :label="col"
-                min-width="100"
-              />
-            </el-table>
-            <div v-if="message.sqlResult.row_count > 1000" class="more-rows">
-              ... 외 {{ message.sqlResult.row_count - 1000 }}개 행
-            </div>
-            <!-- 차트 생성 -->
-            <ChartBuilder
-              ref="chartBuilderRef"
-              v-if="message.sqlResult.rows.length > 0"
-              :columns="message.sqlResult.columns"
-              :rows="message.sqlResult.rows"
-            />
-            <div class="export-bar">
-              <el-button size="small" :icon="Download" :loading="exporting" @click="exportToExcel">
-                Excel 다운로드
-              </el-button>
-            </div>
-          </el-collapse-item>
-        </el-collapse>
+        <SqlResultPanel
+          :sql="message.sql"
+          :sql-result="message.sqlResult"
+          :show-export="true"
+          :query="message.originalQuery || ''"
+        />
       </div>
 
       <!-- RAG 출처 (통합 SearchResponse 구조) -->
@@ -139,46 +105,10 @@
                   </div>
 
                   <div v-if="step.sql_result" class="step-sql-result">
-                    <el-collapse>
-                      <el-collapse-item title="SQL 쿼리 및 결과 보기" name="sql">
-                        <div class="sql-section">
-                          <div class="sql-label">실행된 SQL:</div>
-                          <pre class="sql-code">{{ step.sql_result.sql }}</pre>
-                        </div>
-                        <div v-if="step.sql_result.rows?.length > 0" class="result-section">
-                          <div class="result-summary">
-                            총 {{ step.sql_result.row_count }}개 행 조회됨
-                            <span v-if="step.sql_result.execution_time_ms">
-                              ({{ step.sql_result.execution_time_ms }}ms)
-                            </span>
-                          </div>
-                          <el-table
-                            :data="step.sql_result.rows.slice(0, 1000)"
-                            size="small"
-                            border
-                            max-height="500"
-                          >
-                            <el-table-column
-                              v-for="col in step.sql_result.columns"
-                              :key="col"
-                              :prop="col"
-                              :label="col"
-                              min-width="100"
-                            />
-                          </el-table>
-                          <div v-if="step.sql_result.row_count > 1000" class="more-rows">
-                            ... 외 {{ step.sql_result.row_count - 1000 }}개 행
-                          </div>
-                          <ChartBuilder
-                            :columns="step.sql_result.columns"
-                            :rows="step.sql_result.rows"
-                          />
-                        </div>
-                        <div v-else class="no-results">
-                          조회 결과가 없습니다.
-                        </div>
-                      </el-collapse-item>
-                    </el-collapse>
+                    <SqlResultPanel
+                      :sql="step.sql_result.sql"
+                      :sql-result="step.sql_result"
+                    />
                   </div>
                 </div>
               </div>
@@ -197,11 +127,9 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Document, Download } from '@element-plus/icons-vue'
+import { Document } from '@element-plus/icons-vue'
 import SourceCard from './SourceCard.vue'
-import ChartBuilder from '../chart/ChartBuilder.vue'
-import searchApi from '@/api/search'
-import { ElMessage } from 'element-plus'
+import SqlResultPanel from './SqlResultPanel.vue'
 import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
 const props = defineProps({
@@ -261,39 +189,6 @@ const turnInfo = computed(() => {
   }
   return null
 })
-
-const chartBuilderRef = ref(null)
-const exporting = ref(false)
-
-// Excel 내보내기
-const exportToExcel = async () => {
-  exporting.value = true
-  try {
-    const msg = props.message
-    const cb = chartBuilderRef.value
-    const includeChart = cb?.chartGenerated || false
-    await searchApi.exportExcel({
-      columns: msg.sqlResult.columns,
-      rows: msg.sqlResult.rows,
-      question: msg.content || '',
-      sql: msg.sql || '',
-      answer: msg.content || '',
-      execution_time_ms: msg.sqlResult.execution_time_ms || 0,
-      include_chart: includeChart,
-      chart_config: includeChart ? {
-        chart_type: cb.chartType,
-        x_column: cb.xAxisColumn,
-        y_columns: cb.yAxisColumns,
-        pie_top_n: cb.pieTopN
-      } : null
-    })
-    ElMessage.success('Excel 파일이 다운로드되었습니다.')
-  } catch {
-    ElMessage.error('Excel 다운로드에 실패했습니다.')
-  } finally {
-    exporting.value = false
-  }
-}
 
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
@@ -399,37 +294,6 @@ const formatTime = (timestamp) => {
 
 .nl2sql-result {
   margin-top: 12px;
-
-  .sql-code {
-    background-color: var(--bg-color-code);
-    padding: 12px;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    overflow-x: auto;
-    margin: 0;
-    color: var(--text-color-primary);
-    transition: var(--theme-transition);
-  }
-
-  .result-summary {
-    margin-bottom: 8px;
-    font-size: 12px;
-    color: var(--text-color-secondary);
-  }
-
-  .more-rows {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--text-color-secondary);
-    text-align: center;
-  }
-
-  .export-bar {
-    margin-top: 12px;
-    display: flex;
-    justify-content: flex-end;
-  }
 }
 
 .rag-sources {
@@ -514,51 +378,6 @@ const formatTime = (timestamp) => {
 
       .step-sql-result {
         margin-top: 12px;
-
-        .sql-section {
-          margin-bottom: 12px;
-
-          .sql-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-color-regular);
-            margin-bottom: 4px;
-          }
-
-          .sql-code {
-            background-color: var(--bg-color-code);
-            padding: 12px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            overflow-x: auto;
-            margin: 0;
-            color: var(--text-color-primary);
-            transition: var(--theme-transition);
-          }
-        }
-
-        .result-section {
-          .result-summary {
-            margin-bottom: 8px;
-            font-size: 12px;
-            color: var(--text-color-secondary);
-          }
-
-          .more-rows {
-            margin-top: 8px;
-            font-size: 12px;
-            color: var(--text-color-secondary);
-            text-align: center;
-          }
-        }
-
-        .no-results {
-          font-size: 12px;
-          color: var(--text-color-placeholder);
-          text-align: center;
-          padding: 12px;
-        }
       }
     }
   }
