@@ -4,8 +4,8 @@
       <!-- 로고 + 타이틀 -->
       <div class="login-header">
         <el-icon :size="48" color="#409eff"><ChatDotRound /></el-icon>
-        <h1 class="login-title">MUREUM</h1>
-        <p class="login-subtitle">AI 지식 도우미</p>
+        <h1 class="login-title">{{ appTitle }}</h1>
+        <p class="login-subtitle">AI 통합 검색 어시스턴트</p>
       </div>
 
       <!-- 로그인 폼 -->
@@ -65,7 +65,7 @@
 
     <!-- 하단 정보 -->
     <div class="login-footer">
-      <span>MUREUM v1.0.0</span>
+      <span>{{ appTitle }} v2.0.0</span>
     </div>
   </div>
 </template>
@@ -76,6 +76,7 @@ import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { ChatDotRound, User, Lock } from '@element-plus/icons-vue'
 
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const store = useStore()
 const router = useRouter()
 const route = useRoute()

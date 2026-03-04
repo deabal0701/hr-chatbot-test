@@ -10,7 +10,7 @@
               <polyline points="16 5 12 9 8 5"></polyline>
             </svg>
           </div>
-          <h1 class="logo-text">MUREUM</h1>
+          <h1 class="logo-text">{{ appTitle }}</h1>
         </div>
       </div>
       <div class="header-right">
@@ -198,6 +198,8 @@ import { useRouter } from 'vue-router'
 import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, QuestionFilled } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
+
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 
 // Props
 defineProps({

@@ -4,7 +4,7 @@
     <div class="page-header">
       <div>
         <h2>대시보드</h2>
-        <p class="subtitle">MUREUM AI 지식기반 관리 현황</p>
+        <p class="subtitle">{{ appTitle }} AI 지식기반 관리 현황</p>
       </div>
       <div class="header-actions">
         <el-button-group>
@@ -106,6 +106,7 @@ import RequestTypeChart from '@/components/dashboard/RequestTypeChart.vue'
 import RecentActivity from '@/components/dashboard/RecentActivity.vue'
 import SystemStatus from '@/components/dashboard/SystemStatus.vue'
 
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const router = useRouter()
 
 const isLoading = ref(false)

@@ -10,7 +10,7 @@
           <path d="M16 10h.01"></path>
         </svg>
       </div>
-      <span v-if="!isCollapsed" class="logo-text">MUREUM</span>
+      <span v-if="!isCollapsed" class="logo-text">{{ appTitle }}</span>
     </div>
 
     <!-- 메뉴 (v2.2 — 트리 기반 계층 구조: 최상위 DIRECTORY 펼침 + 중간 DIRECTORY → sub-menu) -->
@@ -66,6 +66,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const route = useRoute()
 const store = useStore()
 

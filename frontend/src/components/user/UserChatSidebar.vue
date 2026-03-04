@@ -10,7 +10,7 @@
             <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <span class="logo-text">MUREUM</span>
+        <span class="logo-text">{{ appTitle }}</span>
       </div>
       <!-- Desktop collapse button -->
       <button v-if="!isMobile" class="collapse-btn" @click="$emit('toggle')" title="사이드바 접기">
@@ -165,6 +165,8 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
+
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 
 const props = defineProps({
   isMobile: {

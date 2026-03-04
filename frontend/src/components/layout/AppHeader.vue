@@ -110,7 +110,7 @@ const roleName = computed(() => {
 })
 
 const pageTitle = computed(() => {
-  return route.meta.title || 'MUREUM'
+  return route.meta.title || import.meta.env.VITE_APP_TITLE || 'MUREUM'
 })
 
 
@@ -245,6 +245,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+
+  :deep(.el-tag__content) {
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .user-info {

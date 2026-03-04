@@ -15,7 +15,7 @@ const routes = [
     meta: { title: '로그인', public: true }
   },
 
-  // 일반 사용자 채팅 (메인 페이지) - ChatGPT 스타일 레이아웃
+  // 일반 사용자 채팅 (메인 페이지)
   {
     path: '/chat',
     name: 'UserChat',
@@ -152,7 +152,7 @@ router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} - ${appTitle}` : appTitle
 })
 
-// 인증 라우터 가드 (v2.0 메뉴 기반)
+// 인증 라우터 가드
 router.beforeEach((to, from, next) => {
   const isAuthenticated = store.getters['auth/isAuthenticated']
 

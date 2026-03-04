@@ -60,7 +60,7 @@
         <button class="sidebar-toggle-btn" @click="toggleSidebar">
           <el-icon :size="20"><Menu /></el-icon>
         </button>
-        <h1 class="logo-text">MUREUM</h1>
+        <h1 class="logo-text">{{ appTitle }}</h1>
         <div class="header-actions-mobile">
           <!-- [임시 비활성화] 테마 토글 - 이 코드를 삭제하지 마시오. 추후 복구 예정입니다.
           <button class="action-btn-icon" @click="toggleDarkMode" :title="isDarkMode ? '라이트 모드' : '다크 모드'">
@@ -98,6 +98,7 @@ import { ElMessage } from 'element-plus'
 import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
 import UserChatView from '@/views/user/UserChatView.vue'
 
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const store = useStore()
 const router = useRouter()
 
@@ -171,7 +172,7 @@ const handleSave = () => {
   const dateStr = now.toLocaleDateString('ko-KR')
   const timeStr = now.toLocaleTimeString('ko-KR')
 
-  let markdown = `# MUREUM 대화 기록\n\n`
+  let markdown = `# ${appTitle} 대화 기록\n\n`
   markdown += `- 저장 일시: ${dateStr} ${timeStr}\n`
   markdown += `- 메시지 수: ${messages.length}개\n\n---\n\n`
 

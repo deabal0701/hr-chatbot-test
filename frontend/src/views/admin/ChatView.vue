@@ -14,7 +14,7 @@
               <path d="M16 10h.01"></path>
             </svg>
           </div>
-          <h3>MUREUM에 오신 것을 환영합니다</h3>
+          <h3>{{ appTitle }}에 오신 것을 환영합니다</h3>
           <p>{{ welcomeDescription }}</p>
           <div class="example-queries">
             <p class="example-title">예시 질문:</p>
@@ -167,6 +167,7 @@ import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 
+const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const store = useStore()
 const messagesContainer = ref(null)
 const showGuideModal = ref(false)
