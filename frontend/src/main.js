@@ -32,6 +32,7 @@ app.component('grid-item', GridItem)
 store.dispatch('app/initTheme')
 
 // 저장된 토큰이 있으면 /me 호출하여 최신 사용자 정보(menus) 갱신
+// APP을 마운트 하기 전에 인증체크를 먼저 수행하여, 인증이 필요한 라우트 접근 시 로그인 페이지로 리다이렉트 되도록 함
 store.dispatch('auth/initAuth').finally(() => {
   app.mount('#app')
 })

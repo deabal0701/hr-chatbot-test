@@ -1,7 +1,7 @@
 # MUREUM Frontend Dockerfile
 # Multi-stage build for optimized production image
 
-FROM node:20.18-alpine AS builder
+FROM node:24.14-alpine AS builder
 
 # Build argument to select environment file
 ARG ENV_FILE=.env.docker
