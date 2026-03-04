@@ -11,6 +11,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { getThemeColor } from '@/composables/useChartOptions'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -57,8 +58,8 @@ const chartOption = computed(() => {
           label: { show: true, fontSize: 14, fontWeight: 'bold' },
         },
         data: [
-          { value: props.kpi.nl2sql_count || 0, name: 'NL2SQL', itemStyle: { color: '#67c23a' } },
-          { value: props.kpi.rag_count || 0, name: 'RAG', itemStyle: { color: '#e6a23c' } },
+          { value: props.kpi.nl2sql_count || 0, name: 'NL2SQL', itemStyle: { color: getThemeColor('--color-success') } },
+          { value: props.kpi.rag_count || 0, name: 'RAG', itemStyle: { color: getThemeColor('--color-warning') } },
         ],
         // 도넛 중앙 텍스트 (graphic으로 대체)
       },
@@ -72,7 +73,7 @@ const chartOption = computed(() => {
           text: total.toLocaleString(),
           fontSize: 22,
           fontWeight: 'bold',
-          fill: 'var(--text-color-primary, #303133)',
+          fill: getThemeColor('--text-color-primary'),
           textAlign: 'center',
         },
       },
@@ -83,7 +84,7 @@ const chartOption = computed(() => {
         style: {
           text: '총 요청',
           fontSize: 12,
-          fill: 'var(--text-color-secondary, #909399)',
+          fill: getThemeColor('--text-color-secondary'),
           textAlign: 'center',
         },
       },

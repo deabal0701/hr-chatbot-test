@@ -16,7 +16,7 @@
         </el-tag>
         <span class="activity-question">{{ item.question }}</span>
         <span class="activity-meta">
-          <el-icon v-if="!item.success" color="#f56c6c"><CircleCloseFilled /></el-icon>
+          <el-icon v-if="!item.success" color="var(--color-danger)"><CircleCloseFilled /></el-icon>
           <span class="activity-time-ms">{{ formatResponseTime(item.response_time_ms) }}</span>
         </span>
       </li>

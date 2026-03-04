@@ -11,6 +11,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { getThemeColor } from '@/composables/useChartOptions'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -74,7 +75,7 @@ const chartOption = computed(() => {
         type: 'bar',
         stack: 'total',
         data: props.data.map(d => d.nl2sql),
-        itemStyle: { color: '#67c23a' },
+        itemStyle: { color: getThemeColor('--color-success') },
         barMaxWidth: 40,
       },
       {
@@ -82,7 +83,7 @@ const chartOption = computed(() => {
         type: 'bar',
         stack: 'total',
         data: props.data.map(d => d.rag),
-        itemStyle: { color: '#e6a23c' },
+        itemStyle: { color: getThemeColor('--color-warning') },
         barMaxWidth: 40,
       },
     ],

@@ -4,7 +4,7 @@
     <el-col :xs="12" :sm="12" :lg="6">
       <div class="stat-card">
         <div class="stat-icon is-primary">
-          <el-icon :size="24" color="#409eff"><DataAnalysis /></el-icon>
+          <el-icon :size="24" color="var(--color-primary)"><DataAnalysis /></el-icon>
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ formatNumber(kpi.total_requests) }}</div>
@@ -20,7 +20,7 @@
     <el-col :xs="12" :sm="12" :lg="6">
       <div class="stat-card">
         <div class="stat-icon is-success">
-          <el-icon :size="24" color="#67c23a"><CircleCheck /></el-icon>
+          <el-icon :size="24" color="var(--color-success)"><CircleCheck /></el-icon>
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ kpi.success_rate }}%</div>
@@ -36,7 +36,7 @@
     <el-col :xs="12" :sm="12" :lg="6">
       <div class="stat-card">
         <div class="stat-icon is-warning">
-          <el-icon :size="24" color="#e6a23c"><User /></el-icon>
+          <el-icon :size="24" color="var(--color-warning)"><User /></el-icon>
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ formatNumber(system.active_users) }}</div>
@@ -50,7 +50,7 @@
     <el-col :xs="12" :sm="12" :lg="6">
       <div class="stat-card">
         <div class="stat-icon is-info">
-          <el-icon :size="24" color="#909399"><Document /></el-icon>
+          <el-icon :size="24" color="var(--color-info)"><Document /></el-icon>
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ formatNumber(system.total_documents) }}</div>

@@ -157,7 +157,7 @@ const copyContent = async () => {
 
   .similarity-score {
     font-size: 12px;
-    color: #67c23a;
+    color: var(--color-success);
     font-weight: 500;
   }
 }
@@ -178,16 +178,16 @@ const copyContent = async () => {
   .score-rrf-label {
     font-size: 11px;
     font-weight: 500;
-    color: #e6a23c;
+    color: var(--color-warning);
   }
 
   .score-vector {
-    color: #67c23a;
+    color: var(--color-success);
     background-color: rgba(103, 194, 58, 0.1);
   }
 
   .score-keyword {
-    color: #409eff;
+    color: var(--color-primary);
     background-color: rgba(64, 158, 255, 0.1);
   }
 }
@@ -207,19 +207,19 @@ const copyContent = async () => {
 
     .similarity {
       font-size: 14px;
-      color: #67c23a;
+      color: var(--color-success);
     }
 
     .similarity-rrf {
-      color: #e6a23c;
+      color: var(--color-warning);
     }
 
     .similarity-vector {
-      color: #67c23a;
+      color: var(--color-success);
     }
 
     .similarity-keyword {
-      color: #409eff;
+      color: var(--color-primary);
     }
   }
 
@@ -244,7 +244,7 @@ const copyContent = async () => {
       }
 
       &.copied {
-        color: #67c23a;
+        color: var(--color-success);
       }
     }
 
