@@ -43,7 +43,12 @@ def _get_external_db_manager():
 
 
 class SQLExecutionError(Exception):
-    """SQL 실행 오류"""
+    """SQL 실행 오류 (쿼리 구문/실행 오류)"""
+    pass
+
+
+class SQLConnectionError(Exception):
+    """SQL 연결 오류 (DB 접속 실패)"""
     pass
 
 
@@ -361,6 +366,10 @@ class SQLExecutorService:
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
             logger.error(f"SQL 실행 실패: {e}, sql={sql}")
+            # 연결 오류와 쿼리 오류 구분
+            error_type = type(e).__name__
+            if error_type in ("OperationalError", "InterfaceError", "ConnectionError", "PoolTimeout"):
+                raise SQLConnectionError(f"데이터베이스 연결 오류: {str(e)}")
             raise SQLExecutionError(f"SQL 실행 오류: {str(e)}")
 
 

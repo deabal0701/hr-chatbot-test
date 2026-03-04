@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.services.personal_dashboard_service import personal_dashboard_service
-from app.core.database.sql_executor import SQLValidationError, SQLExecutionError
+from app.core.database.sql_executor import SQLValidationError, SQLExecutionError, SQLConnectionError
 from app.core.errors.handlers import APIException
 from app.core.errors.error_codes import ErrorCode
 from app.core.errors.response import success_response
@@ -244,8 +244,10 @@ async def refresh_widget(
         raise APIException(error_code=ErrorCode.VALIDATION_ERROR, detail=str(e))
     except SQLValidationError as e:
         raise APIException(error_code=ErrorCode.VALIDATION_ERROR, detail=str(e))
-    except SQLExecutionError as e:
+    except SQLConnectionError as e:
         raise APIException(error_code=ErrorCode.DATABASE_ERROR, detail=str(e))
+    except SQLExecutionError as e:
+        raise APIException(error_code=ErrorCode.SQL_EXECUTION_FAILED, detail=str(e))
     except Exception as e:
         logger.error(f"[DASHBOARD] 위젯 새로고침 실패: widget_id={widget_id}, error={e}", exc_info=True)
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))
@@ -262,8 +264,10 @@ async def execute_sql(
         return success_response(result)
     except SQLValidationError as e:
         raise APIException(error_code=ErrorCode.VALIDATION_ERROR, detail=str(e))
-    except SQLExecutionError as e:
+    except SQLConnectionError as e:
         raise APIException(error_code=ErrorCode.DATABASE_ERROR, detail=str(e))
+    except SQLExecutionError as e:
+        raise APIException(error_code=ErrorCode.SQL_EXECUTION_FAILED, detail=str(e))
     except Exception as e:
         logger.error(f"[DASHBOARD] SQL 실행 실패: user_id={current_user.user_id}, error={e}", exc_info=True)
         raise APIException(error_code=ErrorCode.INTERNAL_ERROR, detail=str(e))

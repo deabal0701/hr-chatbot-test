@@ -307,7 +307,7 @@ const handleExecuteSql = async () => {
 
     ElMessage.success(`실행 완료: ${result.row_count}행 (${result.execution_time_ms}ms)`)
   } catch (err) {
-    ElMessage.error(err?.message || 'SQL 실행 실패')
+    ElMessage.error(err?.detail || err?.message || 'SQL 실행 실패')
   } finally {
     sqlExecuting.value = false
   }
@@ -413,6 +413,7 @@ const handleClose = () => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  margin-top: 8px;
 }
 
 .alias-row {
