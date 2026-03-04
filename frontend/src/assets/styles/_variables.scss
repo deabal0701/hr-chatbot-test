@@ -11,6 +11,14 @@
   --color-danger: #f56c6c;
   --color-info: #909399;
 
+  // Semantic color variants
+  --color-danger-light-bg: #fef0f0;
+  --color-danger-light-border: #fbc4c4;
+
+  // Avatar colors
+  --avatar-bg: #78909c;
+  --avatar-text: #eceff1;
+
   // Icon colors (monochrome - Option D: Dark Gray for light mode)
   --icon-bg: #f0f0f0;
   --icon-bg-border: #cccccc;
@@ -93,6 +101,14 @@
   --color-warning: #e6a23c;
   --color-danger: #f56c6c;
   --color-info: #909399;
+
+  // Semantic color variants
+  --color-danger-light-bg: rgba(245, 108, 108, 0.1);
+  --color-danger-light-border: rgba(245, 108, 108, 0.2);
+
+  // Avatar colors
+  --avatar-bg: #546e7a;
+  --avatar-text: #eceff1;
 
   // Icon colors (monochrome - Option D: Dark Gray)
   --icon-bg: #333333;

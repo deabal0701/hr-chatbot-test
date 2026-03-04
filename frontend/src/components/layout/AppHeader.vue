@@ -94,20 +94,16 @@ import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
 import { Connection, Menu, ArrowDown, Lock, SwitchButton, UserFilled, Sunny, Moon } from '@element-plus/icons-vue'
 import apiClient from '@/api'
+import { useAuth } from '@/composables/useAuth'
+import { useTheme } from '@/composables/useTheme'
 
 const route = useRoute()
 const router = useRouter()
 const store = useStore()
 
+const { currentUser, displayName, roleName, logout } = useAuth()
+const { isDarkMode, toggleDarkMode } = useTheme()
 const apiHealthy = computed(() => store.state.app.apiHealthy)
-const isDarkMode = computed(() => store.getters['app/isDarkMode'])
-const toggleDarkMode = () => store.dispatch('app/toggleDarkMode')
-const currentUser = computed(() => store.getters['auth/currentUser'])
-const displayName = computed(() => store.getters['auth/displayName'])
-// 서버에서 내려온 역할 표시명 사용
-const roleName = computed(() => {
-  return store.getters['auth/roleName'] || store.getters['auth/roleCode'] || '-'
-})
 
 const pageTitle = computed(() => {
   return route.meta.title || import.meta.env.VITE_APP_TITLE || 'MUREUM'
@@ -118,7 +114,7 @@ const pageTitle = computed(() => {
 // 사용자 메뉴 커맨드 처리
 const handleUserCommand = async (command) => {
   if (command === 'logout') {
-    await store.dispatch('auth/logout')
+    await logout()
     router.push('/login')
   } else if (command === 'password') {
     passwordDialogVisible.value = true

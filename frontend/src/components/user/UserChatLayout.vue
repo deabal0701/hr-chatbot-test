@@ -93,6 +93,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
+import { useTheme } from '@/composables/useTheme'
 import { Menu, Expand, Share, Download, Sunny, Moon, User, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
@@ -103,7 +105,7 @@ const store = useStore()
 const router = useRouter()
 
 // ===== 인증 상태 =====
-const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
+const { isAuthenticated } = useAuth()
 
 const goToLogin = () => {
   router.push({ path: '/login', query: { redirect: '/chat' } })
@@ -116,10 +118,7 @@ const isMobile = computed(() => windowWidth.value <= MOBILE_BREAKPOINT)
 const sidebarVisible = computed(() => store.state.app.userSidebarVisible)
 
 // 테마 관련
-const isDarkMode = computed(() => store.getters['app/isDarkMode'])
-const toggleDarkMode = () => {
-  store.dispatch('app/toggleDarkMode')
-}
+const { isDarkMode, toggleDarkMode } = useTheme()
 
 const toggleSidebar = () => {
   store.dispatch('app/toggleUserSidebar')
@@ -366,8 +365,8 @@ onUnmounted(() => {
   }
 
   .mobile-user-avatar {
-    background-color: #78909c;
-    color: #eceff1;
+    background-color: var(--avatar-bg);
+    color: var(--avatar-text);
     flex-shrink: 0;
   }
 }

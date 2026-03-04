@@ -228,7 +228,6 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Refresh, Delete, Top, Bottom,
@@ -236,8 +235,10 @@ import {
 } from '@element-plus/icons-vue'
 import departmentsApi from '@/api/departments'
 import usersApi from '@/api/users'
+import { useAuth } from '@/composables/useAuth'
+import { filterTree, flattenTree } from '@/composables/useTreeUtils'
 
-const store = useStore()
+const { roleCode, currentUser } = useAuth()
 
 // ===== 상태 =====
 const isLoading = ref(false)
@@ -292,28 +293,18 @@ const contextMenu = reactive({
 // ===== Computed =====
 
 const isGlobal = computed(() => {
-  const user = store.state.auth.user
-  return user?.is_superuser || store.getters['auth/roleCode'] === 'GLOBAL'
+  return currentUser.value?.is_superuser || roleCode.value === 'GLOBAL'
 })
 
 // 생성 시 사용할 tenant_id (GLOBAL이면 선택된 테넌트, 아니면 본인 테넌트)
 const currentTenantId = computed(() => {
   if (isGlobal.value) return selectedTenantId.value
-  return store.state.auth.user?.tenant_id
+  return currentUser.value?.tenant_id
 })
 
 // 트리에서 자기 자신과 하위 제외한 부서 목록 (상위 부서 선택용)
-const filterDeptTree = (items, excludeId) => {
-  return items
-    .filter(item => item.dept_id !== excludeId)
-    .map(item => ({
-      ...item,
-      children: item.children?.length ? filterDeptTree(item.children, excludeId) : []
-    }))
-}
-
 const parentDeptOptions = computed(() => {
-  return filterDeptTree(deptTree.value, selectedDeptId.value)
+  return filterTree(deptTree.value, selectedDeptId.value)
 })
 
 // 컨텍스트 메뉴: 위로 이동 가능 여부
@@ -533,17 +524,6 @@ const getMaxChildDepth = (data) => {
   return max
 }
 
-const flattenTree = (items) => {
-  const result = []
-  const walk = (list) => {
-    for (const item of list) {
-      result.push(item)
-      if (item.children?.length) walk(item.children)
-    }
-  }
-  walk(items)
-  return result
-}
 
 const handleNodeDrop = async (draggingNode, dropNode, dropType) => {
   try {

@@ -284,6 +284,7 @@ import usersApi from '@/api/users'
 import rolesApi from '@/api/roles'
 import { formatDateTime } from '@/utils/format'
 import MenuPermissionTable from '@/components/user/MenuPermissionTable.vue'
+import { buildTree } from '@/composables/useTreeUtils'
 
 // 상태
 const isLoading = ref(false)
@@ -334,29 +335,11 @@ const selectedRoleCode = computed(() => {
 const isTenantDisabled = computed(() => selectedRoleCode.value === 'GLOBAL')
 const isDeptDisabled = computed(() => selectedRoleCode.value === 'GLOBAL' || !formData.tenant_id)
 
-// 부서 flat 리스트 → tree 변환 공통 함수
-const buildDeptTree = (items) => {
-  if (!items.length) return []
-  const map = {}
-  const roots = []
-  for (const d of items) {
-    map[d.dept_id] = { ...d, children: [] }
-  }
-  for (const d of items) {
-    if (d.parent_dept_id && map[d.parent_dept_id]) {
-      map[d.parent_dept_id].children.push(map[d.dept_id])
-    } else {
-      roots.push(map[d.dept_id])
-    }
-  }
-  return roots
-}
-
 // 검색 필터용 부서 트리
-const filterDeptTree = computed(() => buildDeptTree(filterDeptOptions.value))
+const filterDeptTree = computed(() => buildTree(filterDeptOptions.value))
 
 // 다이얼로그(생성/수정) 부서 트리
-const formDeptTree = computed(() => buildDeptTree(deptOptions.value))
+const formDeptTree = computed(() => buildTree(deptOptions.value))
 
 // el-tree-select는 @change 이벤트가 안정적이지 않으므로 watch로 검색 트리거
 watch(filterDeptId, () => {

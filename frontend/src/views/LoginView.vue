@@ -3,7 +3,7 @@
     <div class="login-card">
       <!-- 로고 + 타이틀 -->
       <div class="login-header">
-        <el-icon :size="48" color="#409eff"><ChatDotRound /></el-icon>
+        <el-icon :size="48" color="var(--color-primary)"><ChatDotRound /></el-icon>
         <h1 class="login-title">{{ appTitle }}</h1>
         <p class="login-subtitle">AI 통합 검색 어시스턴트</p>
       </div>
@@ -74,12 +74,14 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import { ChatDotRound, User, Lock } from '@element-plus/icons-vue'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const store = useStore()
 const router = useRouter()
 const route = useRoute()
+const { isAuthenticated, landingPage, login } = useAuth()
 const formRef = ref(null)
 
 const form = reactive({
@@ -104,17 +106,14 @@ const handleLogin = async () => {
   if (!valid) return
 
   try {
-    await store.dispatch('auth/login', {
-      loginId: form.loginId,
-      password: form.password
-    })
+    await login(form.loginId, form.password)
 
     // 로그인 성공 → 랜딩 페이지로 리다이렉트
     const redirect = route.query.redirect
     if (redirect) {
       router.push(redirect)
     } else {
-      router.push(store.getters['auth/landingPage'])
+      router.push(landingPage.value)
     }
   } catch {
     // loginError가 store에 설정됨 (계정잠금, 비활성화, 인증실패 등)
@@ -123,8 +122,8 @@ const handleLogin = async () => {
 
 // 이미 로그인된 상태면 랜딩 페이지로 리다이렉트
 onMounted(() => {
-  if (store.getters['auth/isAuthenticated']) {
-    router.replace(store.getters['auth/landingPage'])
+  if (isAuthenticated.value) {
+    router.replace(landingPage.value)
   }
 })
 </script>

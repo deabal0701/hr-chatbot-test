@@ -163,6 +163,7 @@
 import { ref, computed, reactive } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import { ElMessage } from 'element-plus'
 import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
 
@@ -181,14 +182,12 @@ const store = useStore()
 const router = useRouter()
 
 // ===== 인증 상태 =====
-const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
-const displayName = computed(() => store.getters['auth/displayName'])
-const roleName = computed(() => store.getters['auth/roleName'] || store.getters['auth/roleCode'] || '-')
+const { isAuthenticated, displayName, roleName, logout } = useAuth()
 
 // 사용자 메뉴 커맨드 처리
 const handleUserCommand = async (command) => {
   if (command === 'logout') {
-    await store.dispatch('auth/logout')
+    await logout()
     router.push('/login')
   } else if (command === 'password') {
     passwordDialogVisible.value = true
@@ -583,7 +582,7 @@ const clearSearch = () => {
       transition: opacity 0.15s, color 0.15s;
 
       &:hover {
-        color: #f56c6c;
+        color: var(--color-danger);
       }
     }
   }
@@ -664,8 +663,8 @@ const clearSearch = () => {
 
     .user-avatar {
       flex-shrink: 0;
-      background-color: #78909c;
-      color: #eceff1;
+      background-color: var(--avatar-bg);
+      color: var(--avatar-text);
     }
 
     .user-info-text {

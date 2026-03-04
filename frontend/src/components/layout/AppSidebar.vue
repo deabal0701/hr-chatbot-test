@@ -66,14 +66,17 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
+import { useAuth } from '@/composables/useAuth'
+import { useTheme } from '@/composables/useTheme'
+
 const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const route = useRoute()
 const store = useStore()
 
+const { isAuthenticated } = useAuth()
+const { isDarkMode } = useTheme()
 const isCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const activeMenu = computed(() => route.path)
-const isDarkMode = computed(() => store.getters['app/isDarkMode'])
-const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
 
 // DB 아이콘명 → Element Plus 전역 등록 아이콘명 매핑
 // main.js에서 모든 아이콘이 전역 등록되므로 문자열 이름 사용

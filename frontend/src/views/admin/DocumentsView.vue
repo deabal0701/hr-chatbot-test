@@ -220,14 +220,14 @@ import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
 import usersApi from '@/api/users'
 import { formatDate, formatNumber } from '@/utils/format'
+import { useAuth } from '@/composables/useAuth'
 
 const store = useStore()
 const router = useRouter()
 
 // 사용자 역할 정보
-const roleCode = computed(() => store.getters['auth/roleCode'])
+const { roleCode, currentUser } = useAuth()
 const isGlobal = computed(() => roleCode.value === 'GLOBAL')
-const currentUser = computed(() => store.getters['auth/currentUser'])
 
 // 테넌트 필터 (GLOBAL 역할 전용)
 const tenantFilter = ref(null)

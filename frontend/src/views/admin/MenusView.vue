@@ -298,6 +298,7 @@ import {
   CircleCheck, Warning, InfoFilled, QuestionFilled
 } from '@element-plus/icons-vue'
 import menusApi from '@/api/menus'
+import { filterTree, flattenTree } from '@/composables/useTreeUtils'
 
 const store = useStore()
 
@@ -432,19 +433,12 @@ const contextMenu = reactive({
 
 // ===== Computed =====
 
-// 트리에서 DIRECTORY만 추출 (자기 자신과 하위 제외 — 순환 참조 방지)
-const filterDirectoryTree = (items, excludeId) => {
-  return items
-    .filter(item => item.menu_type === 'DIRECTORY' && item.menu_id !== excludeId)
-    .map(item => ({
-      ...item,
-      children: item.children?.length ? filterDirectoryTree(item.children, excludeId) : []
-    }))
-}
-
-// 상위 메뉴 선택 옵션 — DIRECTORY 타입만 표시
+// 상위 메뉴 선택 옵션 — DIRECTORY 타입만 표시 (자기 자신과 하위 제외)
 const parentMenuOptions = computed(() => {
-  return filterDirectoryTree(menuTree.value, selectedMenuId.value)
+  return filterTree(menuTree.value, selectedMenuId.value, {
+    idKey: 'menu_id',
+    filterFn: item => item.menu_type === 'DIRECTORY'
+  })
 })
 
 // 컨텍스트 메뉴: 위로 이동 가능 여부
@@ -666,19 +660,6 @@ const getMaxChildDepth = (data) => {
     if (d > max) max = d
   }
   return max
-}
-
-// 트리 데이터를 flat 배열로 변환
-const flattenTree = (items) => {
-  const result = []
-  const walk = (list) => {
-    for (const item of list) {
-      result.push(item)
-      if (item.children?.length) walk(item.children)
-    }
-  }
-  walk(items)
-  return result
 }
 
 // 드롭 완료 처리 — 서버 데이터 기반 계산 (el-tree 내부 상태에 의존하지 않음)

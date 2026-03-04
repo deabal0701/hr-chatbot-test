@@ -1314,19 +1314,16 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, ChatLineSquare, Lock, List, Sort } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
 import codesApi from '@/api/codes'
 import usersApi from '@/api/users'
-
-const store = useStore()
+import { useAuth } from '@/composables/useAuth'
 
 // 사용자 역할 정보
-const roleCode = computed(() => store.getters['auth/roleCode'])
+const { roleCode, currentUser } = useAuth()
 const isGlobal = computed(() => roleCode.value === 'GLOBAL')
-const currentUser = computed(() => store.getters['auth/currentUser'])
 
 // 테넌트 선택
 const selectedTenantId = ref('1')

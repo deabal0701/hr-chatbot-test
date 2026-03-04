@@ -137,8 +137,8 @@
 
         <el-table-column prop="success" label="성공" width="60" align="center">
           <template #default="{ row }">
-            <el-icon v-if="row.success" color="#67c23a" :size="18"><CircleCheck /></el-icon>
-            <el-icon v-else color="#f56c6c" :size="18"><CircleClose /></el-icon>
+            <el-icon v-if="row.success" color="var(--color-success)" :size="18"><CircleCheck /></el-icon>
+            <el-icon v-else color="var(--color-danger)" :size="18"><CircleClose /></el-icon>
           </template>
         </el-table-column>
 
@@ -218,7 +218,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   CircleCheck,
@@ -230,13 +229,13 @@ import {
 import historyApi from '@/api/history'
 import usersApi from '@/api/users'
 import { formatDateTime, formatResponseTime } from '@/utils/format'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
 const route = useRoute()
-const store = useStore()
 
 // 역할 기반 상태
-const roleCode = computed(() => store.getters['auth/roleCode'])
+const { roleCode } = useAuth()
 const isGlobal = computed(() => roleCode.value === 'GLOBAL')
 
 // 테넌트 필터 (GLOBAL 역할용)

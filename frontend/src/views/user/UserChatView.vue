@@ -198,6 +198,8 @@ import { useRouter } from 'vue-router'
 import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, QuestionFilled } from '@element-plus/icons-vue'
 import UserChatMessage from '@/components/user/UserChatMessage.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
+import { useAuth } from '@/composables/useAuth'
+import { useTheme } from '@/composables/useTheme'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 
@@ -213,19 +215,14 @@ const store = useStore()
 const router = useRouter()
 
 // ===== 인증 상태 =====
-const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
-const displayName = computed(() => store.getters['auth/displayName'])
+const { isAuthenticated, displayName } = useAuth()
 
 const goToLogin = () => {
   router.push({ path: '/login', query: { redirect: '/chat' } })
 }
 
 // 테마 관련
-const isDarkMode = computed(() => store.getters['app/isDarkMode'])
-
-const toggleDarkMode = () => {
-  store.dispatch('app/toggleDarkMode')
-}
+const { isDarkMode, toggleDarkMode } = useTheme()
 
 // 사용자 화면 진입 시 currentView 설정 + 채팅 이력 로드
 onMounted(() => {
