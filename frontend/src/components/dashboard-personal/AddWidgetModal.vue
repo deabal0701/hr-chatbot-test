@@ -133,104 +133,9 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 공통: 실행 결과 미리보기 + 위젯 설정 (결과가 있을 때만) -->
+    <!-- 공통: 실행 결과 + 위젯 설정 (결과가 있을 때만) -->
     <el-form v-if="hasResult" label-position="top" style="margin-top: 8px">
-      <!-- 대시보드 선택 -->
-      <el-form-item v-if="dashboardOptions.length > 1" label="대시보드">
-        <el-select v-model="selectedDashboardId" placeholder="저장할 대시보드 선택" style="width: 100%">
-          <el-option
-            v-for="db in dashboardOptions"
-            :key="db.dashboard_id"
-            :label="db.name + (db.is_default ? ' (기본)' : '')"
-            :value="db.dashboard_id"
-          />
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="실행 결과">
-        <div class="result-preview">
-          <el-table :data="resultRows.slice(0, 5)" size="small" border max-height="180">
-            <el-table-column v-for="col in resultColumns" :key="col" :prop="col" :label="col" :min-width="80" show-overflow-tooltip />
-          </el-table>
-          <div v-if="resultRows.length > 5" class="overflow-notice">... 외 {{ resultRows.length - 5 }}건</div>
-        </div>
-      </el-form-item>
-
-      <!-- 위젯 제목 -->
-      <el-form-item label="위젯 제목">
-        <el-input v-model="form.title" placeholder="위젯 제목" maxlength="100" show-word-limit />
-      </el-form-item>
-
-      <!-- 위젯 유형 -->
-      <el-form-item label="위젯 유형">
-        <el-radio-group v-model="form.widgetType">
-          <el-radio-button value="table">테이블</el-radio-button>
-          <el-radio-button value="bar">Bar</el-radio-button>
-          <el-radio-button value="hbar">H-Bar</el-radio-button>
-          <el-radio-button value="line">Line</el-radio-button>
-          <el-radio-button value="pie">Pie</el-radio-button>
-          <el-radio-button value="scatter">Scatter</el-radio-button>
-          <el-radio-button value="kpi">KPI</el-radio-button>
-        </el-radio-group>
-      </el-form-item>
-
-      <!-- 차트 설정 -->
-      <template v-if="isChartType">
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item :label="form.widgetType === 'pie' ? '항목' : 'X축 컬럼'">
-              <el-select v-model="form.xColumn" style="width: 100%">
-                <el-option v-for="col in resultColumns" :key="col" :label="col" :value="col" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="form.widgetType === 'pie' ? '값' : 'Y축 컬럼'">
-              <el-select v-model="form.yColumns" :multiple="form.widgetType !== 'pie'" collapse-tags style="width: 100%">
-                <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="컬러 팔레트">
-              <el-select v-model="form.colorPalette" style="width: 100%">
-                <el-option
-                  v-for="(palette, key) in CHART_PALETTES"
-                  :key="key"
-                  :label="palette.label"
-                  :value="key"
-                >
-                  <div class="palette-option">
-                    <span>{{ palette.label }}</span>
-                    <span class="palette-preview">
-                      <span v-for="(c, i) in palette.colors.slice(0, 5)" :key="i" class="palette-dot" :style="{ background: c }" />
-                    </span>
-                  </div>
-                </el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </template>
-
-      <template v-if="form.widgetType === 'kpi'">
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="값 컬럼">
-              <el-select v-model="form.kpiColumn" style="width: 100%">
-                <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="단위">
-              <el-input v-model="form.kpiSuffix" placeholder="명, %" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </template>
+      <WidgetConfigForm ref="configRef" :columns="resultColumns" :rows="resultRows" />
     </el-form>
 
     <template #footer>
@@ -245,7 +150,7 @@ import { ref, computed, watch } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
 import { Loading, CircleCheckFilled } from '@element-plus/icons-vue'
-import { detectColumnTypes, CHART_PALETTES } from '@/composables/useChartOptions'
+import WidgetConfigForm from './WidgetConfigForm.vue'
 import historyApi from '@/api/history'
 import searchApi from '@/api/search'
 
@@ -255,28 +160,14 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 const store = useStore()
+const configRef = ref(null)
 
 const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
 
-const dashboardOptions = computed(() => store.state.dashboard.dashboards || [])
-const selectedDashboardId = ref(null)
-
 const activeTab = ref('history')
-
-const form = ref({
-  queryText: '',
-  title: '',
-  widgetType: 'bar',
-  xColumn: '',
-  yColumns: [],
-  pieTopN: 10,
-  kpiColumn: '',
-  kpiSuffix: '',
-  colorPalette: 'default'
-})
 
 // ============================
 // 탭 1: 히스토리
@@ -303,15 +194,19 @@ let streamController = null
 // ============================
 const resultColumns = ref([])
 const resultRows = ref([])
+const resultRowCount = ref(0)
 const selectedSql = ref('')
+const queryText = ref('')
 const hasResult = computed(() => resultColumns.value.length > 0)
 
-// 다이얼로그 열릴 때 세션 목록 로드 + 기본 대시보드 선택
+const canSave = computed(() => {
+  if (!hasResult.value) return false
+  return configRef.value?.isFormValid ?? false
+})
+
+// 다이얼로그 열릴 때 세션 목록 로드
 watch(visible, async (val) => {
   if (val) {
-    const currentId = store.state.dashboard.currentDashboardId
-    const defaultDb = dashboardOptions.value.find(d => d.is_default)
-    selectedDashboardId.value = currentId || defaultDb?.dashboard_id || (dashboardOptions.value[0]?.dashboard_id ?? null)
     await loadSessions()
   }
 })
@@ -374,7 +269,7 @@ const handleSessionSelect = async (sessionKey) => {
 const handleMessageSelect = (idx) => {
   const msg = nlsqlMessages.value[idx]
   if (!msg) return
-  setResult(msg.columns, msg.rows, msg.sql, msg.question)
+  setResult(msg.columns, msg.rows, msg.sql, msg.question, msg.rowCount)
 }
 
 // ============================
@@ -407,7 +302,8 @@ const handleDirectQuery = () => {
             data.sql_result.columns,
             data.sql_result.rows,
             data.sql,
-            directQuery.value
+            directQuery.value,
+            data.sql_result.row_count || data.sql_result.rows?.length || 0
           )
         } else {
           queryError.value = data.answer || '쿼리 결과가 없습니다.'
@@ -437,20 +333,30 @@ const handleCancelQuery = () => {
 const clearResult = () => {
   resultColumns.value = []
   resultRows.value = []
+  resultRowCount.value = 0
   selectedSql.value = ''
+  queryText.value = ''
 }
 
-const setResult = (columns, rows, sql, query) => {
+const setResult = (columns, rows, sql, query, rowCount) => {
   resultColumns.value = columns
   resultRows.value = rows
+  resultRowCount.value = rowCount || rows.length
   selectedSql.value = sql || ''
-  form.value.queryText = query
-  form.value.title = query.slice(0, 100)
+  queryText.value = query
 
-  const { numeric, text } = detectColumnTypes(columns, rows)
-  form.value.xColumn = text[0] || columns[0] || ''
-  form.value.yColumns = numeric.length > 0 ? [numeric[0]] : []
-  form.value.kpiColumn = numeric[0] || ''
+  // WidgetConfigForm 초기화 (nextTick 이후 configRef가 렌더링됨)
+  setTimeout(() => {
+    configRef.value?.initForm({
+      title: query.slice(0, 100),
+      widgetType: 'table',
+      kpiSuffix: '',
+      colorPalette: 'default',
+      pieTopN: 10
+    })
+    configRef.value?.autoDetectColumns(columns, rows)
+    configRef.value?.initAliases(columns)
+  }, 0)
 }
 
 const formatDate = (dateStr) => {
@@ -463,64 +369,34 @@ const formatDate = (dateStr) => {
   return `${mm}-${dd} ${hh}:${mi}`
 }
 
-const numericCols = computed(() => {
-  const { numeric } = detectColumnTypes(resultColumns.value, resultRows.value)
-  return numeric.length > 0 ? numeric : resultColumns.value
-})
-
-const isChartType = computed(() => ['bar', 'hbar', 'line', 'pie', 'scatter'].includes(form.value.widgetType))
-
-watch(() => form.value.widgetType, (newType) => {
-  if (newType === 'pie') {
-    if (Array.isArray(form.value.yColumns)) form.value.yColumns = form.value.yColumns[0] || ''
-  } else if (['bar', 'hbar', 'line', 'scatter'].includes(newType)) {
-    if (!Array.isArray(form.value.yColumns)) form.value.yColumns = form.value.yColumns ? [form.value.yColumns] : []
-  }
-})
-
-const canSave = computed(() => {
-  if (!hasResult.value || !form.value.title.trim()) return false
-  if (form.value.widgetType === 'kpi') return !!form.value.kpiColumn
-  if (isChartType.value) {
-    const hasY = Array.isArray(form.value.yColumns) ? form.value.yColumns.length > 0 : !!form.value.yColumns
-    return !!form.value.xColumn && hasY
-  }
-  return true
-})
-
 const handleSave = async () => {
+  const form = configRef.value.form
   const widgetConfig = {
-    dashboard_id: selectedDashboardId.value,
-    title: form.value.title.trim(),
-    widget_type: form.value.widgetType,
-    query: form.value.queryText,
+    title: form.title.trim(),
+    widget_type: form.widgetType,
+    query: queryText.value,
     sql: selectedSql.value || '',
-    chart_config: {
-      x_column: form.value.xColumn || null,
-      y_columns: Array.isArray(form.value.yColumns) ? form.value.yColumns : (form.value.yColumns ? [form.value.yColumns] : null),
-      pie_top_n: form.value.widgetType === 'pie' ? form.value.pieTopN : null,
-      kpi_column: form.value.widgetType === 'kpi' ? form.value.kpiColumn : null,
-      kpi_suffix: form.value.widgetType === 'kpi' ? form.value.kpiSuffix : null,
-      color_palette: isChartType.value ? form.value.colorPalette : null
-    },
+    chart_config: configRef.value.buildChartConfig(),
     cached_data: {
       columns: resultColumns.value,
-      rows: resultRows.value,
-      row_count: resultRows.value.length,
+      rows: resultRows.value.slice(0, 500),
+      row_count: resultRowCount.value || resultRows.value.length,
       cached_at: new Date().toISOString()
     }
   }
 
-  await store.dispatch('dashboard/saveWidget', widgetConfig)
-  ElMessage.success('위젯이 추가되었습니다')
-  emit('saved')
-  visible.value = false
+  try {
+    await store.dispatch('dashboard/saveWidget', widgetConfig)
+    ElMessage.success('위젯이 추가되었습니다')
+    emit('saved')
+    visible.value = false
+  } catch (err) {
+    ElMessage.error('위젯 저장에 실패했습니다')
+  }
 }
 
 const handleClose = () => {
   handleCancelQuery()
-  form.value.queryText = ''
-  form.value.title = ''
   selectedSessionKey.value = null
   selectedMessageIndex.value = null
   nlsqlMessages.value = []
@@ -534,25 +410,6 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
-.palette-option {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-}
-
-.palette-preview {
-  display: flex;
-  gap: 3px;
-}
-
-.palette-dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
 .session-option {
   display: flex;
   justify-content: space-between;
@@ -633,20 +490,5 @@ const handleClose = () => {
       color: var(--el-color-primary);
     }
   }
-}
-
-.result-preview {
-  width: 100%;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.overflow-notice {
-  text-align: center;
-  padding: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>
