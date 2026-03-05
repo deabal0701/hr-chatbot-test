@@ -6,14 +6,14 @@
 
   <!-- 위젯 유형 -->
   <el-form-item label="위젯 유형">
-    <el-radio-group v-model="form.widgetType">
-      <el-radio-button value="table">테이블</el-radio-button>
-      <el-radio-button value="bar">Bar</el-radio-button>
-      <el-radio-button value="hbar">H-Bar</el-radio-button>
-      <el-radio-button value="line">Line</el-radio-button>
-      <el-radio-button value="pie">Pie</el-radio-button>
-      <el-radio-button value="scatter">Scatter</el-radio-button>
-      <el-radio-button value="kpi">KPI</el-radio-button>
+    <el-radio-group v-model="form.widgetType" class="widget-type-group">
+      <el-radio-button value="table"><el-icon><Grid /></el-icon> 테이블</el-radio-button>
+      <el-radio-button value="bar"><el-icon><DataAnalysis /></el-icon> Bar</el-radio-button>
+      <el-radio-button value="hbar"><el-icon><DataAnalysis style="transform: rotate(90deg)" /></el-icon> H-Bar</el-radio-button>
+      <el-radio-button value="line"><el-icon><TrendCharts /></el-icon> Line</el-radio-button>
+      <el-radio-button value="pie"><el-icon><PieChart /></el-icon> Pie</el-radio-button>
+      <el-radio-button value="scatter"><el-icon><DataLine /></el-icon> Scatter</el-radio-button>
+      <el-radio-button value="kpi"><el-icon><Odometer /></el-icon> KPI</el-radio-button>
     </el-radio-group>
   </el-form-item>
 
@@ -140,6 +140,7 @@
 
 <script setup>
 import { toRef } from 'vue'
+import { Grid, DataAnalysis, TrendCharts, PieChart, DataLine, Odometer } from '@element-plus/icons-vue'
 import { useWidgetForm, CHART_PALETTES } from '@/composables/useWidgetForm'
 import WidgetChart from './widgets/WidgetChart.vue'
 import WidgetKpi from './widgets/WidgetKpi.vue'
@@ -166,6 +167,18 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.widget-type-group {
+  :deep(.el-radio-button__inner) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    .el-icon {
+      font-size: 14px;
+    }
+  }
+}
+
 .palette-option {
   display: flex;
   justify-content: space-between;

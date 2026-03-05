@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import WidgetConfigForm from './WidgetConfigForm.vue'
@@ -113,13 +113,16 @@ const currentRows = computed(() => {
 const canSave = computed(() => configRef.value?.isFormValid ?? false)
 
 // 위젯 데이터로 폼 초기화
-watch(visible, (val) => {
+watch(visible, async (val) => {
   if (val && props.widget) {
     const config = props.widget.chart_config || {}
     sqlText.value = props.widget.sql || ''
     originalSql.value = props.widget.sql || ''
     sqlExecuted.value = false
     previewData.value = null
+
+    // destroy-on-close로 인해 컴포넌트 마운트 대기 필요
+    await nextTick()
 
     // WidgetConfigForm 초기화
     configRef.value?.initForm({

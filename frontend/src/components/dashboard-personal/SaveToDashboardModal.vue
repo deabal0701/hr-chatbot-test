@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -103,6 +103,9 @@ watch(visible, async (val) => {
       }
     }
     initDashboardSelection()
+
+    // destroy-on-close로 인해 컴포넌트 마운트 대기 필요
+    await nextTick()
 
     // WidgetConfigForm 초기화
     configRef.value?.initForm({
