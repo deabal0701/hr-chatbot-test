@@ -300,6 +300,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete, Setting } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
+import { getErrorMessage } from '@/utils/error'
 
 // 상태
 const isLoading = ref(false)
@@ -484,8 +485,8 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       await loadCodes()
     } catch (error) {
-      // 새 에러 형식: error.message 사용
-      ElMessage.error(error.message || '작업 실패')
+      const msg = getErrorMessage(error, '코드 저장에 실패하였습니다')
+      if (msg) ElMessage.error(msg)
       console.error(error)
     } finally {
       isSaving.value = false
@@ -515,9 +516,9 @@ const handleDelete = async (row) => {
     ElMessage.success('코드가 삭제되었습니다')
     await loadCodes()
   } catch (error) {
-    if (error === 'cancel') return
-    ElMessage.error(error.message || '삭제 실패')
-    console.error(error)
+    const msg = getErrorMessage(error, '코드 삭제에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
+    else console.error(error)
   }
 }
 
@@ -613,8 +614,8 @@ const handleCategorySubmit = async () => {
       await loadCategories()
       await loadCodeGroups() // 콤보박스 갱신
     } catch (error) {
-      // 새 에러 형식: error.message 사용
-      ElMessage.error(error.message || '작업 실패')
+      const msg = getErrorMessage(error, '카테고리 저장에 실패하였습니다')
+      if (msg) ElMessage.error(msg)
       console.error(error)
     } finally {
       isSavingCategory.value = false
@@ -641,9 +642,9 @@ const handleDeleteCategory = async (row) => {
     await loadCategories()
     await loadCodeGroups() // 콤보박스 갱신
   } catch (error) {
-    if (error === 'cancel') return
-    ElMessage.error(error.message || '삭제 실패')
-    console.error(error)
+    const msg = getErrorMessage(error, '카테고리 삭제에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
+    else console.error(error)
   }
 }
 

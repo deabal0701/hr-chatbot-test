@@ -292,9 +292,11 @@ const canSave = computed(() => {
   return configRef.value?.isFormValid ?? false
 })
 
-// 다이얼로그 열릴 때 세션 목록 로드
+// 다이얼로그 열릴 때 세션 목록 로드 + 위젯 가져오기 캐시 리셋
 watch(visible, async (val) => {
   if (val) {
+    importDashboardsLoaded.value = false
+    activeTab.value = 'history'
     await loadSessions()
   }
 })

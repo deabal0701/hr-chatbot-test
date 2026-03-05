@@ -6,7 +6,7 @@
         <h2>검색 이력</h2>
         <p class="subtitle">검색 요청 이력을 조회하고 분석합니다.</p>
       </div>
-      <el-button type="danger" plain :icon="Delete" @click="showCleanupDialog">
+      <el-button type="primary" plain :icon="Delete" @click="showCleanupDialog">
         이력 정리
       </el-button>
     </div>

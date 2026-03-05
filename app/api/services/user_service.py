@@ -90,10 +90,10 @@ class UserService:
             return
         # USER scope → 사용자 관리 접근 불가 (본인 조회는 별도 처리)
         if current_user.is_user_scope:
-            raise APIException(ErrorCode.FORBIDDEN, "접근 권한이 없습니다")
+            raise APIException(ErrorCode.FORBIDDEN, "해당 사용자에 대한 접근 권한이 없습니다")
         # TENANT/DEPT scope → 같은 테넌트만 접근
         if target_tenant_id != current_user.tenant_id:
-            raise APIException(ErrorCode.FORBIDDEN, "다른 테넌트의 데이터에 접근할 수 없습니다")
+            raise APIException(ErrorCode.FORBIDDEN, "다른 테넌트의 사용자에 대한 접근 권한이 없습니다")
 
     def list_users(self, current_user: UserContext, request_id: str = "", limit: int = 20, offset: int = 0, tenant_id_filter: Optional[int] = None, is_active_filter: Optional[bool] = None, keyword: Optional[str] = None, dept_id_filter: Optional[int] = None) -> Dict[str, Any]:
         """사용자 목록 조회 (scope 제한 적용)"""

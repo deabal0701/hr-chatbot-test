@@ -6,8 +6,8 @@
         <h2>메뉴 관리</h2>
         <p class="subtitle">메뉴 트리를 관리하고 구조를 설정합니다.</p>
       </div>
-      <el-button type="success" :icon="Check" @click="applySidebar" :loading="isApplying">
-        사이드바 적용
+      <el-button type="primary" plain :icon="Refresh" @click="applySidebar" :loading="isApplying">
+        메뉴 적용
       </el-button>
     </div>
 
@@ -299,6 +299,7 @@ import {
 } from '@element-plus/icons-vue'
 import menusApi from '@/api/menus'
 import { filterTree, flattenTree } from '@/composables/useTreeUtils'
+import { getErrorMessage } from '@/utils/error'
 
 const store = useStore()
 
@@ -606,7 +607,8 @@ const handleSubmit = async () => {
       })
     }
   } catch (error) {
-    ElMessage.error(error.message || '작업 실패')
+    const msg = getErrorMessage(error, '메뉴 저장에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
   } finally {
     isSaving.value = false
   }
@@ -628,8 +630,8 @@ const handleDelete = async () => {
     resetForm()
     await loadMenuTree()
   } catch (error) {
-    if (error === 'cancel') return
-    ElMessage.error(error.message || '삭제 실패')
+    const msg = getErrorMessage(error, '메뉴 삭제에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
   }
 }
 
@@ -738,7 +740,8 @@ const handleNodeDrop = async (draggingNode, dropNode, dropType) => {
       })
     }
   } catch (error) {
-    ElMessage.error(error.message || '메뉴 이동 실패')
+    const msg = getErrorMessage(error, '메뉴 이동에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
     await loadMenuTree()
   }
 }
@@ -821,7 +824,8 @@ const swapSortOrder = async (siblings, idxA, idxB) => {
       })
     }
   } catch (error) {
-    ElMessage.error(error.message || '메뉴 이동 실패')
+    const msg = getErrorMessage(error, '메뉴 이동에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
   }
 }
 
@@ -845,8 +849,8 @@ const ctxDelete = async () => {
     }
     await loadMenuTree()
   } catch (error) {
-    if (error === 'cancel') return
-    ElMessage.error(error.message || '삭제 실패')
+    const msg = getErrorMessage(error, '메뉴 삭제에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
   }
 }
 

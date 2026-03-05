@@ -108,7 +108,7 @@ class RoleService:
             raise APIException(ErrorCode.NOT_FOUND, "역할을 찾을 수 없습니다")
 
         if existing["is_system"]:
-            raise APIException(ErrorCode.BAD_REQUEST, "시스템 기본 역할은 삭제할 수 없습니다")
+            raise APIException(ErrorCode.FORBIDDEN, "시스템 기본 역할은 삭제할 수 없습니다")
 
         # 사용 중인 역할 확인 (tb_user.role_id 직접 참조)
         with db_manager.get_cursor() as cur:

@@ -133,22 +133,43 @@ apiClient.interceptors.response.use(
 
 /**
  * 표준 API 에러 처리
+ * - 서버의 표준 응답({ success, error })에서 code/message/detail 추출
+ * - 403 FORBIDDEN은 서버 메시지를 그대로 전달 (권한 관련 구체적 안내)
  */
 function handleApiError(error) {
   const errorData = error.response?.data
+  const status = error.response?.status
 
   // 표준 에러 응답: { success: false, error: { code, message, detail } }
   if (errorData?.error && typeof errorData.success === 'boolean') {
-    const customError = new Error(errorData.error.message || '오류가 발생했습니다')
-    customError.code = errorData.error.code || 'UNKNOWN_ERROR'
-    customError.detail = errorData.error.detail
+    const serverError = errorData.error
+    const customError = new Error(serverError.message || '오류가 발생했습니다')
+    customError.code = serverError.code || 'UNKNOWN_ERROR'
+    customError.detail = serverError.detail
+    customError.status = status
     customError.response = error.response
     console.error('API Error:', customError.code, customError.message)
     return Promise.reject(customError)
   }
 
+  // 비표준 응답이지만 HTTP status가 있는 경우 — status 기반 기본 메시지
+  const statusMessages = {
+    403: '권한이 없어 작업을 수행할 수 없습니다',
+    404: '요청한 데이터를 찾을 수 없습니다',
+    409: '이미 존재하는 데이터입니다',
+    500: '서버 내부 오류가 발생했습니다',
+  }
+  if (status && statusMessages[status]) {
+    const fallbackError = new Error(statusMessages[status])
+    fallbackError.code = status === 403 ? 'FORBIDDEN' : 'HTTP_ERROR'
+    fallbackError.status = status
+    fallbackError.response = error.response
+    console.error('API Error (non-standard):', status, fallbackError.message)
+    return Promise.reject(fallbackError)
+  }
+
   // 예상치 못한 에러 형식 (로깅 후 그대로 전달)
-  console.error('Unexpected error format:', error.response?.status, errorData || error.message)
+  console.error('Unexpected error format:', status, errorData || error.message)
   return Promise.reject(error)
 }
 

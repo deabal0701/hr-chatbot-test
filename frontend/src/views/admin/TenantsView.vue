@@ -147,6 +147,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Edit, Delete } from '@element-plus/icons-vue'
 import tenantsApi from '@/api/tenants'
 import { formatDateTime } from '@/utils/format'
+import { getErrorMessage } from '@/utils/error'
 
 // 상태
 const isLoading = ref(false)
@@ -267,7 +268,8 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     await loadTenants()
   } catch (error) {
-    ElMessage.error(error.message || '작업 실패')
+    const msg = getErrorMessage(error, '테넌트 저장에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
   } finally {
     isSaving.value = false
   }
@@ -291,8 +293,8 @@ const handleDelete = async (row) => {
     ElMessage.success(hasUsers ? '테넌트가 비활성화되었습니다' : '테넌트가 삭제되었습니다')
     await loadTenants()
   } catch (error) {
-    if (error === 'cancel') return
-    ElMessage.error(error.message || '삭제 실패')
+    const msg = getErrorMessage(error, '테넌트 삭제에 실패하였습니다')
+    if (msg) ElMessage.error(msg)
   }
 }
 

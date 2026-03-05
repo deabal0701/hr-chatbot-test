@@ -1317,6 +1317,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, Hide, Warning, Clock, Download, Upload, Edit, Connection, Search, Timer, Grid, DocumentCopy, RefreshRight, ChatDotRound, ChatLineSquare, Lock, List, Sort } from '@element-plus/icons-vue'
 import settingsApi from '@/api/settings'
+import { getErrorMessage } from '@/utils/error'
 import codesApi from '@/api/codes'
 import usersApi from '@/api/users'
 import { useAuth } from '@/composables/useAuth'
@@ -1735,7 +1736,8 @@ const saveSettings = async () => {
     ElMessage.success('설정이 저장되었습니다.')
   } catch (error) {
     console.error('설정 저장 실패:', error)
-    ElMessage.error('설정 저장에 실패했습니다.')
+    const msg = getErrorMessage(error, '설정 저장에 실패했습니다.')
+    if (msg) ElMessage.error(msg)
   } finally {
     isSaving.value = false
   }
@@ -1763,9 +1765,10 @@ const resetCategory = async () => {
     await loadSettings()
     ElMessage.success(isTenantMode.value ? '테넌트 오버라이드가 초기화되었습니다.' : '설정이 초기화되었습니다.')
   } catch (error) {
-    if (error !== 'cancel') {
+    const msg = getErrorMessage(error, '설정 초기화에 실패했습니다.')
+    if (msg) {
       console.error('설정 초기화 실패:', error)
-      ElMessage.error('설정 초기화에 실패했습니다.')
+      ElMessage.error(msg)
     }
   }
 }
@@ -2072,9 +2075,10 @@ const restorePrompt = async (historyItem) => {
 
     // 프롬프트 서비스 캐시 무효화 (백엔드에서 자동 처리됨)
   } catch (error) {
-    if (error !== 'cancel') {
+    const msg = getErrorMessage(error, '프롬프트 복원에 실패했습니다.')
+    if (msg) {
       console.error('프롬프트 복원 실패:', error)
-      ElMessage.error('프롬프트 복원에 실패했습니다.')
+      ElMessage.error(msg)
     }
   }
 }
@@ -2135,9 +2139,10 @@ const importPrompts = () => {
       Object.assign(formData.prompt, data.prompts)
       ElMessage.success('프롬프트를 가져왔습니다. 저장 버튼을 눌러 적용하세요.')
     } catch (error) {
-      if (error !== 'cancel') {
+      const msg = getErrorMessage(error, '프롬프트 가져오기에 실패했습니다.')
+      if (msg) {
         console.error('프롬프트 가져오기 실패:', error)
-        ElMessage.error('프롬프트 가져오기에 실패했습니다.')
+        ElMessage.error(msg)
       }
     }
   }
