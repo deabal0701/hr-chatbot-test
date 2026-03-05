@@ -118,34 +118,20 @@
           </p>
         </div>
 
-        <!-- 대화 관리 + 사용자 화면 (가로 2카드) -->
-        <div class="sidebar-row">
-          <div class="sidebar-section content-card sidebar-half-card">
-            <h4>대화 관리</h4>
-            <el-button
-              type="danger"
-              plain
-              size="small"
-              :icon="Delete"
-              :disabled="messages.length === 0"
-              @click="clearChat"
-            >
-              대화 초기화
-            </el-button>
-          </div>
-
-          <div class="sidebar-section content-card sidebar-half-card">
-            <h4>사용자 화면</h4>
-            <el-button
-              type="primary"
-              plain
-              size="small"
-              :icon="Monitor"
-              @click="openUserChat"
-            >
-              새 창으로 열기
-            </el-button>
-          </div>
+        <!-- 대화 관리 -->
+        <div class="sidebar-section content-card">
+          <h4>대화 관리</h4>
+          <el-button
+            type="danger"
+            plain
+            size="small"
+            :icon="Delete"
+            :disabled="messages.length === 0"
+            style="width: 100%"
+            @click="clearChat"
+          >
+            대화 초기화
+          </el-button>
         </div>
       </div>
     </div>
@@ -162,7 +148,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { Loading, Delete, Monitor } from '@element-plus/icons-vue'
+import { Loading, Delete } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
@@ -281,13 +267,6 @@ const handleModeChange = (mode) => {
 // 대화 초기화
 const clearChat = () => {
   store.dispatch('chat/clearChat')
-}
-
-// 사용자 화면 새 창으로 열기
-const openUserChat = () => {
-  const width = window.screen.availWidth
-  const height = window.screen.availHeight
-  window.open('/chat', '_blank', `width=${width},height=${height},left=0,top=0`)
 }
 
 // 가이드에서 예시 사용

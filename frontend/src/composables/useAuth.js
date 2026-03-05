@@ -14,6 +14,7 @@ export function useAuth() {
   const roleCode = computed(() => store.getters['auth/roleCode'])
   const roleName = computed(() => store.getters['auth/roleName'] || store.getters['auth/roleCode'] || '-')
   const landingPage = computed(() => store.getters['auth/landingPage'])
+  const canAccessAdmin = computed(() => store.getters['auth/canAccessAdmin'])
 
   const hasMenuPermission = (menuCode, action) => store.getters['auth/hasMenuPermission'](menuCode, action)
   const login = (loginId, password) => store.dispatch('auth/login', { loginId, password })
@@ -26,6 +27,7 @@ export function useAuth() {
     roleCode,
     roleName,
     landingPage,
+    canAccessAdmin,
     hasMenuPermission,
     login,
     logout

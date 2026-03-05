@@ -213,7 +213,8 @@ class AuthService:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 "u.dept_id, u.is_superuser, u.is_active, "
-                "r.role_code, r.role_name, r.landing_page, r.scope_level "
+                "r.role_code, r.role_name, "
+                "COALESCE(u.landing_page, r.landing_page) AS landing_page, r.scope_level "
                 "FROM tb_user u "
                 "JOIN tb_role r ON r.role_id = u.role_id "
                 "WHERE u.user_id = %s",

@@ -119,6 +119,7 @@ class UserCreate(UserBase):
     role_id: int = Field(..., description="역할 ID (사용자는 하나의 역할에 소속)")
     dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     is_active: bool = Field(default=True, description="활성화 여부")
+    landing_page: Optional[str] = Field(None, max_length=200, description="개인 랜딩 페이지 (NULL이면 역할 기본값)")
     menus: List[UserMenuPermission] = Field(default_factory=list, description="메뉴 권한 목록")
 
     model_config = {
@@ -147,6 +148,7 @@ class UserUpdate(BaseModel):
     role_id: Optional[int] = Field(None, description="역할 ID")
     dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     is_active: Optional[bool] = Field(None, description="활성화 여부")
+    landing_page: Optional[str] = Field(None, max_length=200, description="개인 랜딩 페이지 (NULL이면 역할 기본값)")
 
     @field_validator("dept_id", mode="before")
     @classmethod
@@ -175,6 +177,7 @@ class UserResponse(BaseModel):
     dept_id: Optional[int] = Field(None, description="소속 부서 ID")
     dept_name: Optional[str] = Field(None, description="소속 부서명")
     role: RoleSimple = Field(..., description="역할 정보")
+    landing_page: Optional[str] = Field(None, description="개인 랜딩 페이지 (NULL이면 역할 기본값)")
     is_active: bool = Field(..., description="활성화 여부")
     is_superuser: bool = Field(default=False, description="슈퍼유저 여부")
     menu_count: int = Field(default=0, description="접근 가능 메뉴 수")

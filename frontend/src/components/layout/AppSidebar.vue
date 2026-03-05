@@ -55,22 +55,28 @@
       </template>
     </el-menu>
 
-    <!-- 하단 정보 -->
-    <div v-if="!isCollapsed" class="sidebar-footer">
-      <div class="version">v2.0.0</div>
+    <!-- 하단: 사용자 화면 이동 + 버전 -->
+    <div class="sidebar-footer">
+      <button class="user-chat-btn" :class="{ collapsed: isCollapsed }" @click="goToUserChat">
+        <el-icon><ChatDotSquare /></el-icon>
+        <span v-if="!isCollapsed">사용자 페이지</span>
+      </button>
+      <div v-if="!isCollapsed" class="version">v2.0.0</div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
+import { ChatDotSquare } from '@element-plus/icons-vue'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const route = useRoute()
+const router = useRouter()
 const store = useStore()
 
 const { isAuthenticated } = useAuth()
@@ -156,6 +162,10 @@ const getVar = (name) => getComputedStyle(document.documentElement).getPropertyV
 const menuBgColor = computed(() => getVar('--sidebar-bg') || (isDarkMode.value ? '#1f1f1f' : '#304156'))
 const menuTextColor = computed(() => getVar('--sidebar-text') || (isDarkMode.value ? '#a3a3a3' : '#bfcbd9'))
 const menuActiveColor = computed(() => getVar('--sidebar-active-text') || '#409eff')
+
+const goToUserChat = () => {
+  router.push('/chat')
+}
 </script>
 
 <style lang="scss" scoped>
@@ -213,6 +223,8 @@ const menuActiveColor = computed(() => getVar('--sidebar-active-text') || '#409e
 .el-menu {
   border-right: none;
   flex: 1;
+  padding-top: 8px;
+  --el-menu-item-height: 44px;
 
   .el-menu-item {
     &:hover {
@@ -226,10 +238,12 @@ const menuActiveColor = computed(() => getVar('--sidebar-active-text') || '#409e
 
   .el-sub-menu {
     :deep(.el-sub-menu__title) {
+      height: 44px;
+      line-height: 44px;
+
       &:hover {
         background-color: var(--sidebar-hover-bg) !important;
       }
-
     }
 
     .el-menu-item {
@@ -245,11 +259,43 @@ const menuActiveColor = computed(() => getVar('--sidebar-active-text') || '#409e
 }
 
 .sidebar-footer {
-  padding: 16px;
+  padding: 12px;
   text-align: center;
   border-top: 1px solid var(--border-color-lighter);
 
+  .user-chat-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    height: 36px;
+    border: 1px solid var(--border-color-lighter);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-color-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    .el-icon {
+      font-size: 16px;
+    }
+
+    &:hover {
+      background-color: var(--sidebar-hover-bg);
+      border-color: var(--text-color-secondary);
+    }
+
+    &.collapsed {
+      width: 36px;
+      margin: 0 auto;
+    }
+  }
+
   .version {
+    margin-top: 8px;
     font-size: 12px;
     color: var(--text-color-secondary);
   }

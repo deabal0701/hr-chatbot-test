@@ -25,12 +25,16 @@
     <!-- New Chat & Dashboard Buttons -->
     <div class="new-chat-section">
       <button class="new-chat-btn" @click="handleNewChat">
-        <el-icon><EditPen /></el-icon>
+        <el-icon><RefreshRight /></el-icon>
         <span>새 채팅</span>
       </button>
       <button class="new-chat-btn dashboard-btn" @click="goToDashboard" :class="{ active: isDashboardRoute }">
         <el-icon><DataAnalysis /></el-icon>
         <span>나의 대시보드</span>
+      </button>
+      <button v-if="canAccessAdmin" class="new-chat-btn admin-btn" @click="goToAdmin">
+        <el-icon><Setting /></el-icon>
+        <span>관리자 페이지</span>
       </button>
     </div>
 
@@ -165,7 +169,7 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { ElMessage } from 'element-plus'
-import { Close, EditPen, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
+import { Close, RefreshRight, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis, Setting } from '@element-plus/icons-vue'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 
@@ -182,7 +186,7 @@ const store = useStore()
 const router = useRouter()
 
 // ===== 인증 상태 =====
-const { isAuthenticated, displayName, roleName, logout } = useAuth()
+const { isAuthenticated, displayName, roleName, canAccessAdmin, logout } = useAuth()
 
 // 사용자 메뉴 커맨드 처리
 const handleUserCommand = async (command) => {
@@ -199,10 +203,17 @@ const goToLogin = () => {
   router.push({ path: '/login', query: { redirect: '/chat' } })
 }
 
-// ===== 대시보드 네비게이션 =====
+// ===== 대시보드/관리자 네비게이션 =====
 const isDashboardRoute = computed(() => router.currentRoute.value.path === '/dashboard')
 const goToDashboard = () => {
   router.push('/dashboard')
+  if (props.isMobile) emit('close')
+}
+const goToAdmin = () => {
+  // 사용자가 접근 가능한 첫 번째 관리 메뉴로 이동 (menu_path는 /admin/... 전체 경로)
+  const menus = store.getters['auth/menus'] || []
+  const adminPage = menus.find(m => m.menu_path && m.menu_type === 'PAGE' && m.menu_path.startsWith('/admin'))
+  router.push(adminPage ? adminPage.menu_path : '/admin/dashboard')
   if (props.isMobile) emit('close')
 }
 
@@ -448,6 +459,12 @@ const clearSearch = () => {
         border: 1px solid var(--el-color-primary);
         color: var(--el-color-primary);
       }
+    }
+
+    &.admin-btn {
+      font-weight: 500;
+      font-size: 13px;
+      height: 38px;
     }
   }
 }

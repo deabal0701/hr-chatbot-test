@@ -250,6 +250,21 @@
               </el-col>
             </el-row>
 
+            <el-form-item label="랜딩 페이지">
+              <el-select
+                v-model="formData.landing_page"
+                placeholder="역할 기본값 사용"
+                clearable
+                style="width: 100%"
+              >
+                <el-option label="/admin/dashboard (관리자 대시보드)" value="/admin/dashboard" />
+                <el-option label="/admin/chat (관리자 채팅)" value="/admin/chat" />
+                <el-option label="/chat (사용자 채팅)" value="/chat" />
+                <el-option label="/dashboard (개인 대시보드)" value="/dashboard" />
+              </el-select>
+              <div class="form-help-text">비워두면 역할의 기본 랜딩 페이지를 사용합니다.</div>
+            </el-form-item>
+
             <el-form-item label="활성화 여부">
               <el-switch v-model="formData.is_active" />
             </el-form-item>
@@ -322,7 +337,8 @@ const formData = reactive({
   tenant_id: null,
   dept_id: null,
   is_active: true,
-  role_id: null
+  role_id: null,
+  landing_page: null
 })
 
 // 선택된 역할의 role_code
@@ -594,6 +610,7 @@ const openEditDialog = async (row) => {
   formData.dept_id = row.dept_id || null
   formData.is_active = row.is_active
   formData.role_id = row.role?.role_id || null
+  formData.landing_page = row.landing_page || null
   formData.password = ''
   dialogVisible.value = true
 
@@ -636,6 +653,7 @@ const resetForm = () => {
   formData.dept_id = null
   formData.is_active = true
   formData.role_id = null
+  formData.landing_page = null
   deptOptions.value = []
   initMenuPermMap()
   if (formRef.value) formRef.value.clearValidate()
@@ -666,6 +684,7 @@ const handleSubmit = async () => {
         dept_id: formData.dept_id,
         is_active: formData.is_active,
         role_id: formData.role_id,
+        landing_page: formData.landing_page || null,
         menus
       })
       ElMessage.success('사용자가 생성되었습니다')
@@ -676,7 +695,8 @@ const handleSubmit = async () => {
         tenant_id: formData.tenant_id,
         dept_id: formData.dept_id || null,
         is_active: formData.is_active,
-        role_id: formData.role_id
+        role_id: formData.role_id,
+        landing_page: formData.landing_page || null
       })
       // 메뉴 권한 별도 업데이트
       if (menus.length > 0) {
@@ -747,6 +767,13 @@ onMounted(async () => {
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
+  }
+
+  .form-help-text {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
   }
 }
 </style>

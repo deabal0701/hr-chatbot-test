@@ -23,13 +23,17 @@ class UserService:
 
     @staticmethod
     def _format_user_role(user: dict) -> None:
-        """DB 행의 role_id/role_code/role_name/landing_page를 role 객체로 포맷"""
+        """DB 행의 role_id/role_code/role_name/landing_page를 role 객체로 포맷
+        user_landing_page → landing_page (사용자 개인 설정)
+        """
         user["role"] = {
             "role_id": user.pop("role_id"),
             "role_code": user.pop("role_code"),
             "role_name": user.pop("role_name"),
             "landing_page": user.pop("landing_page"),
         } if user.get("role_id") else None
+        # user_landing_page → landing_page (사용자 개인 랜딩 페이지)
+        user["landing_page"] = user.pop("user_landing_page", None)
 
     def _validate_role_tenant(self, role_id: Optional[int], tenant_id: Optional[int], dept_id: Optional[int] = None) -> tuple:
         """역할-테넌트-부서 조합 유효성 검증, (보정된 tenant_id, 보정된 dept_id) 반환
@@ -125,7 +129,8 @@ class UserService:
             cur.execute(
                 f"SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 f"t.tenant_name, u.dept_id, d.dept_name, "
-                f"u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
+                f"u.is_active, u.is_superuser, u.landing_page AS user_landing_page, "
+                f"u.last_login_at, u.created_at, u.updated_at, "
                 f"r.role_id, r.role_code, r.role_name, r.landing_page, "
                 f"(SELECT COUNT(*) FROM tb_user_menu um WHERE um.user_id = u.user_id) as menu_count "
                 f"FROM tb_user u "
@@ -152,7 +157,8 @@ class UserService:
             cur.execute(
                 "SELECT u.user_id, u.login_id, u.email, u.display_name, u.tenant_id, "
                 "t.tenant_name, u.dept_id, d.dept_name, "
-                "u.is_active, u.is_superuser, u.last_login_at, u.created_at, u.updated_at, "
+                "u.is_active, u.is_superuser, u.landing_page AS user_landing_page, "
+                "u.last_login_at, u.created_at, u.updated_at, "
                 "r.role_id, r.role_code, r.role_name, r.landing_page, "
                 "(SELECT COUNT(*) FROM tb_user_menu um WHERE um.user_id = u.user_id) as menu_count "
                 "FROM tb_user u "
@@ -215,9 +221,9 @@ class UserService:
         try:
             with db_manager.get_cursor(commit=True) as cur:
                 cur.execute(
-                    "INSERT INTO tb_user (login_id, email, password_hash, display_name, tenant_id, role_id, dept_id, is_active) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING user_id",
-                    (data["login_id"], data["email"], password_hashed, data.get("display_name"), tenant_id, role_id, dept_id, data.get("is_active", True)),
+                    "INSERT INTO tb_user (login_id, email, password_hash, display_name, tenant_id, role_id, dept_id, is_active, landing_page) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING user_id",
+                    (data["login_id"], data["email"], password_hashed, data.get("display_name"), tenant_id, role_id, dept_id, data.get("is_active", True), data.get("landing_page")),
                 )
                 new_user_id = cur.fetchone()["user_id"]
 
@@ -271,10 +277,10 @@ class UserService:
             data["dept_id"] = validated_dept_id
 
         # 동적 UPDATE (nullable 필드는 None→NULL 허용)
-        nullable_fields = {"display_name", "dept_id"}
+        nullable_fields = {"display_name", "dept_id", "landing_page"}
         fields = []
         params: list = []
-        for key in ("email", "display_name", "tenant_id", "role_id", "dept_id", "is_active"):
+        for key in ("email", "display_name", "tenant_id", "role_id", "dept_id", "is_active", "landing_page"):
             if key in data:
                 if data[key] is None and key not in nullable_fields:
                     continue

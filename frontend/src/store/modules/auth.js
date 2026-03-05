@@ -110,10 +110,10 @@ export default {
       return !!menu[`can_${action}`]
     },
 
-    // 관리 메뉴 접근 여부 (메뉴가 1개라도 할당되면 관리자 영역 접근 가능)
+    // 관리 메뉴 접근 여부 (/admin 경로 메뉴가 1개라도 있으면 관리자 영역 접근 가능)
     canAccessAdmin: (state) => {
-      if (!state.user) return false
-      return (state.user.menus?.length || 0) > 0
+      if (!state.user?.menus) return false
+      return state.user.menus.some(m => m.menu_path && m.menu_path.startsWith('/admin'))
     }
   },
 
