@@ -44,13 +44,15 @@
         <el-radio-group v-model="form.widgetType">
           <el-radio-button value="table">테이블</el-radio-button>
           <el-radio-button value="bar">Bar</el-radio-button>
+          <el-radio-button value="hbar">H-Bar</el-radio-button>
           <el-radio-button value="line">Line</el-radio-button>
           <el-radio-button value="pie">Pie</el-radio-button>
+          <el-radio-button value="scatter">Scatter</el-radio-button>
           <el-radio-button value="kpi">KPI</el-radio-button>
         </el-radio-group>
       </el-form-item>
 
-      <!-- 차트 설정 (Bar/Line/Pie) -->
+      <!-- 차트 설정 (Bar/HBar/Line/Pie/Scatter) -->
       <template v-if="isChartType">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -74,15 +76,38 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item v-if="form.widgetType === 'pie'" label="표시 개수">
-          <el-select v-model="form.pieTopN" style="width: 160px">
-            <el-option label="Top 5" :value="5" />
-            <el-option label="Top 10" :value="10" />
-            <el-option label="Top 15" :value="15" />
-            <el-option label="Top 20" :value="20" />
-            <el-option label="전체" :value="0" />
-          </el-select>
-        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item v-if="form.widgetType === 'pie'" label="표시 개수">
+              <el-select v-model="form.pieTopN" style="width: 100%">
+                <el-option label="Top 5" :value="5" />
+                <el-option label="Top 10" :value="10" />
+                <el-option label="Top 15" :value="15" />
+                <el-option label="Top 20" :value="20" />
+                <el-option label="전체" :value="0" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="컬러 팔레트">
+              <el-select v-model="form.colorPalette" style="width: 100%">
+                <el-option
+                  v-for="(palette, key) in CHART_PALETTES"
+                  :key="key"
+                  :label="palette.label"
+                  :value="key"
+                >
+                  <div class="palette-option">
+                    <span>{{ palette.label }}</span>
+                    <span class="palette-preview">
+                      <span v-for="(c, i) in palette.colors.slice(0, 5)" :key="i" class="palette-dot" :style="{ background: c }" />
+                    </span>
+                  </div>
+                </el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </template>
 
       <!-- KPI 설정 -->
@@ -124,7 +149,7 @@
             :chart-config="previewChartConfig"
             :rows="rows"
             :dark-mode="false"
-            :color-palette="null"
+            :color-palette="form.colorPalette"
             :column-aliases="computedAliases"
           />
           <WidgetKpi
@@ -151,7 +176,7 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, WarningFilled } from '@element-plus/icons-vue'
-import { detectColumnTypes } from '@/composables/useChartOptions'
+import { detectColumnTypes, CHART_PALETTES } from '@/composables/useChartOptions'
 import WidgetChart from './widgets/WidgetChart.vue'
 import WidgetKpi from './widgets/WidgetKpi.vue'
 
@@ -189,7 +214,8 @@ const form = ref({
   yColumns: [],
   pieTopN: 10,
   kpiColumn: '',
-  kpiSuffix: ''
+  kpiSuffix: '',
+  colorPalette: 'default'
 })
 
 const aliasInputs = reactive({})
@@ -242,6 +268,7 @@ watch(visible, async (val) => {
     // KPI 초기값
     form.value.kpiColumn = numeric.length > 0 ? numeric[0] : ''
     form.value.kpiSuffix = ''
+    form.value.colorPalette = 'default'
 
     // 별칭 초기화
     Object.keys(aliasInputs).forEach(k => delete aliasInputs[k])
@@ -255,7 +282,7 @@ watch(() => form.value.widgetType, (newType) => {
     if (Array.isArray(form.value.yColumns)) {
       form.value.yColumns = form.value.yColumns[0] || ''
     }
-  } else if (['bar', 'line'].includes(newType)) {
+  } else if (['bar', 'hbar', 'line', 'scatter'].includes(newType)) {
     if (!Array.isArray(form.value.yColumns)) {
       form.value.yColumns = form.value.yColumns ? [form.value.yColumns] : []
     }
@@ -265,7 +292,7 @@ watch(() => form.value.widgetType, (newType) => {
 const columnTypes = computed(() => detectColumnTypes(props.columns, props.rows))
 const numericCols = computed(() => columnTypes.value.numeric.length > 0 ? columnTypes.value.numeric : props.columns)
 
-const isChartType = computed(() => ['bar', 'line', 'pie'].includes(form.value.widgetType))
+const isChartType = computed(() => ['bar', 'hbar', 'line', 'pie', 'scatter'].includes(form.value.widgetType))
 
 const previewChartConfig = computed(() => ({
   x_column: form.value.xColumn,
@@ -306,6 +333,7 @@ const handleSave = async () => {
       pie_top_n: form.value.widgetType === 'pie' ? form.value.pieTopN : null,
       kpi_column: form.value.widgetType === 'kpi' ? form.value.kpiColumn : null,
       kpi_suffix: form.value.widgetType === 'kpi' ? form.value.kpiSuffix : null,
+      color_palette: isChartType.value ? form.value.colorPalette : null,
       column_aliases: computedAliases.value
     },
     cached_data: {
@@ -371,6 +399,25 @@ const handleClose = () => {
     color: var(--el-text-color-secondary);
     margin-bottom: 20px;
   }
+}
+
+.palette-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.palette-preview {
+  display: flex;
+  gap: 3px;
+}
+
+.palette-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
 }
 
 .alias-collapse {
