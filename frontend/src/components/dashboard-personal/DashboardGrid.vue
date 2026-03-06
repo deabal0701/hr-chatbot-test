@@ -100,6 +100,16 @@ const store = useStore()
 
 const layoutModel = ref([])
 
+// colNum이 변경되면 위젯 w를 colNum에 맞게 조정 (모바일 대응)
+const adaptLayout = (layout) => {
+  const col = props.colNum
+  return layout.map(item => ({
+    ...item,
+    x: item.w > col ? 0 : (item.x + item.w > col ? 0 : item.x),
+    w: Math.min(item.w, col)
+  }))
+}
+
 // store의 gridLayout을 watch하여 동기화
 // 편집 모드: 위젯 추가/삭제(개수 변경) 시에만 동기화 (드래그 위치 변경은 무시)
 // 일반 모드: 항상 동기화
@@ -107,10 +117,20 @@ watch(
   () => store.getters['dashboard/gridLayout'],
   (newLayout) => {
     if (!props.editMode || newLayout.length !== layoutModel.value.length) {
-      layoutModel.value = JSON.parse(JSON.stringify(newLayout))
+      layoutModel.value = adaptLayout(JSON.parse(JSON.stringify(newLayout)))
     }
   },
   { immediate: true, deep: true }
+)
+
+// colNum 변경 시 (화면 크기 변경) 레이아웃 재조정
+watch(
+  () => props.colNum,
+  () => {
+    if (!props.editMode) {
+      layoutModel.value = adaptLayout(JSON.parse(JSON.stringify(store.getters['dashboard/gridLayout'])))
+    }
+  }
 )
 
 // 편집 모드 진입 시 현재 레이아웃 스냅샷
@@ -118,7 +138,7 @@ watch(
   () => props.editMode,
   (isEdit) => {
     if (isEdit) {
-      layoutModel.value = JSON.parse(JSON.stringify(store.getters['dashboard/gridLayout']))
+      layoutModel.value = adaptLayout(JSON.parse(JSON.stringify(store.getters['dashboard/gridLayout'])))
     }
   }
 )

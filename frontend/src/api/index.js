@@ -77,9 +77,9 @@ apiClient.interceptors.response.use(
 
     const originalRequest = error.config
 
-    // 401 Unauthorized → 토큰 자동 갱신 시도
+    // 401 Unauthorized → 토큰 자동 갱신 시도 (refresh 토큰으로 자동 갱신 시도, 성공하며 원래의 요청 재전송)
     if (error.response.status === 401 && !originalRequest._retry) {
-      // 로그인/refresh 요청 자체의 401은 갱신 시도하지 않음
+      // 로그인/refresh 요청 자체의 401은 갱신 시도하지 않고 오류 처리함.
       if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
         return handleApiError(error)
       }
@@ -104,6 +104,7 @@ apiClient.interceptors.response.use(
         return Promise.reject(error)
       }
 
+      //  토큰 갱신 요청
       return apiClient.post('/api/v1/auth/refresh', {
         refresh_token: refreshToken
       }).then(data => {
@@ -143,11 +144,11 @@ function handleApiError(error) {
   // 표준 에러 응답: { success: false, error: { code, message, detail } }
   if (errorData?.error && typeof errorData.success === 'boolean') {
     const serverError = errorData.error
-    const customError = new Error(serverError.message || '오류가 발생했습니다')
-    customError.code = serverError.code || 'UNKNOWN_ERROR'
-    customError.detail = serverError.detail
-    customError.status = status
-    customError.response = error.response
+    const customError = new Error(serverError.message || '오류가 발생했습니다')    
+    customError.code = serverError.code || 'UNKNOWN_ERROR'                          // 에러 유형 (FORBIDDEN, NOT_FOUND 등)
+    customError.detail = serverError.detail                                         // 디버깅용 상세 정보
+    customError.status = status                                                     // HTTP 상태 코드
+    customError.response = error.response                                           // 원본 응답
     console.error('API Error:', customError.code, customError.message)
     return Promise.reject(customError)
   }

@@ -10,7 +10,7 @@
       <div class="toolbar-title-area">
         <el-dropdown trigger="click" @command="handleDashboardCommand">
           <h2 class="dashboard-selector">
-            {{ currentTitle }}
+            <span class="selector-title">{{ currentTitle }}</span>
             <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
             <el-tag v-if="isReadOnly" size="small" type="info" class="shared-tag">공유됨</el-tag>
             <el-tag v-if="currentDashboard?.is_shared" size="small" type="success" effect="plain" class="shared-tag">공유중</el-tag>
@@ -219,16 +219,24 @@ const handleExportCommand = (command) => {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 
   .back-btn {
     margin-right: 4px;
+    flex-shrink: 0;
   }
 
   .toolbar-icon {
     color: var(--el-color-primary);
+    flex-shrink: 0;
   }
 
   .toolbar-title-area {
+    min-width: 0;
+    overflow: hidden;
+
     .dashboard-selector {
       display: flex;
       align-items: center;
@@ -240,14 +248,23 @@ const handleExportCommand = (command) => {
       line-height: 1.4;
       cursor: pointer;
       user-select: none;
+      white-space: nowrap;
 
       &:hover {
         color: var(--el-color-primary);
       }
 
+      .selector-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
       .dropdown-arrow {
         font-size: 14px;
         transition: transform 0.2s;
+        flex-shrink: 0;
       }
     }
 
@@ -255,10 +272,12 @@ const handleExportCommand = (command) => {
       font-size: 13px;
       font-weight: 400;
       color: var(--dashboard-text-secondary);
+      flex-shrink: 0;
     }
 
     .shared-tag {
       font-weight: 400;
+      flex-shrink: 0;
     }
   }
 }
@@ -328,14 +347,42 @@ const handleExportCommand = (command) => {
 
 @media (max-width: 768px) {
   .dashboard-toolbar {
-    padding: 12px 16px;
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .toolbar-left {
-    .toolbar-title-area .dashboard-selector { font-size: 16px; }
+    gap: 6px;
+
+    .toolbar-icon { display: none; }
+
+    .toolbar-title-area .dashboard-selector {
+      font-size: 15px;
+      gap: 4px;
+    }
+
+    .toolbar-title-area .toolbar-subtitle { display: none; }
+    .toolbar-title-area .shared-tag { display: none; }
   }
 
-  .toolbar-right span { display: none; }
+  .toolbar-right {
+    flex-shrink: 0;
+    gap: 4px;
+
+    span { display: none; }
+
+    // 버튼 크기 축소
+    :deep(.el-button) {
+      padding: 6px;
+      &.is-circle { width: 30px; height: 30px; }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .toolbar-left {
+    .back-btn { display: none; }
+  }
 }
 </style>
 
