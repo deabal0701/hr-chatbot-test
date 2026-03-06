@@ -876,7 +876,58 @@ from langgraph.graph import END, StateGraph
 - log_step출력: log_step는 로그이니 다른비즈니스 로직과 분리하여 한줄에 출력하라.
 - 변경시에는 항상 변경된 소스코드파일 및 변경된 내용에 대해 설명을하라.
 - __init__에는 가능한 파일만 생성하고 import모듈등은 구현하지 말라.
-- css의 style는 asset/styles/mixins하위 디렉토리를 참조하라.
+- css의 style는 아래 **SCSS/Mixin 필수 규칙**을 반드시 따른다.
+
+### SCSS/Mixin 필수 규칙
+
+**모든 Vue 컴포넌트의 `<style>` 작성 시 아래 규칙을 반드시 준수한다:**
+
+1. **`<style lang="scss" scoped>` 필수** — 예외: teleported 요소(el-dialog, el-popover 등 body에 렌더링되는 것)만 unscoped 허용
+2. **Mixin import 필수** — 모든 컴포넌트에 아래 패턴으로 시작:
+   ```scss
+   @use '@/assets/styles/mixins' as mx;
+   ```
+3. **CSS Variables 필수** — 색상, 배경, 테두리에 하드코딩 금지:
+   ```scss
+   // ❌ 금지
+   color: #303133;
+   background: #ffffff;
+   background: white;
+
+   // ✅ 필수
+   color: var(--text-color-primary);
+   background-color: var(--bg-color-card);
+   ```
+4. **기존 Mixin 활용 필수** — 직접 CSS 작성 전 아래 mixin 목록에서 해당하는 패턴이 있는지 확인:
+   | Mixin 파일 | 주요 Mixin | 용도 |
+   |-----------|-----------|------|
+   | `_cards.scss` | `stat-card` | 통계 카드 (KPI, 이력 등) |
+   | `_chat.scss` | `toggle-section-container`, `toggle-button`, `sql-code-block`, `mode-badge` | 채팅 관련 토글, SQL 표시 |
+   | `_chart.scss` | `chart-builder-container`, `chart-config-panel`, `chart-render-area` | 차트 영역 |
+   | `_dashboard.scss` | `chart-card`, `activity-list` | 대시보드 차트, 활동 목록 |
+   | `_forms.scss` | `settings-section`, `settings-actions` | 설정 폼 |
+   | `_layout.scss` | `stats-row` | 통계 행 레이아웃 |
+   | `_markdown.scss` | `md-table-styles`, `md-header-styles`, `md-list-styles`, `copy-table-btn` | 마크다운 렌더링 |
+   | `_animations.scss` | `fade-in-animation`, `rotating-animation`, `typing-animation` | 애니메이션 |
+   | `_responsive.scss` | `mobile`, `tablet`, `desktop` | 반응형 브레이크포인트 (추가 예정) |
+
+5. **반응형 mixin 사용** — 미디어 쿼리 직접 작성 대신 반응형 mixin 사용:
+   ```scss
+   // ❌ 금지
+   @media (max-width: 768px) { ... }
+
+   // ✅ 필수
+   @include mx.mobile { ... }
+   @include mx.tablet { ... }
+   ```
+6. **JS에서 색상 하드코딩 금지** — `getComputedStyle`이나 CSS Variables를 사용:
+   ```javascript
+   // ❌ 금지
+   const color = darkMode ? '#1f1f1f' : '#ffffff';
+
+   // ✅ 권장
+   const color = getComputedStyle(el).getPropertyValue('--bg-color-card');
+   ```
 
 
 ## Development Workflow
@@ -888,7 +939,7 @@ from langgraph.graph import END, StateGraph
    - **Backend API**: 기존 라우트의 URL 패턴, HTTP method, status_code, Depends 구조를 따른다
    - **응답 형식**: `success_response()` 래퍼 사용, CREATE→201, LIST→items/total, DELETE→message/deleted_count
    - **서비스 계층**: db_manager.get_cursor 패턴, 에러 처리, log_step 형식을 기존 서비스와 동일하게 작성한다
-   - **Frontend 화면**: 기존 Vue 컴포넌트의 레이아웃 구조, SCSS mixin 사용법, API 호출 패턴을 따른다
+   - **Frontend 화면**: 기존 Vue 컴포넌트의 레이아웃 구조, SCSS mixin 사용법, API 호출 패턴을 따른다. 반드시 `@use '@/assets/styles/mixins' as mx;`로 mixin을 import하고, 하드코딩 색상 대신 CSS Variables를 사용한다
    - **Pydantic 모델**: 기존 models/ 파일의 네이밍, 필드 타입, Optional 처리 방식을 따른다
    - **참조 방법**: 새 기능과 가장 유사한 기존 파일 1~2개를 먼저 읽고 그 패턴을 따른다
 3. **계획 수립**: TodoWrite로 작업 목록을 작성한다
