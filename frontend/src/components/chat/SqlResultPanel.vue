@@ -96,7 +96,7 @@ defineExpose({ chartBuilderRef })
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .sql-code {
   @include mx.sql-code-block;

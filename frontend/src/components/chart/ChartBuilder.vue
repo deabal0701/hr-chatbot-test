@@ -335,7 +335,7 @@ defineExpose({ chartGenerated, chartType, xAxisColumn, yAxisColumns, pieTopN })
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .chart-builder {
   @include mx.chart-builder-container;

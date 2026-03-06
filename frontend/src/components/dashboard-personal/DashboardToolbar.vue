@@ -205,6 +205,8 @@ const handleExportCommand = (command) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .dashboard-toolbar {
   display: flex;
   justify-content: space-between;

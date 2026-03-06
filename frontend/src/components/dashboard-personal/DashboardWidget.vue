@@ -212,6 +212,8 @@ const refreshTimeLabel = computed(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .dashboard-widget {
   display: flex;
   flex-direction: column;

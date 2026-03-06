@@ -110,6 +110,8 @@ const formatLastRequest = (dateStr) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .system-status {
   .doc-progress {
     width: 100%;

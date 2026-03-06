@@ -97,6 +97,8 @@ const rowStyle = computed(() => ({ rowIndex }) => ({
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .widget-table {
   width: 100%;
   height: 100%;

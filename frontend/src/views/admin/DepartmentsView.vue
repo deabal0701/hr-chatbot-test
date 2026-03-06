@@ -729,6 +729,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .departments-view {
   position: relative;
 
@@ -737,6 +739,10 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 16px;
     align-items: flex-start;
+
+    @include mx.mobile {
+      flex-direction: column;
+    }
   }
 
   .dept-tree-panel {
@@ -896,7 +902,7 @@ onBeforeUnmount(() => {
       color: var(--color-danger);
 
       &:hover {
-        background-color: rgba(245, 108, 108, 0.1);
+        background-color: rgba(var(--color-danger-rgb), 0.1);
       }
     }
   }

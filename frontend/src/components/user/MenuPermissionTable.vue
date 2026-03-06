@@ -87,6 +87,8 @@ defineExpose({ buildMenusPayload })
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .menu-permission-table {
   .text-disabled {
     opacity: 0.4;

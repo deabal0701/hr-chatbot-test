@@ -890,6 +890,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .menus-view {
   position: relative;
 
@@ -898,6 +900,10 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 16px;
     align-items: flex-start;
+
+    @include mx.mobile {
+      flex-direction: column;
+    }
   }
 
   .menu-tree-panel {

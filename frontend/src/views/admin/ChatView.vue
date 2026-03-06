@@ -280,7 +280,7 @@ watch(messages, async () => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .chat-view {
   display: flex;
@@ -306,6 +306,14 @@ watch(messages, async () => {
   // 관리자 화면: 어시스턴트 응답 폭 확장
   :deep(.message-bubble.assistant) {
     max-width: 90%;
+
+    @include mx.mobile {
+      max-width: 100%;
+    }
+  }
+
+  @include mx.mobile {
+    padding: 8px;
   }
 }
 
@@ -318,15 +326,21 @@ watch(messages, async () => {
     width: 84px;
     height: 84px;
     border-radius: 24px;
-    background-color: var(--icon-bg, #333333);
-    border: 2px solid var(--icon-bg-border, #555555);
+    background-color: var(--icon-bg);
+    border: 2px solid var(--icon-bg-border);
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 28px;
-    color: var(--icon-color, #ffffff);
+    color: var(--icon-color);
     box-shadow: var(--box-shadow);
     transform: rotate(-5deg);
+
+    @include mx.mobile {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+    }
   }
 
   h3 {
@@ -348,6 +362,10 @@ watch(messages, async () => {
   .el-button {
     margin: 4px;
   }
+
+  @include mx.mobile {
+    padding: 40px 16px;
+  }
 }
 
 .loading-message {
@@ -365,6 +383,10 @@ watch(messages, async () => {
   border-top: 1px solid var(--chat-input-border);
   background-color: var(--chat-input-bg);
   transition: var(--theme-transition);
+
+  @include mx.mobile {
+    padding: 8px 12px;
+  }
 }
 
 // 우측 오버레이 사이드바 래퍼 (트리거 + 사이드바를 flex로 묶어 한 덩어리로 슬라이딩)
@@ -387,8 +409,16 @@ watch(messages, async () => {
 
     .sidebar-trigger .trigger-arrow {
       opacity: 0.8;
-      color: var(--color-primary, #409eff);
+      color: var(--color-primary);
       background-color: var(--bg-color-card);
+    }
+  }
+
+  @include mx.mobile {
+    transform: translateX(100%);
+
+    &.visible {
+      transform: translateX(0);
     }
   }
 }
@@ -424,7 +454,7 @@ watch(messages, async () => {
 
   &:hover .trigger-arrow {
     opacity: 1;
-    color: var(--color-primary, #409eff);
+    color: var(--color-primary);
   }
 }
 
@@ -438,6 +468,10 @@ watch(messages, async () => {
   background-color: var(--bg-color-page);
   border-left: 1px solid var(--border-color);
   transition: box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+  @include mx.mobile {
+    width: 100vw;
+  }
 }
 
 .sidebar-section {

@@ -56,7 +56,7 @@ const goToDetail = (requestId) => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .recent-activity {
   display: flex;

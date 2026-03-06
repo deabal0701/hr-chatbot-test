@@ -213,6 +213,8 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .header-container {
   width: 100%;
   height: 100%;
@@ -234,6 +236,10 @@ onMounted(() => {
     font-size: 18px;
     font-weight: 500;
     color: var(--text-color-primary);
+
+    @include mx.mobile {
+      font-size: 15px;
+    }
   }
 }
 
@@ -245,6 +251,10 @@ onMounted(() => {
   :deep(.el-tag__content) {
     display: inline-flex;
     align-items: center;
+  }
+
+  @include mx.mobile {
+    gap: 8px;
   }
 }
 
@@ -273,11 +283,19 @@ onMounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    @include mx.mobile {
+      @include mx.hide-mobile;
+    }
   }
 
   .user-arrow {
     font-size: 12px;
     color: var(--text-color-secondary);
+
+    @include mx.mobile {
+      @include mx.hide-mobile;
+    }
   }
 }
 
@@ -308,5 +326,4 @@ onMounted(() => {
 .mr-5 {
   margin-right: 5px;
 }
-
 </style>

@@ -49,6 +49,8 @@ const handleSend = () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .chat-input {
   display: flex;
   gap: 12px;

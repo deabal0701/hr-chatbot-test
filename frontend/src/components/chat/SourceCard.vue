@@ -126,6 +126,8 @@ const copyContent = async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .source-card {
   padding: 10px 12px;
   background-color: var(--bg-color-page);
@@ -183,12 +185,12 @@ const copyContent = async () => {
 
   .score-vector {
     color: var(--color-success);
-    background-color: rgba(103, 194, 58, 0.1);
+    background-color: rgba(var(--color-success-rgb, 103, 194, 58), 0.1);
   }
 
   .score-keyword {
     color: var(--color-primary);
-    background-color: rgba(64, 158, 255, 0.1);
+    background-color: rgba(var(--color-primary-rgb, 64, 158, 255), 0.1);
   }
 }
 

@@ -46,6 +46,8 @@ const formatNumber = (num) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .chunk-preview {
   margin-top: 20px;
   padding: 16px;

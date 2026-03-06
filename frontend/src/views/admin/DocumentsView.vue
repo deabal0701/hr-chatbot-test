@@ -460,6 +460,8 @@ const getDocTypeTag = (type) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .documents-view {
   .filter-section {
     margin-bottom: 12px;

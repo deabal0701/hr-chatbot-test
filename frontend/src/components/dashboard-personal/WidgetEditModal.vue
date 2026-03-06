@@ -228,6 +228,8 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .section-collapse {
   margin-bottom: 16px;
   border: none;

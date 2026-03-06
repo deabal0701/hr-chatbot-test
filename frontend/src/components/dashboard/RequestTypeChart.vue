@@ -94,6 +94,8 @@ const chartOption = computed(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .request-type-chart {
   min-height: 360px;
 }

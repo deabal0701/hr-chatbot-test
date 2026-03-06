@@ -169,6 +169,8 @@ const goToUserChat = () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .sidebar-container {
   height: 100%;
   display: flex;
@@ -215,7 +217,7 @@ const goToUserChat = () => {
     margin-left: 12px;
     font-size: 18px;
     font-weight: 600;
-    color: #fff;
+    color: var(--sidebar-toggle-color);
     white-space: nowrap;
   }
 }

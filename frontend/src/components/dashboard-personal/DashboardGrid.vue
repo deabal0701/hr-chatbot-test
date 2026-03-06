@@ -180,6 +180,8 @@ const isWidgetRefreshing = (id) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .dashboard-grid {
   width: 100%;
   min-height: 400px;

@@ -82,7 +82,7 @@ defineProps({
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .kpi-cards {
   @include mx.stats-row;

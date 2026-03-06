@@ -110,6 +110,8 @@ const decorativeOption = {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .dashboard-empty-wrapper {
   display: flex;
   align-items: center;

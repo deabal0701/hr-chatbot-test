@@ -48,6 +48,8 @@ const chartOption = computed(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .widget-chart {
   width: 100%;
   height: 100%;

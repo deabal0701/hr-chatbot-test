@@ -2170,7 +2170,7 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .settings-view {
   .tenant-selector-section {

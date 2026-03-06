@@ -160,6 +160,8 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .dashboard-loading {
   display: flex;
   align-items: center;

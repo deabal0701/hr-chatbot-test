@@ -15,6 +15,9 @@
       </button>
     </div>
 
+    <!-- 모바일 사이드바 오버레이 -->
+    <div v-if="isMobile && !sidebarCollapsed" class="sidebar-overlay" @click="toggleSidebar"></div>
+
     <!-- 메인 영역 -->
     <el-container class="admin-main">
       <!-- 헤더 -->
@@ -31,7 +34,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useStore } from 'vuex'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
@@ -39,18 +42,39 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 
 const store = useStore()
 const sidebarCollapsed = computed(() => store.state.app.sidebarCollapsed)
+const isMobile = ref(window.innerWidth < 768)
 
 const toggleSidebar = () => {
   store.dispatch('app/toggleSidebar')
 }
 
+const handleResize = () => {
+  const wasMobile = isMobile.value
+  isMobile.value = window.innerWidth < 768
+  // 모바일 진입 시 사이드바 자동 접기
+  if (isMobile.value && !wasMobile && !sidebarCollapsed.value) {
+    store.dispatch('app/toggleSidebar')
+  }
+}
+
 // 관리자 화면 진입 시 currentView 설정
 onMounted(() => {
   store.dispatch('app/setCurrentView', 'admin')
+  window.addEventListener('resize', handleResize)
+  // 모바일로 처음 진입 시 사이드바 접기
+  if (isMobile.value && !sidebarCollapsed.value) {
+    store.dispatch('app/toggleSidebar')
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .admin-layout {
   height: 100vh;
   overflow: hidden;
@@ -65,6 +89,39 @@ onMounted(() => {
     .sidebar-toggle {
       right: -6px;
     }
+  }
+
+  // 모바일: 사이드바 오버레이 모드
+  @include mx.mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 200;
+    height: 100vh;
+
+    &.collapsed {
+      left: -220px;
+
+      .sidebar-toggle {
+        position: fixed;
+        left: 0;
+        right: auto;
+        border-radius: 0 6px 6px 0;
+      }
+    }
+  }
+}
+
+// 모바일 사이드바 배경 오버레이
+.sidebar-overlay {
+  display: none;
+
+  @include mx.mobile {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 199;
   }
 }
 
@@ -117,6 +174,10 @@ onMounted(() => {
   box-shadow: var(--box-shadow-light);
   z-index: 10;
   transition: var(--theme-transition);
+
+  @include mx.mobile {
+    padding: 0 12px;
+  }
 }
 
 .admin-content {
@@ -124,5 +185,9 @@ onMounted(() => {
   padding: 12px;
   overflow-y: auto;
   transition: var(--theme-transition);
+
+  @include mx.mobile {
+    padding: 8px;
+  }
 }
 </style>

@@ -191,6 +191,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .dashboard-view {
   .page-header {
     align-items: center;
@@ -240,6 +242,10 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 16px;
 
+    @include mx.mobile {
+      flex-wrap: wrap;
+    }
+
     .action-item {
       flex: 1;
       display: flex;
@@ -271,17 +277,10 @@ onBeforeUnmount(() => {
         color: var(--text-color-secondary);
         text-align: center;
       }
-    }
-  }
 
-}
-
-@media (max-width: 768px) {
-  .quick-actions {
-    flex-wrap: wrap;
-
-    .action-item {
-      min-width: calc(50% - 8px);
+      @include mx.mobile {
+        min-width: calc(50% - 8px);
+      }
     }
   }
 }

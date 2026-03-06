@@ -357,6 +357,8 @@ const clearSearch = () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .user-chat-sidebar {
   width: var(--user-sidebar-width);
   height: 100%;
@@ -455,7 +457,7 @@ const clearSearch = () => {
       height: 38px;
 
       &.active {
-        background-color: rgba(64, 158, 255, 0.08);
+        background-color: rgba(var(--color-primary-rgb), 0.08);
         border: 1px solid var(--el-color-primary);
         color: var(--el-color-primary);
       }
@@ -759,7 +761,7 @@ const clearSearch = () => {
 // ===========================================
 // 모바일 반응형 스타일
 // ===========================================
-@media (max-width: 768px) {
+@include mx.mobile {
   .user-chat-sidebar {
     width: 280px;
     max-width: 85vw;

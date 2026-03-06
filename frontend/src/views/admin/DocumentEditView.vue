@@ -682,6 +682,8 @@ const handleSubmit = async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .document-edit-view {
   height: 100%;
   display: flex;

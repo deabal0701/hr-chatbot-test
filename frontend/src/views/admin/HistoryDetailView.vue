@@ -381,7 +381,7 @@ const formatJson = (data) => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .history-detail-view {
   height: 100%;
@@ -579,7 +579,7 @@ const formatJson = (data) => {
                   height: 20px;
                   border-radius: 50%;
                   background-color: var(--color-primary);
-                  color: #fff;
+                  color: var(--bg-color-card);
                   font-size: 12px;
                   font-weight: bold;
                   display: flex;

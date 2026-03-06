@@ -753,16 +753,27 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .users-view {
   .toolbar {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
+
+    @include mx.mobile {
+      gap: 8px;
+    }
   }
 
   .flex-1 {
     flex: 1;
+
+    @include mx.mobile {
+      flex: none;
+      width: 100%;
+    }
   }
 
   .action-cell {
@@ -776,6 +787,12 @@ onMounted(async () => {
     color: var(--el-text-color-secondary);
     margin-top: 4px;
     line-height: 1.4;
+  }
+
+  :deep(.el-table) {
+    @include mx.mobile {
+      font-size: 12px;
+    }
   }
 }
 </style>

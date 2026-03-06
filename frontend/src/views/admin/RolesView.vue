@@ -390,16 +390,27 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .roles-view {
   .toolbar {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
+
+    @include mx.mobile {
+      gap: 8px;
+    }
   }
 
   .flex-1 {
     flex: 1;
+
+    @include mx.mobile {
+      flex: none;
+      width: 100%;
+    }
   }
 
   .action-cell {

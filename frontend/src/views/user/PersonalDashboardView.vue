@@ -326,6 +326,8 @@ const goToChat = () => { router.push('/chat') }
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .personal-dashboard {
   height: 100vh;
   display: flex;
@@ -339,6 +341,10 @@ const goToChat = () => { router.push('/chat') }
   overflow-y: auto;
   padding: 20px 24px;
   position: relative;
+
+  @include mx.mobile {
+    padding: 8px;
+  }
 }
 
 .fab-container {
@@ -350,21 +356,14 @@ const goToChat = () => { router.push('/chat') }
   :deep(.el-button) {
     width: 56px;
     height: 56px;
-    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+    box-shadow: var(--box-shadow);
 
     &:hover {
       transform: scale(1.1);
-      box-shadow: 0 6px 16px rgba(64, 158, 255, 0.5);
     }
   }
-}
 
-@media (max-width: 768px) {
-  .dashboard-content {
-    padding: 8px;
-  }
-
-  .fab-container {
+  @include mx.mobile {
     bottom: 20px;
     right: 20px;
   }

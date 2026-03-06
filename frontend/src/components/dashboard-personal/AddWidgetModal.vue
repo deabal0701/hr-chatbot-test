@@ -577,6 +577,8 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .session-option {
   display: flex;
   justify-content: space-between;

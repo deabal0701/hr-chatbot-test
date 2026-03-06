@@ -228,7 +228,7 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .user-chat-layout {
   display: flex;
@@ -395,7 +395,7 @@ onUnmounted(() => {
 @include mx.sidebar-slide-transition;
 
 // Mobile responsive
-@media (max-width: 768px) {
+@include mx.mobile {
   .user-chat-layout {
     position: relative;
   }
@@ -419,7 +419,7 @@ onUnmounted(() => {
   }
 }
 
-@media (min-width: 769px) {
+@include mx.desktop {
   .sidebar-overlay {
     display: none;
   }
@@ -433,10 +433,10 @@ onUnmounted(() => {
   z-index: 100;
   width: 40px;
   height: 40px;
-  background-color: var(--user-sidebar-bg, #171717);
-  border: 1px solid var(--user-sidebar-border, #2a2a2a);
+  background-color: var(--user-sidebar-bg);
+  border: 1px solid var(--user-sidebar-border);
   border-radius: 8px;
-  color: var(--user-sidebar-text, #ececec);
+  color: var(--user-sidebar-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -444,7 +444,7 @@ onUnmounted(() => {
   transition: all 0.2s;
 
   &:hover {
-    background-color: var(--user-sidebar-hover-bg, #212121);
+    background-color: var(--user-sidebar-hover-bg);
   }
 }
 </style>

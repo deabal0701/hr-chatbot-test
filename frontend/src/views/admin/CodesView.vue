@@ -659,11 +659,18 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .codes-view {
   .group-selector {
     display: flex;
     gap: 12px;
     align-items: center;
+
+    @include mx.mobile {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
   }
 
   .metadata-viewer {

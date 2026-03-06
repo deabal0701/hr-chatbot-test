@@ -342,7 +342,7 @@ watch(messages, async () => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .user-chat-view {
   display: flex;
@@ -740,13 +740,13 @@ watch(messages, async () => {
 
   &.active {
     background-color: var(--color-primary);
-    color: #ffffff;
+    color: var(--bg-color-card);
     cursor: pointer;
     box-shadow: var(--box-shadow);
 
     &:hover {
       transform: scale(1.05);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--box-shadow);
     }
   }
 
@@ -800,7 +800,7 @@ watch(messages, async () => {
 // ===========================================
 // 모바일 반응형 스타일
 // ===========================================
-@media (max-width: 768px) {
+@include mx.mobile {
   .chat-header {
     padding: 12px 16px;
 
@@ -967,8 +967,8 @@ watch(messages, async () => {
   }
 }
 
-// 매우 작은 화면 (375px 이하)
-@media (max-width: 375px) {
+// 매우 작은 화면 (480px 이하)
+@include mx.small-mobile {
   .chat-content {
     padding: 0 12px;
   }

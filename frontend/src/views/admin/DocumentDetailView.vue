@@ -477,6 +477,8 @@ const getDocTypeTag = (type) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .document-detail-view {
   height: 100%;
   display: flex;

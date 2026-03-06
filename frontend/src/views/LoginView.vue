@@ -129,6 +129,8 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .login-container {
   min-height: 100vh;
   display: flex;
@@ -179,6 +181,10 @@ onMounted(() => {
   border-radius: 12px;
   box-shadow: var(--box-shadow);
   border: 1px solid var(--border-color-lighter);
+
+  @include mx.mobile {
+    padding: 32px 20px;
+  }
 }
 
 .login-header {
@@ -191,6 +197,10 @@ onMounted(() => {
     font-weight: 700;
     color: var(--text-color-primary);
     letter-spacing: 2px;
+
+    @include mx.mobile {
+      font-size: 24px;
+    }
   }
 
   .login-subtitle {

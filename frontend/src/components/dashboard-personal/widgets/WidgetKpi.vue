@@ -46,6 +46,8 @@ const formattedValue = computed(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .widget-kpi {
   display: flex;
   flex-direction: column;

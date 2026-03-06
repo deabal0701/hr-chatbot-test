@@ -167,6 +167,8 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .widget-type-group {
   :deep(.el-radio-button__inner) {
     display: inline-flex;

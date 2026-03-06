@@ -350,6 +350,8 @@ const useExample = (example) => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .prompt-guide-modal {
   :deep(.el-dialog) {
     border-radius: 16px;
@@ -509,16 +511,16 @@ const useExample = (example) => {
   }
 
   &.good li {
-    background: rgba(103, 194, 58, 0.1);
+    background: rgba(var(--color-success-rgb, 103, 194, 58), 0.1);
     color: var(--text-color-primary);
     cursor: pointer;
 
     .el-icon {
-      color: #67c23a;
+      color: var(--color-success);
     }
 
     &:hover {
-      background: rgba(103, 194, 58, 0.2);
+      background: rgba(var(--color-success-rgb, 103, 194, 58), 0.2);
     }
   }
 
@@ -526,13 +528,13 @@ const useExample = (example) => {
     grid-template-columns: 1fr;
 
     li {
-      background: rgba(245, 108, 108, 0.1);
+      background: rgba(var(--color-danger-rgb, 245, 108, 108), 0.1);
       color: var(--text-color-primary);
       cursor: default;
       flex-wrap: wrap;
 
       .el-icon {
-        color: #f56c6c;
+        color: var(--color-danger);
       }
     }
   }
@@ -576,7 +578,7 @@ const useExample = (example) => {
 
 // 규칙 그리드
 .important-rules {
-  background: rgba(64, 158, 255, 0.08);
+  background: rgba(var(--color-primary-rgb, 64, 158, 255), 0.08);
   border-radius: 12px;
   padding: 16px;
   margin-top: 20px;
@@ -618,29 +620,29 @@ const useExample = (example) => {
 :root[data-theme="dark"] {
   .table-info,
   .category-info {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--bg-color-hover);
+    border-color: var(--border-color-lighter);
   }
 
   .example-list.good li {
-    background: rgba(103, 194, 58, 0.15);
+    background: rgba(var(--color-success-rgb, 103, 194, 58), 0.15);
   }
 
   .example-list.bad li {
-    background: rgba(245, 108, 108, 0.15);
+    background: rgba(var(--color-danger-rgb, 245, 108, 108), 0.15);
   }
 
   .important-rules {
-    background: rgba(64, 158, 255, 0.12);
+    background: rgba(var(--color-primary-rgb, 64, 158, 255), 0.12);
   }
 
   .rule-item {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-color-hover);
   }
 }
 
 // 반응형
-@media (max-width: 1024px) {
+@include mx.tablet-down {
   .data-tables {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -654,7 +656,7 @@ const useExample = (example) => {
   }
 }
 
-@media (max-width: 768px) {
+@include mx.mobile {
   .data-tables {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -672,7 +674,7 @@ const useExample = (example) => {
   }
 }
 
-@media (max-width: 480px) {
+@include mx.small-mobile {
   .data-tables {
     grid-template-columns: 1fr;
   }

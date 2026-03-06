@@ -201,7 +201,7 @@ const formatTime = (timestamp) => {
 </script>
 
 <style lang="scss" scoped>
-@use '../../assets/styles/mixins' as mx;
+@use '@/assets/styles/mixins' as mx;
 
 .chat-message {
   margin-bottom: 20px;

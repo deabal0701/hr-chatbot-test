@@ -464,6 +464,8 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/assets/styles/mixins' as mx;
+
 .history-view {
   .filter-section {
     .filter-row {
@@ -474,6 +476,16 @@ onMounted(() => {
       .el-select { width: 120px; }
       .el-date-editor { width: 280px; }
       .el-input { width: 180px; }
+
+      @include mx.mobile {
+        flex-wrap: wrap;
+
+        .el-select,
+        .el-date-editor,
+        .el-input {
+          width: 100%;
+        }
+      }
     }
   }
 

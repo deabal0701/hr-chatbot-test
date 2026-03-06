@@ -1,0 +1,88 @@
+// =============================================
+// 반응형 브레이크포인트 Mixin
+// 사용법: @include mx.mobile { ... }
+// =============================================
+
+// Breakpoint 변수
+$bp-mobile: 768px;
+$bp-tablet: 1024px;
+$bp-desktop: 1440px;
+
+// 모바일: 768px 미만
+@mixin mobile {
+  @media (max-width: #{$bp-mobile - 1}) {
+    @content;
+  }
+}
+
+// 태블릿: 768px ~ 1023px
+@mixin tablet {
+  @media (min-width: #{$bp-mobile}) and (max-width: #{$bp-tablet - 1}) {
+    @content;
+  }
+}
+
+// 모바일 + 태블릿: 1024px 미만
+@mixin tablet-down {
+  @media (max-width: #{$bp-tablet - 1}) {
+    @content;
+  }
+}
+
+// 데스크탑: 1024px 이상
+@mixin desktop {
+  @media (min-width: #{$bp-tablet}) {
+    @content;
+  }
+}
+
+// 대형 데스크탑: 1440px 이상
+@mixin large-desktop {
+  @media (min-width: #{$bp-desktop}) {
+    @content;
+  }
+}
+
+// 컨테이너 최대 너비 (중앙 정렬)
+@mixin container($max-width: 1200px) {
+  width: 100%;
+  max-width: $max-width;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+
+  @include mobile {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+// 소형 모바일: 480px 미만
+@mixin small-mobile {
+  @media (max-width: 479px) {
+    @content;
+  }
+}
+
+// 반응형 숨김
+@mixin hide-mobile {
+  @include mobile {
+    display: none !important;
+  }
+}
+
+@mixin hide-desktop {
+  @include desktop {
+    display: none !important;
+  }
+}
+
+// 반응형 텍스트 축소
+@mixin responsive-text($desktop: 14px, $mobile: 12px) {
+  font-size: $desktop;
+
+  @include mobile {
+    font-size: $mobile;
+  }
+}
