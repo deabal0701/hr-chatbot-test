@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=10, description="DB 커넥션 풀 최대 초과")
 
     # OpenAI
-    openai_api_key: str = Field(..., description="OpenAI API 키")
+    openai_api_key: str = Field(default="", description="OpenAI API 키 (DB tb_app_settings에서 관리, fallback 용도)")
     embedding_model: str = Field(default="text-embedding-3-small", description="임베딩 모델")
     embedding_dimension: int = Field(default=1536, description="임베딩 차원 수")
     llm_model: str = Field(default="gpt-4-turbo-preview", description="LLM 모델")
@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     password_min_length: int = Field(default=8, description="최소 비밀번호 길이")
     login_max_fail_count: int = Field(default=5, description="로그인 실패 허용 횟수")
     login_lock_minutes: int = Field(default=30, description="계정 잠금 시간(분)")
+
+    # Rate Limiting
+    rate_limit_enabled: bool = Field(default=True, description="Rate Limiting 활성화 여부")
+    rate_limit_default_rpm: int = Field(default=120, description="기본 분당 요청 수")
+    rate_limit_login_rpm: int = Field(default=5, description="로그인 분당 요청 수")
+    rate_limit_ai_rpm: int = Field(default=20, description="AI 검색 분당 요청 수")
+    rate_limit_admin_rpm: int = Field(default=60, description="관리자 API 분당 요청 수")
 
     # RAG Settings
     rag_top_k: int = Field(default=10, description="RAG 검색 시 상위 K개 문서")

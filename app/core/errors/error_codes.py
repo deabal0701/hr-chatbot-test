@@ -30,6 +30,7 @@ class ErrorCode(str, Enum):
     SESSION_NOT_FOUND = "SESSION_NOT_FOUND"      # 세션 없음
     SESSION_EXPIRED = "SESSION_EXPIRED"          # 세션 만료
     ACCOUNT_LOCKED = "ACCOUNT_LOCKED"            # 계정 잠금
+    RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"  # 요청 횟수 초과
     SETTING_NOT_FOUND = "SETTING_NOT_FOUND"      # 설정 없음
     CODE_NOT_FOUND = "CODE_NOT_FOUND"            # 코드 없음
     DUPLICATE_ERROR = "DUPLICATE_ERROR"          # 중복 오류
@@ -61,6 +62,7 @@ ERROR_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.SESSION_NOT_FOUND: "세션을 찾을 수 없습니다",
     ErrorCode.SESSION_EXPIRED: "세션이 만료되었습니다. 새로운 대화를 시작해주세요",
     ErrorCode.ACCOUNT_LOCKED: "계정이 잠겼습니다. 잠시 후 다시 시도해주세요",
+    ErrorCode.RATE_LIMIT_EXCEEDED: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요",
     ErrorCode.SETTING_NOT_FOUND: "설정을 찾을 수 없습니다",
     ErrorCode.CODE_NOT_FOUND: "코드를 찾을 수 없습니다",
     ErrorCode.DUPLICATE_ERROR: "이미 존재하는 데이터입니다",
@@ -89,6 +91,7 @@ ERROR_STATUS_CODES: dict[ErrorCode, int] = {
     ErrorCode.DUPLICATE_ERROR: status.HTTP_409_CONFLICT,
     ErrorCode.SESSION_EXPIRED: status.HTTP_410_GONE,
     ErrorCode.ACCOUNT_LOCKED: status.HTTP_423_LOCKED,
+    ErrorCode.RATE_LIMIT_EXCEEDED: status.HTTP_429_TOO_MANY_REQUESTS,
 
     # 5xx
     ErrorCode.INTERNAL_ERROR: status.HTTP_500_INTERNAL_SERVER_ERROR,

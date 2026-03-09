@@ -14,6 +14,7 @@ from app.core.errors.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.history import HistoryMiddleware
 from app.middleware.auth import AuthMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.utils.logger import setup_logger
 from app.utils.langsmith import init_langsmith
 
@@ -62,11 +63,12 @@ cors_origins = (
 )
 
 # Middleware 등록 (역순 실행: 나중에 추가한 것이 먼저 실행)
-# 요청 실행 순서: CORSMiddleware → LoggingMiddleware → AuthMiddleware → HistoryMiddleware → Handler
-# 응답 실행 순서: Handler → HistoryMiddleware → AuthMiddleware → LoggingMiddleware → CORSMiddleware
-app.add_middleware(HistoryMiddleware)  # 이력 저장
-app.add_middleware(AuthMiddleware)     # 인증 검증 (선택적 모드 — Phase 3a)
-app.add_middleware(LoggingMiddleware)  # 요청/응답 로깅 + request_id 생성 (가장 먼저 실행)
+# 요청 실행 순서: CORSMiddleware → LoggingMiddleware → AuthMiddleware → RateLimitMiddleware → HistoryMiddleware → Handler
+# 응답 실행 순서: Handler → HistoryMiddleware → RateLimitMiddleware → AuthMiddleware → LoggingMiddleware → CORSMiddleware
+app.add_middleware(HistoryMiddleware)      # 이력 저장
+app.add_middleware(RateLimitMiddleware)    # 요청 속도 제한 (Auth 이후 → user_id 사용 가능)
+app.add_middleware(AuthMiddleware)         # 인증 검증 (선택적 모드 — Phase 3a)
+app.add_middleware(LoggingMiddleware)      # 요청/응답 로깅 + request_id 생성 (가장 먼저 실행)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

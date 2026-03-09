@@ -16,7 +16,7 @@ import httpx
 
 BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:19090")
 ADMIN_ID = os.getenv("TEST_ADMIN_ID", "admin")
-ADMIN_PW = os.getenv("TEST_ADMIN_PW", "admin123!")
+ADMIN_PW = os.getenv("TEST_ADMIN_PW", "Win1234!")
 TIMEOUT = 30.0
 
 

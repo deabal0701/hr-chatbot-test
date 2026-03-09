@@ -161,6 +161,7 @@ def _map_status_to_error_code(status_code: int) -> str:
         403: ErrorCode.FORBIDDEN.value,
         404: ErrorCode.NOT_FOUND.value,
         409: ErrorCode.DUPLICATE_ERROR.value,
+        429: ErrorCode.RATE_LIMIT_EXCEEDED.value,
         410: ErrorCode.SESSION_EXPIRED.value,
         500: ErrorCode.INTERNAL_ERROR.value,
         502: ErrorCode.EXTERNAL_API_ERROR.value,
