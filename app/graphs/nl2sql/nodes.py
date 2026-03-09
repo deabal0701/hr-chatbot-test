@@ -147,10 +147,12 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 {{"tables": ["테이블1", "테이블2"], "reasoning": "선택 이유", "confidence": 0.9}}
 
 ## 규칙
-- 필요한 테이블만 선택 (최소한으로)
+- 사용자가 질문에서 직접 언급한 데이터 주제의 테이블만 선택하세요 (언급하지 않은 테이블은 절대 포함하지 마세요)
+- 테이블 수는 최소한으로 유지하세요 (보통 1~3개면 충분)
 - v_ai_employee는 대부분의 질문에 필요합니다
 - 1:N 관계 테이블 조인 시 v_ai_employee 포함 필수
 - confidence: 확신도 (0.0~1.0)
+- "상세하게", "자세히", "전체" 같은 수식어는 답변 형식의 요구이지 테이블 추가 요구가 아닙니다
 """
 
         user_prompt = f"질문: {question}\n\n위 질문에 필요한 테이블을 JSON 형식으로 응답하세요."
