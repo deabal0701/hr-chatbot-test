@@ -14,6 +14,16 @@ from app.config import settings
 from app.core.errors.handlers import APIException
 from app.core.errors.error_codes import ErrorCode
 
+# JWT 알고리즘 화이트리스트 (none, RS/ES 계열 혼용 공격 방지)
+ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512"}
+
+
+def _get_algorithm() -> str:
+    """허용된 JWT 알고리즘만 반환"""
+    if settings.algorithm not in ALLOWED_ALGORITHMS:
+        raise RuntimeError(f"허용되지 않은 JWT 알고리즘: {settings.algorithm}. 허용: {ALLOWED_ALGORITHMS}")
+    return settings.algorithm
+
 
 # ===================================
 # JWT 페이로드 모델 (내부 전용)
@@ -45,7 +55,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     now = datetime.now(timezone.utc)
     expire = now + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
     to_encode.update({"exp": expire, "iat": now, "token_type": "access"})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(to_encode, settings.secret_key, algorithm=_get_algorithm())
 
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -54,7 +64,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     now = datetime.now(timezone.utc)
     expire = now + (expires_delta or timedelta(days=settings.jwt_refresh_token_expire_days))
     to_encode.update({"exp": expire, "iat": now, "token_type": "refresh"})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(to_encode, settings.secret_key, algorithm=_get_algorithm())
 
 
 # ===================================
@@ -64,7 +74,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
 def verify_token(token: str) -> TokenPayload:
     """JWT 토큰 검증 및 페이로드 반환"""
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, settings.secret_key, algorithms=list(ALLOWED_ALGORITHMS))
         sub: str = payload.get("sub")
         if sub is None:
             raise APIException(ErrorCode.UNAUTHORIZED, "유효하지 않은 토큰입니다")

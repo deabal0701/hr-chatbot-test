@@ -99,9 +99,12 @@ class OracleAdapter(DatabaseAdapter):
     @contextmanager
     def get_connection(self, pool: Any, schema: str) -> Generator:
         """Oracle 커넥션 가져오기 (스키마 = CURRENT_SCHEMA)"""
+        # 스키마명 검증: 영문자/숫자/언더스코어만 허용 (SQL 인젝션 방지)
+        if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', schema):
+            raise ValueError(f"유효하지 않은 스키마명: {schema}")
+
         conn = pool.acquire()
         try:
-            # Oracle에서 스키마 설정 = ALTER SESSION SET CURRENT_SCHEMA
             with conn.cursor() as cur:
                 cur.execute(f"ALTER SESSION SET CURRENT_SCHEMA = {schema}")
             yield conn

@@ -156,7 +156,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
 
     def set_timeout(self, cursor: Any, timeout_seconds: int) -> None:
         """쿼리 타임아웃 설정 (밀리초 단위)"""
-        cursor.execute(f"SET statement_timeout = {timeout_seconds * 1000}")
+        cursor.execute("SET statement_timeout = %s", (int(timeout_seconds) * 1000,))
 
     def add_limit_clause(self, sql: str, limit: int) -> str:
         """LIMIT 절 추가"""
