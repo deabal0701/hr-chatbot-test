@@ -22,12 +22,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useStore } from 'vuex'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Loading, CircleCloseFilled } from '@element-plus/icons-vue'
 import authApi from '@/api/auth'
 
 const store = useStore()
 const router = useRouter()
+const route = useRoute()
 
 const loading = ref(true)
 const errorMessage = ref('')
@@ -55,6 +56,13 @@ const decodeBase64URL = (str) => {
 }
 
 onMounted(async () => {
+  // 백엔드에서 에러 리다이렉트된 경우 (?error=...&message=...)
+  if (route.query.error) {
+    loading.value = false
+    errorMessage.value = route.query.message || 'SSO 인증에 실패했습니다.'
+    return
+  }
+
   // 쿠키에서 SSO 인증 토큰 읽기 (Base64URL 인코딩)
   const authB64url = getCookie('sso_auth')
 

@@ -6,6 +6,7 @@
 import base64
 import json
 import uuid
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -54,20 +55,27 @@ async def sso_redirect(request: Request, token: str = Form(...)):
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
     ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "")
+    base_url = f"{settings.sso_frontend_url}/sso" if settings.sso_frontend_url else "/sso"
 
-    user = auth_service.sso_authenticate(token, request_id)
-    token_response = auth_service.create_session(user["user_id"], ip, user_agent, request_id)
+    try:
+        user = auth_service.sso_authenticate(token, request_id)
+        token_response = auth_service.create_session(user["user_id"], ip, user_agent, request_id)
 
-    redirect_url = f"{settings.sso_frontend_url}/sso" if settings.sso_frontend_url else "/sso"
-    response = RedirectResponse(url=redirect_url, status_code=302)
+        response = RedirectResponse(url=base_url, status_code=302)
 
-    # Base64URL 인코딩 (RFC 4648 §5, JWT와 동일 방식: A-Za-z0-9-_ 패딩 없음)
-    auth_data = json.dumps({"at": token_response.access_token, "rt": token_response.refresh_token})
-    auth_b64url = base64.urlsafe_b64encode(auth_data.encode()).decode().rstrip("=")
-    response.set_cookie("sso_auth", auth_b64url, max_age=60, path="/", samesite="lax", httponly=False, secure=False)
+        # Base64URL 인코딩 (RFC 4648 §5, JWT와 동일 방식: A-Za-z0-9-_ 패딩 없음)
+        auth_data = json.dumps({"at": token_response.access_token, "rt": token_response.refresh_token})
+        auth_b64url = base64.urlsafe_b64encode(auth_data.encode()).decode().rstrip("=")
+        response.set_cookie("sso_auth", auth_b64url, max_age=60, path="/", samesite="lax", httponly=False, secure=False)
 
-    log_step(logger, request_id, "SSO", "4", "REDIRECT", "SSO 쿠키(Base64URL) 설정 후 리다이렉트", redirect_url=redirect_url)
-    return response
+        log_step(logger, request_id, "SSO", "4", "REDIRECT", "SSO 쿠키(Base64URL) 설정 후 리다이렉트", redirect_url=base_url)
+        return response
+    except Exception as e:
+        error_code = str(getattr(e, "error_code", "SSO_ERROR"))
+        error_msg = getattr(e, "message", str(e))
+        error_url = f"{base_url}?{urlencode({'error': error_code, 'message': error_msg})}"
+        log_step(logger, request_id, "SSO", "4", "ERROR", f"SSO 인증 실패 → 에러 리다이렉트", error=error_code)
+        return RedirectResponse(url=error_url, status_code=302)
 
 
 @router.post("/logout")
