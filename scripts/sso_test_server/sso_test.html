@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSO 테스트 시뮬레이터</title>
+  <!-- jose: JWT 라이브러리 (RS256 서명) — ESM으로 아래 script module에서 import -->
+  <style>
+    :root {
+      --primary: #409eff;
+      --primary-hover: #337ecc;
+      --bg: #f5f7fa;
+      --card-bg: #fff;
+      --text: #303133;
+      --text-secondary: #909399;
+      --border: #dcdfe6;
+      --danger: #f56c6c;
+      --success: #67c23a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border);
+      padding: 32px;
+      width: 560px;
+      max-width: 95vw;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 13px;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--card-bg);
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    textarea {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      resize: vertical;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .row .form-group {
+      flex: 1;
+    }
+
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-primary:disabled {
+      background: #a0cfff;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #f0f2f5;
+      color: var(--text);
+      font-size: 13px;
+      padding: 6px 12px;
+      width: auto;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:hover {
+      background: #e4e7ec;
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .status.error {
+      display: block;
+      background: #fef0f0;
+      color: var(--danger);
+      border: 1px solid #fde2e2;
+    }
+
+    .status.success {
+      display: block;
+      background: #f0f9eb;
+      color: var(--success);
+      border: 1px solid #e1f3d8;
+    }
+
+    .status.info {
+      display: block;
+      background: #ecf5ff;
+      color: var(--primary);
+      border: 1px solid #d9ecff;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .target-url {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .target-url code {
+      background: #f0f2f5;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SSO 테스트 시뮬레이터</h1>
+    <p class="subtitle">외부 메인 시스템에서 MUREUM으로 SSO 로그인하는 과정을 시뮬레이션합니다.</p>
+
+    <!-- Private Key 입력 -->
+    <div class="form-group">
+      <label>RS256 Private Key (PEM)</label>
+      <textarea id="privateKey" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;MIIEv...&#10;-----END PRIVATE KEY-----"></textarea>
+      <p class="help-text">keys/sso_private.pem 파일 내용을 붙여넣으세요. <button class="btn btn-secondary" onclick="loadSampleKey()">샘플 키 로드</button></p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 사용자 정보 -->
+    <div class="row">
+      <div class="form-group">
+        <label>Login ID</label>
+        <input type="text" id="loginId" value="admin" placeholder="admin">
+      </div>
+      <div class="form-group">
+        <label>Display Name</label>
+        <input type="text" id="displayName" value="관리자" placeholder="관리자">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>Issuer (iss)</label>
+        <input type="text" id="issuer" value="hr-system" placeholder="hr-system">
+      </div>
+      <div class="form-group">
+        <label>Token 유효시간 (초)</label>
+        <input type="number" id="expSeconds" value="300" min="10" max="3600">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 전송 대상 -->
+    <div class="form-group">
+      <label>MUREUM Backend URL</label>
+      <input type="text" id="backendUrl" value="http://localhost:19090" placeholder="http://localhost:19090">
+      <p class="help-text">POST /api/v1/auth/sso-redirect 로 Hidden Form 전송됩니다.</p>
+    </div>
+
+    <!-- 버튼 영역 -->
+    <div class="row" style="gap: 8px;">
+      <button class="btn btn-primary" id="btnGenerate" onclick="generateToken()" style="flex:1;">JWT 생성 (미리보기)</button>
+      <button class="btn btn-primary" id="btnSubmit" onclick="submitSSOLogin()" disabled style="flex:1; background:#a0cfff;">SSO 로그인 전송</button>
+    </div>
+
+    <!-- HTTP 전문 미리보기 -->
+    <div id="httpPreview" style="display:none; margin-top:16px;">
+      <label>HTTP 요청 전문</label>
+      <pre id="httpPreviewContent" style="background:#1e1e1e; color:#d4d4d4; padding:14px; border-radius:6px; font-size:12px; font-family:'Consolas','Monaco',monospace; overflow-x:auto; white-space:pre-wrap; word-break:break-all; max-height:300px; overflow-y:auto; line-height:1.5;"></pre>
+    </div>
+
+    <!-- 상태 메시지 -->
+    <div id="status" class="status"></div>
+  </div>
+
+  <!-- Hidden Form (동적 생성) -->
+  <form id="ssoForm" method="POST" style="display:none;">
+    <input type="hidden" name="token" id="ssoTokenInput">
+  </form>
+
+  <script>
+    // jose 라이브러리 캐시 (동적 import)
+    let joseLib = null
+    // 생성된 JWT를 임시 보관
+    let generatedJwt = null
+
+    async function loadJose() {
+      if (!joseLib) {
+        joseLib = await import('https://cdn.jsdelivr.net/npm/jose@5.2.0/+esm')
+      }
+      return joseLib
+    }
+
+    /**
+     * 1단계: JWT 생성 + HTTP 요청 전문 미리보기
+     */
+    async function generateToken() {
+      var btnGenerate = document.getElementById('btnGenerate')
+      var btnSubmit = document.getElementById('btnSubmit')
+
+      hideStatus()
+
+      // 입력값 수집
+      var privateKeyPem = document.getElementById('privateKey').value.trim()
+      var loginId = document.getElementById('loginId').value.trim()
+      var displayName = document.getElementById('displayName').value.trim()
+      var issuer = document.getElementById('issuer').value.trim()
+      var expSeconds = parseInt(document.getElementById('expSeconds').value) || 300
+      var backendUrl = document.getElementById('backendUrl').value.trim()
+
+      // 유효성 검사
+      if (!privateKeyPem) { showStatus('error', 'Private Key를 입력해주세요.'); return }
+      if (!loginId) { showStatus('error', 'Login ID를 입력해주세요.'); return }
+      if (!backendUrl) { showStatus('error', 'Backend URL을 입력해주세요.'); return }
+
+      btnGenerate.disabled = true
+      btnGenerate.textContent = 'JWT 생성 중...'
+      generatedJwt = null
+      btnSubmit.disabled = true
+      btnSubmit.style.background = '#a0cfff'
+
+      try {
+        // jose 라이브러리 동적 로드
+        showStatus('info', 'jose 라이브러리 로딩 중...')
+        var jose = await loadJose()
+
+        // PEM → CryptoKey 변환
+        showStatus('info', 'Private Key 파싱 중...')
+        var privateKey = await jose.importPKCS8(privateKeyPem, 'RS256')
+
+        // JWT 생성 (RS256 서명)
+        showStatus('info', 'JWT 토큰 생성 중...')
+        var now = Math.floor(Date.now() / 1000)
+        var jwt = await new jose.SignJWT({
+          sub: loginId,
+          name: displayName,
+          iss: issuer,
+          iat: now,
+          exp: now + expSeconds
+        })
+          .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+          .sign(privateKey)
+
+        generatedJwt = jwt
+
+        // HTTP 요청 전문 미리보기 표시
+        var url = new URL(backendUrl + '/api/v1/auth/sso-redirect')
+        var body = 'token=' + encodeURIComponent(jwt)
+        var httpMessage =
+          'POST ' + url.pathname + ' HTTP/1.1\n' +
+          'Host: ' + url.host + '\n' +
+          'Content-Type: application/x-www-form-urlencoded\n' +
+          'Content-Length: ' + new Blob([body]).size + '\n' +
+          'Origin: ' + location.origin + '\n' +
+          '\n' +
+          body
+
+        document.getElementById('httpPreview').style.display = 'block'
+        document.getElementById('httpPreviewContent').textContent = httpMessage
+
+        // 전송 버튼 활성화
+        btnSubmit.disabled = false
+        btnSubmit.style.background = ''
+        showStatus('success', 'JWT 생성 완료 (' + jwt.length + ' bytes). HTTP 전문을 확인 후 "SSO 로그인 전송" 버튼을 클릭하세요.')
+
+      } catch (err) {
+        showStatus('error', '오류: ' + err.message)
+      } finally {
+        btnGenerate.disabled = false
+        btnGenerate.textContent = 'JWT 생성 (미리보기)'
+      }
+    }
+
+    /**
+     * 2단계: Hidden Form POST로 SSO 로그인 전송
+     */
+    function submitSSOLogin() {
+      if (!generatedJwt) {
+        showStatus('error', '먼저 JWT를 생성해주세요.')
+        return
+      }
+
+      var backendUrl = document.getElementById('backendUrl').value.trim()
+      var form = document.getElementById('ssoForm')
+      form.action = backendUrl + '/api/v1/auth/sso-redirect'
+      document.getElementById('ssoTokenInput').value = generatedJwt
+
+      showStatus('info', 'SSO 로그인 전송 중...')
+
+      // Form 전송 → 브라우저가 302 리다이렉트를 따라감
+      form.submit()
+    }
+
+    function showStatus(type, message) {
+      var statusEl = document.getElementById('status')
+      statusEl.className = 'status ' + type
+      statusEl.textContent = message
+      statusEl.style.display = 'block'
+    }
+
+    function hideStatus() {
+      var statusEl = document.getElementById('status')
+      statusEl.className = 'status'
+      statusEl.style.display = 'none'
+    }
+
+    // 입력값 변경 시 전송 버튼 비활성화 (JWT 재생성 필요)
+    function invalidateToken() {
+      generatedJwt = null
+      var btnSubmit = document.getElementById('btnSubmit')
+      btnSubmit.disabled = true
+      btnSubmit.style.background = '#a0cfff'
+      document.getElementById('httpPreview').style.display = 'none'
+      hideStatus()
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var fields = ['privateKey', 'loginId', 'displayName', 'issuer', 'expSeconds', 'backendUrl']
+      fields.forEach(function (id) {
+        document.getElementById(id).addEventListener('input', invalidateToken)
+      })
+    })
+
+    function loadSampleKey() {
+      showStatus('info',
+        '터미널에서 다음 명령으로 키를 생성하세요:\n' +
+        'python scripts/generate_sso_keys.py\n\n' +
+        '그 후 keys/sso_private.pem 파일 내용을 복사하여 붙여넣으세요.'
+      )
+    }
+  </script>
+</body>
+</html>

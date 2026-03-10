@@ -15,6 +15,14 @@ const routes = [
     meta: { title: '로그인', public: true }
   },
 
+  // SSO 콜백 페이지 (메인 시스템에서 리다이렉트)
+  {
+    path: '/sso',
+    name: 'SSOCallback',
+    component: () => import('@/views/SSOCallbackView.vue'),
+    meta: { title: 'SSO 로그인', public: true }
+  },
+
   // 일반 사용자 채팅 (메인 페이지)
   {
     path: '/chat',

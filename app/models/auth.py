@@ -171,6 +171,11 @@ class UserContext(BaseModel):
     scope_level: int = Field(default=3, description="데이터 범위 (0=전체, 1=테넌트, 2=부서, 3=본인)")
 
     @property
+    def is_sso_user(self) -> bool:
+        """SSO 사용자 여부"""
+        return hasattr(self, '_sso_provider') and self._sso_provider is not None
+
+    @property
     def is_global(self) -> bool:
         """전체 데이터 접근 여부"""
         return self.is_superuser or self.scope_level == 0
@@ -189,3 +194,33 @@ class UserContext(BaseModel):
     def is_user_scope(self) -> bool:
         """본인 범위 여부"""
         return self.scope_level == 3
+
+
+# ===================================
+# SSO 인증
+# ===================================
+
+class SSOLoginRequest(BaseModel):
+    """SSO 로그인 요청 (프론트엔드 → 백엔드)"""
+    sso_token: str = Field(..., min_length=1, description="SSO JWT 토큰 (RS256 서명)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "sso_token": "eyJhbGciOiJSUzI1NiIs..."
+            }
+        }
+    }
+
+
+class SSOTokenPayload(BaseModel):
+    """SSO JWT 토큰 페이로드 (메인 시스템이 서명)"""
+    sub: str = Field(..., description="사번 (MUREUM login_id로 매핑)")
+    name: str = Field(..., description="사용자 이름")
+    email: Optional[str] = Field(None, description="이메일")
+    tenant_code: Optional[str] = Field(None, description="테넌트 코드")
+    dept_code: Optional[str] = Field(None, description="부서 코드")
+    dept_name: Optional[str] = Field(None, description="부서명")
+    position: Optional[str] = Field(None, description="직위/직급")
+    iss: str = Field(..., description="토큰 발급자")
+    exp: int = Field(..., description="만료 시간 (Unix timestamp)")

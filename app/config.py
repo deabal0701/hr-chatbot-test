@@ -79,6 +79,16 @@ class Settings(BaseSettings):
     sql_max_rows: int = Field(default=1000, description="SQL 최대 반환 행 수")
     read_only_mode: bool = Field(default=True, description="읽기 전용 모드")
 
+    # SSO (Single Sign-On)
+    sso_enabled: bool = Field(default=False, description="SSO 활성화 여부")
+    sso_public_key_path: str = Field(default="keys/sso_public.pem", description="SSO RS256 공개키 파일 경로")
+    sso_algorithm: str = Field(default="RS256", description="SSO 토큰 알고리즘")
+    sso_allowed_issuers: str = Field(default="hr-system", description="허용된 SSO 발급자 (쉼표 구분)")
+    sso_token_max_age: int = Field(default=300, description="SSO 토큰 최대 유효 시간(초)")
+    sso_default_role: str = Field(default="USER", description="SSO 사용자 기본 역할 코드")
+    sso_auto_create_user: bool = Field(default=False, description="SSO 사용자 자동 생성 여부 (Phase 5)")
+    sso_frontend_url: str = Field(default="", description="SSO 리다이렉트 프론트엔드 URL (빈 값이면 상대경로)")
+
     # LangSmith (Optional)
     langchain_tracing_v2: Optional[bool] = Field(default=None, description="LangSmith 트레이싱 활성화")
     langchain_endpoint: Optional[str] = Field(default=None, description="LangSmith API 엔드포인트")

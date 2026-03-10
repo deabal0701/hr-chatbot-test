@@ -63,6 +63,13 @@
       </el-form>
     </div>
 
+    <!-- SSO 테스트 버튼 (개발 모드) — 새 탭에서 외부 시스템 시뮬레이터 열기 -->
+    <div class="sso-test-area">
+      <el-button type="info" text @click="openSSOTest">
+        SSO 테스트 로그인
+      </el-button>
+    </div>
+
     <!-- 하단 정보 -->
     <div class="login-footer">
       <span>{{ appTitle }} v2.0.0</span>
@@ -118,6 +125,11 @@ const handleLogin = async () => {
   } catch {
     // loginError가 store에 설정됨 (계정잠금, 비활성화, 인증실패 등)
   }
+}
+
+// SSO 테스트: 새 탭에서 외부 시스템 시뮬레이터 열기
+const openSSOTest = () => {
+  window.open('http://localhost:19081/sso_test.html', '_blank')
 }
 
 // 이미 로그인된 상태면 랜딩 페이지로 리다이렉트
@@ -179,8 +191,8 @@ onMounted(() => {
   padding: 40px 32px;
   background-color: var(--bg-color-card);
   border-radius: 12px;
-  box-shadow: var(--box-shadow);
-  border: 1px solid var(--border-color-lighter);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--box-shadow), 0 0 0 1px rgba(64, 158, 255, 0.15);
 
   @include mx.mobile {
     padding: 32px 20px;
@@ -256,6 +268,13 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 500;
   margin-top: 4px;
+}
+
+.sso-test-area {
+  position: relative;
+  z-index: 1;
+  margin-top: 16px;
+  text-align: center;
 }
 
 .login-footer {

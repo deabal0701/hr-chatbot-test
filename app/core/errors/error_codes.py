@@ -35,6 +35,13 @@ class ErrorCode(str, Enum):
     CODE_NOT_FOUND = "CODE_NOT_FOUND"            # 코드 없음
     DUPLICATE_ERROR = "DUPLICATE_ERROR"          # 중복 오류
 
+    # ========== SSO 오류 ==========
+    SSO_NOT_CONFIGURED = "SSO_NOT_CONFIGURED"    # SSO 미설정
+    SSO_DISABLED = "SSO_DISABLED"                # SSO 비활성화
+    SSO_INVALID_TOKEN = "SSO_INVALID_TOKEN"      # SSO 토큰 유효하지 않음
+    SSO_TOKEN_EXPIRED = "SSO_TOKEN_EXPIRED"      # SSO 토큰 만료
+    SSO_USER_NOT_FOUND = "SSO_USER_NOT_FOUND"    # SSO 사용자 없음
+
     # ========== 서버 오류 (5xx) ==========
     INTERNAL_ERROR = "INTERNAL_ERROR"            # 내부 서버 오류
     DATABASE_ERROR = "DATABASE_ERROR"            # 데이터베이스 오류
@@ -67,6 +74,13 @@ ERROR_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.CODE_NOT_FOUND: "코드를 찾을 수 없습니다",
     ErrorCode.DUPLICATE_ERROR: "이미 존재하는 데이터입니다",
 
+    # SSO 오류
+    ErrorCode.SSO_NOT_CONFIGURED: "SSO가 설정되지 않았습니다",
+    ErrorCode.SSO_DISABLED: "SSO 로그인이 비활성화되어 있습니다",
+    ErrorCode.SSO_INVALID_TOKEN: "SSO 토큰이 유효하지 않습니다",
+    ErrorCode.SSO_TOKEN_EXPIRED: "SSO 토큰이 만료되었습니다",
+    ErrorCode.SSO_USER_NOT_FOUND: "SSO 사용자를 찾을 수 없습니다. 관리자에게 문의해주세요",
+
     # 서버 오류
     ErrorCode.INTERNAL_ERROR: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요",
     ErrorCode.DATABASE_ERROR: "데이터베이스 연결에 문제가 있습니다",
@@ -89,6 +103,11 @@ ERROR_STATUS_CODES: dict[ErrorCode, int] = {
     ErrorCode.SETTING_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.CODE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.DUPLICATE_ERROR: status.HTTP_409_CONFLICT,
+    ErrorCode.SSO_NOT_CONFIGURED: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ErrorCode.SSO_DISABLED: status.HTTP_403_FORBIDDEN,
+    ErrorCode.SSO_INVALID_TOKEN: status.HTTP_401_UNAUTHORIZED,
+    ErrorCode.SSO_TOKEN_EXPIRED: status.HTTP_401_UNAUTHORIZED,
+    ErrorCode.SSO_USER_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.SESSION_EXPIRED: status.HTTP_410_GONE,
     ErrorCode.ACCOUNT_LOCKED: status.HTTP_423_LOCKED,
     ErrorCode.RATE_LIMIT_EXCEEDED: status.HTTP_429_TOO_MANY_REQUESTS,

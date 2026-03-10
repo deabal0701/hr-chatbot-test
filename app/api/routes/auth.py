@@ -1,17 +1,21 @@
 """인증 API 엔드포인트
 
 위치: app/api/routes/auth.py
-로그인, 로그아웃, 토큰 갱신, 내 정보 조회, 비밀번호 변경
+로그인, 로그아웃, 토큰 갱신, 내 정보 조회, 비밀번호 변경, SSO
 """
+import base64
+import json
 import uuid
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import RedirectResponse
 
 from app.api.services.auth_service import auth_service
+from app.config import settings
 from app.core.errors.response import success_response
 from app.core.security.dependencies import get_current_active_user
-from app.models.auth import LoginRequest, RefreshRequest, PasswordChangeRequest, UserContext, UserInfo
-from app.utils.logger import setup_logger
+from app.models.auth import LoginRequest, RefreshRequest, PasswordChangeRequest, SSOLoginRequest, UserContext, UserInfo
+from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
 
@@ -29,6 +33,41 @@ async def login(body: LoginRequest, request: Request):
     token_response = auth_service.create_session(user["user_id"], ip, user_agent, request_id)
 
     return success_response(token_response.model_dump())
+
+
+@router.post("/sso")
+async def sso_login(body: SSOLoginRequest, request: Request):
+    """SSO 로그인 — 외부 시스템 JWT 토큰 검증 후 MUREUM JWT 발급"""
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
+    ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "")
+
+    user = auth_service.sso_authenticate(body.sso_token, request_id)
+    token_response = auth_service.create_session(user["user_id"], ip, user_agent, request_id)
+
+    return success_response(token_response.model_dump())
+
+
+@router.post("/sso-redirect")
+async def sso_redirect(request: Request, token: str = Form(...)):
+    """SSO 리다이렉트 — 외부 시스템 Hidden Form POST → 토큰 검증 → Base64URL 쿠키 → 302"""
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
+    ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "")
+
+    user = auth_service.sso_authenticate(token, request_id)
+    token_response = auth_service.create_session(user["user_id"], ip, user_agent, request_id)
+
+    redirect_url = f"{settings.sso_frontend_url}/sso" if settings.sso_frontend_url else "/sso"
+    response = RedirectResponse(url=redirect_url, status_code=302)
+
+    # Base64URL 인코딩 (RFC 4648 §5, JWT와 동일 방식: A-Za-z0-9-_ 패딩 없음)
+    auth_data = json.dumps({"at": token_response.access_token, "rt": token_response.refresh_token})
+    auth_b64url = base64.urlsafe_b64encode(auth_data.encode()).decode().rstrip("=")
+    response.set_cookie("sso_auth", auth_b64url, max_age=60, path="/", samesite="lax", httponly=False, secure=False)
+
+    log_step(logger, request_id, "SSO", "4", "REDIRECT", "SSO 쿠키(Base64URL) 설정 후 리다이렉트", redirect_url=redirect_url)
+    return response
 
 
 @router.post("/logout")

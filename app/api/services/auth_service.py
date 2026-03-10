@@ -5,7 +5,7 @@
 """
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.config import settings
 from app.core.database.connection import db_manager
@@ -13,7 +13,8 @@ from app.core.errors.handlers import APIException
 from app.core.errors.error_codes import ErrorCode
 from app.core.security.jwt import create_access_token, create_refresh_token, verify_token
 from app.core.security.password import hash_password, verify_password
-from app.models.auth import MenuPermission, TokenResponse, UserInfo
+from app.core.security.sso import verify_sso_token
+from app.models.auth import MenuPermission, SSOTokenPayload, TokenResponse, UserInfo
 from app.utils.logger import setup_logger, log_step
 
 logger = setup_logger(__name__)
@@ -293,6 +294,67 @@ class AuthService:
 
         log_step(logger, request_id, "AUTH", "2", "PERMISSION", "권한 조회 완료", user_id=user_id, role=user["role_code"], menus=len(menus))
         return user
+
+    def sso_authenticate(self, sso_token: str, request_id: str = "") -> Dict[str, Any]:
+        """SSO 토큰 검증 + 기존 사용자 조회 (Phase 4: 기존 사용자만)"""
+        log_step(logger, request_id, "SSO", "1", "VERIFY", "SSO 토큰 검증 시작")
+
+        if not settings.sso_enabled:
+            raise APIException(ErrorCode.SSO_DISABLED, "SSO 로그인이 비활성화되어 있습니다")
+
+        # 1. SSO 토큰 검증 (RS256)
+        payload: SSOTokenPayload = verify_sso_token(sso_token)
+        log_step(logger, request_id, "SSO", "2", "PAYLOAD", "토큰 검증 완료", sub=payload.sub, iss=payload.iss)
+
+        # 2. 사용자 조회: sso_provider + sso_external_id 우선, login_id fallback
+        user = self._find_sso_user(payload, request_id)
+        if not user:
+            raise APIException(ErrorCode.SSO_USER_NOT_FOUND, f"SSO 사용자를 찾을 수 없습니다 (sub={payload.sub})")
+
+        # 3. 비활성 계정 체크
+        if not user["is_active"]:
+            log_step(logger, request_id, "SSO", "3", "LOGIN", "비활성 계정", login_id=user["login_id"])
+            raise APIException(ErrorCode.UNAUTHORIZED, "비활성화된 계정입니다")
+
+        # 4. SSO 메타데이터 업데이트 (sso_provider, sso_external_id, last_login_at)
+        with db_manager.get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE tb_user SET sso_provider = %s, sso_external_id = %s, "
+                "last_login_at = NOW(), login_fail_count = 0, locked_until = NULL "
+                "WHERE user_id = %s",
+                (payload.iss, payload.sub, user["user_id"]),
+            )
+
+        log_step(logger, request_id, "SSO", "3", "LOGIN", "SSO 로그인 성공", login_id=user["login_id"], user_id=user["user_id"])
+        return user
+
+    def _find_sso_user(self, payload: SSOTokenPayload, request_id: str) -> Optional[Dict[str, Any]]:
+        """SSO 사용자 조회: 1순위 sso_provider+sso_external_id, 2순위 login_id=sub"""
+        with db_manager.get_cursor() as cur:
+            # 1순위: sso_provider + sso_external_id
+            cur.execute(
+                "SELECT user_id, login_id, is_active, is_superuser, display_name, tenant_id "
+                "FROM tb_user WHERE sso_provider = %s AND sso_external_id = %s",
+                (payload.iss, payload.sub),
+            )
+            row = cur.fetchone()
+            if row:
+                log_step(logger, request_id, "SSO", "2", "LOOKUP", "sso_external_id로 사용자 발견", user_id=row["user_id"])
+                return dict(row)
+
+            # 2순위: login_id = sub
+            cur.execute(
+                "SELECT user_id, login_id, is_active, is_superuser, display_name, tenant_id "
+                "FROM tb_user WHERE login_id = %s",
+                (payload.sub,),
+            )
+            row = cur.fetchone()
+            if row:
+                log_step(logger, request_id, "SSO", "2", "LOOKUP", "login_id로 사용자 발견", user_id=row["user_id"])
+                return dict(row)
+
+        log_step(logger, request_id, "SSO", "2", "LOOKUP", "사용자 없음", sub=payload.sub)
+        return None
 
     def change_password(self, user_id: int, current_password: str, new_password: str, request_id: str = "") -> bool:
         """비밀번호 변경"""
