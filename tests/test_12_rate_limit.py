@@ -1,24 +1,13 @@
 """Rate Limit 미들웨어 테스트
 
-위치: tests/test_rate_limit.py
+위치: tests/test_12_rate_limit.py
 - 분당 요청 제한 동작 확인
 - 429 응답 및 Retry-After 헤더 확인
 - X-RateLimit-* 헤더 확인
 - 엔드포인트 그룹별 차등 제한 확인
 """
 
-import time
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:19090"
-TIMEOUT = 30.0
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=TIMEOUT) as c:
-        yield c
 
 
 class TestRateLimitHeaders:
@@ -128,7 +117,6 @@ class TestRateLimitRemainingDecrement:
 
     def test_remaining_decreases(self, client):
         """요청마다 remaining이 감소하는지 확인"""
-        # 고유 경로로 기존 카운터 영향 없게 (info 경로는 default 그룹)
         remainings = []
         for _ in range(3):
             resp = client.get("/api/v1/info")

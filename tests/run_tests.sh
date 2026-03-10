@@ -10,7 +10,7 @@
 # 환경변수:
 #   TEST_BASE_URL  서버 URL (기본: http://localhost:19090)
 #   TEST_ADMIN_ID  관리자 ID (기본: admin)
-#   TEST_ADMIN_PW  관리자 PW (기본: admin123!)
+#   TEST_ADMIN_PW  관리자 PW (기본: Win1234!)
 #
 # 사전 조건:
 #   1. pip install pytest httpx
@@ -65,13 +65,15 @@ declare -A TOPIC_MAP=(
     [settings]="test_08_settings.py"
     [documents]="test_09_documents.py"
     [search]="test_10_search.py"
+    [dashboard]="test_11_personal_dashboard.py"
+    [ratelimit]="test_12_rate_limit.py"
 )
 
 cd "$PROJECT_DIR"
 
 if [ $# -eq 0 ]; then
     # 전체 실행
-    python -m pytest tests/ -v --tb=short -x --ignore=tests/test_user_management.py 2>&1
+    python -m pytest tests/ -v --tb=short -x 2>&1
 else
     # 선택 실행
     TEST_FILES=""
