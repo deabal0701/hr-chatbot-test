@@ -1,9 +1,9 @@
 # 조직(부서) 관리 및 SSO 연동 설계서
 
-> **문서 버전**: 2.0
+> **문서 버전**: 3.0
 > **작성일**: 2026-02-23
-> **최종 수정**: 2026-02-24
-> **상태**: Phase 1~3 구현 완료 (SSO/배치 미구현)
+> **최종 수정**: 2026-03-09
+> **상태**: Phase 1~3 구현 완료, Phase 4(SSO) 설계 확정 (RS256 + Frontend Redirect)
 > **선행 문서**: `07_user_role_design.md`, `02_auth_and_permission.md`
 > **마이그레이션**: `docs/sql/migration_v2_department_sso.sql`, `docs/sql/migration_v2_reorder_columns.sql`
 
@@ -41,7 +41,11 @@
 | 사용자-부서 연동 | 사용자 생성/수정 시 부서 선택 드롭다운 | **완료** |
 | 역할 Scope CRUD | 역할 생성/수정 시 scope_level 설정 | **완료** |
 | role_code 리팩터 | 하드코딩 11곳 → scope_level 기반 공통 필터 교체 | **완료** |
-| 신규 API | SSO 인증 | 미구현 |
+| SSO 인프라 | RS256 공개키 검증, SSO 설정, Pydantic 모델 | 미구현 |
+| SSO 인증 API | POST /api/v1/auth/sso (Token Exchange + JIT) | 미구현 |
+| SSO 프론트엔드 | SSOCallbackView.vue, auth store/API/router 확장 | 미구현 |
+| 키 생성 도구 | RS256 키 쌍 생성 스크립트 | 미구현 |
+| SSO 테스트 | SSO 통합 테스트 (8개) | 미구현 |
 | 배치 동기화 | 조직/사용자 배치 동기화 스크립트 | 미구현 |
 
 ---
@@ -498,30 +502,58 @@ token_data = {
 
 ## 6. SSO 연동
 
-### 6.1 방식: Token Exchange (JWT 기반)
+### 6.1 방식: Token Exchange + Frontend Redirect (RS256)
 
-외부 시스템이 서명된 JWT를 발급하고, MUREUM이 검증 후 자체 JWT를 발급한다.
+메인 시스템이 **RS256 개인키**로 서명한 JWT를 URL 파라미터로 전달하고,
+Vue 프론트엔드가 중계하여 백엔드에 토큰 교환을 요청한다.
+MUREUM은 **RS256 공개키**로만 검증하므로, 공개키 유출 시에도 토큰 위조가 불가능하다.
 
 ```
-[메인 시스템]                              [MUREUM]
-     │                                       │
-     │ 1. 사용자 클릭 "AI 챗봇"               │
-     │ 2. SSO JWT 생성 (공유키 서명)            │
-     │    {sub, name, dept_code, tenant_code,  │
-     │     position, exp, iss}                │
-     │ ──────────────────────────────────────▶ │
-     │    POST /api/v1/auth/sso               │
-     │                                        │
-     │                              3. JWT 서명 검증 (공유키)
-     │                              4. issuer, 만료시간 검증
-     │                              5. 테넌트 조회/생성
-     │                              6. 부서 조회/생성 ← ★ 없으면 자동 생성
-     │                              7. 사용자 조회/생성 ← ★ 없으면 자동 생성
-     │                              8. 변경 감지 시 UPDATE (부서 이동 등)
-     │                              9. MUREUM JWT 발급
-     │ ◀────────────────────────────────────── │
-     │    {access_token, refresh_token, user}  │
+RS256 (비대칭키) 역할 분리:
+  메인 시스템: 개인키(private_key.pem)로 서명 → 토큰 생성 가능
+  MUREUM:     공개키(public_key.pem)로 검증  → 토큰 검증만 가능 (생성 불가)
 ```
+
+#### 전체 시퀀스
+
+```
+[메인 시스템]              [Vue 프론트엔드]             [MUREUM 백엔드]
+     │                        │                           │
+     │ 1. 사용자 클릭           │                           │
+     │    "AI 챗봇"            │                           │
+     │ 2. RS256 개인키로        │                           │
+     │    SSO JWT 서명          │                           │
+     │                        │                           │
+     │ 3. 브라우저 리다이렉트    │                           │
+     │    /sso?token=eyJxxx ─▶│                           │
+     │                        │ 4. URL에서 token 추출       │
+     │                        │ 5. POST /api/v1/auth/sso ─▶│
+     │                        │    {sso_token: "eyJ..."}   │
+     │                        │                            │ 6. RS256 공개키로 서명 검증
+     │                        │                            │ 7. issuer, exp 검증
+     │                        │                            │ 8. 테넌트 조회
+     │                        │                            │ 9. 부서 조회/생성 (JIT)
+     │                        │                            │ 10. 사용자 조회/생성 (JIT)
+     │                        │                            │ 11. 변경 감지 시 UPDATE
+     │                        │                            │ 12. MUREUM JWT 발급 (HS256)
+     │                        │ ◀── 13. TokenResponse ─────│
+     │                        │    {access_token,           │
+     │                        │     refresh_token, user}    │
+     │                        │                            │
+     │                        │ 14. localStorage 저장       │
+     │                        │ 15. Vuex store 업데이트      │
+     │                        │ 16. router.push(landing)   │
+```
+
+> **왜 Frontend Redirect인가?**
+> 기존 MUREUM은 localStorage + Vuex 기반 인증 체계를 사용한다.
+> 쿠키 방식으로 변경하면 기존 인증 체계 전체를 수정해야 하므로,
+> 기존 login 플로우와 동일한 패턴(API 호출 → localStorage 저장)을 유지한다.
+
+> **왜 RS256인가?**
+> HS256(대칭키)은 MUREUM도 같은 키를 보유하므로 위조 토큰 생성 가능.
+> RS256(비대칭키)은 MUREUM이 공개키만 보유하므로 검증만 가능, 위조 불가.
+> 향후 여러 외부 시스템 연동 시에도 공개키만 추가하면 됨 (1:N 확장 용이).
 
 ### 6.2 메인 시스템이 보내는 SSO 토큰
 
@@ -676,20 +708,151 @@ def _resolve_role(self, position: str) -> int:
 
 ```bash
 # .env
-SSO_ENABLED=true
-SSO_SECRET_KEY=shared-secret-with-main-system
-SSO_ALGORITHM=HS256
-SSO_ALLOWED_ISSUERS=hr-system,erp-system
-SSO_TOKEN_MAX_AGE=300    # 5분
+SSO_ENABLED=false                              # SSO 활성화 여부 (기본: 비활성)
+SSO_PUBLIC_KEY_PATH=./keys/sso_public.pem      # RS256 공개키 경로
+SSO_ALGORITHM=RS256                            # 서명 알고리즘 (RS256 고정)
+SSO_ALLOWED_ISSUERS=hr-system,erp-system       # 허용 발급자 (콤마 구분)
+SSO_TOKEN_MAX_AGE=300                          # SSO 토큰 최대 유효시간 (초, 기본 5분)
+SSO_DEFAULT_ROLE=USER                          # 매핑 실패 시 기본 역할
+SSO_AUTO_CREATE_DEPT=true                      # 부서 자동 생성 여부
+```
+
+> **키 관리 원칙**:
+> - `keys/sso_public.pem` — MUREUM이 보유 (검증 전용, 유출되어도 안전)
+> - `keys/sso_private.pem` — 메인 시스템이 보유 (서명 전용, MUREUM에 저장 금지)
+> - `keys/` 디렉토리는 `.gitignore`에 등록
+
+```python
+# app/config.py — Settings 클래스에 추가
+class Settings(BaseSettings):
+    # ... 기존 설정 ...
+
+    # SSO
+    sso_enabled: bool = False
+    sso_public_key_path: str = "./keys/sso_public.pem"
+    sso_algorithm: str = "RS256"
+    sso_allowed_issuers: str = ""
+    sso_token_max_age: int = 300
+    sso_default_role: str = "USER"
+    sso_auto_create_dept: bool = True
 ```
 
 ### 6.7 SSO API
 
 | Method | Endpoint | 설명 | 인증 |
 |--------|----------|------|:---:|
-| POST | /api/v1/auth/sso | SSO 토큰 교환 → MUREUM JWT 발급 | No |
+| POST | `/api/v1/auth/sso` | SSO 토큰 교환 → MUREUM JWT 발급 | No (공개) |
 
-### 6.8 변경 감지 항목
+**Request**:
+```json
+{
+  "sso_token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJFTVAyMDI0MDAxIi..."
+}
+```
+
+**Response** (기존 login API와 **동일한 TokenResponse**):
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ...",
+    "token_type": "Bearer",
+    "expires_in": 1800,
+    "user": {
+      "user_id": 10,
+      "login_id": "EMP2024001",
+      "display_name": "홍길동",
+      "role_code": "DEPT",
+      "role_name": "조직 관리자",
+      "landing_page": "/admin/chat",
+      "menus": [...]
+    }
+  }
+}
+```
+
+**에러 응답**:
+
+| 상황 | HTTP | error.code | error.message |
+|------|:---:|-----------|---------------|
+| SSO 비활성 | 403 | FORBIDDEN | SSO 인증이 비활성화되어 있습니다 |
+| 토큰 서명 불일치 | 401 | UNAUTHORIZED | SSO 토큰 검증에 실패했습니다 |
+| 토큰 만료 | 401 | UNAUTHORIZED | SSO 토큰이 만료되었습니다 |
+| issuer 미허용 | 401 | UNAUTHORIZED | 허용되지 않은 SSO 발급자입니다 |
+| 테넌트 미존재 | 400 | BAD_REQUEST | 테넌트를 찾을 수 없습니다: {tenant_code} |
+| 사용자 비활성 | 401 | UNAUTHORIZED | 비활성화된 계정입니다 |
+
+### 6.8 RS256 토큰 검증 모듈
+
+```python
+# app/core/security/sso.py
+
+from jose import jwt, JWTError
+from app.config import settings
+
+_public_key = None  # 앱 시작 시 1회 로드
+
+def load_sso_public_key():
+    """공개키 로드 (앱 시작 시 호출)"""
+    global _public_key
+    if settings.sso_enabled and os.path.exists(settings.sso_public_key_path):
+        with open(settings.sso_public_key_path, "r") as f:
+            _public_key = f.read()
+
+def verify_sso_token(sso_token: str) -> SSOTokenPayload:
+    """RS256 SSO 토큰 검증"""
+    if not settings.sso_enabled:
+        raise APIException(ErrorCode.FORBIDDEN, "SSO 인증이 비활성화되어 있습니다")
+
+    if not _public_key:
+        raise APIException(ErrorCode.INTERNAL_ERROR, "SSO 공개키가 로드되지 않았습니다")
+
+    allowed_issuers = [s.strip() for s in settings.sso_allowed_issuers.split(",") if s.strip()]
+
+    try:
+        payload = jwt.decode(
+            sso_token,
+            _public_key,
+            algorithms=[settings.sso_algorithm],
+            options={"require_exp": True, "require_sub": True}
+        )
+    except jwt.ExpiredSignatureError:
+        raise APIException(ErrorCode.UNAUTHORIZED, "SSO 토큰이 만료되었습니다")
+    except JWTError:
+        raise APIException(ErrorCode.UNAUTHORIZED, "SSO 토큰 검증에 실패했습니다")
+
+    # issuer 검증
+    if allowed_issuers and payload.get("iss") not in allowed_issuers:
+        raise APIException(ErrorCode.UNAUTHORIZED, "허용되지 않은 SSO 발급자입니다")
+
+    return SSOTokenPayload(**payload)
+```
+
+### 6.9 Pydantic 모델 추가
+
+```python
+# app/models/auth.py — 추가
+
+class SSOLoginRequest(BaseModel):
+    """SSO 토큰 교환 요청"""
+    sso_token: str
+
+class SSOTokenPayload(BaseModel):
+    """메인 시스템이 발급한 SSO JWT의 payload"""
+    sub: str                          # 사번 (사용자 고유 식별자)
+    name: str                         # 이름
+    email: Optional[str] = None       # 이메일
+    tenant_code: str                  # 테넌트 코드
+    dept_code: str                    # 부서 코드
+    dept_name: str                    # 부서명
+    position: Optional[str] = None    # 직급/직책
+    iss: str                          # 발급 시스템 식별자
+    exp: int                          # 만료 시간 (Unix timestamp)
+    iat: Optional[int] = None         # 발급 시간
+```
+
+### 6.10 변경 감지 항목
 
 SSO 로그인 시 기존 사용자의 정보 변경을 자동 감지하여 업데이트한다.
 
@@ -779,7 +942,7 @@ SSO JIT 방식의 보조 수단으로 **배치 동기화**를 병행한다.
 
 ## 9. 파일 구조 (추가/변경)
 
-### 9.1 백엔드 — 구현 완료
+### 9.1 백엔드 — Phase 1~3 구현 완료
 
 ```
 app/core/security/
@@ -791,14 +954,12 @@ app/api/routes/
   ├── dashboard.py             # 변경: _apply_scope_filter() → scope_level 기반  ✅
   ├── history.py               # 변경: _apply_scope_filter() + 접근 제어 → scope_level 기반  ✅
   ├── departments.py           # ★ 신규: 부서 CRUD (트리 조회/생성/수정/삭제/순서변경)  ✅
-  ├── users.py                 # 변경: 부서 드롭다운 옵션 추가  ✅
-  └── auth.py                  # 변경 예정: POST /sso 추가
+  └── users.py                 # 변경: 부서 드롭다운 옵션 추가  ✅
 
 app/api/services/
   ├── department_service.py    # ★ 신규: 부서 서비스 (트리 구축, recursive CTE)  ✅
   ├── user_service.py          # 변경: scope 검증 5곳 → scope_level 기반, apply_scope_filter() 사용  ✅
-  ├── role_service.py          # 변경: CRUD 쿼리에 scope_level 포함  ✅
-  └── auth_service.py          # 변경 예정: SSO 로직 추가
+  └── role_service.py          # 변경: CRUD 쿼리에 scope_level 포함  ✅
 
 app/models/
   ├── auth.py                  # 변경: UserContext에 dept_id, scope_level, is_dept_scope, is_user_scope 추가  ✅
@@ -806,7 +967,38 @@ app/models/
   └── department.py            # ★ 신규: DeptCreate/Update/TreeResponse  ✅
 ```
 
-### 9.2 프론트엔드 — 구현 완료
+### 9.2 백엔드 — Phase 4 (SSO) 구현 예정
+
+```
+app/config.py                          # 변경: SSO 설정 7개 추가 (sso_enabled, sso_public_key_path 등)
+
+app/core/security/
+  └── sso.py                           # ★ 신규: RS256 공개키 로드, SSO 토큰 검증 (verify_sso_token)
+
+app/api/routes/
+  └── auth.py                          # 변경: POST /sso 엔드포인트 추가
+
+app/api/services/
+  └── auth_service.py                  # 변경: SSO 메서드 4개 추가
+                                       #   sso_authenticate()          — SSO 인증 진입점
+                                       #   _find_or_create_sso_user()  — JIT 사용자 생성/업데이트
+                                       #   _resolve_or_create_dept()   — JIT 부서 생성
+                                       #   _resolve_sso_role()         — 직급→역할 매핑
+
+app/models/
+  └── auth.py                          # 변경: SSOLoginRequest, SSOTokenPayload 모델 추가
+
+app/main.py                            # 변경: lifespan에 load_sso_public_key() 호출 추가
+
+keys/                                  # ★ 신규 디렉토리 (.gitignore 등록)
+  ├── sso_public.pem                   # RS256 공개키 (MUREUM 보유)
+  └── sso_private.pem                  # RS256 개인키 (테스트용, 운영 시 메인 시스템만 보유)
+
+scripts/
+  └── generate_sso_keys.py             # ★ 신규: RS256 키 쌍 생성 도구
+```
+
+### 9.3 프론트엔드 — Phase 1~3 구현 완료
 
 ```
 frontend/src/
@@ -817,19 +1009,44 @@ frontend/src/
       └── UsersView.vue        # 변경: 부서 선택 드롭다운 추가  ✅
 ```
 
-### 9.3 테스트 — 구현 완료
+### 9.4 프론트엔드 — Phase 4 (SSO) 구현 예정
+
+```
+frontend/src/
+  ├── api/auth.js              # 변경: ssoLogin(ssoToken) 메서드 추가
+  ├── store/modules/auth.js    # 변경: ssoLogin 액션 추가 (기존 login과 동일 패턴)
+  ├── router/index.js          # 변경: /sso 경로 추가 (meta: { public: true })
+  └── views/
+      └── SSOCallbackView.vue  # ★ 신규: SSO 콜백 화면
+                               #   URL에서 token 추출 → POST /api/v1/auth/sso
+                               #   → 토큰 저장 → landing_page 이동
+                               #   에러 시 /login?error=sso_failed 리다이렉트
+```
+
+### 9.5 테스트
 
 ```
 tests/
   ├── test_04_roles.py         # 변경: TestRoleScopeLevel 클래스 추가 (7개 테스트)  ✅
-  └── test_11_departments.py   # ★ 신규: 부서 CRUD 통합 테스트  ✅
+  ├── test_11_departments.py   # ★ 신규: 부서 CRUD 통합 테스트  ✅
+  └── test_12_sso.py           # ★ 신규: SSO 통합 테스트 (8개)
+                               #   test_sso_login_new_user       — 신규 사용자 JIT 생성
+                               #   test_sso_login_existing_user  — 기존 사용자 + 변경 감지
+                               #   test_sso_invalid_token        — 잘못된 토큰 → 401
+                               #   test_sso_expired_token        — 만료 토큰 → 401
+                               #   test_sso_invalid_issuer       — 미허용 issuer → 401
+                               #   test_sso_dept_auto_create     — 부서 자동 생성
+                               #   test_sso_role_mapping         — 직급→역할 매핑
+                               #   test_sso_disabled             — SSO 비활성 시 403
 ```
 
-> 전체 테스트 86개 통과, 프론트엔드 빌드 성공 확인 (2026-02-24)
+> Phase 1~3 테스트: 86개 통과, 프론트엔드 빌드 성공 확인 (2026-02-24)
 
 ---
 
 ## 10. 구현 순서
+
+### Phase 1~3 (조직/부서/Scope — 완료)
 
 | 순서 | 작업 | 의존성 | 상태 |
 |:---:|------|--------|:---:|
@@ -841,8 +1058,6 @@ tests/
 | 5.5 | 역할 CRUD에 scope_level 지원 (모델/서비스/UI/테스트) | 1 | **완료** |
 | 6 | 부서 CRUD API + 서비스 구현 | 1 | **완료** |
 | 7 | 부서 관리 Admin UI (DepartmentsView.vue) | 6 | **완료** |
-| 8 | SSO 인증 API + JIT 사용자/부서 생성 | 4, 6 | - |
-| 9 | 배치 동기화 스크립트 | 6 | - |
 | 10 | 사용자 관리 UI에 부서 선택 드롭다운 추가 | 6 | **완료** |
 
 > **마이그레이션 스크립트**:
@@ -853,15 +1068,48 @@ tests/
 > - 통합 테스트 86개 전체 통과 (`pytest tests/ -v`)
 > - 프론트엔드 빌드 성공 (`npm run build`)
 
+### Phase 4 (SSO — RS256 + Frontend Redirect)
+
+| 순서 | 작업 | 의존성 | 상태 |
+|:---:|------|--------|:---:|
+| 8-1 | RS256 키 쌍 생성 스크립트 (`scripts/generate_sso_keys.py`) | 없음 | - |
+| 8-2 | SSO 설정 추가 (`app/config.py`) | 없음 | - |
+| 8-3 | Pydantic 모델 추가 (`SSOLoginRequest`, `SSOTokenPayload`) | 없음 | - |
+| 8-4 | RS256 토큰 검증 모듈 (`app/core/security/sso.py`) | 8-1, 8-2 | - |
+| 8-5 | SSO 서비스 로직 (`auth_service.py` — 4개 메서드) | 8-3, 8-4 | - |
+| 8-6 | SSO 라우트 (`POST /api/v1/auth/sso`) | 8-5 | - |
+| 8-7 | 프론트엔드 SSO API (`auth.js` — ssoLogin 메서드) | 8-6 | - |
+| 8-8 | Vuex auth store (`ssoLogin` 액션) | 8-7 | - |
+| 8-9 | Vue Router (`/sso` 경로 추가) | 없음 | - |
+| 8-10 | SSO 콜백 화면 (`SSOCallbackView.vue`) | 8-7, 8-8, 8-9 | - |
+| 8-11 | 앱 시작 시 공개키 로드 (`main.py` lifespan) | 8-4 | - |
+| 8-12 | SSO 통합 테스트 (`test_12_sso.py` — 8개) | 8-6 | - |
+| 8-13 | 설계서 최종 업데이트 | 전체 | - |
+
+### Phase 5 (배치 동기화 — 미착수)
+
+| 순서 | 작업 | 의존성 | 상태 |
+|:---:|------|--------|:---:|
+| 9 | 배치 동기화 스크립트 (부서/사용자/퇴직자) | Phase 4 | - |
+
 ---
 
-## 11. 미결정 사항
+## 11. 결정 사항 및 미결정 사항
+
+### 11.1 결정 완료 (v3.0)
+
+| 항목 | 결정 | 근거 |
+|------|------|------|
+| SSO 서명 방식 | **RS256 (비대칭키)** | MUREUM은 공개키만 보유 → 키 유출 시에도 토큰 위조 불가, 1:N 확장 용이 |
+| SSO 토큰 전달 방식 | **URL query → Frontend Redirect** | 기존 localStorage+Vuex 인증 체계 유지, 쿠키 방식 불필요 |
+| position 매핑 주체 | **MUREUM에서 매핑** | `tb_code` SSO_ROLE_MAP 활용, Admin UI에서 운영 중 추가 가능 |
+| 부서 계층 동기화 | **JIT flat 생성 + 배치 정리** | JIT 시 depth=0으로 생성, 계층은 Admin UI 또는 배치에서 정리 |
+| 자체 계정 + SSO 병행 | **병행 (SSO_ENABLED 플래그)** | 개발/테스트 환경은 자체 로그인, 운영은 SSO 활성화 |
+
+### 11.2 미결정 사항
 
 | 항목 | 설명 | 비고 |
 |------|------|------|
-| SSO 서명 방식 | 대칭키(HS256) vs 비대칭키(RS256) | 메인 시스템과 협의 필요 |
-| SSO 토큰 전달 방식 | POST body vs URL query parameter | 메인 시스템 구현에 따라 결정 |
-| position 매핑 주체 | 메인 시스템이 role_code 직접 전달 vs MUREUM에서 매핑 | 협의 필요 |
-| 부서 계층 동기화 | JIT으로 flat 생성 후 배치 정리 vs 배치로만 계층 관리 | 운영 방식에 따라 결정 |
-| 퇴직자 처리 주기 | 일 1회 배치 vs 메인 시스템 이벤트 수신 | 인프라에 따라 결정 |
-| 자체 계정 + SSO 병행 | SSO 없는 환경(개발/테스트)에서 기존 로그인 유지 여부 | 기본: 병행 |
+| 퇴직자 처리 주기 | 일 1회 배치 vs 메인 시스템 이벤트 수신 | Phase 5에서 결정 |
+| 다중 issuer 키 관리 | issuer별 공개키 분리 vs 단일 공개키 | 현재는 단일 공개키, 추후 확장 시 검토 |
+| SSO 로그아웃 연동 (SLO) | 메인 시스템 로그아웃 시 MUREUM 세션 만료 | 필요 시 Phase 5+ |

@@ -1,6 +1,6 @@
 # API 레퍼런스
 
-> 최종 수정: 2026-02-15
+> 최종 수정: 2026-03-09
 
 ---
 
@@ -17,6 +17,16 @@
 ```json
 { "success": false, "data": null, "error": { "code": "ERROR_CODE", "message": "...", "detail": "..." } }
 ```
+
+**응답 유형별 HTTP Status**:
+
+| 작업 | HTTP Status | data 구조 |
+|------|-------------|-----------|
+| CREATE | 201 | 생성된 객체 |
+| GET (단건) | 200 | 객체 |
+| GET (목록) | 200 | `{"items": [...], "total": N}` |
+| UPDATE | 200 | 수정된 객체 |
+| DELETE | 200 | `{"message": "...", "deleted_count": N}` |
 
 ---
 
@@ -116,7 +126,20 @@
 
 ---
 
-## 8. 메뉴 관리 (`/api/admin/v1/menus`)
+## 8. 부서 관리 (`/api/admin/v1/departments`)
+
+| Method | Endpoint | 설명 | 권한 |
+|--------|----------|------|------|
+| GET | / | 부서 트리 조회 | DEPT_MGMT:read |
+| POST | / | 부서 추가 | DEPT_MGMT:create |
+| PUT | /reorder | 순서 변경 (드래그앤드롭) | DEPT_MGMT:update |
+| GET | /{dept_id} | 부서 상세 | DEPT_MGMT:read |
+| PUT | /{dept_id} | 부서 수정 | DEPT_MGMT:update |
+| DELETE | /{dept_id} | 부서 삭제 (하위부서/소속사용자 있으면 불가) | DEPT_MGMT:delete |
+
+---
+
+## 9. 메뉴 관리 (`/api/admin/v1/menus`)
 
 | Method | Endpoint | 설명 | 권한 |
 |--------|----------|------|------|
@@ -129,7 +152,7 @@
 
 ---
 
-## 9. 시스템 설정 (`/api/admin/v1/settings`)
+## 10. 시스템 설정 (`/api/admin/v1/settings`)
 
 | Method | Endpoint | 설명 | 권한 |
 |--------|----------|------|------|
@@ -147,7 +170,7 @@
 
 ---
 
-## 10. 코드 관리
+## 11. 코드 관리
 
 ### 관리자 (`/api/admin/v1/codes`)
 
@@ -169,7 +192,35 @@
 
 ---
 
-## 11. 검색 이력 (`/api/v1/history`)
+## 12. 대시보드 (`/api/v1/dashboard`)
+
+### 12.1 관리자 대시보드
+
+| Method | Endpoint | 설명 | 인증 |
+|--------|----------|------|:---:|
+| GET | /summary | KPI 요약 + 차트 + 시스템 현황 | O |
+
+### 12.2 개인 대시보드
+
+| Method | Endpoint | 설명 | 인증 |
+|--------|----------|------|:---:|
+| GET | /dashboards | 대시보드 목록 | O |
+| POST | /dashboards | 대시보드 생성 | O |
+| PUT | /dashboards/{id} | 대시보드 수정 | O |
+| DELETE | /dashboards/{id} | 대시보드 삭제 | O |
+| PUT | /dashboards/{id}/default | 기본 대시보드 설정 | O |
+| PUT | /dashboards/{id}/share | 대시보드 공유 | O |
+| GET | /widgets | 위젯 목록 | O |
+| POST | /widgets | 위젯 생성 | O |
+| PUT | /widgets/{id} | 위젯 수정 | O |
+| DELETE | /widgets/{id} | 위젯 삭제 | O |
+| PUT | /layout | 레이아웃 저장 (위젯 배치) | O |
+| POST | /widgets/{id}/refresh | 위젯 데이터 갱신 | O |
+| POST | /execute-sql | 위젯용 SQL 실행 | O |
+
+---
+
+## 13. 검색 이력 (`/api/v1/history`)
 
 | Method | Endpoint | 설명 | 권한 |
 |--------|----------|------|------|
@@ -185,15 +236,17 @@
 
 ---
 
-## 12. Excel 내보내기 (`/api/v1/export`)
+## 14. Excel 내보내기 (`/api/v1/export`)
 
-| Method | Endpoint | 설명 | 권한 |
-|--------|----------|------|------|
-| POST | /excel | NL2SQL 결과 Excel 내보내기 | 로그인 |
+| Method | Endpoint | 설명 | 인증 |
+|--------|----------|------|:---:|
+| POST | /excel | NL2SQL 결과 Excel 내보내기 | O |
 
 ---
 
-## 13. 에러 코드
+## 15. 에러 코드
+
+### 클라이언트 에러 (4xx)
 
 | 코드 | HTTP | 설명 |
 |------|------|------|
@@ -203,6 +256,40 @@
 | FORBIDDEN | 403 | 권한 부족 |
 | NOT_FOUND | 404 | 리소스 없음 |
 | DUPLICATE_ERROR | 409 | 유니크 제약조건 위반 |
+| ACCOUNT_LOCKED | 423 | 계정 잠금 (로그인 실패 5회) |
+| RATE_LIMIT_EXCEEDED | 429 | 요청 속도 제한 초과 |
+
+### 비즈니스 에러
+
+| 코드 | HTTP | 설명 |
+|------|------|------|
 | SEARCH_FAILED | 500 | 검색 실패 |
-| SQL_FAILED | 500 | SQL 실행 실패 |
+| SQL_GENERATION_FAILED | 500 | SQL 생성 실패 |
+| SQL_EXECUTION_FAILED | 500 | SQL 실행 실패 |
+| DOCUMENT_NOT_FOUND | 404 | 문서 없음 |
+| EMBEDDING_FAILED | 500 | 임베딩 실패 |
+| AGENT_FAILED | 500 | Agent 실행 실패 |
+| SESSION_NOT_FOUND | 404 | 세션 없음 |
+| SESSION_EXPIRED | 410 | 세션 만료 |
+| SETTING_NOT_FOUND | 404 | 설정 없음 |
+| CODE_NOT_FOUND | 404 | 코드 없음 |
+
+### SSO 에러
+
+| 코드 | HTTP | 설명 |
+|------|------|------|
+| SSO_NOT_CONFIGURED | 500 | SSO 미설정 |
+| SSO_DISABLED | 403 | SSO 비활성 |
+| SSO_INVALID_TOKEN | 401 | SSO 토큰 유효하지 않음 |
+| SSO_TOKEN_EXPIRED | 401 | SSO 토큰 만료 |
+| SSO_USER_NOT_FOUND | 404 | SSO 사용자 미등록 |
+
+### 서버 에러 (5xx)
+
+| 코드 | HTTP | 설명 |
+|------|------|------|
 | INTERNAL_ERROR | 500 | 내부 오류 |
+| DATABASE_ERROR | 500 | 데이터베이스 오류 |
+| LLM_ERROR | 502 | LLM API 오류 |
+| EXTERNAL_API_ERROR | 502 | 외부 API 오류 |
+| TIMEOUT_ERROR | 504 | 타임아웃 |

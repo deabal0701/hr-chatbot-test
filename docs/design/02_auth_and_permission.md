@@ -1,6 +1,6 @@
 # 인증/인가 시스템 설계
 
-> 최종 수정: 2026-02-15
+> 최종 수정: 2026-03-09
 
 ---
 
@@ -8,27 +8,38 @@
 
 ```
 tb_user_menu = "어떤 메뉴에 무엇을 할 수 있는가"  (기능 접근)
-tb_role.role_code = "어디까지 볼 수 있는가"       (데이터 범위)
+tb_role.role_code + scope_level = "어디까지 볼 수 있는가"  (데이터 범위)
 
-같은 메뉴 권한이라도 role_code에 따라 보이는 데이터가 다름
-예: 사용자 관리 Read + TENANT → 자기 테넌트 사용자만
-    사용자 관리 Read + GLOBAL → 전체 사용자
+같은 메뉴 권한이라도 scope_level에 따라 보이는 데이터가 다름
+예: 사용자 관리 Read + scope_level=1 → 자기 테넌트 사용자만
+    사용자 관리 Read + scope_level=0 → 전체 사용자
 ```
 
 ---
 
 ## 2. 역할 계층
 
-| 구분 | GLOBAL (시스템관리자) | TENANT (테넌트관리자) | USER (일반사용자) |
-|------|:---:|:---:|:---:|
-| sort_order | 1 (최상위) | 2 | 3 |
-| landing_page | /admin/dashboard | /admin/dashboard | /chat |
-| is_superuser | true | false | false |
-| 소속 테넌트 | 시스템 테넌트 | 소속 테넌트 | 소속 테넌트 |
-| 데이터 범위 | **전체** | **테넌트 내** | **본인만** |
-| 메뉴 접근 | 전체 | 제한적 | 채팅만 |
+| 구분 | GLOBAL (시스템관리자) | TENANT (테넌트관리자) | DEPT (부서관리자) | USER (일반사용자) |
+|------|:---:|:---:|:---:|:---:|
+| sort_order | 1 (최상위) | 2 | 3 | 4 |
+| scope_level | 0 (전체) | 1 (테넌트) | 2 (부서) | 3 (본인) |
+| landing_page | /admin/dashboard | /admin/dashboard | /admin/dashboard | /chat |
+| is_superuser | true | false | false | false |
+| 소속 테넌트 | 시스템 테넌트 | 소속 테넌트 | 소속 테넌트 | 소속 테넌트 |
+| 데이터 범위 | **전체** | **테넌트 내** | **부서 내** | **본인만** |
 
 > `sort_order`가 역할 계층 결정 — 낮을수록 상위. DB에서 동적 조회하므로 하드코딩 없음.
+
+### 2.1 데이터 범위 필터링 (scope_level)
+
+| scope_level | 범위 | 필터 조건 |
+|-------------|------|----------|
+| 0 | 전체 | 필터 없음 |
+| 1 | 테넌트 | `WHERE tenant_id = current_user.tenant_id` |
+| 2 | 부서 | `WHERE dept_id = current_user.dept_id` |
+| 3 | 본인 | `WHERE user_id = current_user.user_id` |
+
+- **파일**: `app/core/security/scope_filter.py`
 
 ---
 
@@ -39,37 +50,74 @@ tb_role.role_code = "어디까지 볼 수 있는가"       (데이터 범위)
 ```
 POST /api/v1/auth/login
   → 비밀번호 검증 (bcrypt)
-  → Access Token 발급 (30분) — user_id, role_code, tenant_id 포함
+  → Access Token 발급 (30분) — user_id, role_code, scope_level, tenant_id, dept_id 포함
   → Refresh Token 발급 (7일) — session_id 포함, DB(tb_user_session) 저장
 
 API 요청 → Authorization: Bearer <token>
   → AuthMiddleware → JWT 검증 → request.state.current_user (UserContext)
 ```
 
-### 3.2 토큰 갱신
+### 3.2 토큰 페이로드 (TokenPayload)
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| sub | str | User ID |
+| login_id | str | 로그인 ID |
+| display_name | str | 표시명 |
+| tenant_id | int? | 테넌트 ID |
+| dept_id | int? | 부서 ID |
+| role_code | str | GLOBAL/TENANT/DEPT/USER |
+| scope_level | int | 0=전체, 1=테넌트, 2=부서, 3=본인 |
+| is_superuser | bool | 슈퍼유저 여부 |
+| exp | int | 만료 시간 |
+| iat | int | 발급 시간 |
+| token_type | str | "access" 또는 "refresh" |
+| session_id | str? | 세션 ID (refresh 전용) |
+
+### 3.3 알고리즘 보안
+
+- **화이트리스트**: `HS256`, `HS384`, `HS512`만 허용 (하드코딩)
+- 허용되지 않은 알고리즘 → `RuntimeError` (알고리즘 혼동 공격 방지)
+
+### 3.4 토큰 갱신
 
 ```
 Access Token 만료 → 401 응답
   → 프론트엔드 인터셉터 → POST /api/v1/auth/refresh (refresh_token)
-  → 새 Access Token 발급 → 원래 요청 재시도
+  → DB 세션 검증 (session_id + refresh_token 매칭)
+  → 최신 권한 재로드 (get_user_with_permissions)
+  → 새 Access Token 발급 (기존 Refresh Token 재사용)
+  → 원래 요청 재시도
   → 동시 요청 큐잉으로 중복 갱신 방지
 ```
 
-### 3.3 인증 API
+### 3.5 인증 API
 
 | Method | Endpoint | 설명 | 인증 |
 |--------|----------|------|:---:|
 | POST | /api/v1/auth/login | 로그인 (메뉴 목록 포함) | No |
 | POST | /api/v1/auth/logout | 로그아웃 (세션 삭제) | Yes |
 | POST | /api/v1/auth/refresh | 토큰 갱신 | No |
-| GET | /api/v1/auth/me | 현재 사용자 정보 | Yes |
+| GET | /api/v1/auth/me | 현재 사용자 정보 (최신 권한) | Yes |
 | PUT | /api/v1/auth/me/password | 비밀번호 변경 | Yes |
 
-### 3.4 비밀번호 정책
+### 3.6 비밀번호 정책
 
 - 최소 8자
+- 대문자 + 소문자 + 숫자 필수 (Pydantic validator)
 - bcrypt 해싱 (cost factor 12)
 - 로그인 실패 5회 → 30분 계정 잠금
+
+### 3.7 계정 잠금 메커니즘
+
+```
+로그인 실패 시:
+  1. login_fail_count 증가
+  2. login_fail_count >= 5 → locked_until = now + 30분
+  3. 잠금 상태에서 로그인 시도 → ACCOUNT_LOCKED (남은 시간 표시)
+  4. 잠금 시간 경과 → 자동 해제 (locked_until=NULL, fail_count=0)
+  5. 로그인 성공 → fail_count 리셋, last_login_at 갱신
+```
 
 ---
 
@@ -87,36 +135,37 @@ async def create_user(
 
 `require_menu_permission(menu_code, action)`:
 1. JWT에서 UserContext 추출
-2. `is_superuser=true`이면 통과 (비상 우회)
+2. `is_superuser=true`이면 통과 (비상 우회, DB 조회 없음)
 3. `tb_user_menu JOIN tb_menu`에서 `can_{action}` 확인
-4. 권한 없으면 403 FORBIDDEN
+4. 권한 없으면 403 FORBIDDEN ("{action_label} 권한이 없습니다")
 
 ### 4.2 HTTP → CRUD 매핑
 
-| HTTP | action | 필드 |
-|------|--------|------|
-| POST | create | can_create |
-| GET | read | can_read |
-| PUT | update | can_update |
-| DELETE | delete | can_delete |
-| GET /export | export | can_export |
+| HTTP | action | 필드 | 한글 레이블 |
+|------|--------|------|------------|
+| POST | create | can_create | 등록 |
+| GET | read | can_read | 조회 |
+| PUT | update | can_update | 수정 |
+| DELETE | delete | can_delete | 삭제 |
+| GET /export | export | can_export | 내보내기 |
 
 ### 4.3 역할별 기본 메뉴
 
-| 메뉴 | GLOBAL | TENANT | USER |
-|------|:---:|:---:|:---:|
-| 대시보드 | CRUDE | R | - |
-| AI 채팅 | CR | CR | - |
-| 문서 관리 | CRUDE | CRUDE | - |
-| 사용자 관리 | CRUDE | CRU | - |
-| 메뉴 관리 | CRUDE | - | - |
-| 역할 관리 | CRUDE | - | - |
-| 테넌트 관리 | CRUDE | - | - |
-| 시스템 설정 | RU | - | - |
-| 코드 관리 | CRUD | - | - |
-| 검색 이력 | RE | RE | - |
-| 채팅 (/chat) | CR | CR | CR |
-| API (Agent/RAG/NL2SQL) | CR | CR | CR |
+| 메뉴 | GLOBAL | TENANT | DEPT | USER |
+|------|:---:|:---:|:---:|:---:|
+| 대시보드 | CRUDE | R | R | - |
+| AI 채팅 | CR | CR | CR | - |
+| 문서 관리 | CRUDE | CRUDE | R | - |
+| 사용자 관리 | CRUDE | CRU | R | - |
+| 메뉴 관리 | CRUDE | - | - | - |
+| 역할 관리 | CRUDE | - | - | - |
+| 테넌트 관리 | CRUDE | - | - | - |
+| 부서 관리 | CRUDE | CRU | R | - |
+| 시스템 설정 | RU | - | - | - |
+| 코드 관리 | CRUD | - | - | - |
+| 검색 이력 | RE | RE | R | - |
+| 채팅 (/chat) | CR | CR | CR | CR |
+| API (Agent/RAG/NL2SQL) | CR | CR | CR | CR |
 
 > C=Create, R=Read, U=Update, D=Delete, E=Export
 
@@ -135,7 +184,7 @@ async def create_user(
 ### 5.2 역할 권한 상승 방지
 
 ```
-sort_order 기준: 낮을수록 상위 (GLOBAL=1 > TENANT=2 > USER=3)
+sort_order 기준: 낮을수록 상위 (GLOBAL=1 > TENANT=2 > DEPT=3 > USER=4)
 
 규칙: 자신보다 상위 역할은 할당 불가
   TENANT 관리자 → sort_order >= 자신의 역할만 할당 가능
@@ -149,6 +198,7 @@ sort_order 기준: 낮을수록 상위 (GLOBAL=1 > TENANT=2 > USER=3)
 ```
 GLOBAL 역할  → 시스템 테넌트(is_system=true) 자동 설정, 일반 테넌트 불가
 TENANT 역할  → tenant_id 필수, 시스템 테넌트 불가
+DEPT 역할    → tenant_id + dept_id 필수, 시스템 테넌트 불가
 USER 역할    → tenant_id 필수, 시스템 테넌트 불가
 
 금지 조합:
@@ -179,9 +229,91 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
 
 ---
 
-## 6. 프론트엔드 연동
+## 6. Rate Limiting
 
-### 6.1 인증 상태 (Vuex auth 모듈)
+### 6.1 개요
+
+사용자/IP 기반 슬라이딩 윈도우 속도 제한 (인메모리).
+
+- **파일**: `app/middleware/rate_limit.py`
+- **실행 위치**: Auth 미들웨어 이후 (user_id 사용 가능)
+
+### 6.2 설정
+
+| 그룹 | 엔드포인트 | 기본 RPM |
+|------|----------|---------|
+| auth | /auth/login, /auth/refresh | 5 |
+| ai | /agent/search, /search | 20 |
+| admin | /api/admin/v1/* | 60 |
+| default | 기타 모든 엔드포인트 | 120 |
+
+### 6.3 클라이언트 식별
+
+```
+인증됨: "user:{user_id}:{group}"
+미인증: "ip:{client_ip}:{group}"
+```
+
+### 6.4 초과 응답
+
+- **Status**: 429 Too Many Requests
+- **Headers**: `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- **정리**: 5분마다 만료된 키 자동 정리
+
+---
+
+## 7. SSO 인증 (선택적)
+
+### 7.1 개요
+
+외부 IdP(HR 시스템 등)에서 발급한 RS256 JWT 토큰으로 로그인하는 SSO 연동.
+
+- **파일**: `app/core/security/sso.py`
+- **설정**: `sso_enabled=False` (기본 비활성)
+
+### 7.2 SSO 토큰 검증 흐름
+
+```
+POST /api/v1/auth/sso-login
+  → SSO 토큰 수신 (RS256 서명)
+  → 공개키로 검증 (sso_public_key_path)
+  → 필수 클레임 확인 (sub, name, iss, exp)
+  → 발급자 화이트리스트 확인 (sso_allowed_issuers)
+  → 토큰 최대 수명 확인 (sso_token_max_age: 300초)
+  → 사용자 매칭/생성 → JWT 발급
+```
+
+### 7.3 SSO 토큰 페이로드
+
+| 필드 | 설명 |
+|------|------|
+| sub | 사번 (Employee ID) |
+| name | 이름 |
+| email | 이메일 (선택) |
+| tenant_code | 테넌트 코드 (선택) |
+| dept_code | 부서 코드 (선택) |
+| dept_name | 부서명 (선택) |
+| position | 직급 (선택) |
+| iss | 발급자 |
+| exp | 만료 시간 |
+
+### 7.4 SSO 설정
+
+| 설정 | 기본값 | 설명 |
+|------|--------|------|
+| sso_enabled | false | SSO 활성화 여부 |
+| sso_public_key_path | keys/sso_public.pem | RS256 공개키 경로 |
+| sso_algorithm | RS256 | 토큰 알고리즘 |
+| sso_allowed_issuers | hr-system | 허용 발급자 (쉼표 구분) |
+| sso_token_max_age | 300 | 토큰 최대 수명 (초) |
+| sso_default_role | USER | 자동 생성 시 기본 역할 |
+| sso_auto_create_user | false | 미등록 사용자 자동 생성 |
+
+---
+
+## 8. 프론트엔드 연동
+
+### 8.1 인증 상태 (Vuex auth 모듈)
 
 ```
 localStorage: mureum_access_token, mureum_refresh_token, mureum_user
@@ -194,7 +326,7 @@ localStorage: mureum_access_token, mureum_refresh_token, mureum_user
 | `canAccessAdmin` | 관리자 메뉴 1개 이상 보유 여부 |
 | `accessibleMenus` | 사이드바에 표시할 메뉴 목록 |
 
-### 6.2 라우터 가드
+### 8.2 라우터 가드
 
 ```
 router.beforeEach:
@@ -204,7 +336,7 @@ router.beforeEach:
   4. 권한 없으면 → landing_page로 리디렉트
 ```
 
-### 6.3 사이드바 동적 메뉴
+### 8.3 사이드바 동적 메뉴
 
 로그인 응답의 `menus[]`로 사이드바를 동적 생성 (하드코딩 없음):
 - `menu_type === 'PAGE'` 필터
@@ -213,17 +345,44 @@ router.beforeEach:
 
 ---
 
-## 7. 파일 구조
+## 9. UserContext 모델
+
+```python
+class UserContext(BaseModel):
+    user_id: int
+    login_id: str
+    display_name: Optional[str]
+    tenant_id: Optional[int]
+    dept_id: Optional[int]
+    is_superuser: bool = False
+    role_code: str              # "GLOBAL", "TENANT", "DEPT", "USER"
+    scope_level: int            # 0=전체, 1=테넌트, 2=부서, 3=본인
+
+    # Helper properties
+    is_global → is_superuser or scope_level == 0
+    is_tenant_scope → scope_level == 1
+    is_dept_scope → scope_level == 2
+    is_user_scope → scope_level == 3
+```
+
+---
+
+## 10. 파일 구조
 
 | 파일 | 역할 |
 |------|------|
-| `app/core/security/jwt.py` | JWT 생성/검증 (HS256) |
-| `app/core/security/password.py` | bcrypt 해싱 |
-| `app/core/security/dependencies.py` | `get_current_active_user` Depends |
-| `app/core/security/permission.py` | `require_menu_permission` 팩토리 |
-| `app/core/security/tenant_context.py` | contextvars 테넌트 격리 |
+| `app/core/security/jwt.py` | JWT 생성/검증 (HS256/384/512 화이트리스트) |
+| `app/core/security/password.py` | bcrypt 해싱 (rounds=12) |
+| `app/core/security/dependencies.py` | get_current_user, get_current_active_user, get_optional_user |
+| `app/core/security/permission.py` | require_menu_permission, require_superuser |
+| `app/core/security/scope_filter.py` | 데이터 범위 필터링 (scope_level 기반) |
+| `app/core/security/tenant_context.py` | ContextVar 기반 테넌트 격리 |
+| `app/core/security/sso.py` | SSO 토큰 검증 (RS256), 공개키 로드 |
+| `app/middleware/auth.py` | JWT 인증 미들웨어 (선택적 모드) |
+| `app/middleware/rate_limit.py` | 슬라이딩 윈도우 속도 제한 |
 | `app/api/routes/auth.py` | 인증 엔드포인트 |
 | `app/api/services/auth_service.py` | 인증 비즈니스 로직 |
+| `app/models/auth.py` | LoginRequest, TokenResponse, UserContext, MenuPermission, SSO 모델 |
 | `frontend/src/store/modules/auth.js` | Vuex 인증 상태 |
 | `frontend/src/api/auth.js` | 인증 API 클라이언트 |
 | `frontend/src/router/index.js` | 라우터 가드 |
