@@ -63,10 +63,10 @@
       </el-form>
     </div>
 
-    <!-- SSO 테스트 버튼 (개발 모드) — 새 탭에서 외부 시스템 시뮬레이터 열기 -->
+    <!-- SSO 로그인 버튼 -->
     <div class="sso-test-area">
       <el-button type="info" text @click="openSSOTest">
-        SSO 테스트 로그인
+        SSO 로그인
       </el-button>
     </div>
 
@@ -127,9 +127,9 @@ const handleLogin = async () => {
   }
 }
 
-// SSO 테스트: 새 탭에서 외부 시스템 시뮬레이터 열기
+// SSO 테스트: 현재 탭에서 외부 시스템 시뮬레이터 열기 (public/sso_test.html)
 const openSSOTest = () => {
-  window.open('http://localhost:19081/sso_test.html', '_blank')
+  window.location.href = '/sso_test.html'
 }
 
 // 이미 로그인된 상태면 랜딩 페이지로 리다이렉트
