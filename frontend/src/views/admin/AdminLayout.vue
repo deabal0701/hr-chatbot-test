@@ -48,9 +48,7 @@ const handleResize = () => {
   }
 }
 
-// 관리자 화면 진입 시 currentView 설정
 onMounted(() => {
-  store.dispatch('app/setCurrentView', 'admin')
   window.addEventListener('resize', handleResize)
   // 모바일로 처음 진입 시 사이드바 접기
   if (isMobile.value && !sidebarCollapsed.value) {

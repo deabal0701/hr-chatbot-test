@@ -166,7 +166,7 @@ const canShare = computed(() => store.getters['dashboard/canShare'])
 const noDashboard = computed(() => !currentDashboardId.value && myDashboards.value.length === 0)
 
 // 대시보드 테마
-const isUserDark = computed(() => store.getters['app/isUserDarkMode'])
+const isUserDark = computed(() => store.getters['app/isDarkMode'])
 const effectiveDark = computed(() => {
   if (dashboardTheme.value === 'auto') return isUserDark.value
   return dashboardTheme.value === 'dark'

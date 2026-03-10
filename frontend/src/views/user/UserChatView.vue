@@ -192,7 +192,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { Operation, ArrowDown, MagicStick, Document, DataLine, CoffeeCup, ChatLineRound, QuestionFilled } from '@element-plus/icons-vue'
@@ -224,15 +224,9 @@ const goToLogin = () => {
 // 테마 관련
 const { isDarkMode, toggleDarkMode } = useTheme()
 
-// 사용자 화면 진입 시 currentView 설정 + 채팅 이력 로드
+// 채팅 이력 로드
 onMounted(() => {
-  store.dispatch('app/setCurrentView', 'user')
   store.dispatch('chat/fetchChatHistory')
-})
-
-// 사용자 화면 이탈 시 관리자로 복원 (선택적)
-onUnmounted(() => {
-  store.dispatch('app/setCurrentView', 'admin')
 })
 
 const inputRef = ref(null)
