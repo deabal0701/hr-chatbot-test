@@ -149,6 +149,12 @@ export default {
     widgetById: (state) => (id) => state.widgets.find(w => w.widget_id === id),
     isWidgetRefreshing: (state) => (id) => !!state.refreshingWidgets[id],
     dashboardTheme: (state) => state.dashboardTheme,
+    // 대시보드 실효 다크모드 (auto: 앱 테마 따름, dark/light: 독립)
+    isDashboardDark: (state, getters, rootState) => {
+      if (state.dashboardTheme === 'auto') return rootState.app.darkMode
+      return state.dashboardTheme === 'dark'
+    },
+    dashboardThemeClass: (state, getters) => getters.isDashboardDark ? 'dashboard-dark' : 'dashboard-light',
     gridLayout: (state) => state.widgets.map(w => ({
       i: String(w.widget_id),
       x: w.grid_position.x,

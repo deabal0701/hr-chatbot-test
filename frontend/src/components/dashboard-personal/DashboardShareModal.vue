@@ -3,7 +3,7 @@
     v-model="visible"
     title="대시보드 공유 설정"
     width="480px"
-    class="dashboard-dark"
+    :class="themeClass"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"
@@ -67,6 +67,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 const store = useStore()
+const themeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
 
 const visible = computed({
   get: () => props.modelValue,

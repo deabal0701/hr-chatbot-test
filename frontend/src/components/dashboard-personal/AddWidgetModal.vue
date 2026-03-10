@@ -3,7 +3,7 @@
     v-model="visible"
     title="위젯 추가"
     width="680px"
-    class="dashboard-dark"
+    :class="themeClass"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"
@@ -227,6 +227,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 const store = useStore()
+const themeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
 const configRef = ref(null)
 
 const visible = computed({

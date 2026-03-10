@@ -3,7 +3,7 @@
     v-model="visible"
     title="대시보드에 추가"
     width="680px"
-    class="dashboard-dark"
+    :class="themeClass"
     :close-on-click-modal="false"
     destroy-on-close
     @close="handleClose"
@@ -70,6 +70,7 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 const store = useStore()
 const router = useRouter()
+const themeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
 const configRef = ref(null)
 
 const visible = computed({

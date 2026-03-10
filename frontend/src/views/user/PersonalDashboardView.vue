@@ -165,13 +165,9 @@ const sharedDashboards = computed(() => store.getters['dashboard/sharedDashboard
 const canShare = computed(() => store.getters['dashboard/canShare'])
 const noDashboard = computed(() => !currentDashboardId.value && myDashboards.value.length === 0)
 
-// 대시보드 테마
-const isUserDark = computed(() => store.getters['app/isDarkMode'])
-const effectiveDark = computed(() => {
-  if (dashboardTheme.value === 'auto') return isUserDark.value
-  return dashboardTheme.value === 'dark'
-})
-const dashboardThemeClass = computed(() => effectiveDark.value ? 'dashboard-dark' : 'dashboard-light')
+// 대시보드 테마 (store getter 통합)
+const effectiveDark = computed(() => store.getters['dashboard/isDashboardDark'])
+const dashboardThemeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
 
 // ============================================
 // 대시보드 관리
