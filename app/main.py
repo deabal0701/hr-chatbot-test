@@ -30,12 +30,21 @@ async def lifespan(app: FastAPI):
     # LangSmith 초기화 (옵션)
     init_langsmith()
 
-    # 서비스 DB 초기화 (운영데이터용)
-    db_manager.initialize()
-    logger.info("서비스 데이터베이스 연결 풀 초기화 완료")
+    # 서비스 DB 초기화 (운영데이터용, exponential backoff 재시도)
+    try:
+        db_manager.initialize()
+        logger.info("서비스 데이터베이스 연결 풀 초기화 완료")
+    except ConnectionError as e:
+        logger.error(f"서비스 데이터베이스 초기화 실패: {e}")
+        logger.error("애플리케이션을 시작할 수 없습니다. DB 연결 설정을 확인하세요.")
+        raise RuntimeError(f"DB 초기화 실패: {e}") from e
 
     # 외부 비즈니스 DB: lazy 초기화 (최초 NL2SQL/Agent 요청 시 테넌트별 연결)
     external_db_manager.initialize()
+
+    # SSO 공개키 로드 (SSO 활성화 시)
+    from app.core.security.sso import load_sso_public_key
+    load_sso_public_key()
 
     yield
 

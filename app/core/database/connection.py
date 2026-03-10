@@ -4,10 +4,11 @@
 - PostgreSQL 연결 풀 관리
 - pgvector 등록
 - 커넥션/커서 컨텍스트 매니저
+- 시작 시 exponential backoff 재시도
 """
 from contextlib import contextmanager
 from typing import Generator, Optional
-import sys
+import time
 
 import psycopg
 from pgvector.psycopg import register_vector
@@ -18,6 +19,12 @@ from app.config import settings
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# 재시도 설정
+DB_RETRY_MAX_ATTEMPTS = 5       # 최대 재시도 횟수
+DB_RETRY_INITIAL_DELAY = 2     # 초기 대기 시간 (초)
+DB_RETRY_MAX_DELAY = 30        # 최대 대기 시간 (초)
+DB_RETRY_BACKOFF_FACTOR = 2    # 대기 시간 증가 배수
 
 
 class DatabaseManager:
@@ -48,19 +55,54 @@ class DatabaseManager:
             logger.error(f"데이터베이스 연결 실패: {e}")
             return False
 
-    def initialize(self, exit_on_failure: bool = True):
-        """커넥션 풀 초기화"""
-        if self.pool is None:
-            # 먼저 연결 테스트
-            logger.info("데이터베이스 연결 테스트 중...")
-            if not self._test_connection():
-                logger.error("데이터베이스 연결 테스트 실패. 설정을 확인하세요.")
-                logger.error(f"  DATABASE_URL: {settings.database_url[:50]}...")
-                if exit_on_failure:
-                    sys.exit(1)
-                raise ConnectionError("데이터베이스 연결 실패")
+    def _is_retryable_error(self, error: Exception) -> bool:
+        """재시도 가능한 오류인지 판별 (인증/DB 미존재 등은 재시도 불필요)"""
+        error_msg = str(error).lower()
+        non_retryable = [
+            "password authentication failed",
+            "does not exist",
+            "no pg_hba.conf entry",
+            "ssl required",
+        ]
+        return not any(keyword in error_msg for keyword in non_retryable)
 
-            logger.info("데이터베이스 연결 테스트 성공")
+    def _test_connection_with_retry(self) -> bool:
+        """Exponential backoff로 DB 연결 재시도"""
+        delay = DB_RETRY_INITIAL_DELAY
+
+        for attempt in range(1, DB_RETRY_MAX_ATTEMPTS + 1):
+            logger.info(f"데이터베이스 연결 시도 {attempt}/{DB_RETRY_MAX_ATTEMPTS}...")
+
+            try:
+                with psycopg.connect(settings.database_url, connect_timeout=10) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                logger.info(f"데이터베이스 연결 성공 (시도 {attempt}/{DB_RETRY_MAX_ATTEMPTS})")
+                return True
+            except Exception as e:
+                logger.warning(f"데이터베이스 연결 실패 (시도 {attempt}/{DB_RETRY_MAX_ATTEMPTS}): {e}")
+
+                # 재시도 불가능한 오류는 즉시 중단
+                if not self._is_retryable_error(e):
+                    logger.error("재시도 불가능한 오류입니다. 연결 설정을 확인하세요.")
+                    return False
+
+                # 마지막 시도가 아니면 대기 후 재시도
+                if attempt < DB_RETRY_MAX_ATTEMPTS:
+                    logger.info(f"  {delay}초 후 재시도합니다...")
+                    time.sleep(delay)
+                    delay = min(delay * DB_RETRY_BACKOFF_FACTOR, DB_RETRY_MAX_DELAY)
+
+        logger.error(f"데이터베이스 연결 실패: {DB_RETRY_MAX_ATTEMPTS}회 시도 후 포기")
+        return False
+
+    def initialize(self):
+        """커넥션 풀 초기화 (exponential backoff 재시도)"""
+        if self.pool is None:
+            logger.info("데이터베이스 연결 테스트 중...")
+            if not self._test_connection_with_retry():
+                logger.error(f"  DATABASE_URL: {settings.database_url[:50]}...")
+                raise ConnectionError("데이터베이스 연결 실패: 모든 재시도 소진")
 
             self.pool = ConnectionPool(
                 conninfo=settings.database_url,
