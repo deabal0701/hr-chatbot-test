@@ -1,6 +1,6 @@
 # 인증/인가 시스템 설계
 
-> 최종 수정: 2026-03-09
+> 최종 수정: 2026-03-10
 
 ---
 
@@ -96,6 +96,8 @@ Access Token 만료 → 401 응답
 | Method | Endpoint | 설명 | 인증 |
 |--------|----------|------|:---:|
 | POST | /api/v1/auth/login | 로그인 (메뉴 목록 포함) | No |
+| POST | /api/v1/auth/sso | SSO 토큰 교환 → JSON 응답 (API용) | No |
+| POST | /api/v1/auth/sso-redirect | SSO Hidden Form → 쿠키 → 302 (브라우저용) | No |
 | POST | /api/v1/auth/logout | 로그아웃 (세션 삭제) | Yes |
 | POST | /api/v1/auth/refresh | 토큰 갱신 | No |
 | GET | /api/v1/auth/me | 현재 사용자 정보 (최신 권한) | Yes |
@@ -262,40 +264,55 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
 
 ---
 
-## 7. SSO 인증 (선택적)
+## 7. SSO 인증 (구현 완료)
 
 ### 7.1 개요
 
-외부 IdP(HR 시스템 등)에서 발급한 RS256 JWT 토큰으로 로그인하는 SSO 연동.
+외부 IdP(HR 시스템 등)에서 RS256 개인키로 서명한 JWT 토큰으로 MUREUM에 로그인하는 SSO 연동.
+**Hidden Form POST + Cookie Base64URL** 방식으로 토큰을 안전하게 전달한다.
 
-- **파일**: `app/core/security/sso.py`
+- **검증 모듈**: `app/core/security/sso.py`
+- **라우트**: `app/api/routes/auth.py` (POST /sso, POST /sso-redirect)
+- **서비스**: `app/api/services/auth_service.py` (sso_authenticate, _find_sso_user)
+- **프론트엔드**: `frontend/src/views/SSOCallbackView.vue`
 - **설정**: `sso_enabled=False` (기본 비활성)
 
-### 7.2 SSO 토큰 검증 흐름
+### 7.2 SSO 인증 흐름 (2가지 경로)
 
+**경로 1: Hidden Form POST (브라우저 — 메인 방식)**
 ```
-POST /api/v1/auth/sso-login
-  → SSO 토큰 수신 (RS256 서명)
-  → 공개키로 검증 (sso_public_key_path)
+[외부 시스템] Hidden Form POST → POST /api/v1/auth/sso-redirect (body: token=eyJ...)
+  → RS256 공개키로 서명 검증
   → 필수 클레임 확인 (sub, name, iss, exp)
   → 발급자 화이트리스트 확인 (sso_allowed_issuers)
   → 토큰 최대 수명 확인 (sso_token_max_age: 300초)
-  → 사용자 매칭/생성 → JWT 발급
+  → 기존 사용자 매칭 (sso_external_id 또는 login_id)
+  → MUREUM JWT 발급 (HS256)
+  → Set-Cookie: sso_auth = Base64URL({at, rt}) (60초 TTL)
+  → 302 Redirect → /sso
+  → SSOCallbackView: 쿠키 읽기 → /me API → Vuex 저장 → landing_page
+```
+
+**경로 2: JSON API (스크립트/테스트용)**
+```
+POST /api/v1/auth/sso (body: {"sso_token": "eyJ..."})
+  → 동일한 검증 로직
+  → JSON 응답: {access_token, refresh_token, token_type, expires_in}
 ```
 
 ### 7.3 SSO 토큰 페이로드
 
-| 필드 | 설명 |
-|------|------|
-| sub | 사번 (Employee ID) |
-| name | 이름 |
-| email | 이메일 (선택) |
-| tenant_code | 테넌트 코드 (선택) |
-| dept_code | 부서 코드 (선택) |
-| dept_name | 부서명 (선택) |
-| position | 직급 (선택) |
-| iss | 발급자 |
-| exp | 만료 시간 |
+| 필드 | 설명 | 필수 |
+|------|------|:---:|
+| sub | 사용자 식별자 (login_id 매핑) | O |
+| name | 이름 | O |
+| iss | 발급자 | O |
+| exp | 만료 시간 | O |
+| email | 이메일 | △ |
+| tenant_code | 테넌트 코드 (Phase 5 JIT) | △ |
+| dept_code | 부서 코드 (Phase 5 JIT) | △ |
+| dept_name | 부서명 (Phase 5 JIT) | △ |
+| position | 직급 (Phase 5 역할 매핑) | △ |
 
 ### 7.4 SSO 설정
 
@@ -307,7 +324,18 @@ POST /api/v1/auth/sso-login
 | sso_allowed_issuers | hr-system | 허용 발급자 (쉼표 구분) |
 | sso_token_max_age | 300 | 토큰 최대 수명 (초) |
 | sso_default_role | USER | 자동 생성 시 기본 역할 |
-| sso_auto_create_user | false | 미등록 사용자 자동 생성 |
+| sso_auto_create_user | false | 미등록 사용자 자동 생성 (Phase 5) |
+| sso_frontend_url | (빈 값) | SSO 리다이렉트 URL (빈 값이면 상대경로 /sso) |
+
+### 7.5 SSO 에러 코드
+
+| 코드 | HTTP | 설명 |
+|------|:---:|------|
+| SSO_NOT_CONFIGURED | 500 | 공개키 미설정 |
+| SSO_DISABLED | 403 | SSO 비활성 |
+| SSO_INVALID_TOKEN | 401 | 서명 불일치, 형식 오류, 필수 클레임 누락, 미허용 발급자 |
+| SSO_TOKEN_EXPIRED | 401 | 토큰 만료 또는 최대 유효시간 초과 |
+| SSO_USER_NOT_FOUND | 404 | 미등록 사용자 |
 
 ---
 

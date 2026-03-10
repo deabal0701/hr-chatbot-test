@@ -1,6 +1,6 @@
 # API 레퍼런스
 
-> 최종 수정: 2026-03-09
+> 최종 수정: 2026-03-10
 
 ---
 
@@ -32,13 +32,19 @@
 
 ## 2. 인증 (`/api/v1/auth`)
 
-| Method | Endpoint | 설명 | 인증 |
-|--------|----------|------|:---:|
-| POST | /login | 로그인 → 토큰 + 메뉴 목록 | - |
-| POST | /logout | 로그아웃 (세션 삭제) | O |
-| POST | /refresh | Access Token 갱신 | - |
-| GET | /me | 현재 사용자 정보 + 메뉴 | O |
-| PUT | /me/password | 비밀번호 변경 | O |
+| Method | Endpoint | 설명 | 인증 | Content-Type |
+|--------|----------|------|:---:|-------------|
+| POST | /login | 로그인 → 토큰 + 메뉴 목록 | - | JSON |
+| POST | /sso | SSO 토큰 교환 → JSON 응답 (API/스크립트용) | - | JSON |
+| POST | /sso-redirect | SSO Hidden Form → Cookie Base64URL → 302 (브라우저용) | - | Form |
+| POST | /logout | 로그아웃 (세션 삭제) | O | JSON |
+| POST | /refresh | Access Token 갱신 | - | JSON |
+| GET | /me | 현재 사용자 정보 + 메뉴 | O | - |
+| PUT | /me/password | 비밀번호 변경 | O | JSON |
+
+> **SSO 상세**: `11_department_sso_design.md` 섹션 6.7 참조
+> - `/sso`: `{"sso_token": "eyJ..."}` → `{access_token, refresh_token, ...}` JSON 응답
+> - `/sso-redirect`: `token=eyJ...` (Form) → `Set-Cookie: sso_auth` + `302 → /sso` 리다이렉트
 
 ---
 

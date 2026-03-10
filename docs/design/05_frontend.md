@@ -1,6 +1,6 @@
 # 프론트엔드 아키텍처
 
-> 최종 수정: 2026-03-09
+> 최종 수정: 2026-03-10
 
 ---
 
@@ -26,7 +26,8 @@ frontend/src/
 ├── main.js                          # 앱 진입점 (Vue + ElementPlus + Store + Router)
 ├── App.vue                          # 루트 컴포넌트 (router-view)
 ├── views/
-│   ├── LoginView.vue                # 로그인
+│   ├── LoginView.vue                # 로그인 (SSO 테스트 버튼 포함)
+│   ├── SSOCallbackView.vue          # SSO 콜백 (Cookie Base64URL → /me → 로그인)
 │   ├── user/
 │   │   ├── UserChatView.vue         # 사용자 채팅 (다크모드 기본)
 │   │   └── PersonalDashboardView.vue # 개인 대시보드
@@ -125,7 +126,7 @@ frontend/src/
 | 항목 | 내용 |
 |------|------|
 | **State** | user, accessToken, refreshToken, loginLoading |
-| **Actions** | login, logout, refresh, fetchMe, changePassword, initAuth |
+| **Actions** | login, logout, refresh, fetchMe, changePassword, initAuth (SSO는 SSOCallbackView에서 직접 처리) |
 | **Getters** | isAuthenticated, hasMenuPermission(menuCode, action), canAccessAdmin, roleCode, accessibleMenus |
 | **저장소** | localStorage: `mureum_access_token`, `mureum_refresh_token`, `mureum_user` |
 
@@ -171,6 +172,7 @@ frontend/src/
 ```
 / → /chat (리디렉트)
 /login → LoginView
+/sso → SSOCallbackView (SSO 쿠키 → /me API → 로그인, public: true)
 /chat → UserChatView (사용자 채팅, 다크모드 기본)
 /personal-dashboard → PersonalDashboardView (개인 대시보드)
 /admin (관리자 영역 — requiresAdmin)
@@ -195,6 +197,7 @@ frontend/src/
 
 ```
 beforeEach:
+  public 라우트 (/login, /sso) → 가드 통과
   토큰 없음 → /login
   /admin → canAccessAdmin 체크 (메뉴 1개 이상 보유)
   개별 라우트 → hasMenuPermission(menuCode, 'read')
@@ -217,7 +220,7 @@ beforeEach:
 
 | 파일 | 대상 | 주요 메서드 |
 |------|------|-----------|
-| auth.js | 인증 | login, logout, refreshToken, getMe, changePassword |
+| auth.js | 인증 | login, logout, refreshToken, getMe, changePassword (SSO는 Cookie 기반으로 별도 API 불필요) |
 | search.js | 통합 검색 | search, searchStream (SSE), exportExcel |
 | agent.js | Agent | agentSearch, agentSearchStream (SSE), listSessions |
 | sse.js | SSE 유틸 | streamSSE (POST 기반 SSE, AbortController) |

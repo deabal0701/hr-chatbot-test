@@ -1,9 +1,9 @@
 # 조직(부서) 관리 및 SSO 연동 설계서
 
-> **문서 버전**: 3.0
+> **문서 버전**: 4.0
 > **작성일**: 2026-02-23
-> **최종 수정**: 2026-03-09
-> **상태**: Phase 1~3 구현 완료, Phase 4(SSO) 설계 확정 (RS256 + Frontend Redirect)
+> **최종 수정**: 2026-03-10
+> **상태**: Phase 1~3 구현 완료, Phase 4(SSO) 구현 완료 (RS256 + Cookie Base64URL + Hidden Form POST)
 > **선행 문서**: `07_user_role_design.md`, `02_auth_and_permission.md`
 > **마이그레이션**: `docs/sql/migration_v2_department_sso.sql`, `docs/sql/migration_v2_reorder_columns.sql`
 
@@ -41,11 +41,11 @@
 | 사용자-부서 연동 | 사용자 생성/수정 시 부서 선택 드롭다운 | **완료** |
 | 역할 Scope CRUD | 역할 생성/수정 시 scope_level 설정 | **완료** |
 | role_code 리팩터 | 하드코딩 11곳 → scope_level 기반 공통 필터 교체 | **완료** |
-| SSO 인프라 | RS256 공개키 검증, SSO 설정, Pydantic 모델 | 미구현 |
-| SSO 인증 API | POST /api/v1/auth/sso (Token Exchange + JIT) | 미구현 |
-| SSO 프론트엔드 | SSOCallbackView.vue, auth store/API/router 확장 | 미구현 |
-| 키 생성 도구 | RS256 키 쌍 생성 스크립트 | 미구현 |
-| SSO 테스트 | SSO 통합 테스트 (8개) | 미구현 |
+| SSO 인프라 | RS256 공개키 검증, SSO 설정, Pydantic 모델 | **완료** |
+| SSO 인증 API | POST /sso (API), POST /sso-redirect (Hidden Form + Cookie) | **완료** |
+| SSO 프론트엔드 | SSOCallbackView.vue (Cookie Base64URL), router /sso | **완료** |
+| SSO 테스트 도구 | RS256 키 생성 스크립트 + 독립 HTML 테스트 페이지 | **완료** |
+| SSO 통합 테스트 | SSO 통합 테스트 (8개) | 미구현 |
 | 배치 동기화 | 조직/사용자 배치 동기화 스크립트 | 미구현 |
 
 ---
@@ -502,11 +502,11 @@ token_data = {
 
 ## 6. SSO 연동
 
-### 6.1 방식: Token Exchange + Frontend Redirect (RS256)
+### 6.1 방식: Hidden Form POST + Cookie Base64URL (RS256)
 
-메인 시스템이 **RS256 개인키**로 서명한 JWT를 URL 파라미터로 전달하고,
-Vue 프론트엔드가 중계하여 백엔드에 토큰 교환을 요청한다.
-MUREUM은 **RS256 공개키**로만 검증하므로, 공개키 유출 시에도 토큰 위조가 불가능하다.
+메인 시스템이 **RS256 개인키**로 서명한 JWT를 **Hidden Form POST**로 백엔드에 직접 전달하고,
+백엔드가 검증 후 MUREUM JWT를 **Cookie(Base64URL)**에 담아 302 리다이렉트한다.
+Vue 프론트엔드(SSOCallbackView)가 쿠키를 읽어 인증을 완료한다.
 
 ```
 RS256 (비대칭키) 역할 분리:
@@ -517,38 +517,43 @@ RS256 (비대칭키) 역할 분리:
 #### 전체 시퀀스
 
 ```
-[메인 시스템]              [Vue 프론트엔드]             [MUREUM 백엔드]
-     │                        │                           │
-     │ 1. 사용자 클릭           │                           │
-     │    "AI 챗봇"            │                           │
-     │ 2. RS256 개인키로        │                           │
-     │    SSO JWT 서명          │                           │
-     │                        │                           │
-     │ 3. 브라우저 리다이렉트    │                           │
-     │    /sso?token=eyJxxx ─▶│                           │
-     │                        │ 4. URL에서 token 추출       │
-     │                        │ 5. POST /api/v1/auth/sso ─▶│
-     │                        │    {sso_token: "eyJ..."}   │
-     │                        │                            │ 6. RS256 공개키로 서명 검증
-     │                        │                            │ 7. issuer, exp 검증
-     │                        │                            │ 8. 테넌트 조회
-     │                        │                            │ 9. 부서 조회/생성 (JIT)
-     │                        │                            │ 10. 사용자 조회/생성 (JIT)
-     │                        │                            │ 11. 변경 감지 시 UPDATE
-     │                        │                            │ 12. MUREUM JWT 발급 (HS256)
-     │                        │ ◀── 13. TokenResponse ─────│
-     │                        │    {access_token,           │
-     │                        │     refresh_token, user}    │
-     │                        │                            │
-     │                        │ 14. localStorage 저장       │
-     │                        │ 15. Vuex store 업데이트      │
-     │                        │ 16. router.push(landing)   │
+[메인 시스템/SSO 테스트 HTML]     [MUREUM 백엔드]              [Vue 프론트엔드]
+     │                              │                           │
+     │ 1. 사용자 클릭 "AI 챗봇"      │                           │
+     │ 2. RS256 개인키로 SSO JWT 서명 │                           │
+     │                              │                           │
+     │ 3. Hidden Form POST ────────▶│                           │
+     │    POST /api/v1/auth/sso-redirect                        │
+     │    body: token=eyJ...        │                           │
+     │                              │ 4. Form에서 token 추출     │
+     │                              │ 5. RS256 공개키로 서명 검증  │
+     │                              │ 6. issuer, exp, iat 검증   │
+     │                              │ 7. 사용자 조회 (기존 계정)   │
+     │                              │ 8. MUREUM JWT 발급 (HS256)  │
+     │                              │ 9. Set-Cookie: sso_auth    │
+     │                              │    = Base64URL({at, rt})   │
+     │                              │ 10. 302 Redirect → /sso    │
+     │                              │ ─────────────────────────▶ │
+     │                              │                           │ 11. SSOCallbackView.vue
+     │                              │                           │ 12. 쿠키 sso_auth 읽기
+     │                              │                           │ 13. Base64URL 디코딩
+     │                              │                           │ 14. 쿠키 즉시 삭제 (1회용)
+     │                              │                           │ 15. localStorage 토큰 저장
+     │                              │                           │ 16. GET /api/v1/auth/me
+     │                              │ ◀───────────────────────── │    (메뉴 권한 조회)
+     │                              │ ── UserInfo + menus ─────▶ │
+     │                              │                           │ 17. Vuex store 저장
+     │                              │                           │ 18. router.replace(landing)
 ```
 
-> **왜 Frontend Redirect인가?**
-> 기존 MUREUM은 localStorage + Vuex 기반 인증 체계를 사용한다.
-> 쿠키 방식으로 변경하면 기존 인증 체계 전체를 수정해야 하므로,
-> 기존 login 플로우와 동일한 패턴(API 호출 → localStorage 저장)을 유지한다.
+> **왜 Hidden Form POST인가?**
+> URL query string에 토큰을 노출하지 않아 보안 우수. 브라우저 히스토리/Referer에 토큰이 남지 않음.
+> 기존 엔터프라이즈 SSO(SAML, CAS 등)와 동일한 패턴으로 검증된 방식.
+
+> **왜 Cookie Base64URL인가?**
+> - **Base64URL (RFC 4648 §5)**: `A-Za-z0-9-_` 문자만 사용, `=` 패딩 제거 → Starlette 쿠키 자동 인용(quoting) 문제 회피
+> - 쿠키는 60초 TTL 1회용으로 즉시 삭제되며, `/me` API로 사용자 정보를 별도 조회 (쿠키 크기 제한 회피)
+> - OAuth 2.1에서 Implicit Flow(hash fragment) 폐지 → Cookie 기반이 현대 표준에 부합
 
 > **왜 RS256인가?**
 > HS256(대칭키)은 MUREUM도 같은 키를 보유하므로 위조 토큰 생성 가능.
@@ -559,9 +564,9 @@ RS256 (비대칭키) 역할 분리:
 
 ```json
 {
-  "sub": "EMP2024001",
-  "name": "홍길동",
-  "email": "hong@company.com",
+  "sub": "admin",
+  "name": "관리자",
+  "email": "admin@company.com",
   "tenant_code": "TENANT_A",
   "dept_code": "DEV_01",
   "dept_name": "개발1팀",
@@ -572,17 +577,20 @@ RS256 (비대칭키) 역할 분리:
 }
 ```
 
-| 필드 | 용도 | 필수 |
-|------|------|:---:|
-| sub | 사번 (사용자 고유 식별자) | O |
-| name | 이름 | O |
-| email | 이메일 | △ |
-| tenant_code | 테넌트 코드 | O |
-| dept_code | 부서 코드 | O |
-| dept_name | 부서명 | O |
-| position | 직급/직책 | △ |
-| iss | 발급 시스템 식별자 | O |
-| exp | 만료 시간 (짧게 — 5분 이내) | O |
+| 필드 | 용도 | 필수 | 비고 |
+|------|------|:---:|------|
+| sub | 사용자 식별자 (MUREUM login_id로 매핑) | O | `tb_user.login_id`와 매칭 |
+| name | 이름 | O | |
+| email | 이메일 | △ | Phase 5 JIT 시 사용 |
+| tenant_code | 테넌트 코드 | △ | Phase 5 JIT 시 사용 |
+| dept_code | 부서 코드 | △ | Phase 5 JIT 시 사용 |
+| dept_name | 부서명 | △ | Phase 5 JIT 시 사용 |
+| position | 직급/직책 | △ | Phase 5 역할 매핑 시 사용 |
+| iss | 발급 시스템 식별자 | O | `sso_allowed_issuers`로 검증 |
+| exp | 만료 시간 (짧게 — 5분 이내) | O | PyJWT `require` 옵션으로 강제 |
+
+> **Phase 4 현재 구현**: `sub`, `name`, `iss`, `exp`만 필수 검증. 사용자는 기존 `tb_user.login_id`로 매칭.
+> **Phase 5 예정**: `tenant_code`, `dept_code` 등으로 JIT 사용자 자동 생성/부서 매핑.
 
 ### 6.3 사용자 자동 생성 (Just-In-Time Provisioning)
 
@@ -709,12 +717,13 @@ def _resolve_role(self, position: str) -> int:
 ```bash
 # .env
 SSO_ENABLED=false                              # SSO 활성화 여부 (기본: 비활성)
-SSO_PUBLIC_KEY_PATH=./keys/sso_public.pem      # RS256 공개키 경로
+SSO_PUBLIC_KEY_PATH=keys/sso_public.pem        # RS256 공개키 경로
 SSO_ALGORITHM=RS256                            # 서명 알고리즘 (RS256 고정)
-SSO_ALLOWED_ISSUERS=hr-system,erp-system       # 허용 발급자 (콤마 구분)
+SSO_ALLOWED_ISSUERS=hr-system                  # 허용 발급자 (콤마 구분)
 SSO_TOKEN_MAX_AGE=300                          # SSO 토큰 최대 유효시간 (초, 기본 5분)
 SSO_DEFAULT_ROLE=USER                          # 매핑 실패 시 기본 역할
-SSO_AUTO_CREATE_DEPT=true                      # 부서 자동 생성 여부
+SSO_AUTO_CREATE_USER=false                     # 사용자 자동 생성 여부 (Phase 5)
+SSO_FRONTEND_URL=                              # SSO 리다이렉트 프론트엔드 URL (빈 값이면 상대경로 /sso)
 ```
 
 > **키 관리 원칙**:
@@ -722,31 +731,41 @@ SSO_AUTO_CREATE_DEPT=true                      # 부서 자동 생성 여부
 > - `keys/sso_private.pem` — 메인 시스템이 보유 (서명 전용, MUREUM에 저장 금지)
 > - `keys/` 디렉토리는 `.gitignore`에 등록
 
+> **SSO_FRONTEND_URL**:
+> - 개발 환경: `http://localhost:19080` (백엔드 19090 → 프론트엔드 19080 크로스 포트)
+> - Docker/운영: 빈 값 (Nginx가 같은 origin에서 프록시하므로 상대경로 `/sso` 사용)
+
 ```python
-# app/config.py — Settings 클래스에 추가
+# app/config.py — Settings 클래스 (구현 완료)
 class Settings(BaseSettings):
     # ... 기존 설정 ...
 
-    # SSO
-    sso_enabled: bool = False
-    sso_public_key_path: str = "./keys/sso_public.pem"
-    sso_algorithm: str = "RS256"
-    sso_allowed_issuers: str = ""
-    sso_token_max_age: int = 300
-    sso_default_role: str = "USER"
-    sso_auto_create_dept: bool = True
+    # SSO (Single Sign-On)
+    sso_enabled: bool = Field(default=False, description="SSO 활성화 여부")
+    sso_public_key_path: str = Field(default="keys/sso_public.pem", description="SSO RS256 공개키 파일 경로")
+    sso_algorithm: str = Field(default="RS256", description="SSO 토큰 알고리즘")
+    sso_allowed_issuers: str = Field(default="hr-system", description="허용된 SSO 발급자 (쉼표 구분)")
+    sso_token_max_age: int = Field(default=300, description="SSO 토큰 최대 유효 시간(초)")
+    sso_default_role: str = Field(default="USER", description="SSO 사용자 기본 역할 코드")
+    sso_auto_create_user: bool = Field(default=False, description="SSO 사용자 자동 생성 여부 (Phase 5)")
+    sso_frontend_url: str = Field(default="", description="SSO 리다이렉트 프론트엔드 URL (빈 값이면 상대경로)")
 ```
 
 ### 6.7 SSO API
 
-| Method | Endpoint | 설명 | 인증 |
-|--------|----------|------|:---:|
-| POST | `/api/v1/auth/sso` | SSO 토큰 교환 → MUREUM JWT 발급 | No (공개) |
+| Method | Endpoint | 설명 | 인증 | Content-Type |
+|--------|----------|------|:---:|-------------|
+| POST | `/api/v1/auth/sso` | SSO 토큰 교환 → JSON 응답 (API 직접 호출용) | No | application/json |
+| POST | `/api/v1/auth/sso-redirect` | SSO Hidden Form → 쿠키 → 302 리다이렉트 (브라우저용) | No | application/x-www-form-urlencoded |
+
+#### POST /sso (API 직접 호출용)
+
+스크립트, 테스트 도구 등에서 직접 호출하는 JSON API.
 
 **Request**:
 ```json
 {
-  "sso_token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJFTVAyMDI0MDAxIi..."
+  "sso_token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhZG1pbiIs..."
 }
 ```
 
@@ -758,99 +777,124 @@ class Settings(BaseSettings):
     "access_token": "eyJ...",
     "refresh_token": "eyJ...",
     "token_type": "Bearer",
-    "expires_in": 1800,
-    "user": {
-      "user_id": 10,
-      "login_id": "EMP2024001",
-      "display_name": "홍길동",
-      "role_code": "DEPT",
-      "role_name": "조직 관리자",
-      "landing_page": "/admin/chat",
-      "menus": [...]
-    }
+    "expires_in": 1800
   }
 }
 ```
 
-**에러 응답**:
+#### POST /sso-redirect (브라우저 Hidden Form POST용)
+
+외부 시스템에서 Hidden Form으로 토큰을 전송하면, 백엔드가 검증 후 쿠키에 JWT를 담아 302 리다이렉트.
+
+**Request** (Form):
+```
+token=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhZG1pbiIs...
+```
+
+**Response**:
+```
+HTTP/1.1 302 Found
+Location: http://localhost:19080/sso    (또는 상대경로 /sso)
+Set-Cookie: sso_auth=eyJhdCI6ImV5Si4uLiIsInJ0IjoiZXlKLi4uIn0; Max-Age=60; Path=/; SameSite=Lax
+```
+
+쿠키 `sso_auth` 값은 Base64URL 인코딩 (RFC 4648 §5):
+```json
+{"at": "<access_token>", "rt": "<refresh_token>"}
+```
+
+프론트엔드 `SSOCallbackView.vue`가 쿠키를 읽고 → 즉시 삭제 → `/me` API 호출 → 로그인 완료.
+
+#### 에러 응답
 
 | 상황 | HTTP | error.code | error.message |
 |------|:---:|-----------|---------------|
-| SSO 비활성 | 403 | FORBIDDEN | SSO 인증이 비활성화되어 있습니다 |
-| 토큰 서명 불일치 | 401 | UNAUTHORIZED | SSO 토큰 검증에 실패했습니다 |
-| 토큰 만료 | 401 | UNAUTHORIZED | SSO 토큰이 만료되었습니다 |
-| issuer 미허용 | 401 | UNAUTHORIZED | 허용되지 않은 SSO 발급자입니다 |
-| 테넌트 미존재 | 400 | BAD_REQUEST | 테넌트를 찾을 수 없습니다: {tenant_code} |
+| SSO 비활성 | 403 | SSO_DISABLED | SSO 로그인이 비활성화되어 있습니다 |
+| 공개키 미설정 | 500 | SSO_NOT_CONFIGURED | SSO가 설정되지 않았습니다. 공개키를 확인해주세요 |
+| 토큰 서명 불일치 | 401 | SSO_INVALID_TOKEN | SSO 토큰 서명이 유효하지 않습니다 |
+| 토큰 형식 오류 | 401 | SSO_INVALID_TOKEN | SSO 토큰 형식이 올바르지 않습니다 |
+| 필수 클레임 누락 | 401 | SSO_INVALID_TOKEN | SSO 토큰에 필수 클레임이 없습니다 |
+| 토큰 만료 | 401 | SSO_TOKEN_EXPIRED | SSO 토큰이 만료되었습니다 |
+| issuer 미허용 | 401 | SSO_INVALID_TOKEN | 허용되지 않은 SSO 발급자 |
+| 최대 유효시간 초과 | 401 | SSO_TOKEN_EXPIRED | SSO 토큰이 최대 유효 시간을 초과했습니다 |
+| 사용자 미등록 | 404 | SSO_USER_NOT_FOUND | SSO 사용자를 찾을 수 없습니다 |
 | 사용자 비활성 | 401 | UNAUTHORIZED | 비활성화된 계정입니다 |
 
-### 6.8 RS256 토큰 검증 모듈
+### 6.8 RS256 토큰 검증 모듈 (구현 완료)
 
 ```python
-# app/core/security/sso.py
+# app/core/security/sso.py — 실제 구현 (PyJWT 사용)
 
-from jose import jwt, JWTError
-from app.config import settings
+import time
+import jwt  # PyJWT (not python-jose)
 
-_public_key = None  # 앱 시작 시 1회 로드
+_sso_public_key: Optional[str] = None  # 모듈 레벨 캐시
 
-def load_sso_public_key():
-    """공개키 로드 (앱 시작 시 호출)"""
-    global _public_key
-    if settings.sso_enabled and os.path.exists(settings.sso_public_key_path):
-        with open(settings.sso_public_key_path, "r") as f:
-            _public_key = f.read()
-
-def verify_sso_token(sso_token: str) -> SSOTokenPayload:
-    """RS256 SSO 토큰 검증"""
+def load_sso_public_key() -> None:
+    """SSO RS256 공개키를 파일에서 로드하여 모듈 캐시에 저장 (앱 시작 시 1회 호출)"""
+    global _sso_public_key
     if not settings.sso_enabled:
-        raise APIException(ErrorCode.FORBIDDEN, "SSO 인증이 비활성화되어 있습니다")
-
-    if not _public_key:
-        raise APIException(ErrorCode.INTERNAL_ERROR, "SSO 공개키가 로드되지 않았습니다")
-
-    allowed_issuers = [s.strip() for s in settings.sso_allowed_issuers.split(",") if s.strip()]
-
+        return
+    key_path = settings.sso_public_key_path
     try:
-        payload = jwt.decode(
-            sso_token,
-            _public_key,
-            algorithms=[settings.sso_algorithm],
-            options={"require_exp": True, "require_sub": True}
-        )
-    except jwt.ExpiredSignatureError:
-        raise APIException(ErrorCode.UNAUTHORIZED, "SSO 토큰이 만료되었습니다")
-    except JWTError:
-        raise APIException(ErrorCode.UNAUTHORIZED, "SSO 토큰 검증에 실패했습니다")
+        with open(key_path, "r") as f:
+            _sso_public_key = f.read()
+    except FileNotFoundError:
+        _sso_public_key = None
 
-    # issuer 검증
-    if allowed_issuers and payload.get("iss") not in allowed_issuers:
-        raise APIException(ErrorCode.UNAUTHORIZED, "허용되지 않은 SSO 발급자입니다")
+def verify_sso_token(token: str) -> SSOTokenPayload:
+    """SSO JWT 토큰 검증 (4단계: 서명 → 발급자 → 최대수명 → 페이로드 파싱)"""
+    if _sso_public_key is None:
+        raise APIException(ErrorCode.SSO_NOT_CONFIGURED, "SSO가 설정되지 않았습니다")
 
-    return SSOTokenPayload(**payload)
+    # 1. JWT 디코딩 + RS256 서명 검증
+    payload = jwt.decode(
+        token, _sso_public_key,
+        algorithms=[settings.sso_algorithm],
+        options={"require": ["sub", "name", "iss", "exp"]},
+    )
+
+    # 2. 발급자(iss) 화이트리스트 검증
+    allowed = [iss.strip() for iss in settings.sso_allowed_issuers.split(",")]
+    if payload.get("iss") not in allowed:
+        raise APIException(ErrorCode.SSO_INVALID_TOKEN, "허용되지 않은 SSO 발급자")
+
+    # 3. 토큰 최대 유효 시간 검증 (iat 기반)
+    iat = payload.get("iat")
+    if iat and (time.time() - iat) > settings.sso_token_max_age:
+        raise APIException(ErrorCode.SSO_TOKEN_EXPIRED, "SSO 토큰이 최대 유효 시간을 초과했습니다")
+
+    # 4. 페이로드 파싱 → SSOTokenPayload
+    return SSOTokenPayload(sub=payload["sub"], name=payload["name"], ...)
 ```
 
-### 6.9 Pydantic 모델 추가
+> **라이브러리**: PyJWT (`jwt.decode`) 사용. `python-jose`가 아님에 주의.
+> **에러 분기**: `ExpiredSignatureError`, `InvalidSignatureError`, `DecodeError`, `MissingRequiredClaimError` 각각 별도 에러 코드 매핑.
+
+### 6.9 Pydantic 모델 (구현 완료)
 
 ```python
-# app/models/auth.py — 추가
+# app/models/auth.py
 
 class SSOLoginRequest(BaseModel):
-    """SSO 토큰 교환 요청"""
-    sso_token: str
+    """SSO 토큰 교환 요청 (POST /sso JSON API용)"""
+    sso_token: str = Field(..., min_length=1, description="SSO JWT 토큰 (RS256 서명)")
 
 class SSOTokenPayload(BaseModel):
     """메인 시스템이 발급한 SSO JWT의 payload"""
-    sub: str                          # 사번 (사용자 고유 식별자)
-    name: str                         # 이름
-    email: Optional[str] = None       # 이메일
-    tenant_code: str                  # 테넌트 코드
-    dept_code: str                    # 부서 코드
-    dept_name: str                    # 부서명
-    position: Optional[str] = None    # 직급/직책
-    iss: str                          # 발급 시스템 식별자
-    exp: int                          # 만료 시간 (Unix timestamp)
-    iat: Optional[int] = None         # 발급 시간
+    sub: str                                    # 사용자 식별자 → login_id 매핑
+    name: str                                   # 이름
+    email: Optional[str] = None                 # 이메일
+    tenant_code: Optional[str] = None           # 테넌트 코드 (Phase 5 JIT)
+    dept_code: Optional[str] = None             # 부서 코드 (Phase 5 JIT)
+    dept_name: Optional[str] = None             # 부서명 (Phase 5 JIT)
+    position: Optional[str] = None              # 직급/직책 (Phase 5 역할 매핑)
+    iss: str                                    # 발급 시스템 식별자
+    exp: int                                    # 만료 시간 (Unix timestamp)
 ```
+
+> **Phase 4 현재**: `sub`, `name`, `iss`, `exp`만 필수. 나머지는 Optional로 Phase 5 JIT에서 활용.
+> **POST /sso-redirect는 `Form(token=...)`**: `SSOLoginRequest` 모델이 아닌 FastAPI `Form` 파라미터로 수신.
 
 ### 6.10 변경 감지 항목
 
@@ -967,35 +1011,40 @@ app/models/
   └── department.py            # ★ 신규: DeptCreate/Update/TreeResponse  ✅
 ```
 
-### 9.2 백엔드 — Phase 4 (SSO) 구현 예정
+### 9.2 백엔드 — Phase 4 (SSO) 구현 완료
 
 ```
-app/config.py                          # 변경: SSO 설정 7개 추가 (sso_enabled, sso_public_key_path 등)
+app/config.py                          # 변경: SSO 설정 8개 추가 (sso_enabled ~ sso_frontend_url)  ✅
 
 app/core/security/
-  └── sso.py                           # ★ 신규: RS256 공개키 로드, SSO 토큰 검증 (verify_sso_token)
+  └── sso.py                           # ★ 신규: RS256 공개키 로드 + SSO 토큰 검증 (PyJWT)  ✅
+                                       #   load_sso_public_key()  — 앱 시작 시 공개키 캐시
+                                       #   verify_sso_token()     — 서명+발급자+최대수명 검증
 
 app/api/routes/
-  └── auth.py                          # 변경: POST /sso 엔드포인트 추가
+  └── auth.py                          # 변경: SSO 엔드포인트 2개 추가  ✅
+                                       #   POST /sso         — JSON API (토큰 교환 → JWT 응답)
+                                       #   POST /sso-redirect — Form POST → Cookie Base64URL → 302
 
 app/api/services/
-  └── auth_service.py                  # 변경: SSO 메서드 4개 추가
-                                       #   sso_authenticate()          — SSO 인증 진입점
-                                       #   _find_or_create_sso_user()  — JIT 사용자 생성/업데이트
-                                       #   _resolve_or_create_dept()   — JIT 부서 생성
-                                       #   _resolve_sso_role()         — 직급→역할 매핑
+  └── auth_service.py                  # 변경: SSO 메서드 2개 추가  ✅
+                                       #   sso_authenticate()  — SSO 인증 (기존 사용자 매칭)
+                                       #   _find_sso_user()    — 1순위 sso_external_id, 2순위 login_id
 
 app/models/
-  └── auth.py                          # 변경: SSOLoginRequest, SSOTokenPayload 모델 추가
+  └── auth.py                          # 변경: SSOLoginRequest, SSOTokenPayload 모델 추가  ✅
 
-app/main.py                            # 변경: lifespan에 load_sso_public_key() 호출 추가
+app/main.py                            # 변경: lifespan에 load_sso_public_key() 호출 추가  ✅
 
-keys/                                  # ★ 신규 디렉토리 (.gitignore 등록)
+keys/                                  # ★ 신규 디렉토리 (.gitignore 등록)  ✅
   ├── sso_public.pem                   # RS256 공개키 (MUREUM 보유)
-  └── sso_private.pem                  # RS256 개인키 (테스트용, 운영 시 메인 시스템만 보유)
+  └── sso_private.pem                  # RS256 개인키 (테스트용)
 
 scripts/
-  └── generate_sso_keys.py             # ★ 신규: RS256 키 쌍 생성 도구
+  ├── generate_sso_keys.py             # ★ 신규: RS256 키 쌍 생성 도구  ✅
+  └── sso_test_server/                 # ★ 신규: 독립 SSO 테스트 도구  ✅
+      ├── sso_test.html                # SSO 시뮬레이터 (jose CDN, Hidden Form POST)
+      └── run.py                       # HTTP 서버 래퍼 (포트 19081)
 ```
 
 ### 9.3 프론트엔드 — Phase 1~3 구현 완료
@@ -1009,19 +1058,24 @@ frontend/src/
       └── UsersView.vue        # 변경: 부서 선택 드롭다운 추가  ✅
 ```
 
-### 9.4 프론트엔드 — Phase 4 (SSO) 구현 예정
+### 9.4 프론트엔드 — Phase 4 (SSO) 구현 완료
 
 ```
 frontend/src/
-  ├── api/auth.js              # 변경: ssoLogin(ssoToken) 메서드 추가
-  ├── store/modules/auth.js    # 변경: ssoLogin 액션 추가 (기존 login과 동일 패턴)
-  ├── router/index.js          # 변경: /sso 경로 추가 (meta: { public: true })
+  ├── api/auth.js              # 변경: getMe() 활용 (ssoLogin 함수 불필요 → 제거)  ✅
+  ├── store/modules/auth.js    # 변경: ssoLogin 액션 불필요 → 제거 (쿠키에서 직접 처리)  ✅
+  ├── router/index.js          # 변경: /sso 경로 추가 (meta: { public: true })  ✅
   └── views/
-      └── SSOCallbackView.vue  # ★ 신규: SSO 콜백 화면
-                               #   URL에서 token 추출 → POST /api/v1/auth/sso
-                               #   → 토큰 저장 → landing_page 이동
-                               #   에러 시 /login?error=sso_failed 리다이렉트
+      ├── SSOCallbackView.vue  # ★ 신규: SSO 콜백 화면  ✅
+      │                        #   쿠키 sso_auth 읽기 → Base64URL 디코딩
+      │                        #   → 쿠키 삭제 → localStorage 토큰 저장
+      │                        #   → GET /me → Vuex 저장 → landing_page 이동
+      └── LoginView.vue        # 변경: SSO 테스트 버튼 추가 (dev 환경)  ✅
+                               #   window.open('http://localhost:19081/sso_test.html')
 ```
+
+> **설계 변경**: API 직접 호출(ssoLogin action) 대신 쿠키 기반으로 변경.
+> `SSOCallbackView`가 쿠키를 읽고 `/me` API만 호출하므로 auth.js/store에 SSO 전용 함수 불필요.
 
 ### 9.5 테스트
 
@@ -1068,23 +1122,27 @@ tests/
 > - 통합 테스트 86개 전체 통과 (`pytest tests/ -v`)
 > - 프론트엔드 빌드 성공 (`npm run build`)
 
-### Phase 4 (SSO — RS256 + Frontend Redirect)
+### Phase 4 (SSO — RS256 + Cookie Base64URL + Hidden Form POST)
 
 | 순서 | 작업 | 의존성 | 상태 |
 |:---:|------|--------|:---:|
-| 8-1 | RS256 키 쌍 생성 스크립트 (`scripts/generate_sso_keys.py`) | 없음 | - |
-| 8-2 | SSO 설정 추가 (`app/config.py`) | 없음 | - |
-| 8-3 | Pydantic 모델 추가 (`SSOLoginRequest`, `SSOTokenPayload`) | 없음 | - |
-| 8-4 | RS256 토큰 검증 모듈 (`app/core/security/sso.py`) | 8-1, 8-2 | - |
-| 8-5 | SSO 서비스 로직 (`auth_service.py` — 4개 메서드) | 8-3, 8-4 | - |
-| 8-6 | SSO 라우트 (`POST /api/v1/auth/sso`) | 8-5 | - |
-| 8-7 | 프론트엔드 SSO API (`auth.js` — ssoLogin 메서드) | 8-6 | - |
-| 8-8 | Vuex auth store (`ssoLogin` 액션) | 8-7 | - |
-| 8-9 | Vue Router (`/sso` 경로 추가) | 없음 | - |
-| 8-10 | SSO 콜백 화면 (`SSOCallbackView.vue`) | 8-7, 8-8, 8-9 | - |
-| 8-11 | 앱 시작 시 공개키 로드 (`main.py` lifespan) | 8-4 | - |
-| 8-12 | SSO 통합 테스트 (`test_12_sso.py` — 8개) | 8-6 | - |
-| 8-13 | 설계서 최종 업데이트 | 전체 | - |
+| 8-1 | RS256 키 쌍 생성 스크립트 (`scripts/generate_sso_keys.py`) | 없음 | **완료** |
+| 8-2 | SSO 설정 추가 (`app/config.py` — 8개 설정) | 없음 | **완료** |
+| 8-3 | Pydantic 모델 추가 (`SSOLoginRequest`, `SSOTokenPayload`) | 없음 | **완료** |
+| 8-4 | RS256 토큰 검증 모듈 (`app/core/security/sso.py`) | 8-1, 8-2 | **완료** |
+| 8-5 | SSO 서비스 로직 (`auth_service.py` — 기존 사용자 매칭) | 8-3, 8-4 | **완료** |
+| 8-6 | SSO 라우트 (`POST /sso` + `POST /sso-redirect`) | 8-5 | **완료** |
+| 8-7 | Vue Router (`/sso` 경로, `public: true`) | 없음 | **완료** |
+| 8-8 | SSO 콜백 화면 (`SSOCallbackView.vue` — Cookie Base64URL) | 8-6, 8-7 | **완료** |
+| 8-9 | 앱 시작 시 공개키 로드 (`main.py` lifespan) | 8-4 | **완료** |
+| 8-10 | SSO 테스트 시뮬레이터 (`scripts/sso_test_server/`) | 8-6 | **완료** |
+| 8-11 | 설계서 최종 업데이트 | 전체 | **완료** |
+| 8-12 | SSO 통합 테스트 (`test_12_sso.py` — 8개) | 8-6 | 미구현 |
+
+> **설계 변경 사항 (v3.0 → v4.0)**:
+> - 8-7, 8-8: `ssoLogin` 액션/API 함수 불필요 → 제거. 쿠키 기반이므로 프론트엔드에서 직접 처리.
+> - 8-6: `POST /sso-redirect` 추가 (Hidden Form → Cookie → 302). 기존 `POST /sso`는 API 직접 호출용으로 유지.
+> - 8-10: 독립 HTML SSO 테스트 시뮬레이터 추가 (jose CDN, HTTP 전문 미리보기).
 
 ### Phase 5 (배치 동기화 — 미착수)
 
@@ -1096,15 +1154,18 @@ tests/
 
 ## 11. 결정 사항 및 미결정 사항
 
-### 11.1 결정 완료 (v3.0)
+### 11.1 결정 완료 (v4.0)
 
 | 항목 | 결정 | 근거 |
 |------|------|------|
 | SSO 서명 방식 | **RS256 (비대칭키)** | MUREUM은 공개키만 보유 → 키 유출 시에도 토큰 위조 불가, 1:N 확장 용이 |
-| SSO 토큰 전달 방식 | **URL query → Frontend Redirect** | 기존 localStorage+Vuex 인증 체계 유지, 쿠키 방식 불필요 |
-| position 매핑 주체 | **MUREUM에서 매핑** | `tb_code` SSO_ROLE_MAP 활용, Admin UI에서 운영 중 추가 가능 |
-| 부서 계층 동기화 | **JIT flat 생성 + 배치 정리** | JIT 시 depth=0으로 생성, 계층은 Admin UI 또는 배치에서 정리 |
+| SSO 토큰 전달 방식 | **Hidden Form POST + Cookie Base64URL** | URL에 토큰 미노출, OAuth 2.1 Implicit Flow 폐지 방향 부합, 엔터프라이즈 표준 패턴 |
+| Cookie 인코딩 | **Base64URL (RFC 4648 §5)** | `A-Za-z0-9-_` 문자만 사용 → Starlette 쿠키 자동 인용 회피, 패딩(`=`) 제거 |
+| 사용자 정보 전달 | **/me API 패턴** | 쿠키에는 토큰만(at+rt), 사용자 정보는 `/me` API로 별도 조회 → 쿠키 크기 제한 회피 |
+| position 매핑 주체 | **MUREUM에서 매핑 (Phase 5)** | `tb_code` SSO_ROLE_MAP 활용, Admin UI에서 운영 중 추가 가능 |
+| 부서 계층 동기화 | **JIT flat 생성 + 배치 정리 (Phase 5)** | JIT 시 depth=0으로 생성, 계층은 Admin UI 또는 배치에서 정리 |
 | 자체 계정 + SSO 병행 | **병행 (SSO_ENABLED 플래그)** | 개발/테스트 환경은 자체 로그인, 운영은 SSO 활성화 |
+| SSO 테스트 도구 | **독립 HTML 페이지** | Vue 앱과 완전 분리, 별도 포트(19081)에서 jose CDN 사용, HTTP 전문 미리보기 제공 |
 
 ### 11.2 미결정 사항
 
