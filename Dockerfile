@@ -34,6 +34,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY scripts/ ./scripts/
 
+# SSO 공개키 복사
+COPY keys/sso_public.pem ./keys/sso_public.pem
+
 # 로그 디렉토리 생성
 RUN mkdir -p logs
 
