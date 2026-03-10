@@ -157,11 +157,10 @@ const sidebarMenuItems = computed(() => {
   })
 })
 
-// 다크모드에 따른 메뉴 색상 (_variables.scss CSS 변수에서 읽기)
-const getVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-const menuBgColor = computed(() => getVar('--sidebar-bg') || (isDarkMode.value ? '#1f1f1f' : '#304156'))
-const menuTextColor = computed(() => getVar('--sidebar-text') || (isDarkMode.value ? '#a3a3a3' : '#bfcbd9'))
-const menuActiveColor = computed(() => getVar('--sidebar-active-text') || '#409eff')
+// 다크모드에 따른 메뉴 색상 (el-menu 인라인 props용)
+const menuBgColor = computed(() => isDarkMode.value ? '#1f1f1f' : '#2d3748')
+const menuTextColor = computed(() => isDarkMode.value ? '#a3a3a3' : '#b0bec5')
+const menuActiveColor = computed(() => isDarkMode.value ? '#409eff' : '#ffffff')
 
 const goToUserChat = () => {
   router.push('/chat')
@@ -183,8 +182,8 @@ const goToUserChat = () => {
   align-items: center;
   justify-content: center;
   padding: 0 20px;
-  background-color: var(--sidebar-hover-bg);
-  border-bottom: 1px solid var(--border-color-lighter);
+  background-color: var(--sidebar-bg);
+  border-bottom: 1px solid var(--sidebar-border);
   transition: var(--theme-transition);
 
   &.collapsed {
@@ -263,7 +262,7 @@ const goToUserChat = () => {
 .sidebar-footer {
   padding: 12px;
   text-align: center;
-  border-top: 1px solid var(--border-color-lighter);
+  border-top: 1px solid var(--sidebar-border);
 
   .user-chat-btn {
     display: flex;

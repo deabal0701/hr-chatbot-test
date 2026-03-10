@@ -1,8 +1,12 @@
 <template>
   <div class="header-container">
-    <!-- 좌측: 메뉴 아이콘 + 페이지 제목 -->
+    <!-- 좌측: 사이드바 토글 + 페이지 제목 -->
     <div class="header-left">
-      <el-icon class="menu-icon" :size="20"><Menu /></el-icon>
+      <el-tooltip :content="sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'" placement="bottom">
+        <button class="sidebar-toggle-btn" @click="toggleSidebar">
+          <el-icon :size="20"><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
+        </button>
+      </el-tooltip>
       <span class="page-title">{{ pageTitle }}</span>
     </div>
 
@@ -91,7 +95,7 @@ import { computed, reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
-import { Connection, Menu, ArrowDown, Lock, SwitchButton, UserFilled, Sunny, Moon } from '@element-plus/icons-vue'
+import { Connection, Fold, Expand, ArrowDown, Lock, SwitchButton, UserFilled, Sunny, Moon } from '@element-plus/icons-vue'
 import apiClient from '@/api'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
@@ -103,6 +107,8 @@ const store = useStore()
 const { currentUser, displayName, roleName, logout } = useAuth()
 const { isDarkMode, toggleDarkMode } = useTheme()
 const apiHealthy = computed(() => store.state.app.apiHealthy)
+const sidebarCollapsed = computed(() => store.state.app.sidebarCollapsed)
+const toggleSidebar = () => store.dispatch('app/toggleSidebar')
 
 const pageTitle = computed(() => {
   return route.meta.title || import.meta.env.VITE_APP_TITLE || 'MUREUM'
@@ -227,8 +233,23 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
 
-  .menu-icon {
+  .sidebar-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background-color: transparent;
     color: var(--text-color-regular);
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: var(--bg-color-hover);
+      color: var(--text-color-primary);
+    }
   }
 
   .page-title {

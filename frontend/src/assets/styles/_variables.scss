@@ -41,14 +41,15 @@
   --bg-color-hover: #f5f7fa;
   --bg-color-code: #f5f7fa;
 
-  // Sidebar colors
-  --sidebar-bg: #304156;
-  --sidebar-text: #bfcbd9;
-  --sidebar-active-text: #409eff;
-  --sidebar-hover-bg: #263445;
-  --sidebar-toggle-bg: #337ecc;
-  --sidebar-toggle-color: #ffffff;
-  --sidebar-toggle-hover-bg: #409eff;
+  // Sidebar colors (라이트 모드: 다크 네이비 사이드바)
+  --sidebar-bg: #2d3748;
+  --sidebar-text: #b0bec5;
+  --sidebar-active-text: #ffffff;
+  --sidebar-hover-bg: #364559;
+  --sidebar-toggle-bg: #364559;
+  --sidebar-toggle-color: #eceff1;
+  --sidebar-toggle-hover-bg: #3f5170;
+  --sidebar-border: #232e3d;
 
   // Header colors
   --header-bg: #ffffff;
@@ -146,6 +147,7 @@
   --sidebar-toggle-bg: #3a3a3a;
   --sidebar-toggle-color: #a3a3a3;
   --sidebar-toggle-hover-bg: #4a4a4a;
+  --sidebar-border: #303030;
 
   // Header colors
   --header-bg: #1f1f1f;
