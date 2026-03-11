@@ -97,6 +97,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
 import { Connection, Fold, Expand, ArrowDown, Lock, SwitchButton, UserFilled, Sunny, Moon } from '@element-plus/icons-vue'
+import axios from 'axios'
 import apiClient from '@/api'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
@@ -204,7 +205,7 @@ const handleChangePassword = async () => {
 // API 헬스 체크
 const checkApiHealth = async () => {
   try {
-    await apiClient.get('/health')
+    await axios.get((import.meta.env.VITE_API_URL || '') + '/health')
     store.commit('app/SET_API_HEALTH', true)
   } catch {
     store.commit('app/SET_API_HEALTH', false)
