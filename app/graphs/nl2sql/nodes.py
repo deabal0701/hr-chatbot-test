@@ -1064,9 +1064,9 @@ def handle_error_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["answer"] = """데이터 조회와 관련된 질문을 입력해 주세요.
 
 예시:
-- "2024년 입사자 수는?"
-- "부서별 평균 연봉은?"
-- "재직 중인 과장 이상 직원 목록은?"
+- "2026년 입사자 수는?"
+- "부서별 직원 수 현황은?"
+- "영업부 재직 중인 직원 목록은?"
 """
         log_step(logger, request_id, "NL2SQL", "ERR", "IRRELEVANT", "DB 무관 질문 안내 메시지 반환")
     else:
