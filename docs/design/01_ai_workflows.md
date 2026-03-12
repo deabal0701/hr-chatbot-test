@@ -1,6 +1,6 @@
 # AI 워크플로우 설계
 
-> 최종 수정: 2026-03-09
+> 최종 수정: 2026-03-12
 
 LangGraph 기반 3개의 독립적인 AI 워크플로우를 운영한다.
 
@@ -123,22 +123,25 @@ load_history → intent_rewrite → should_route_after_intent
 [Stage 2: Schema]                          answer_from_history
     schema_retrieval                               ↓
         ↓                                    save_history → END
-    fewshot_retrieval ←───── prepare_retry
-        ↓                        ↑
-[Stage 3: Generate]              │
-    prompt_build                 │
-        ↓                        │
-    sql_generate                 │
-        ↓                        │
-    validate_sql                 │
-        ↓                        │
-    should_execute               │
-        ├─ execute → execute_sql → should_continue_after_execute
-        │                           ├─ answer → [Stage 4]
-        │                           ├─ retry  → prepare_retry
-        │                           └─ error  → handle_error → END
-        ├─ retry  → prepare_retry
-        └─ error  → handle_error → END
+    should_continue_after_schema (★ NEW)
+        ├─ relevant   → fewshot_retrieval ←───── prepare_retry
+        │                    ↓                        ↑
+        │              [Stage 3: Generate]            │
+        │                  prompt_build               │
+        │                      ↓                      │
+        │                  sql_generate               │
+        │                      ↓                      │
+        │                  validate_sql               │
+        │                      ↓                      │
+        │                  should_execute              │
+        │                      ├─ execute → execute_sql → should_continue_after_execute
+        │                      │                           ├─ answer → [Stage 4]
+        │                      │                           ├─ retry  → prepare_retry
+        │                      │                           └─ error  → handle_error → END
+        │                      ├─ retry  → prepare_retry
+        │                      └─ error  → handle_error → END
+        │
+        └─ irrelevant → handle_error → END  ★ DB 무관 질문 차단
 
 [Stage 4: Answer]
     pii_filter → generate_answer → save_history → END
@@ -157,7 +160,7 @@ load_history → intent_rewrite → should_route_after_intent
 
 | 노드 | 역할 |
 |------|------|
-| schema_retrieval | 경량 LLM(gpt-4o-mini)으로 관련 테이블 선택, FK 테이블 자동 포함, confidence < 0.7이면 전체 스키마 폴백 |
+| schema_retrieval | 경량 LLM(gpt-4.1-nano)으로 관련 테이블 선택 + DB 관련성 판단(`db_relevant`), FK 테이블 자동 포함, confidence < 0.7이면 전체 스키마 폴백, `db_relevant=false`이면 즉시 차단 |
 | fewshot_retrieval | 벡터 검색으로 유사 SQL 예제 조회 (usage_type=rag_action, enhanced 모드: top_k × 2) |
 
 **Stage 3 - SQL 생성 (Generate)**
@@ -183,13 +186,14 @@ load_history → intent_rewrite → should_route_after_intent
 | 노드 | 역할 |
 |------|------|
 | answer_from_history | SQL 불필요 시 이전 sql_result_summary 기반 답변 |
-| handle_error | 에러 처리 및 사용자 메시지 반환 |
+| handle_error | 에러 처리 및 사용자 메시지 반환 (`db_relevant=false`이면 안내 메시지, 그 외는 SQL 오류 메시지) |
 
 ### 2.4 조건부 라우팅
 
 | 함수 | 분기 조건 |
 |------|----------|
 | should_route_after_intent | query_type → "sql_needed" / "sql_not_needed" |
+| should_continue_after_schema | db_relevant=true → "relevant" (fewshot으로 진행), db_relevant=false → "irrelevant" (handle_error로 차단) |
 | should_execute | validated=True → "execute", 재시도 가능 → "retry", 그 외 → "error" |
 | should_continue_after_execute | 실행 성공 → "answer", 재시도 가능 → "retry", 그 외 → "error" |
 
@@ -198,7 +202,7 @@ load_history → intent_rewrite → should_route_after_intent
 | 카테고리 | 필드 |
 |----------|------|
 | 기본 | question, generated_sql, validated, validation_error, sql_result, answer, request_id |
-| 스키마 | selected_tables, schema_retrieval_confidence, schema_description |
+| 스키마 | selected_tables, schema_retrieval_confidence, schema_description, **db_relevant** |
 | Few-shot | fewshot_context, fewshot_examples, fewshot_count |
 | 프롬프트 | sql_prompt, user_prompt, prompt_metadata |
 | 재시도 | retry_count (max 2), max_retries, previous_sql, previous_error, enhanced_fewshot |

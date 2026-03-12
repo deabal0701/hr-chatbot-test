@@ -146,6 +146,12 @@ transfer_files() {
         $SCP_CMD -r scripts/ "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
     fi
 
+    # keys 디렉토리 전송 (SSO 공개키 등)
+    if [ -d "keys" ]; then
+        echo "keys 디렉토리 전송 중..."
+        $SCP_CMD -r keys/ "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
+    fi
+
     echo -e "${GREEN}[OK] 파일 전송 완료${NC}"
 }
 

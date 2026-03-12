@@ -26,6 +26,7 @@ class NL2SQLState(TypedDict):
     # ===== schema_retrieval_node 필드 =====
     selected_tables: List[str]           # 선택된 테이블 목록
     schema_retrieval_confidence: float   # 테이블 선택 신뢰도
+    db_relevant: bool                    # DB 조회 관련성 여부 (false면 SQL 생성 차단)
 
     # ===== fewshot_retrieval_node 필드 =====
     fewshot_context: str                 # 포맷된 Few-shot 예제 문자열
@@ -101,6 +102,7 @@ def create_initial_state(
         # schema_retrieval_node 필드
         selected_tables=[],
         schema_retrieval_confidence=0.0,
+        db_relevant=True,
 
         # fewshot_retrieval_node 필드
         fewshot_context="",

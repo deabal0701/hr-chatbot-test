@@ -63,12 +63,12 @@
       </el-form>
     </div>
 
-    <!-- SSO 로그인 버튼 -->
-    <div class="sso-test-area">
+    <!-- SSO 로그인 버튼 (배포 시 임시 주석처리, 배포 후 원복 예정) -->
+    <!-- <div class="sso-test-area">
       <el-button type="info" text @click="openSSOTest">
         SSO 로그인
       </el-button>
-    </div>
+    </div> -->
 
     <!-- 하단 정보 -->
     <div class="login-footer">

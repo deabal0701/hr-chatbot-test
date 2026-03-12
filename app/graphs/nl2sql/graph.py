@@ -3,15 +3,17 @@ NL2SQL 검색 그래프 (LangGraph)
 
 위치: app/graphs/nl2sql/graph.py
 
-그래프 흐름 (멀티턴 대화 + 의도 분석 + PII 필터 지원):
+그래프 흐름 (멀티턴 대화 + 의도 분석 + DB 관련성 판단 + PII 필터 지원):
     load_history → intent_rewrite → should_route_after_intent
-                                     ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                     │                                                                                      ├─ execute → execute_sql → should_continue_after_execute
-                                     │                                                                                      │                            ├─ answer → pii_filter → generate_answer → save_history → END
-                                     │                                                                                      │                            ├─ retry → prepare_retry → fewshot_retrieval
-                                     │                                                                                      │                            └─ error → handle_error → END
-                                     │                                                                                      ├─ retry → prepare_retry → fewshot_retrieval
-                                     │                                                                                      └─ error → handle_error → END
+                                     ├─ sql_needed → schema_retrieval → should_continue_after_schema
+                                     │                                   ├─ relevant → fewshot_retrieval → prompt_build → sql_generate → validate_sql
+                                     │                                   │                                                                ├─ execute → execute_sql → should_continue_after_execute
+                                     │                                   │                                                                │                            ├─ answer → pii_filter → generate_answer → save_history → END
+                                     │                                   │                                                                │                            ├─ retry → prepare_retry → fewshot_retrieval
+                                     │                                   │                                                                │                            └─ error → handle_error → END
+                                     │                                   │                                                                ├─ retry → prepare_retry → fewshot_retrieval
+                                     │                                   │                                                                └─ error → handle_error → END
+                                     │                                   └─ irrelevant → handle_error → END (DB 무관 질문 차단)
                                      └─ sql_not_needed → answer_from_history_node → save_history → END
 
 노드:
@@ -67,6 +69,7 @@ from app.graphs.nl2sql.nodes import (
     prepare_retry_node,
     should_execute,
     should_continue_after_execute,
+    should_continue_after_schema,
     load_history_node,
     save_history_node,
     # 의도 분석 + 질문 재작성 노드
@@ -100,15 +103,14 @@ class NL2SQLGraph:
     def _build_graph(self) -> CompiledStateGraph:
         """그래프 구성
 
-        흐름 (멀티턴 대화 + 의도 분석 + PII 필터 지원):
+        흐름 (멀티턴 대화 + 의도 분석 + DB 관련성 판단 + PII 필터 지원):
         load_history → intent_rewrite → should_route_after_intent
-                                         ├─ sql_needed → schema_retrieval → fewshot_retrieval → prompt_build → sql_generate → validate_sql
-                                         │                                                                                       ├─ execute → execute_sql → should_continue_after_execute
-                                         │                                                                                       │                            ├─ answer → pii_filter → generate_answer → save_history → END
-                                         │                                                                                       │                            ├─ retry → prepare_retry → fewshot_retrieval
-                                         │                                                                                       │                            └─ error → handle_error → END
-                                         │                                                                                       ├─ retry → prepare_retry → fewshot_retrieval
-                                         │                                                                                       └─ error → handle_error → END
+                                         ├─ sql_needed → schema_retrieval → should_continue_after_schema
+                                         │                                   ├─ relevant → fewshot → prompt → generate → validate
+                                         │                                   │                                             ├─ execute → execute_sql → ...
+                                         │                                   │                                             ├─ retry → prepare_retry → fewshot
+                                         │                                   │                                             └─ error → handle_error → END
+                                         │                                   └─ irrelevant → handle_error → END (DB 무관 질문 차단)
                                          └─ sql_not_needed → answer_from_history_node → save_history → END
         """
         workflow = StateGraph(NL2SQLState)
@@ -146,8 +148,17 @@ class NL2SQLGraph:
         # sql_not_needed → save_history → END
         workflow.add_edge("sql_not_needed", "save_history")
 
-        # SQL 실행 흐름 (기존)
-        workflow.add_edge("schema_retrieval", "fewshot_retrieval")
+        # 조건부 분기: 스키마 검색 후 DB 관련성 판단 (db_relevant)
+        workflow.add_conditional_edges(
+            "schema_retrieval",
+            should_continue_after_schema,
+            {
+                "relevant": "fewshot_retrieval",   # DB 관련 질문 → SQL 생성 진행
+                "irrelevant": "handle_error"        # DB 무관 질문 → 안내 메시지 → END
+            }
+        )
+
+        # SQL 실행 흐름
         workflow.add_edge("fewshot_retrieval", "prompt_build")
         workflow.add_edge("prompt_build", "sql_generate")
         workflow.add_edge("sql_generate", "validate_sql")

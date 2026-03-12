@@ -1,7 +1,7 @@
 # NL2SQL 정확도 분석 보고서
 
 > **작성일**: 2026-02-21
-> **최종 수정일**: 2026-02-21
+> **최종 수정일**: 2026-03-12
 > **분석 범위**: Business DB 스키마, Graph 설계, 스키마 검색, Few-shot, Intent Rewrite, SQL 생성 프롬프트, SQL 검증/실행
 > **대상 DB**: Oracle (ORCLCDB, 115.68.223.220:1521, MUSER 스키마)
 
@@ -126,7 +126,30 @@ if len(conversation_history) >= max_turns:  # max_turns=1
 
 `schema_retrieval_node`에서 선택한 테이블 정보가 `fewshot_retrieval_node`의 검색 필터에 활용되지 않습니다. 예: "급여 관련 질문"에서 `v_ai_pay_report`가 선택되었어도, few-shot 검색은 순수 벡터 유사도만으로 수행하여 무관한 예제가 반환될 수 있습니다.
 
-#### [이슈 2-3] validate_sql_node state 직접 mutation (심각도: 낮음)
+#### [이슈 2-3] DB 무관 질문 차단 부재 (심각도: 높음) — ✅ 수정 완료
+
+URL(`http://11.11.33.11`), 인사말(`안녕`, `뭐해`), 무관 주제(`니체`, `존재론`) 등 DB 조회와 전혀 관련 없는 입력이 그대로 SQL 생성 파이프라인을 통과합니다.
+
+**문제 흐름**:
+```
+"안녕" → load_history → intent_rewrite (이력 없으면 무조건 sql_needed)
+       → schema_retrieval (LLM이 아무 테이블 선택)
+       → fewshot → prompt → sql_generate (억지 SQL 생성)
+       → validate → execute → generate_answer
+       → 엉뚱한 답변 반환 (LLM 3회 호출 + DB 쿼리 1회 낭비)
+```
+
+**수정 내용**:
+- `schema_retrieval_node`의 LLM 프롬프트에 `db_relevant` 필드 추가 (기존 경량 LLM 호출에서 함께 판단, 추가 비용 0)
+- `NL2SQLState`에 `db_relevant: bool` 필드 추가
+- 그래프 흐름 변경: `schema_retrieval` → `fewshot_retrieval` 고정 edge를 `should_continue_after_schema` 조건부 분기로 변경
+  - `db_relevant=true` → `fewshot_retrieval` (기존 흐름)
+  - `db_relevant=false` → `handle_error` (안내 메시지 반환, LLM 추가 호출 없이 즉시 종료)
+- `handle_error_node`에서 `db_relevant=false`일 때 전용 안내 메시지 반환
+
+**수정 파일**: `state.py`, `nodes.py` (schema_retrieval_node, should_continue_after_schema, handle_error_node), `graph.py`
+
+#### [이슈 2-4] validate_sql_node state 직접 mutation (심각도: 낮음)
 
 `validate_sql_node`(`app/graphs/nl2sql/nodes.py:598`)에서 `state["validated"] = False`와 같이 state를 직접 변경합니다. LangGraph의 권장 패턴은 변경할 필드만 dict로 반환하는 것이므로, 일관성을 위해 수정이 바람직합니다.
 
@@ -432,12 +455,13 @@ return {
 
 ### 8.2 HIGH (정확도 직접 영향)
 
-| ID | 이슈 | 수정 방안 | 수정 위치 |
-|----|------|----------|----------|
-| **H1** | fewshot_top_k=1 | 3으로 증가 | DB: `tb_app_settings`(nl2sql.fewshot_top_k) |
-| **H2** | table_catalog → SQL 프롬프트 주입 | `prompt_build_node`에서 selected_tables의 catalog 정보를 프롬프트에 추가 | `app/graphs/nl2sql/nodes.py:prompt_build_node()` |
-| **H3** | 컬럼 값 열거(ENUM) 추가 | catalog 또는 프롬프트에 주요 컬럼의 실제 값 목록 추가 | DB: `tb_app_settings`(nl2sql.table_catalog) + 프롬프트 |
-| **H4** | multiturn_max_turns=1 → 5 | DB 설정 변경 (의도적 비활성화라면 문서화) | DB: `tb_app_settings`(nl2sql.multiturn_max_turns) |
+| ID | 이슈 | 수정 방안 | 수정 위치 | 상태 |
+|----|------|----------|----------|------|
+| **H1** | fewshot_top_k=1 | 3으로 증가 | DB: `tb_app_settings`(nl2sql.fewshot_top_k) | |
+| **H2** | table_catalog → SQL 프롬프트 주입 | `prompt_build_node`에서 selected_tables의 catalog 정보를 프롬프트에 추가 | `app/graphs/nl2sql/nodes.py:prompt_build_node()` | |
+| **H3** | 컬럼 값 열거(ENUM) 추가 | catalog 또는 프롬프트에 주요 컬럼의 실제 값 목록 추가 | DB: `tb_app_settings`(nl2sql.table_catalog) + 프롬프트 | |
+| **H4** | multiturn_max_turns=1 → 5 | DB 설정 변경 (의도적 비활성화라면 문서화) | DB: `tb_app_settings`(nl2sql.multiturn_max_turns) | |
+| **H5** | DB 무관 질문 차단 부재 (이슈 2-3) | schema_retrieval에서 `db_relevant` 판단 → 조건부 분기로 차단 | `state.py`, `nodes.py`, `graph.py` | ✅ 완료 |
 
 ### 8.3 MEDIUM (품질 개선)
 
@@ -456,7 +480,7 @@ return {
 | **L1** | V_AI_EMPLOYEE 뷰 1인 1행 보장 | DBA 협의하여 DISTINCT 또는 ROW_NUMBER 적용 |
 | **L2** | Few-shot 예제 카테고리화 | 질문 유형별 태그 추가 → 유형별 우선 검색 |
 | **L3** | SQL 실행 결과 자동 검증 | 결과 0건/이상 수치일 때 자동 재생성 |
-| **L4** | validate_sql_node state mutation 수정 | dict return 패턴으로 LangGraph 표준 준수 |
+| **L4** | validate_sql_node state mutation 수정 (이슈 2-4) | dict return 패턴으로 LangGraph 표준 준수 |
 
 ### 8.5 Quick Win (즉시 적용 가능)
 

@@ -127,6 +127,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "selected_tables": [],
             "schema_retrieval_confidence": 1.0,
+            "db_relevant": True,
             "schema_description": schema_loader.generate_schema_description(),
         }
 
@@ -144,7 +145,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 {table_summary}
 
 ## 응답 형식 (반드시 JSON으로)
-{{"tables": ["테이블1", "테이블2"], "reasoning": "선택 이유", "confidence": 0.9}}
+{{"tables": ["테이블1", "테이블2"], "reasoning": "선택 이유", "confidence": 0.9, "db_relevant": true}}
 
 ## 규칙
 - 사용자가 질문에서 직접 언급한 데이터 주제의 테이블만 선택하세요 (언급하지 않은 테이블은 절대 포함하지 마세요)
@@ -153,6 +154,10 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 - 1:N 관계 테이블 조인 시 v_ai_employee 포함 필수
 - confidence: 확신도 (0.0~1.0)
 - "상세하게", "자세히", "전체" 같은 수식어는 답변 형식의 요구이지 테이블 추가 요구가 아닙니다
+- db_relevant: 질문이 위 테이블의 실제 데이터를 조회/집계/분석하려는 것인지 여부 (true/false)
+  - true 조건: 위 테이블의 컬럼 데이터를 SELECT하여 답변할 수 있는 질문만 true
+  - false 예시: 인사말("안녕", "뭐해"), URL("http://..."), 무관 주제("니체", "존재론", "사랑해"), 의미없는 입력("...", "ㅋㅋ"), 시스템/기능에 대한 질문("무의미한 데이터 입력시 뭐라고 나오나?", "이 시스템은 뭐야?"), 일반 지식 질문("파이썬이란?", "AI란 무엇인가?")
+  - false일 때: tables는 빈 배열 []로 응답
 """
 
         user_prompt = f"질문: {question}\n\n위 질문에 필요한 테이블을 JSON 형식으로 응답하세요."
@@ -186,6 +191,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             result = json.loads(json_str)
             selected_tables = result.get("tables", [])
             confidence = float(result.get("confidence", 0.5))
+            db_relevant = result.get("db_relevant", True)
             # LLM 응답의 불필요한 줄바꿈/공백 정리
             reasoning = " ".join(result.get("reasoning", "").split())
         except json.JSONDecodeError as e:
@@ -194,7 +200,19 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             return {
                 "selected_tables": [],
                 "schema_retrieval_confidence": 0.0,
+                "db_relevant": True,
                 "schema_description": schema_loader.generate_schema_description(),
+            }
+
+        # 3-1. DB 무관 질문 차단 (db_relevant=false)
+        if not db_relevant:
+            log_step(logger, request_id, "NL2SQL", "0.5", "SCHEMA-RETRIEVAL", "DB 무관 질문 감지 → 차단", db_relevant=False, reasoning=truncate_text(reasoning, 50))
+            return {
+                "selected_tables": [],
+                "schema_retrieval_confidence": confidence,
+                "db_relevant": False,
+                "schema_description": "",
+                "validation_error": "DB 조회와 관련 없는 질문",
             }
 
         # 4. FK 관계 테이블 자동 포함
@@ -210,6 +228,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             return {
                 "selected_tables": [],
                 "schema_retrieval_confidence": confidence,
+                "db_relevant": True,
                 "schema_description": schema_loader.generate_schema_description(),
             }
 
@@ -221,6 +240,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "selected_tables": list(all_tables),
             "schema_retrieval_confidence": confidence,
+            "db_relevant": True,
             "schema_description": schema_description,
         }
 
@@ -230,6 +250,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "selected_tables": [],
             "schema_retrieval_confidence": 0.0,
+            "db_relevant": True,
             "schema_description": schema_loader.generate_schema_description(),
         }
 
@@ -622,6 +643,30 @@ def validate_sql_node(state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
+def should_continue_after_schema(state: Dict[str, Any]) -> str:
+    """
+    스키마 검색 후 조건부 분기 함수
+
+    db_relevant 값에 따라 SQL 생성 진행 또는 차단을 결정합니다.
+
+    Args:
+        state: NL2SQLState
+
+    Returns:
+        "relevant" - DB 관련 질문 → fewshot_retrieval로 진행
+        "irrelevant" - DB 무관 질문 → handle_error로 차단
+    """
+    request_id = state.get("request_id", "unknown")
+    db_relevant = state.get("db_relevant", True)
+
+    if db_relevant:
+        log_step(logger, request_id, "NL2SQL", "0.5x", "BRANCH", "분기 결정 → RELEVANT (SQL 생성 진행)")
+        return "relevant"
+    else:
+        log_step(logger, request_id, "NL2SQL", "0.5x", "BRANCH", "분기 결정 → IRRELEVANT (DB 무관 질문 차단)")
+        return "irrelevant"
+
+
 def should_execute(state: Dict[str, Any]) -> str:
     """
     조건부 분기 함수 (재시도 지원)
@@ -1003,6 +1048,7 @@ def handle_error_node(state: Dict[str, Any]) -> Dict[str, Any]:
     에러 처리 노드
 
     SQL 생성/검증/실행 실패 시 사용자에게 안내 메시지를 생성합니다.
+    db_relevant=false인 경우 DB 무관 질문 안내 메시지를 반환합니다.
 
     Args:
         state: NL2SQLState (Dict 형태로 전달)
@@ -1012,8 +1058,19 @@ def handle_error_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     error_msg = state.get("validation_error", "알 수 없는 오류")
     request_id = state.get("request_id", "unknown")
+    db_relevant = state.get("db_relevant", True)
 
-    state["answer"] = f"""SQL 생성 또는 실행 중 오류가 발생했습니다.
+    if not db_relevant:
+        state["answer"] = """데이터 조회와 관련된 질문을 입력해 주세요.
+
+예시:
+- "2024년 입사자 수는?"
+- "부서별 평균 연봉은?"
+- "재직 중인 과장 이상 직원 목록은?"
+"""
+        log_step(logger, request_id, "NL2SQL", "ERR", "IRRELEVANT", "DB 무관 질문 안내 메시지 반환")
+    else:
+        state["answer"] = f"""SQL 생성 또는 실행 중 오류가 발생했습니다.
 
 오류 내용: {error_msg}
 
@@ -1022,8 +1079,8 @@ def handle_error_node(state: Dict[str, Any]) -> Dict[str, Any]:
 2. 테이블명과 컬럼명이 정확한지 확인
 3. 질문을 더 구체적으로 작성
 """
+        log_step(logger, request_id, "NL2SQL", "ERR", "ERROR", "오류 처리 완료", error=error_msg)
 
-    log_step(logger, request_id, "NL2SQL", "ERR", "ERROR", "오류 처리 완료", error=error_msg)
     return state
 
 
