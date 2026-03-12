@@ -102,7 +102,7 @@ def create_initial_state(
         # schema_retrieval_node 필드
         selected_tables=[],
         schema_retrieval_confidence=0.0,
-        db_relevant=True,
+        db_relevant=True,      # 의미없는 요청인지 확인
 
         # fewshot_retrieval_node 필드
         fewshot_context="",
