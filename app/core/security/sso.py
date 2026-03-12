@@ -85,9 +85,12 @@ def verify_sso_token(token: str) -> SSOTokenPayload:
         logger.debug(f"[SSO] 발급자 불일치 | token_iss={token_iss}, allowed={allowed_issuers}")
         raise APIException(ErrorCode.SSO_INVALID_TOKEN, f"허용되지 않은 SSO 발급자: {token_iss}")
 
-    # 3. 토큰 최대 유효 시간 검증 (iat 기반)
+    # 3. 토큰 시간 검증 (iat 기반)
     iat = payload["iat"]
     age = time.time() - iat
+    if age < -30:
+        logger.debug(f"[SSO] 미래 시점 토큰 | iat={iat}, age={age:.1f}s")
+        raise APIException(ErrorCode.SSO_INVALID_TOKEN, "SSO 토큰 발급 시간이 미래입니다")
     if age > settings.sso_token_max_age:
         logger.debug(f"[SSO] 토큰 만료 | iat={iat}, age={age:.1f}s, max_age={settings.sso_token_max_age}s")
         raise APIException(ErrorCode.SSO_TOKEN_EXPIRED, "SSO 토큰이 최대 유효 시간을 초과했습니다")

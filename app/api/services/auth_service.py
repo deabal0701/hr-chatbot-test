@@ -389,7 +389,13 @@ class AuthService:
             if dept_row:
                 dept_id = dept_row["dept_id"]
 
-        # 5. 사용자 INSERT
+        # 5. email 중복 체크
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT user_id FROM tb_user WHERE email = %s", (payload.email,))
+            if cur.fetchone():
+                raise APIException(ErrorCode.DUPLICATE_ERROR, f"이미 사용 중인 이메일입니다: {payload.email}")
+
+        # 6. 사용자 INSERT
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute(
                 "INSERT INTO tb_user (login_id, email, password_hash, display_name, "
@@ -447,8 +453,14 @@ class AuthService:
             updates.append("display_name = %s")
             params.append(payload.name)
         if payload.email and payload.email != user.get("email"):
-            updates.append("email = %s")
-            params.append(payload.email)
+            # email 중복 체크 (다른 사용자가 이미 사용 중인 email이면 동기화 건너뜀)
+            with db_manager.get_cursor() as cur:
+                cur.execute("SELECT user_id FROM tb_user WHERE email = %s AND user_id != %s", (payload.email, user["user_id"]))
+                if cur.fetchone():
+                    log_step(logger, request_id, "SSO", "2", "SYNC", "email 중복으로 동기화 건너뜀", user_id=user["user_id"], email=payload.email)
+                else:
+                    updates.append("email = %s")
+                    params.append(payload.email)
 
         if not updates:
             return
