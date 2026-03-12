@@ -264,20 +264,22 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
 
 ---
 
-## 7. SSO 인증 (구현 완료)
+## 7. SSO 인증
 
 ### 7.1 개요
 
 외부 IdP(HR 시스템 등)에서 RS256 개인키로 서명한 JWT 토큰으로 MUREUM에 로그인하는 SSO 연동.
 **Hidden Form POST + Cookie Base64URL** 방식으로 토큰을 안전하게 전달한다.
+미등록 사용자는 **JIT(Just-In-Time) 자동 생성** 후 로그인된다 (USER 역할 고정).
 
 - **검증 모듈**: `app/core/security/sso.py`
 - **라우트**: `app/api/routes/auth.py` (POST /sso, POST /sso-redirect)
-- **서비스**: `app/api/services/auth_service.py` (sso_authenticate, _find_sso_user)
+- **서비스**: `app/api/services/auth_service.py` (sso_authenticate, find_or_create_sso_user)
 - **프론트엔드**: `frontend/src/views/SSOCallbackView.vue`
 - **설정**: `sso_enabled=False` (기본 비활성)
+- **상세 설계**: `11_department_sso_design.md` §6 참조
 
-### 7.2 SSO 인증 흐름 (2가지 경로)
+### 7.2 SSO 인증 흐름
 
 **경로 1: Hidden Form POST (브라우저 — 메인 방식)**
 ```
@@ -286,7 +288,13 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
   → 필수 클레임 확인 (sub, name, iss, exp)
   → 발급자 화이트리스트 확인 (sso_allowed_issuers)
   → 토큰 최대 수명 확인 (sso_token_max_age: 300초)
-  → 기존 사용자 매칭 (sso_external_id 또는 login_id)
+  → 사용자 검색 (sso_external_id 또는 login_id)
+  ├─ 사용자 존재 → 변경 감지 (display_name, email) → 로그인
+  └─ 사용자 미존재 + sso_auto_create_user=true
+       → email, tenant_code 필수 확인
+       → USER 역할로 사용자 자동 생성
+       → USER 기본 메뉴 권한 할당 (AI_CHAT: CR)
+       → 로그인
   → MUREUM JWT 발급 (HS256)
   → Set-Cookie: sso_auth = Base64URL({at, rt}) (60초 TTL)
   → 302 Redirect → /sso
@@ -296,23 +304,24 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
 **경로 2: JSON API (스크립트/테스트용)**
 ```
 POST /api/v1/auth/sso (body: {"sso_token": "eyJ..."})
-  → 동일한 검증 로직
+  → 동일한 검증 + JIT 자동 생성 로직
   → JSON 응답: {access_token, refresh_token, token_type, expires_in}
 ```
 
 ### 7.3 SSO 토큰 페이로드
 
-| 필드 | 설명 | 필수 |
-|------|------|:---:|
-| sub | 사용자 식별자 (login_id 매핑) | O |
-| name | 이름 | O |
-| iss | 발급자 | O |
-| exp | 만료 시간 | O |
-| email | 이메일 | △ |
-| tenant_code | 테넌트 코드 (Phase 5 JIT) | △ |
-| dept_code | 부서 코드 (Phase 5 JIT) | △ |
-| dept_name | 부서명 (Phase 5 JIT) | △ |
-| position | 직급 (Phase 5 역할 매핑) | △ |
+| 필드 | 설명 | 필수 | 비고 |
+|------|------|:---:|------|
+| sub | 사용자 식별자 (login_id 매핑) | **O** | |
+| name | 이름 (display_name) | **O** | |
+| iss | 발급자 | **O** | sso_allowed_issuers 검증 |
+| exp | 만료 시간 | **O** | 5분 이내 권장 |
+| email | 이메일 | **O** | JIT 자동 생성 시 필수 |
+| tenant_code | 테넌트 코드 | **O** | JIT 자동 생성 시 필수 |
+| dept_code | 부서 코드 | △ | 부서 매핑 (없으면 NULL) |
+| dept_name | 부서명 | △ | 부서 자동 생성 시 사용 |
+
+> 기존 사용자 로그인은 sub, name, iss, exp만 있으면 됨. email/tenant_code는 JIT 생성 시 필수.
 
 ### 7.4 SSO 설정
 
@@ -323,8 +332,8 @@ POST /api/v1/auth/sso (body: {"sso_token": "eyJ..."})
 | sso_algorithm | RS256 | 토큰 알고리즘 |
 | sso_allowed_issuers | hr-system | 허용 발급자 (쉼표 구분) |
 | sso_token_max_age | 300 | 토큰 최대 수명 (초) |
-| sso_default_role | USER | 자동 생성 시 기본 역할 |
-| sso_auto_create_user | false | 미등록 사용자 자동 생성 (Phase 5) |
+| sso_default_role | USER | SSO 자동 생성 사용자 역할 (USER 고정 권장) |
+| sso_auto_create_user | true | 미등록 사용자 JIT 자동 생성 |
 | sso_frontend_url | (빈 값) | SSO 리다이렉트 URL (빈 값이면 상대경로 /sso) |
 
 ### 7.5 SSO 에러 코드
@@ -333,9 +342,19 @@ POST /api/v1/auth/sso (body: {"sso_token": "eyJ..."})
 |------|:---:|------|
 | SSO_NOT_CONFIGURED | 500 | 공개키 미설정 |
 | SSO_DISABLED | 403 | SSO 비활성 |
-| SSO_INVALID_TOKEN | 401 | 서명 불일치, 형식 오류, 필수 클레임 누락, 미허용 발급자 |
+| SSO_INVALID_TOKEN | 401 | 서명 불일치, 형식 오류, 필수 클레임 누락, 미허용 발급자, 자동등록 필수정보 누락 |
 | SSO_TOKEN_EXPIRED | 401 | 토큰 만료 또는 최대 유효시간 초과 |
-| SSO_USER_NOT_FOUND | 404 | 미등록 사용자 |
+| SSO_USER_NOT_FOUND | 404 | 미등록 사용자 (sso_auto_create_user=false일 때) |
+
+### 7.6 SSO 자동 생성 정책
+
+| 항목 | 정책 |
+|------|------|
+| 역할 | **USER 고정** (sso_default_role) |
+| 메뉴 권한 | USER 기본 메뉴 (AI_CHAT: can_create, can_read) |
+| 비밀번호 | 랜덤 생성 (SSO 전용 — 직접 로그인 불가) |
+| 관리자 등록 | **시스템에서만 직접 등록** (SSO로 관리자 자동 부여 안함) |
+| 변경 감지 | display_name, email만 (역할/부서는 Admin UI에서 변경) |
 
 ---
 

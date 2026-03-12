@@ -296,7 +296,7 @@ class AuthService:
         return user
 
     def sso_authenticate(self, sso_token: str, request_id: str = "") -> Dict[str, Any]:
-        """SSO 토큰 검증 + 기존 사용자 조회 (Phase 4: 기존 사용자만)"""
+        """SSO 토큰 검증 + 사용자 조회/자동 생성 + 정보 동기화"""
         log_step(logger, request_id, "SSO", "1", "VERIFY", "SSO 토큰 검증 시작")
 
         if not settings.sso_enabled:
@@ -308,15 +308,22 @@ class AuthService:
 
         # 2. 사용자 조회: sso_provider + sso_external_id 우선, login_id fallback
         user = self._find_sso_user(payload, request_id)
-        if not user:
-            raise APIException(ErrorCode.SSO_USER_NOT_FOUND, f"SSO 사용자를 찾을 수 없습니다 (sub={payload.sub})")
 
-        # 3. 비활성 계정 체크
+        if user:
+            # 3A. 기존 사용자 → 정보 동기화 (display_name, email)
+            self._sync_sso_user_info(user, payload, request_id)
+        else:
+            # 3B. 사용자 미존재 → 자동 생성 또는 에러
+            if not settings.sso_auto_create_user:
+                raise APIException(ErrorCode.SSO_USER_NOT_FOUND, f"SSO 사용자를 찾을 수 없습니다 (sub={payload.sub})")
+            user = self._create_sso_user(payload, request_id)
+
+        # 4. 비활성 계정 체크
         if not user["is_active"]:
             log_step(logger, request_id, "SSO", "3", "LOGIN", "비활성 계정", login_id=user["login_id"])
             raise APIException(ErrorCode.UNAUTHORIZED, "비활성화된 계정입니다")
 
-        # 4. SSO 메타데이터 업데이트 (sso_provider, sso_external_id, last_login_at)
+        # 5. SSO 메타데이터 업데이트 (sso_provider, sso_external_id, last_login_at)
         with db_manager.get_cursor(commit=True) as cur:
             cur.execute(
                 "UPDATE tb_user SET sso_provider = %s, sso_external_id = %s, "
@@ -330,24 +337,17 @@ class AuthService:
 
     def _find_sso_user(self, payload: SSOTokenPayload, request_id: str) -> Optional[Dict[str, Any]]:
         """SSO 사용자 조회: 1순위 sso_provider+sso_external_id, 2순위 login_id=sub"""
+        _cols = "user_id, login_id, email, is_active, is_superuser, display_name, tenant_id"
         with db_manager.get_cursor() as cur:
             # 1순위: sso_provider + sso_external_id
-            cur.execute(
-                "SELECT user_id, login_id, is_active, is_superuser, display_name, tenant_id "
-                "FROM tb_user WHERE sso_provider = %s AND sso_external_id = %s",
-                (payload.iss, payload.sub),
-            )
+            cur.execute(f"SELECT {_cols} FROM tb_user WHERE sso_provider = %s AND sso_external_id = %s", (payload.iss, payload.sub))
             row = cur.fetchone()
             if row:
                 log_step(logger, request_id, "SSO", "2", "LOOKUP", "sso_external_id로 사용자 발견", user_id=row["user_id"])
                 return dict(row)
 
             # 2순위: login_id = sub
-            cur.execute(
-                "SELECT user_id, login_id, is_active, is_superuser, display_name, tenant_id "
-                "FROM tb_user WHERE login_id = %s",
-                (payload.sub,),
-            )
+            cur.execute(f"SELECT {_cols} FROM tb_user WHERE login_id = %s", (payload.sub,))
             row = cur.fetchone()
             if row:
                 log_step(logger, request_id, "SSO", "2", "LOOKUP", "login_id로 사용자 발견", user_id=row["user_id"])
@@ -355,6 +355,109 @@ class AuthService:
 
         log_step(logger, request_id, "SSO", "2", "LOOKUP", "사용자 없음", sub=payload.sub)
         return None
+
+    def _create_sso_user(self, payload: SSOTokenPayload, request_id: str) -> Dict[str, Any]:
+        """SSO 사용자 JIT(Just-In-Time) 자동 생성"""
+        # 1. 필수 필드 검증
+        if not payload.email:
+            raise APIException(ErrorCode.BAD_REQUEST, "SSO 자동 생성 시 email은 필수입니다")
+        if not payload.tenant_code:
+            raise APIException(ErrorCode.BAD_REQUEST, "SSO 자동 생성 시 tenant_code는 필수입니다")
+
+        # 2. tenant_code → tenant_id
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT tenant_id FROM tb_tenant WHERE tenant_code = %s AND is_active = true", (payload.tenant_code,))
+            tenant_row = cur.fetchone()
+        if not tenant_row:
+            raise APIException(ErrorCode.NOT_FOUND, f"테넌트를 찾을 수 없습니다: {payload.tenant_code}")
+        tenant_id = tenant_row["tenant_id"]
+
+        # 3. 기본 역할 조회 (sso_default_role)
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT role_id FROM tb_role WHERE role_code = %s", (settings.sso_default_role,))
+            role_row = cur.fetchone()
+        if not role_row:
+            raise APIException(ErrorCode.NOT_FOUND, f"기본 역할을 찾을 수 없습니다: {settings.sso_default_role}")
+        role_id = role_row["role_id"]
+
+        # 4. dept_code → dept_id (선택, 없으면 NULL)
+        dept_id = None
+        if payload.dept_code:
+            with db_manager.get_cursor() as cur:
+                cur.execute("SELECT dept_id FROM tb_department WHERE dept_code = %s AND tenant_id = %s", (payload.dept_code, tenant_id))
+                dept_row = cur.fetchone()
+            if dept_row:
+                dept_id = dept_row["dept_id"]
+
+        # 5. 사용자 INSERT
+        with db_manager.get_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO tb_user (login_id, email, password_hash, display_name, "
+                "tenant_id, role_id, dept_id, is_active, is_superuser, "
+                "sso_provider, sso_external_id, landing_page) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, true, false, %s, %s, %s) "
+                "RETURNING user_id",
+                (payload.sub, payload.email, "!SSO_USER!", payload.name,
+                 tenant_id, role_id, dept_id,
+                 payload.iss, payload.sub, "/chat"),
+            )
+            user_id = cur.fetchone()["user_id"]
+
+        log_step(logger, request_id, "SSO", "2", "CREATE", "SSO 사용자 자동 생성", user_id=user_id, login_id=payload.sub, tenant_code=payload.tenant_code)
+
+        # 6. USER 기본 메뉴 권한 할당 (AI_CHAT: can_create, can_read)
+        self._assign_default_sso_menus(user_id, request_id)
+
+        return {
+            "user_id": user_id,
+            "login_id": payload.sub,
+            "email": payload.email,
+            "display_name": payload.name,
+            "tenant_id": tenant_id,
+            "is_active": True,
+            "is_superuser": False,
+        }
+
+    def _assign_default_sso_menus(self, user_id: int, request_id: str) -> None:
+        """SSO 자동 생성 사용자에게 USER 기본 메뉴 권한 할당"""
+        with db_manager.get_cursor() as cur:
+            cur.execute("SELECT menu_id FROM tb_menu WHERE menu_code = 'AI_CHAT' AND is_active = true")
+            menu_row = cur.fetchone()
+
+        if not menu_row:
+            log_step(logger, request_id, "SSO", "2", "MENU", "AI_CHAT 메뉴 없음 — 기본 메뉴 할당 건너뜀")
+            return
+
+        with db_manager.get_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO tb_user_menu (user_id, menu_id, can_create, can_read, can_update, can_delete, can_export) "
+                "VALUES (%s, %s, true, true, false, false, false) "
+                "ON CONFLICT (user_id, menu_id) DO NOTHING",
+                (user_id, menu_row["menu_id"]),
+            )
+
+        log_step(logger, request_id, "SSO", "2", "MENU", "기본 메뉴 권한 할당", user_id=user_id, menu="AI_CHAT")
+
+    def _sync_sso_user_info(self, user: Dict[str, Any], payload: SSOTokenPayload, request_id: str) -> None:
+        """기존 사용자의 SSO 페이로드 정보 동기화 (display_name, email)"""
+        updates = []
+        params = []
+
+        if payload.name and payload.name != user.get("display_name"):
+            updates.append("display_name = %s")
+            params.append(payload.name)
+        if payload.email and payload.email != user.get("email"):
+            updates.append("email = %s")
+            params.append(payload.email)
+
+        if not updates:
+            return
+
+        params.append(user["user_id"])
+        with db_manager.get_cursor(commit=True) as cur:
+            cur.execute(f"UPDATE tb_user SET {', '.join(updates)}, updated_at = NOW() WHERE user_id = %s", params)
+
+        log_step(logger, request_id, "SSO", "2", "SYNC", "사용자 정보 동기화", user_id=user["user_id"], fields=", ".join(u.split(" =")[0] for u in updates))
 
     def change_password(self, user_id: int, current_password: str, new_password: str, request_id: str = "") -> bool:
         """비밀번호 변경"""

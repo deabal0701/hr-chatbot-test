@@ -1,9 +1,9 @@
 # 조직(부서) 관리 및 SSO 연동 설계서
 
-> **문서 버전**: 4.0
+> **문서 버전**: 5.0
 > **작성일**: 2026-02-23
-> **최종 수정**: 2026-03-10
-> **상태**: Phase 1~3 구현 완료, Phase 4(SSO) 구현 완료 (RS256 + Cookie Base64URL + Hidden Form POST)
+> **최종 수정**: 2026-03-12
+> **상태**: Phase 1~4 구현 완료, Phase 5(SSO JIT 사용자 자동 생성) 설계 완료
 > **선행 문서**: `07_user_role_design.md`, `02_auth_and_permission.md`
 > **마이그레이션**: `docs/sql/migration_v2_department_sso.sql`, `docs/sql/migration_v2_reorder_columns.sql`
 
@@ -46,6 +46,7 @@
 | SSO 프론트엔드 | SSOCallbackView.vue (Cookie Base64URL), router /sso | **완료** |
 | SSO 테스트 도구 | RS256 키 생성 스크립트 + 독립 HTML 테스트 페이지 | **완료** |
 | SSO 통합 테스트 | SSO 통합 테스트 (8개) | 미구현 |
+| **SSO JIT 자동 생성** | **SSO 로그인 시 미등록 사용자 자동 생성 (USER 역할 고정)** | **설계 완료** |
 | 배치 동기화 | 조직/사용자 배치 동기화 스크립트 | 미구현 |
 
 ---
@@ -570,7 +571,6 @@ RS256 (비대칭키) 역할 분리:
   "tenant_code": "TENANT_A",
   "dept_code": "DEV_01",
   "dept_name": "개발1팀",
-  "position": "팀장",
   "iat": 1740000000,
   "exp": 1740000300,
   "iss": "hr-system"
@@ -580,67 +580,145 @@ RS256 (비대칭키) 역할 분리:
 | 필드 | 용도 | 필수 | 비고 |
 |------|------|:---:|------|
 | sub | 사용자 식별자 (MUREUM login_id로 매핑) | O | `tb_user.login_id`와 매칭 |
-| name | 이름 | O | |
-| email | 이메일 | △ | Phase 5 JIT 시 사용 |
-| tenant_code | 테넌트 코드 | △ | Phase 5 JIT 시 사용 |
-| dept_code | 부서 코드 | △ | Phase 5 JIT 시 사용 |
-| dept_name | 부서명 | △ | Phase 5 JIT 시 사용 |
-| position | 직급/직책 | △ | Phase 5 역할 매핑 시 사용 |
+| name | 이름 | O | 표시명 (display_name) |
+| email | 이메일 | **O** | **JIT 사용자 생성 시 필수** (tb_user.email UNIQUE) |
+| tenant_code | 회사 코드 (Company Code → 내부 테넌트 매핑) | **O** | **JIT 사용자 생성 시 필수** |
+| dept_code | 부서 코드 | △ | JIT 시 부서 매핑 (없으면 NULL) |
+| dept_name | 부서명 | △ | JIT 시 부서 자동 생성에 사용 |
 | iss | 발급 시스템 식별자 | O | `sso_allowed_issuers`로 검증 |
 | exp | 만료 시간 (짧게 — 5분 이내) | O | PyJWT `require` 옵션으로 강제 |
 
-> **Phase 4 현재 구현**: `sub`, `name`, `iss`, `exp`만 필수 검증. 사용자는 기존 `tb_user.login_id`로 매칭.
-> **Phase 5 예정**: `tenant_code`, `dept_code` 등으로 JIT 사용자 자동 생성/부서 매핑.
+> **기존 사용자 로그인**: `sub`, `name`, `iss`, `exp`만 있어도 됨 (login_id로 매칭).
+> **JIT 자동 생성**: `email`, `tenant_code`가 추가로 **필수** (없으면 자동 생성 불가 → SSO_USER_NOT_FOUND 에러).
+> **역할 정책**: 모든 SSO 자동 생성 사용자는 **USER 역할 고정**. 관리자는 시스템에서 직접 등록한다.
 
-### 6.3 사용자 자동 생성 (Just-In-Time Provisioning)
+### 6.3 사용자 자동 생성 (Just-In-Time Provisioning) — 설계 완료
 
 SSO 로그인 시 MUREUM에 사용자가 없으면 **즉시 생성**한다.
 
-```python
-def find_or_create_sso_user(self, sso_data: dict, request_id: str) -> dict:
-    """SSO 사용자 조회/생성/업데이트"""
+> **핵심 정책**: 모든 SSO 자동 생성 사용자는 **USER 역할 고정**. 관리자(GLOBAL/TENANT/DEPT)는 시스템에서 직접 등록한다.
 
-    # 1. 기존 사용자 조회 (sso_provider + sso_external_id)
-    user = self._find_by_sso_id(sso_data["iss"], sso_data["sub"])
+#### 6.3.1 JIT 흐름
+
+```
+SSO JWT 수신 → verify_sso_token()
+  → _find_sso_user() (기존 사용자 검색)
+  ├─ 사용자 존재 → 변경 감지 (display_name, email) → 기존 로그인 흐름
+  └─ 사용자 미존재 + sso_auto_create_user=True
+       → 필수 클레임 확인 (email, tenant_code)
+       → tenant_code → tb_tenant.tenant_code로 테넌트 조회
+       → dept_code → tb_department.dept_code로 부서 조회/자동생성 (선택)
+       → USER 역할(sso_default_role) role_id 조회
+       → 랜덤 패스워드 생성 (SSO 전용 — 직접 로그인 불가)
+       → tb_user INSERT
+       → USER 기본 메뉴 권한 할당 (tb_user_menu INSERT)
+       → create_session() → TokenResponse
+```
+
+#### 6.3.2 자동 생성 조건
+
+| 조건 | 충족 시 | 미충족 시 |
+|------|---------|----------|
+| `sso_auto_create_user=True` | 자동 생성 진행 | SSO_USER_NOT_FOUND (404) |
+| `email` 클레임 존재 | 자동 생성 진행 | SSO_INVALID_TOKEN (401, "자동 등록에 email이 필요합니다") |
+| `tenant_code` 클레임 존재 | 자동 생성 진행 | SSO_INVALID_TOKEN (401, "자동 등록에 tenant_code가 필요합니다") |
+| `tenant_code` → tb_tenant 매칭 | 자동 생성 진행 | SSO_INVALID_TOKEN (401, "유효하지 않은 테넌트 코드") |
+| `email` 중복 없음 | 자동 생성 진행 | SSO_INVALID_TOKEN (401, "이미 사용 중인 이메일") |
+
+#### 6.3.3 구현 의사코드
+
+```python
+def find_or_create_sso_user(self, sso_data: SSOTokenPayload, request_id: str) -> dict:
+    """SSO 사용자 조회 → 없으면 자동 생성"""
+
+    # 1. 기존 사용자 조회 (sso_provider + sso_external_id → login_id 폴백)
+    user = self._find_sso_user(sso_data.iss, sso_data.sub)
 
     if user:
-        # 2a. 있음 → 변경 감지 후 업데이트 (부서 이동, 직급 변경 등)
-        changes = self._detect_changes(user, sso_data)
+        # 2a. 있음 → 변경 감지 후 업데이트 (display_name, email만)
+        changes = self._detect_sso_changes(user, sso_data)
         if changes:
-            self._update_sso_user(user["user_id"], changes)
-        return self.get_user_with_permissions(user["user_id"], request_id)
+            self._update_sso_fields(user["user_id"], changes)
+        return user
 
-    # 2b. 없음 → 자동 생성
-    tenant_id = self._resolve_tenant(sso_data["tenant_code"])
-    dept_id = self._resolve_or_create_dept(tenant_id, sso_data)
-    role_id = self._resolve_role(sso_data.get("position"))
+    # 2b. 없음 → 자동 생성 가능 여부 확인
+    if not settings.sso_auto_create_user:
+        raise APIException(ErrorCode.SSO_USER_NOT_FOUND, "SSO 사용자를 찾을 수 없습니다")
 
-    new_user = self._create_sso_user(
-        sso_provider=sso_data["iss"],
-        sso_external_id=sso_data["sub"],
-        login_id=sso_data["sub"],           # 사번을 login_id로 사용
-        display_name=sso_data["name"],
-        email=sso_data.get("email"),
+    # 3. 필수 클레임 검증
+    if not sso_data.email:
+        raise APIException(ErrorCode.SSO_INVALID_TOKEN, "자동 등록에 email이 필요합니다")
+    if not sso_data.tenant_code:
+        raise APIException(ErrorCode.SSO_INVALID_TOKEN, "자동 등록에 tenant_code가 필요합니다")
+
+    # 4. 테넌트 조회
+    tenant_id = self._resolve_tenant(sso_data.tenant_code)
+
+    # 5. 부서 조회/생성 (선택 — dept_code 있을 때만)
+    dept_id = None
+    if sso_data.dept_code:
+        dept_id = self._resolve_or_create_dept(tenant_id, sso_data.dept_code, sso_data.dept_name)
+
+    # 6. USER 역할 ID 조회 (고정)
+    role_id = self._get_default_role_id()
+
+    # 7. 사용자 생성
+    import secrets
+    random_password = secrets.token_urlsafe(32)  # SSO 전용 — 직접 로그인 불가
+
+    new_user_id = self._create_sso_user(
+        login_id=sso_data.sub,
+        display_name=sso_data.name,
+        email=sso_data.email,
+        password_hash=hash_password(random_password),
         tenant_id=tenant_id,
         dept_id=dept_id,
         role_id=role_id,
+        sso_provider=sso_data.iss,
+        sso_external_id=sso_data.sub,
     )
-    # 기본 메뉴 권한 자동 할당
-    self._assign_default_menus(new_user["user_id"], role_id)
 
-    return self.get_user_with_permissions(new_user["user_id"], request_id)
+    # 8. USER 기본 메뉴 권한 할당
+    self._assign_default_menus(new_user_id, role_id)
+
+    return self._find_sso_user(sso_data.iss, sso_data.sub)
 ```
+
+#### 6.3.4 자동 생성 사용자 DB 레코드
+
+```sql
+INSERT INTO tb_user (
+    login_id,          -- sso_data.sub (사번 등)
+    email,             -- sso_data.email
+    display_name,      -- sso_data.name
+    password_hash,     -- secrets.token_urlsafe(32) → bcrypt (SSO 전용, 직접 로그인 불가)
+    tenant_id,         -- tenant_code → tb_tenant.tenant_id
+    dept_id,           -- dept_code → tb_department.dept_id (NULL 허용)
+    role_id,           -- sso_default_role(USER) → tb_role.role_id
+    is_active,         -- true
+    is_superuser,      -- false
+    sso_provider,      -- sso_data.iss
+    sso_external_id,   -- sso_data.sub
+    last_login_at      -- NOW()
+) VALUES (...);
+
+-- 기본 메뉴 권한 할당 (USER 역할 기본값)
+INSERT INTO tb_user_menu (user_id, menu_id, can_create, can_read, can_update, can_delete, can_export)
+SELECT new_user_id, m.menu_id, true, true, false, false, false
+FROM tb_menu m WHERE m.menu_code = 'AI_CHAT';
+```
+
+> **USER 기본 메뉴**: `AI_CHAT` (can_create=true, can_read=true) — `/chat` 페이지 접근만 가능.
+> **비밀번호**: 랜덤 생성으로 직접 로그인 불가 → SSO로만 접속. 관리자가 비밀번호 초기화 시 자체 로그인도 가능.
 
 ### 6.4 부서 자동 생성
 
-SSO 토큰의 dept_code가 MUREUM에 없으면 **자동 생성**한다.
+SSO 토큰의 `dept_code`가 있으나 MUREUM에 없으면 **자동 생성**한다.
+`dept_code`가 없으면 `dept_id=NULL`로 처리 (부서 미지정).
 
 ```python
-def _resolve_or_create_dept(self, tenant_id: int, sso_data: dict) -> int:
+def _resolve_or_create_dept(self, tenant_id: int, dept_code: str, dept_name: str = None) -> int:
     """부서 조회 — 없으면 생성"""
-    dept_code = sso_data["dept_code"]
-    dept_name = sso_data["dept_name"]
-
     with db_manager.get_cursor() as cur:
         cur.execute(
             "SELECT dept_id FROM tb_department WHERE tenant_id = %s AND dept_code = %s",
@@ -652,65 +730,36 @@ def _resolve_or_create_dept(self, tenant_id: int, sso_data: dict) -> int:
         return row["dept_id"]
 
     # 없으면 최상위(depth=0) 부서로 생성
-    # 부서 계층은 배치 동기화 또는 Admin UI에서 정리
     with db_manager.get_cursor(commit=True) as cur:
         cur.execute(
             "INSERT INTO tb_department (tenant_id, dept_code, dept_name, depth, sort_order) "
             "VALUES (%s, %s, %s, 0, 0) RETURNING dept_id",
-            (tenant_id, dept_code, dept_name)
+            (tenant_id, dept_code, dept_name or dept_code)
         )
         return cur.fetchone()["dept_id"]
 ```
 
 > 자동 생성된 부서는 `depth=0` (최상위)로 생성된다.
-> 부서 계층(parent_dept_id, depth)은 **배치 동기화** 또는 **Admin UI**에서 정리한다.
+> 부서 계층(parent_dept_id, depth)은 **Admin UI**에서 정리한다.
 
-### 6.5 role 자동 매핑
+### 6.5 역할 정책
 
-메인 시스템의 position(직급)을 MUREUM role_code로 변환한다.
-기존 `tb_code` 테이블을 활용하여 신규 테이블 없이 처리한다.
-
-```sql
--- 기존 코드 관리 테이블(tb_code) 활용
--- 카테고리 행 (code_group=code_value, parent=NULL → 그룹 헤더)
-INSERT INTO tb_code (code_group, code_value, code_name, description, sort_order, is_active, is_system)
-VALUES ('SSO_ROLE_MAP', 'SSO_ROLE_MAP', 'SSO 직급-역할 매핑',
-        'SSO position → MUREUM role_code 매핑', 0, true, true);
-
--- 직급별 매핑 (code_value=직급, code_name=role_code, parent=SSO_ROLE_MAP)
-INSERT INTO tb_code (code_group, code_value, code_name, parent, sort_order, is_active, is_system) VALUES
-('SSO_ROLE_MAP', '총괄',       'GLOBAL', 'SSO_ROLE_MAP', 1, true, true),
-('SSO_ROLE_MAP', '테넌트관리자', 'TENANT', 'SSO_ROLE_MAP', 2, true, true),
-('SSO_ROLE_MAP', '본부장',     'DEPT',   'SSO_ROLE_MAP', 3, true, true),
-('SSO_ROLE_MAP', '부서장',     'DEPT',   'SSO_ROLE_MAP', 4, true, true),
-('SSO_ROLE_MAP', '팀장',       'DEPT',   'SSO_ROLE_MAP', 5, true, true),
-('SSO_ROLE_MAP', '파트장',     'DEPT',   'SSO_ROLE_MAP', 6, true, true),
-('SSO_ROLE_MAP', 'DEFAULT',    'USER',   'SSO_ROLE_MAP', 99, true, true);
-```
-
-> 직급 추가 시 `tb_code`에 행만 INSERT하면 됨 (코드 변경 불필요).
-> Admin UI의 코드 관리 화면(CodesView.vue)에서도 추가 가능.
+모든 SSO 자동 생성 사용자는 **USER 역할 고정**. 관리자(GLOBAL/TENANT/DEPT)는 시스템에서 직접 등록한다.
 
 ```python
-def _resolve_role(self, position: str) -> int:
-    """메인 시스템 직급 → MUREUM role_id 매핑 (tb_code 활용)"""
-    role_code = "USER"  # 기본값
-    if position:
-        with db_manager.get_cursor() as cur:
-            cur.execute(
-                "SELECT code_name FROM tb_code "
-                "WHERE code_group = 'SSO_ROLE_MAP' AND code_value = %s "
-                "AND is_active = true",
-                (position,)
-            )
-            row = cur.fetchone()
-            if row:
-                role_code = row["code_name"]
-
+def _get_default_role_id(self) -> int:
+    """SSO 기본 역할(USER) ID 조회"""
+    role_code = settings.sso_default_role  # 기본값: "USER"
     with db_manager.get_cursor() as cur:
         cur.execute("SELECT role_id FROM tb_role WHERE role_code = %s", (role_code,))
-        return cur.fetchone()["role_id"]
+        row = cur.fetchone()
+        if not row:
+            raise APIException(ErrorCode.NOT_FOUND, f"기본 역할 '{role_code}'을 찾을 수 없습니다")
+        return row["role_id"]
 ```
+
+> SSO 토큰에 `position`(직급) 필드를 포함하지 않는다. 역할은 항상 `sso_default_role` 설정값(기본: USER)을 사용한다.
+> 보안상 SSO로 관리자 권한을 자동 부여하지 않는다. 필요 시 Admin UI에서 역할을 변경한다.
 
 ### 6.6 SSO 설정
 
@@ -721,8 +770,8 @@ SSO_PUBLIC_KEY_PATH=keys/sso_public.pem        # RS256 공개키 경로
 SSO_ALGORITHM=RS256                            # 서명 알고리즘 (RS256 고정)
 SSO_ALLOWED_ISSUERS=hr-system                  # 허용 발급자 (콤마 구분)
 SSO_TOKEN_MAX_AGE=300                          # SSO 토큰 최대 유효시간 (초, 기본 5분)
-SSO_DEFAULT_ROLE=USER                          # 매핑 실패 시 기본 역할
-SSO_AUTO_CREATE_USER=false                     # 사용자 자동 생성 여부 (Phase 5)
+SSO_DEFAULT_ROLE=USER                          # SSO 자동 생성 사용자 역할 (USER 고정 권장)
+SSO_AUTO_CREATE_USER=true                      # 사용자 자동 생성 (JIT Provisioning)
 SSO_FRONTEND_URL=                              # SSO 리다이렉트 프론트엔드 URL (빈 값이면 상대경로 /sso)
 ```
 
@@ -746,8 +795,8 @@ class Settings(BaseSettings):
     sso_algorithm: str = Field(default="RS256", description="SSO 토큰 알고리즘")
     sso_allowed_issuers: str = Field(default="hr-system", description="허용된 SSO 발급자 (쉼표 구분)")
     sso_token_max_age: int = Field(default=300, description="SSO 토큰 최대 유효 시간(초)")
-    sso_default_role: str = Field(default="USER", description="SSO 사용자 기본 역할 코드")
-    sso_auto_create_user: bool = Field(default=False, description="SSO 사용자 자동 생성 여부 (Phase 5)")
+    sso_default_role: str = Field(default="USER", description="SSO 자동 생성 사용자 역할 (USER 고정 권장)")
+    sso_auto_create_user: bool = Field(default=True, description="SSO 사용자 자동 생성 (JIT Provisioning)")
     sso_frontend_url: str = Field(default="", description="SSO 리다이렉트 프론트엔드 URL (빈 값이면 상대경로)")
 ```
 
@@ -817,7 +866,11 @@ Set-Cookie: sso_auth=eyJhdCI6ImV5Si4uLiIsInJ0IjoiZXlKLi4uIn0; Max-Age=60; Path=/
 | 토큰 만료 | 401 | SSO_TOKEN_EXPIRED | SSO 토큰이 만료되었습니다 |
 | issuer 미허용 | 401 | SSO_INVALID_TOKEN | 허용되지 않은 SSO 발급자 |
 | 최대 유효시간 초과 | 401 | SSO_TOKEN_EXPIRED | SSO 토큰이 최대 유효 시간을 초과했습니다 |
-| 사용자 미등록 | 404 | SSO_USER_NOT_FOUND | SSO 사용자를 찾을 수 없습니다 |
+| 사용자 미등록 (자동생성 off) | 404 | SSO_USER_NOT_FOUND | SSO 사용자를 찾을 수 없습니다 |
+| 자동등록 시 email 누락 | 401 | SSO_INVALID_TOKEN | 자동 등록에 email이 필요합니다 |
+| 자동등록 시 tenant_code 누락 | 401 | SSO_INVALID_TOKEN | 자동 등록에 tenant_code가 필요합니다 |
+| 자동등록 시 테넌트 미존재 | 401 | SSO_INVALID_TOKEN | 유효하지 않은 테넌트 코드 |
+| 자동등록 시 email 중복 | 401 | SSO_INVALID_TOKEN | 이미 사용 중인 이메일 |
 | 사용자 비활성 | 401 | UNAUTHORIZED | 비활성화된 계정입니다 |
 
 ### 6.8 RS256 토큰 검증 모듈 (구현 완료)
@@ -884,16 +937,16 @@ class SSOTokenPayload(BaseModel):
     """메인 시스템이 발급한 SSO JWT의 payload"""
     sub: str                                    # 사용자 식별자 → login_id 매핑
     name: str                                   # 이름
-    email: Optional[str] = None                 # 이메일
-    tenant_code: Optional[str] = None           # 테넌트 코드 (Phase 5 JIT)
-    dept_code: Optional[str] = None             # 부서 코드 (Phase 5 JIT)
-    dept_name: Optional[str] = None             # 부서명 (Phase 5 JIT)
-    position: Optional[str] = None              # 직급/직책 (Phase 5 역할 매핑)
+    email: Optional[str] = None                 # 이메일 (JIT 자동 생성 시 필수)
+    tenant_code: Optional[str] = None           # 테넌트 코드 (JIT 자동 생성 시 필수)
+    dept_code: Optional[str] = None             # 부서 코드 (JIT 시 부서 매핑, 없으면 NULL)
+    dept_name: Optional[str] = None             # 부서명 (JIT 시 부서 자동 생성에 사용)
     iss: str                                    # 발급 시스템 식별자
     exp: int                                    # 만료 시간 (Unix timestamp)
 ```
 
-> **Phase 4 현재**: `sub`, `name`, `iss`, `exp`만 필수. 나머지는 Optional로 Phase 5 JIT에서 활용.
+> **기존 사용자 로그인**: `sub`, `name`, `iss`, `exp`만 필수. login_id로 매칭.
+> **JIT 자동 생성**: `email`, `tenant_code`가 추가 필수. 없으면 자동 생성 불가 → 에러.
 > **POST /sso-redirect는 `Form(token=...)`**: `SSOLoginRequest` 모델이 아닌 FastAPI `Form` 파라미터로 수신.
 
 ### 6.10 변경 감지 항목
@@ -903,9 +956,10 @@ SSO 로그인 시 기존 사용자의 정보 변경을 자동 감지하여 업�
 | 항목 | SSO 필드 | tb_user 컬럼 | 변경 시 동작 |
 |------|----------|-------------|------------|
 | 이름 | name | display_name | UPDATE |
-| 이메일 | email | email | UPDATE |
-| 부서 | dept_code | dept_id | 부서 조회/생성 후 UPDATE |
-| 직급 | position | role_id | role 매핑 후 UPDATE |
+| 이메일 | email | email | UPDATE (email이 있을 때만) |
+
+> **역할/부서 변경**: SSO에서 자동 변경하지 않음. 관리자가 Admin UI에서 직접 변경한다.
+> **이유**: 역할 변경은 권한 상승 위험이 있고, 부서 이동은 관리자 확인이 필요하므로 자동화하지 않는다.
 
 ---
 
@@ -1083,14 +1137,15 @@ frontend/src/
 tests/
   ├── test_04_roles.py         # 변경: TestRoleScopeLevel 클래스 추가 (7개 테스트)  ✅
   ├── test_11_departments.py   # ★ 신규: 부서 CRUD 통합 테스트  ✅
-  └── test_12_sso.py           # ★ 신규: SSO 통합 테스트 (8개)
-                               #   test_sso_login_new_user       — 신규 사용자 JIT 생성
-                               #   test_sso_login_existing_user  — 기존 사용자 + 변경 감지
+  └── test_12_sso.py           # ★ 신규: SSO 통합 테스트 (9개)
+                               #   test_sso_login_existing_user  — 기존 사용자 SSO 로그인
+                               #   test_sso_login_new_user       — 신규 사용자 JIT 자동 생성 (USER 역할)
+                               #   test_sso_auto_create_default_menus — 자동 생성 시 기본 메뉴 할당
+                               #   test_sso_change_detection     — 기존 사용자 정보 변경 감지
+                               #   test_sso_missing_email        — email 누락 → 자동 생성 실패
+                               #   test_sso_missing_tenant_code  — tenant_code 누락 → 자동 생성 실패
                                #   test_sso_invalid_token        — 잘못된 토큰 → 401
-                               #   test_sso_expired_token        — 만료 토큰 → 401
-                               #   test_sso_invalid_issuer       — 미허용 issuer → 401
                                #   test_sso_dept_auto_create     — 부서 자동 생성
-                               #   test_sso_role_mapping         — 직급→역할 매핑
                                #   test_sso_disabled             — SSO 비활성 시 403
 ```
 
@@ -1144,11 +1199,27 @@ tests/
 > - 8-6: `POST /sso-redirect` 추가 (Hidden Form → Cookie → 302). 기존 `POST /sso`는 API 직접 호출용으로 유지.
 > - 8-10: 독립 HTML SSO 테스트 시뮬레이터 추가 (jose CDN, HTTP 전문 미리보기).
 
-### Phase 5 (배치 동기화 — 미착수)
+### Phase 5 (SSO JIT 사용자 자동 생성 — 설계 완료)
 
 | 순서 | 작업 | 의존성 | 상태 |
 |:---:|------|--------|:---:|
-| 9 | 배치 동기화 스크립트 (부서/사용자/퇴직자) | Phase 4 | - |
+| 9-1 | `sso_auto_create_user` 기본값 True로 변경 (`app/config.py`) | 없음 | - |
+| 9-2 | `auth_service.py`에 `find_or_create_sso_user()` 구현 | 9-1 | - |
+| 9-3 | `auth_service.py`에 `_resolve_tenant()`, `_resolve_or_create_dept()`, `_get_default_role_id()` 구현 | 9-2 | - |
+| 9-4 | `auth_service.py`에 `_create_sso_user()`, `_assign_default_menus()` 구현 | 9-3 | - |
+| 9-5 | `auth_service.py`에 `_detect_sso_changes()`, `_update_sso_fields()` 구현 | 9-2 | - |
+| 9-6 | SSO 라우트(`auth.py`)에서 `find_or_create_sso_user()` 호출로 변경 | 9-4 | - |
+| 9-7 | SSO 테스트 시뮬레이터에 email/tenant_code 필드 추가 | 9-6 | - |
+| 9-8 | SSO 통합 테스트 (`test_12_sso.py`) | 9-6 | - |
+
+> **정책**: 모든 SSO 자동 생성 사용자는 USER 역할 고정. 관리자는 시스템에서 직접 등록.
+> **SSO_ROLE_MAP**: 현재 미사용 (향후 확장 대비로 유지).
+
+### Phase 6 (배치 동기화 — 미착수)
+
+| 순서 | 작업 | 의존성 | 상태 |
+|:---:|------|--------|:---:|
+| 10 | 배치 동기화 스크립트 (부서/사용자/퇴직자) | Phase 5 | - |
 
 ---
 
@@ -1162,8 +1233,9 @@ tests/
 | SSO 토큰 전달 방식 | **Hidden Form POST + Cookie Base64URL** | URL에 토큰 미노출, OAuth 2.1 Implicit Flow 폐지 방향 부합, 엔터프라이즈 표준 패턴 |
 | Cookie 인코딩 | **Base64URL (RFC 4648 §5)** | `A-Za-z0-9-_` 문자만 사용 → Starlette 쿠키 자동 인용 회피, 패딩(`=`) 제거 |
 | 사용자 정보 전달 | **/me API 패턴** | 쿠키에는 토큰만(at+rt), 사용자 정보는 `/me` API로 별도 조회 → 쿠키 크기 제한 회피 |
-| position 매핑 주체 | **MUREUM에서 매핑 (Phase 5)** | `tb_code` SSO_ROLE_MAP 활용, Admin UI에서 운영 중 추가 가능 |
-| 부서 계층 동기화 | **JIT flat 생성 + 배치 정리 (Phase 5)** | JIT 시 depth=0으로 생성, 계층은 Admin UI 또는 배치에서 정리 |
+| SSO 사용자 역할 | **USER 고정** | 모든 SSO 자동 생성 사용자는 일반사용자(USER). 관리자는 시스템에서 직접 등록 |
+| position 매핑 | **미사용 (향후 확장 대비)** | SSO_ROLE_MAP 데이터는 유지하나 현재 역할 매핑에 사용하지 않음 |
+| 부서 계층 동기화 | **JIT flat 생성 + Admin UI 정리** | JIT 시 depth=0으로 생성, 계층은 Admin UI에서 정리 |
 | 자체 계정 + SSO 병행 | **병행 (SSO_ENABLED 플래그)** | 개발/테스트 환경은 자체 로그인, 운영은 SSO 활성화 |
 | SSO 테스트 도구 | **독립 HTML 페이지** | Vue 앱과 완전 분리, 별도 포트(19081)에서 jose CDN 사용, HTTP 전문 미리보기 제공 |
 

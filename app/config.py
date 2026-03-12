@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     sso_allowed_issuers: str = Field(default="hr-system", description="허용된 SSO 발급자 (쉼표 구분)")
     sso_token_max_age: int = Field(default=300, description="SSO 토큰 최대 유효 시간(초)")
     sso_default_role: str = Field(default="USER", description="SSO 사용자 기본 역할 코드")
-    sso_auto_create_user: bool = Field(default=False, description="SSO 사용자 자동 생성 여부 (Phase 5)")
+    sso_auto_create_user: bool = Field(default=True, description="SSO 사용자 자동 생성 여부 (JIT Provisioning)")
     sso_frontend_url: str = Field(default="", description="SSO 리다이렉트 프론트엔드 URL (빈 값이면 상대경로)")
 
     # LangSmith (Optional)

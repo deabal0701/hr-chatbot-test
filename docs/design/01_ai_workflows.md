@@ -11,7 +11,7 @@ LangGraph 기반 3개의 독립적인 AI 워크플로우를 운영한다.
 ### 1.1 개요
 
 사용자 질문에 대해 LLM이 **자율적으로 도구를 선택**하여 반복 추론(Think→Action→Observe)하는 패턴.
-복합 질문("2024년 입사자 수는 몇 명이고 재택근무 정책은?")을 SQL 도구 + RAG 도구 조합으로 처리한다.
+복합 질문("2026년 입사자 수는 몇 명이고 재택근무 정책은?")을 SQL 도구 + RAG 도구 조합으로 처리한다.
 
 - **파일**: `app/graphs/agent/graph.py` (InsightAgentGraph)
 - **멀티턴**: BoundedInMemorySaver 체크포인팅 (TTL 24h, max 1000세션)

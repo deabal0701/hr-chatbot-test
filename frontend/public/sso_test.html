@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SSO 테스트 시뮬레이터</title>
+  <title>SSO 테스트</title>
   <style>
     :root {
       --primary: #409eff;
@@ -15,6 +15,9 @@
       --border: #dcdfe6;
       --danger: #f56c6c;
       --success: #67c23a;
+      --step-inactive: #c0c4cc;
+      --step-active: #409eff;
+      --step-done: #67c23a;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,43 +38,105 @@
       border-radius: 12px;
       box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
       border: 1px solid var(--border);
-      padding: 32px;
-      width: 560px;
+      padding: 24px 32px;
+      width: 1113px;
       max-width: 95vw;
     }
 
     h1 {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       text-align: center;
     }
 
     .subtitle {
       color: var(--text-secondary);
-      font-size: 13px;
+      font-size: 12px;
       text-align: center;
-      margin-bottom: 24px;
-    }
-
-    .form-group {
       margin-bottom: 16px;
     }
 
-    label {
-      display: block;
+    /* ── 스텝 인디케이터 ── */
+    .steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 20px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: 13px;
       font-weight: 600;
-      margin-bottom: 6px;
+      color: var(--step-inactive);
+    }
+
+    .step-item.active { color: var(--step-active); }
+    .step-item.done { color: var(--step-done); }
+
+    .step-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid var(--step-inactive);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .step-item.active .step-circle {
+      border-color: var(--step-active);
+      background: var(--step-active);
+      color: #fff;
+    }
+
+    .step-item.done .step-circle {
+      border-color: var(--step-done);
+      background: var(--step-done);
+      color: #fff;
+    }
+
+    .step-arrow {
+      margin: 0 12px;
+      color: var(--border);
+      font-size: 16px;
+    }
+
+    /* ── 공통 ── */
+    .form-group { margin-bottom: 10px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
       color: var(--text);
+    }
+
+    label .required { color: var(--danger); margin-left: 2px; }
+    label .optional { color: var(--text-secondary); font-weight: 400; font-size: 11px; margin-left: 4px; }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
     }
 
     input, textarea, select {
       width: 100%;
-      padding: 8px 12px;
+      padding: 6px 10px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      font-size: 14px;
+      font-size: 13px;
       color: var(--text);
       background: var(--card-bg);
       transition: border-color 0.2s;
@@ -88,157 +153,239 @@
       resize: vertical;
     }
 
-    .row {
-      display: flex;
-      gap: 12px;
-    }
+    .row { display: flex; gap: 12px; }
+    .row .form-group { flex: 1; }
 
-    .row .form-group {
-      flex: 1;
-    }
+    .two-col { display: flex; gap: 20px; }
+    .two-col > .col { flex: 1; }
 
     .btn {
       display: inline-block;
-      width: 100%;
-      padding: 10px 20px;
+      padding: 8px 16px;
       border: none;
       border-radius: 6px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: background-color 0.2s;
     }
 
-    .btn-primary {
-      background: var(--primary);
-      color: #fff;
-    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { background: #a0cfff; cursor: not-allowed; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover { background: #5daf34; }
+    .btn-success:disabled { background: #b3e19d; cursor: not-allowed; }
 
-    .btn-primary:hover {
-      background: var(--primary-hover);
-    }
+    .btn-full { width: 100%; }
 
-    .btn-primary:disabled {
-      background: #a0cfff;
-      cursor: not-allowed;
-    }
-
-    .btn-secondary {
-      background: #f0f2f5;
-      color: var(--text);
-      font-size: 13px;
-      padding: 6px 12px;
-      width: auto;
-      margin-top: 8px;
-    }
-
-    .btn-secondary:hover {
-      background: #e4e7ec;
+    .help-text {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
     }
 
     .status {
-      margin-top: 16px;
-      padding: 12px;
+      margin-top: 10px;
+      padding: 8px 12px;
       border-radius: 6px;
-      font-size: 13px;
+      font-size: 12px;
       display: none;
     }
 
-    .status.error {
-      display: block;
-      background: #fef0f0;
-      color: var(--danger);
-      border: 1px solid #fde2e2;
-    }
-
-    .status.success {
-      display: block;
-      background: #f0f9eb;
-      color: var(--success);
-      border: 1px solid #e1f3d8;
-    }
-
-    .status.info {
-      display: block;
-      background: #ecf5ff;
-      color: var(--primary);
-      border: 1px solid #d9ecff;
-    }
+    .status.error { display: block; background: #fef0f0; color: var(--danger); border: 1px solid #fde2e2; }
+    .status.success { display: block; background: #f0f9eb; color: var(--success); border: 1px solid #e1f3d8; }
+    .status.info { display: block; background: #ecf5ff; color: var(--primary); border: 1px solid #d9ecff; }
 
     .divider {
       border: none;
       border-top: 1px solid var(--border);
-      margin: 20px 0;
+      margin: 16px 0;
     }
 
-    .help-text {
+    /* ── 코드 미리보기 ── */
+    .code-preview {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .json-key { color: #9cdcfe; }
+    .json-string { color: #ce9178; }
+    .json-number { color: #b5cea8; }
+    .json-comment { color: #6a9955; }
+
+    /* ── 스텝 영역 ── */
+    .step-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .step-panel.locked {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .step-header .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 4px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-header .step-num.done { background: var(--step-done); }
+
+    .step-header h3 {
+      font-size: 14px;
+      font-weight: 700;
     }
 
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>SSO 테스트 시뮬레이터</h1>
-    <p class="subtitle">외부 메인 시스템에서 MUREUM으로 SSO 로그인하는 과정을 시뮬레이션합니다.</p>
+    <h1>SSO 테스트</h1>
+    <p class="subtitle">외부 메인 시스템에서 win-AI로 SSO 로그인하는 과정을 테스트합니다.</p>
 
-    <!-- Private Key 입력 -->
-    <div class="form-group">
-      <label>RS256 Private Key (PEM)</label>
-      <textarea id="privateKey" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;MIIEv...&#10;-----END PRIVATE KEY-----"></textarea>
-      <!-- <p class="help-text">keys/sso_private.pem 파일 내용을 붙여넣으세요. <button class="btn btn-secondary" onclick="loadSampleKey()">샘플 키 로드</button></p> -->
+    <!-- ── 스텝 인디케이터 ── -->
+    <div class="steps">
+      <div class="step-item active" id="stepInd1"><span class="step-circle">1</span> Payload 규격</div>
+      <span class="step-arrow">→</span>
+      <div class="step-item" id="stepInd2"><span class="step-circle">2</span> JWT 서명</div>
+      <span class="step-arrow">→</span>
+      <div class="step-item" id="stepInd3"><span class="step-circle">3</span> SSO 로그인</div>
     </div>
 
-    <hr class="divider">
+    <div class="two-col">
+      <!-- ═══ 좌측: 입력 영역 ═══ -->
+      <div class="col">
 
-    <!-- 사용자 정보 -->
-    <div class="row">
-      <div class="form-group">
-        <label>Login ID</label>
-        <input type="text" id="loginId" value="admin" placeholder="admin">
+        <!-- STEP 1: Payload 규격 (입력 필드) -->
+        <div class="step-panel" id="step1Panel">
+          <div class="step-header">
+            <span class="step-num" id="step1Num">1</span>
+            <h3>JWT Payload 규격 정의</h3>
+          </div>
+
+          <div class="section-title">필수 클레임 (Required)</div>
+          <div class="row">
+            <div class="form-group">
+              <label>Login ID (sub)<span class="required">*</span></label>
+              <input type="text" id="loginId" value="user01" placeholder="user01">
+            </div>
+            <div class="form-group">
+              <label>Display Name (name)<span class="required">*</span></label>
+              <input type="text" id="displayName" value="관리자" placeholder="관리자">
+            </div>
+            <div class="form-group">
+              <label>Email<span class="required">*</span></label>
+              <input type="email" id="email" value="user01@win.co.kr" placeholder="user01@win.co.kr">
+            </div>
+          </div>
+          <div class="row">
+            <div class="form-group">
+              <label>Company Code<span class="required">*</span></label>
+              <input type="text" id="tenantCode" value="A_TENANT" placeholder="A_TENANT" readonly style="background:#f5f7fa; cursor:not-allowed;">
+            </div>
+            <div class="form-group">
+              <label>Issuer (iss)<span class="required">*</span></label>
+              <input type="text" id="issuer" value="h5-system" placeholder="h5-system">
+            </div>
+            <div class="form-group">
+            </div>
+          </div>
+
+          <div class="section-title" style="margin-top: 4px;">선택 클레임 (Optional)</div>
+          <div class="row">
+            <div class="form-group">
+              <label>Dept Code<span class="optional">(선택)</span></label>
+              <input type="text" id="deptCode" value="" placeholder="DEV_01">
+            </div>
+            <div class="form-group">
+              <label>Dept Name<span class="optional">(선택)</span></label>
+              <input type="text" id="deptName" value="" placeholder="개발1팀">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>서버 URL</label>
+            <input type="text" id="backendUrl" placeholder="http://localhost:19080">
+          </div>
+        </div>
+
+        <!-- STEP 2: JWT 서명 -->
+        <div class="step-panel" id="step2Panel">
+          <div class="step-header">
+            <span class="step-num" id="step2Num">2</span>
+            <h3>JWT 서명 (RS256)</h3>
+          </div>
+          <div class="form-group">
+            <label>RS256 Private Key (PEM)</label>
+            <textarea id="privateKey" rows="4" placeholder="-----BEGIN PRIVATE KEY-----&#10;MIIEv...&#10;-----END PRIVATE KEY-----"></textarea>
+          </div>
+          <button class="btn btn-primary btn-full" id="btnGenerate" onclick="generateToken()">JWT 생성</button>
+        </div>
+
+        <!-- STEP 3: SSO 로그인 전송 -->
+        <div class="step-panel locked" id="step3Panel">
+          <div class="step-header">
+            <span class="step-num" id="step3Num">3</span>
+            <h3>SSO 로그인 전송</h3>
+          </div>
+          <button class="btn btn-success btn-full" id="btnSubmit" onclick="submitSSOLogin()" disabled>SSO 로그인 전송</button>
+        </div>
       </div>
-      <div class="form-group">
-        <label>Display Name</label>
-        <input type="text" id="displayName" value="관리자" placeholder="관리자">
+
+      <!-- ═══ 우측: 미리보기 영역 ═══ -->
+      <div class="col">
+        <!-- Payload JSON 실시간 미리보기 -->
+        <div class="form-group">
+          <label>JWT Payload (실시간 미리보기)</label>
+          <pre class="code-preview" id="payloadPreview" style="min-height: 180px; max-height: 220px; overflow-y: auto;"></pre>
+        </div>
+
+        <!-- 생성된 JWT 토큰 -->
+        <div id="jwtPreview" style="display:none;">
+          <div class="form-group">
+            <label>생성된 JWT Token</label>
+            <pre class="code-preview" id="jwtTokenContent" style="max-height: 80px; overflow-y: auto; color: #dcdcaa;"></pre>
+          </div>
+        </div>
+
+        <!-- HTTP 요청 전문 미리보기 -->
+        <div id="httpPreview" style="display:none;">
+          <div class="form-group">
+            <label>HTTP 요청 전문</label>
+            <pre class="code-preview" id="httpPreviewContent" style="max-height: 160px; overflow-y: auto;"></pre>
+          </div>
+        </div>
+
+        <!-- 상태 메시지 -->
+        <div id="status" class="status"></div>
       </div>
     </div>
-
-    <div class="row">
-      <div class="form-group">
-        <label>Issuer (iss)</label>
-        <input type="text" id="issuer" value="hr-system" placeholder="hr-system">
-      </div>
-      <div class="form-group">
-        <label>Token 유효시간 (초)</label>
-        <input type="number" id="expSeconds" value="300" min="10" max="3600">
-      </div>
-    </div>
-
-    <hr class="divider">
-
-    <!-- 전송 대상 -->
-    <div class="form-group">
-      <label>MUREUM Backend URL</label>
-      <input type="text" id="backendUrl" placeholder="http://localhost:19090">
-      <p class="help-text">POST /api/v1/auth/sso-redirect 로 Hidden Form 전송됩니다.</p>
-    </div>
-
-    <!-- 버튼 영역 -->
-    <div class="row" style="gap: 8px;">
-      <button class="btn btn-primary" id="btnGenerate" onclick="generateToken()" style="flex:1;">JWT 생성 (미리보기)</button>
-      <button class="btn btn-primary" id="btnSubmit" onclick="submitSSOLogin()" disabled style="flex:1; background:#a0cfff;">SSO 로그인 전송</button>
-    </div>
-
-    <!-- HTTP 전문 미리보기 -->
-    <div id="httpPreview" style="display:none; margin-top:16px;">
-      <label>HTTP 요청 전문</label>
-      <pre id="httpPreviewContent" style="background:#1e1e1e; color:#d4d4d4; padding:14px; border-radius:6px; font-size:12px; font-family:'Consolas','Monaco',monospace; overflow-x:auto; white-space:pre-wrap; word-break:break-all; max-height:300px; overflow-y:auto; line-height:1.5;"></pre>
-    </div>
-
-    <!-- 상태 메시지 -->
-    <div id="status" class="status"></div>
   </div>
 
   <!-- Hidden Form (동적 생성) -->
@@ -260,11 +407,58 @@
     }
 
     /**
-     * 1단계: JWT 생성 + HTTP 요청 전문 미리보기
+     * Payload JSON 미리보기 갱신 (실시간)
+     */
+    function updatePayloadPreview() {
+      var loginId = document.getElementById('loginId').value.trim()
+      var displayName = document.getElementById('displayName').value.trim()
+      var email = document.getElementById('email').value.trim()
+      var tenantCode = document.getElementById('tenantCode').value.trim()
+      var issuer = document.getElementById('issuer').value.trim()
+      var deptCode = document.getElementById('deptCode').value.trim()
+      var deptName = document.getElementById('deptName').value.trim()
+
+      var now = Math.floor(Date.now() / 1000)
+
+      // 구조화된 payload 객체
+      var lines = []
+      lines.push('{')
+      lines.push('  <span class="json-comment">// ── 필수 (Required) ──</span>')
+      lines.push('  <span class="json-key">"sub"</span>: <span class="json-string">"' + escapeHtml(loginId || 'user01') + '"</span>,')
+      lines.push('  <span class="json-key">"name"</span>: <span class="json-string">"' + escapeHtml(displayName || '관리자') + '"</span>,')
+      lines.push('  <span class="json-key">"email"</span>: <span class="json-string">"' + escapeHtml(email || 'user@example.com') + '"</span>,')
+      lines.push('  <span class="json-key">"tenant_code"</span>: <span class="json-string">"' + escapeHtml(tenantCode || 'A_TENANT') + '"</span>,')
+      lines.push('  <span class="json-key">"iss"</span>: <span class="json-string">"' + escapeHtml(issuer || 'h5-system') + '"</span>,')
+      lines.push('  <span class="json-key">"iat"</span>: <span class="json-number">' + now + '</span>')
+
+      // 선택 필드 — 값이 있을 때만 표시
+      var optionalLines = []
+      if (deptCode) optionalLines.push('  <span class="json-key">"dept_code"</span>: <span class="json-string">"' + escapeHtml(deptCode) + '"</span>')
+      if (deptName) optionalLines.push('  <span class="json-key">"dept_name"</span>: <span class="json-string">"' + escapeHtml(deptName) + '"</span>')
+
+      if (optionalLines.length > 0) {
+        // iat 줄 끝에 comma 추가
+        lines[lines.length - 1] += ','
+        lines.push('  <span class="json-comment">// ── 선택 (Optional) ──</span>')
+        for (var i = 0; i < optionalLines.length; i++) {
+          lines.push(optionalLines[i] + (i < optionalLines.length - 1 ? ',' : ''))
+        }
+      }
+
+      lines.push('}')
+
+      document.getElementById('payloadPreview').innerHTML = lines.join('\n')
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    }
+
+    /**
+     * STEP 2: JWT 생성
      */
     async function generateToken() {
       var btnGenerate = document.getElementById('btnGenerate')
-      var btnSubmit = document.getElementById('btnSubmit')
 
       hideStatus()
 
@@ -272,44 +466,53 @@
       var privateKeyPem = document.getElementById('privateKey').value.trim()
       var loginId = document.getElementById('loginId').value.trim()
       var displayName = document.getElementById('displayName').value.trim()
+      var email = document.getElementById('email').value.trim()
+      var tenantCode = document.getElementById('tenantCode').value.trim()
+      var deptCode = document.getElementById('deptCode').value.trim()
+      var deptName = document.getElementById('deptName').value.trim()
       var issuer = document.getElementById('issuer').value.trim()
-      var expSeconds = parseInt(document.getElementById('expSeconds').value) || 300
       var backendUrl = document.getElementById('backendUrl').value.trim()
 
       // 유효성 검사
       if (!privateKeyPem) { showStatus('error', 'Private Key를 입력해주세요.'); return }
       if (!loginId) { showStatus('error', 'Login ID를 입력해주세요.'); return }
+      if (!displayName) { showStatus('error', 'Display Name을 입력해주세요.'); return }
       if (!backendUrl) { showStatus('error', 'Backend URL을 입력해주세요.'); return }
 
       btnGenerate.disabled = true
       btnGenerate.textContent = 'JWT 생성 중...'
       generatedJwt = null
-      btnSubmit.disabled = true
-      btnSubmit.style.background = '#a0cfff'
+      lockStep3()
 
       try {
-        // jose 라이브러리 동적 로드
         showStatus('info', 'jose 라이브러리 로딩 중...')
         var jose = await loadJose()
 
-        // PEM → CryptoKey 변환
         showStatus('info', 'Private Key 파싱 중...')
         var privateKey = await jose.importPKCS8(privateKeyPem, 'RS256')
 
-        // JWT 생성 (RS256 서명)
         showStatus('info', 'JWT 토큰 생성 중...')
         var now = Math.floor(Date.now() / 1000)
-        var jwt = await new jose.SignJWT({
+        var payload = {
           sub: loginId,
           name: displayName,
           iss: issuer,
-          iat: now,
-          exp: now + expSeconds
-        })
+          iat: now
+        }
+        if (email) payload.email = email
+        if (tenantCode) payload.tenant_code = tenantCode
+        if (deptCode) payload.dept_code = deptCode
+        if (deptName) payload.dept_name = deptName
+
+        var jwt = await new jose.SignJWT(payload)
           .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
           .sign(privateKey)
 
         generatedJwt = jwt
+
+        // JWT 토큰 표시
+        document.getElementById('jwtPreview').style.display = 'block'
+        document.getElementById('jwtTokenContent').textContent = jwt
 
         // HTTP 요청 전문 미리보기 표시
         var url = new URL(backendUrl + '/api/v1/auth/sso-redirect')
@@ -326,21 +529,24 @@
         document.getElementById('httpPreview').style.display = 'block'
         document.getElementById('httpPreviewContent').textContent = httpMessage
 
-        // 전송 버튼 활성화
-        btnSubmit.disabled = false
-        btnSubmit.style.background = ''
-        showStatus('success', 'JWT 생성 완료 (' + jwt.length + ' bytes). HTTP 전문을 확인 후 "SSO 로그인 전송" 버튼을 클릭하세요.')
+        // 스텝 상태 업데이트
+        updateStepIndicator(1, 'done')
+        updateStepIndicator(2, 'done')
+        updateStepIndicator(3, 'active')
+        unlockStep3()
+
+        showStatus('success', 'JWT 생성 완료 (' + jwt.length + ' bytes). Step 3에서 로그인을 전송하세요.')
 
       } catch (err) {
         showStatus('error', '오류: ' + err.message)
       } finally {
         btnGenerate.disabled = false
-        btnGenerate.textContent = 'JWT 생성 (미리보기)'
+        btnGenerate.textContent = 'JWT 생성'
       }
     }
 
     /**
-     * 2단계: Hidden Form POST로 SSO 로그인 전송
+     * STEP 3: Hidden Form POST로 SSO 로그인 전송
      */
     function submitSSOLogin() {
       if (!generatedJwt) {
@@ -354,9 +560,27 @@
       document.getElementById('ssoTokenInput').value = generatedJwt
 
       showStatus('info', 'SSO 로그인 전송 중...')
-
-      // Form 전송 → 브라우저가 302 리다이렉트를 따라감
       form.submit()
+    }
+
+    /* ── 스텝 상태 관리 ── */
+    function updateStepIndicator(stepNum, state) {
+      var el = document.getElementById('stepInd' + stepNum)
+      el.className = 'step-item' + (state === 'active' ? ' active' : state === 'done' ? ' done' : '')
+
+      var numEl = document.getElementById('step' + stepNum + 'Num')
+      numEl.className = 'step-num' + (state === 'done' ? ' done' : '')
+      numEl.textContent = state === 'done' ? '✓' : stepNum
+    }
+
+    function lockStep3() {
+      document.getElementById('step3Panel').classList.add('locked')
+      document.getElementById('btnSubmit').disabled = true
+    }
+
+    function unlockStep3() {
+      document.getElementById('step3Panel').classList.remove('locked')
+      document.getElementById('btnSubmit').disabled = false
     }
 
     function showStatus(type, message) {
@@ -372,33 +596,35 @@
       statusEl.style.display = 'none'
     }
 
-    // 입력값 변경 시 전송 버튼 비활성화 (JWT 재생성 필요)
+    // 입력값 변경 시 JWT 무효화 (재생성 필요)
     function invalidateToken() {
       generatedJwt = null
-      var btnSubmit = document.getElementById('btnSubmit')
-      btnSubmit.disabled = true
-      btnSubmit.style.background = '#a0cfff'
+      lockStep3()
+      document.getElementById('jwtPreview').style.display = 'none'
       document.getElementById('httpPreview').style.display = 'none'
+
+      // 스텝 인디케이터 초기화
+      updateStepIndicator(1, 'active')
+      updateStepIndicator(2, '')
+      updateStepIndicator(3, '')
+
       hideStatus()
+      updatePayloadPreview()
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-      // 같은 origin에서 서빙되므로 Backend URL 자동 설정
+      // Backend URL 자동 설정
       document.getElementById('backendUrl').value = location.origin
 
-      var fields = ['privateKey', 'loginId', 'displayName', 'issuer', 'expSeconds', 'backendUrl']
+      // 모든 입력 필드에 change listener 등록
+      var fields = ['privateKey', 'loginId', 'displayName', 'email', 'tenantCode', 'deptCode', 'deptName', 'issuer', 'backendUrl']
       fields.forEach(function (id) {
         document.getElementById(id).addEventListener('input', invalidateToken)
       })
-    })
 
-    function loadSampleKey() {
-      showStatus('info',
-        '터미널에서 다음 명령으로 키를 생성하세요:\n' +
-        'python scripts/generate_sso_keys.py\n\n' +
-        '그 후 keys/sso_private.pem 파일 내용을 복사하여 붙여넣으세요.'
-      )
-    }
+      // 초기 payload 미리보기
+      updatePayloadPreview()
+    })
   </script>
 </body>
 </html>

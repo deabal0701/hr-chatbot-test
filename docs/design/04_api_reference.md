@@ -42,9 +42,11 @@
 | GET | /me | 현재 사용자 정보 + 메뉴 | O | - |
 | PUT | /me/password | 비밀번호 변경 | O | JSON |
 
-> **SSO 상세**: `11_department_sso_design.md` 섹션 6.7 참조
+> **SSO 상세**: `11_department_sso_design.md` 섹션 6 참조
 > - `/sso`: `{"sso_token": "eyJ..."}` → `{access_token, refresh_token, ...}` JSON 응답
 > - `/sso-redirect`: `token=eyJ...` (Form) → `Set-Cookie: sso_auth` + `302 → /sso` 리다이렉트
+> - **JIT 자동 생성**: 미등록 사용자는 USER 역할로 자동 생성 후 로그인 (`sso_auto_create_user=true`)
+> - **필수 클레임**: sub, name, iss, exp (기존 사용자), + email, tenant_code (JIT 생성 시)
 
 ---
 
@@ -286,9 +288,9 @@
 |------|------|------|
 | SSO_NOT_CONFIGURED | 500 | SSO 미설정 |
 | SSO_DISABLED | 403 | SSO 비활성 |
-| SSO_INVALID_TOKEN | 401 | SSO 토큰 유효하지 않음 |
+| SSO_INVALID_TOKEN | 401 | SSO 토큰 유효하지 않음, 자동등록 필수정보 누락(email/tenant_code) |
 | SSO_TOKEN_EXPIRED | 401 | SSO 토큰 만료 |
-| SSO_USER_NOT_FOUND | 404 | SSO 사용자 미등록 |
+| SSO_USER_NOT_FOUND | 404 | SSO 사용자 미등록 (sso_auto_create_user=false일 때) |
 
 ### 서버 에러 (5xx)
 

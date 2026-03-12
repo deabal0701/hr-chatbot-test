@@ -264,11 +264,23 @@ register_exception_handlers(app)
 
 if __name__ == "__main__":
     import uvicorn
+    import socket
 
-    uvicorn.run(
+    # Windows 좀비 소켓 방지: SO_REUSEADDR 설정으로 TIME_WAIT 상태의 포트 재사용 허용
+    config = uvicorn.Config(
         "app.main:app",
         host=settings.app_host,
         port=settings.app_port,
         reload=settings.is_development,
         log_level=settings.log_level.lower()
     )
+
+    # socket 옵션 패치: SO_REUSEADDR 활성화
+    _original_bind = socket.socket.bind
+    def _reuse_bind(self, address):
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return _original_bind(self, address)
+    socket.socket.bind = _reuse_bind
+
+    server = uvicorn.Server(config)
+    server.run()

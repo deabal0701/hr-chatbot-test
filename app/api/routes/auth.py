@@ -72,9 +72,9 @@ async def sso_redirect(request: Request, token: str = Form(...)):
         return response
     except Exception as e:
         error_code = str(getattr(e, "error_code", "SSO_ERROR"))
-        error_msg = getattr(e, "message", str(e))
-        error_url = f"{base_url}?{urlencode({'error': error_code, 'message': error_msg})}"
-        log_step(logger, request_id, "SSO", "4", "ERROR", f"SSO 인증 실패 → 에러 리다이렉트", error=error_code)
+        error_detail = getattr(e, "message", str(e))
+        log_step(logger, request_id, "SSO", "4", "ERROR", f"SSO 인증 실패 → 에러 리다이렉트", error=error_code, detail=error_detail)
+        error_url = f"{base_url}?{urlencode({'error': error_code, 'message': 'SSO 로그인에 실패했습니다. 관리자에게 문의하세요.'})}"
         return RedirectResponse(url=error_url, status_code=302)
 
 

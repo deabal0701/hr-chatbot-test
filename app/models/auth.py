@@ -223,4 +223,4 @@ class SSOTokenPayload(BaseModel):
     dept_name: Optional[str] = Field(None, description="부서명")
     position: Optional[str] = Field(None, description="직위/직급")
     iss: str = Field(..., description="토큰 발급자")
-    exp: int = Field(..., description="만료 시간 (Unix timestamp)")
+    iat: int = Field(..., description="발급 시간 (Unix timestamp)")

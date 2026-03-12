@@ -48,12 +48,13 @@ def verify_sso_token(token: str) -> SSOTokenPayload:
 
     검증 항목:
     1. RS256 서명 검증 (공개키)
-    2. 만료 시간 (exp) 검증
-    3. 발급자 (iss) 허용 목록 검증
-    4. 토큰 최대 유효 시간 검증 (sso_token_max_age)
+    2. 발급자 (iss) 허용 목록 검증
+    3. 토큰 최대 유효 시간 검증 (iat + sso_token_max_age)
     """
     if _sso_public_key is None:
         raise APIException(ErrorCode.SSO_NOT_CONFIGURED, "SSO가 설정되지 않았습니다. 공개키를 확인해주세요.")
+
+    logger.debug(f"[SSO] 토큰 검증 시작 | algorithm={settings.sso_algorithm}, token_length={len(token)}")
 
     # 1. JWT 디코딩 + 서명 검증
     try:
@@ -61,27 +62,34 @@ def verify_sso_token(token: str) -> SSOTokenPayload:
             token,
             _sso_public_key,
             algorithms=[settings.sso_algorithm],
-            options={"require": ["sub", "name", "iss", "exp"]},
+            options={"require": ["sub", "name", "iss", "iat"], "verify_exp": False},
         )
-    except jwt.ExpiredSignatureError:
-        raise APIException(ErrorCode.SSO_TOKEN_EXPIRED, "SSO 토큰이 만료되었습니다")
+        logger.debug(f"[SSO] 서명 검증 통과 | sub={payload.get('sub')}, iss={payload.get('iss')}, iat={payload.get('iat')}")
     except jwt.InvalidSignatureError:
+        logger.debug("[SSO] 서명 검증 실패 — 공개키와 토큰 서명 불일치")
         raise APIException(ErrorCode.SSO_INVALID_TOKEN, "SSO 토큰 서명이 유효하지 않습니다")
-    except jwt.DecodeError:
+    except jwt.DecodeError as e:
+        logger.debug(f"[SSO] 토큰 디코딩 실패 | error={e}")
         raise APIException(ErrorCode.SSO_INVALID_TOKEN, "SSO 토큰 형식이 올바르지 않습니다")
     except jwt.MissingRequiredClaimError as e:
+        logger.debug(f"[SSO] 필수 클레임 누락 | error={e}")
         raise APIException(ErrorCode.SSO_INVALID_TOKEN, f"SSO 토큰에 필수 클레임이 없습니다: {e}")
     except Exception as e:
+        logger.debug(f"[SSO] 토큰 검증 예외 | type={type(e).__name__}, error={e}")
         raise APIException(ErrorCode.SSO_INVALID_TOKEN, f"SSO 토큰 검증 실패: {e}")
 
     # 2. 발급자 검증
     allowed_issuers = [iss.strip() for iss in settings.sso_allowed_issuers.split(",")]
-    if payload.get("iss") not in allowed_issuers:
-        raise APIException(ErrorCode.SSO_INVALID_TOKEN, f"허용되지 않은 SSO 발급자: {payload.get('iss')}")
+    token_iss = payload.get("iss")
+    if token_iss not in allowed_issuers:
+        logger.debug(f"[SSO] 발급자 불일치 | token_iss={token_iss}, allowed={allowed_issuers}")
+        raise APIException(ErrorCode.SSO_INVALID_TOKEN, f"허용되지 않은 SSO 발급자: {token_iss}")
 
-    # 3. 토큰 최대 유효 시간 검증 (iat 기반, iat 없으면 건너뜀)
-    iat = payload.get("iat")
-    if iat and (time.time() - iat) > settings.sso_token_max_age:
+    # 3. 토큰 최대 유효 시간 검증 (iat 기반)
+    iat = payload["iat"]
+    age = time.time() - iat
+    if age > settings.sso_token_max_age:
+        logger.debug(f"[SSO] 토큰 만료 | iat={iat}, age={age:.1f}s, max_age={settings.sso_token_max_age}s")
         raise APIException(ErrorCode.SSO_TOKEN_EXPIRED, "SSO 토큰이 최대 유효 시간을 초과했습니다")
 
     # 4. 페이로드 파싱
@@ -94,5 +102,5 @@ def verify_sso_token(token: str) -> SSOTokenPayload:
         dept_name=payload.get("dept_name"),
         position=payload.get("position"),
         iss=payload["iss"],
-        exp=payload["exp"],
+        iat=payload["iat"],
     )
