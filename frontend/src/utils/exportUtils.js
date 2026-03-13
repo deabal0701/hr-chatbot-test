@@ -102,17 +102,12 @@ function expandForCapture(element) {
 /**
  * DOM 요소를 PNG로 캡처하여 다운로드 (html-to-image)
  * - export-exclude 클래스 요소 제외
- * - 스크롤 영역 전체 캡처 (overflow 임시 확장)
+ * - expandForCapture 미사용: height 조작 시 ECharts autoresize로 canvas가 blank 됨
  */
 export async function captureElementPng(element, filename) {
   const { toPng } = await import('html-to-image')
-  const restore = expandForCapture(element)
-  try {
-    const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
-    downloadDataUrl(dataUrl, filename)
-  } finally {
-    restore()
-  }
+  const dataUrl = await toPng(element, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter })
+  downloadDataUrl(dataUrl, filename)
 }
 
 /**
