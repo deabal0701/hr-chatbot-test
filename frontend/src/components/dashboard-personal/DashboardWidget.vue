@@ -127,7 +127,8 @@ const handleCapturePng = async () => {
     const filename = `${name}_${formatTimestamp()}.png`
     await captureElementPng(widgetRef.value, filename)
     ElMessage.success('이미지가 저장되었습니다')
-  } catch {
+  } catch (err) {
+    console.error('[DashboardWidget] 이미지 저장 실패:', err)
     ElMessage.error('이미지 저장에 실패했습니다')
   } finally {
     isCapturing.value = false
