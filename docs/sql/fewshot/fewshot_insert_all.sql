@@ -3,7 +3,7 @@
 -- 생성일: 2026-03-18
 -- 대상: hermesdb.tb_docs
 -- 설계문서: docs/sql/fewshot/fewshot_design.md
--- 총 44건 (14개 뷰 커버 + 복합 패턴 7건)
+-- 총 47건 (14개 뷰 커버 + 복합 패턴 10건)
 -- =============================================================
 
 -- ① 기존 few-shot 전건 삭제
@@ -461,7 +461,8 @@ WHERE e.WORK_STATUS = ''재직''
 패턴:
 - EXAM_TYPE: TOEIC, TOEFL, JLPT 등 (시험 종류)
 - LANGUAGE_TYPE: 영어, 일본어, 중국어 등 (어학 종류) — EXAM_TYPE과 다름
-- SCORE: 시험 점수');
+- SCORE: 시험 점수
+- 주의: LANGUAGE_GRADE 컬럼은 존재하지 않음. 평가유형은 EVAL_METHOD 사용');
 
 -- #18 시험종류별 평균 점수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
@@ -869,7 +870,9 @@ ORDER BY avg_net_pay DESC
 - JOIN 키: e.EMP_ID = p.EMP_ID
 - PAYMENT_TYPE_NAME = ''정기급여'': 상여 제외
 - PAY_YEAR_MONTH: YYYYMM 형식 (예: 201804)
-- NET_PAY_AMOUNT: 실지급액');
+- NET_PAY_AMOUNT: 실지급액
+- 주의: PAY_DATE 컬럼은 존재하지 않음. 날짜 필터는 PAY_YEAR_MONTH 사용
+- 주의: EMPLOYEE_ID 컬럼 아닌 EMP_ID로 조인');
 
 -- #33 특정 연월 급여 현황
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
@@ -896,7 +899,8 @@ ORDER BY total_gross DESC
 - PAY_YEAR_MONTH: YYYYMM 형식
 - GROSS_PAY_AMOUNT: 지급합계
 - NET_PAY_AMOUNT: 실지급액
-- PAYMENT_TYPE_NAME: 정기급여, 연차수당, 격려금, 상여');
+- PAYMENT_TYPE_NAME: 정기급여, 연차수당, 격려금, 상여
+- 주의: PAY_DATE 컬럼은 존재하지 않음. 날짜 필터는 PAY_YEAR_MONTH 사용');
 
 -- #34 직원 연간 급여 합계
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
@@ -923,7 +927,8 @@ FETCH FIRST 20 ROWS ONLY
 - PAY_YEAR: 연간 집계 (YYYY 형식)
 - SUM(GROSS_PAY_AMOUNT): 연간 총 지급액
 - SUM(NET_PAY_AMOUNT): 연간 실수령액
-- GROUP BY에 EMP_ID 포함 필수');
+- GROUP BY에 EMP_ID 포함 필수
+- 주의: PAY_DATE 컬럼은 존재하지 않음. 연도 필터는 PAY_YEAR 사용');
 
 
 -- =============================================================
@@ -1197,3 +1202,111 @@ ORDER BY e.DEPARTMENT, e.EMP_NAME
 - NOT EXISTS: 조건에 맞는 레코드가 없는 대상 추출
 - "~하지 않은", "~가 없는", "~를 안 한" 질의에 사용
 - 연도별: TRAINING_YEAR = '':년도''');
+
+
+-- #45 최근 입사자 TOP N 조회
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '최근 입사자 TOP N 조회', 'query_example', 'ko',
+'최근 입사한 직원 5명
+가장 최근에 들어온 사람
+신규 입사자 목록
+최근 채용된 직원
+방금 입사한 사람 누구야
+- ORDER BY HIRE_DATE DESC
+- FETCH FIRST N ROWS ONLY
+- SELECT * 사용 금지',
+'SQL:
+SELECT EMP_ID, EMP_NAME, DEPARTMENT, POSITION, HIRE_DATE, HIRE_TYPE
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직''
+ORDER BY HIRE_DATE DESC
+FETCH FIRST 5 ROWS ONLY
+
+패턴:
+- ORDER BY HIRE_DATE DESC: 최근 입사 순
+- FETCH FIRST N ROWS ONLY: 상위 N건 제한 (Oracle 12c+)
+- 절대 SELECT * 사용 금지 — 필요한 컬럼만 명시
+- N은 사용자 요청에 따라 변경 (5, 10, 20 등)');
+
+-- #46 두 사원 종합 비교표
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '두 사원 종합 비교표 조회', 'query_example', 'ko',
+'사원번호 241번과 242번 비교
+두 직원 전체 정보 비교 표로 보여줘
+두 사람 인사 정보 전부 비교해줘
+사원 A와 사원 B 모든 데이터 나란히 비교
+두 명 비교 표 만들어줘
+사원들 간의 비교 표
+- CROSS JOIN으로 두 사원 나란히 비교
+- UNION ALL로 항목별 행 생성
+- LISTAGG로 1:N 데이터 집약',
+'SQL:
+SELECT ''성명'' AS 구분, e1.EMP_NAME AS "사원A", e2.EMP_NAME AS "사원B"
+FROM v_ai_employee e1, v_ai_employee e2
+WHERE e1.EMP_ID = :사원번호1 AND e2.EMP_ID = :사원번호2
+UNION ALL
+SELECT ''부서'', e1.DEPARTMENT, e2.DEPARTMENT
+FROM v_ai_employee e1, v_ai_employee e2
+WHERE e1.EMP_ID = :사원번호1 AND e2.EMP_ID = :사원번호2
+UNION ALL
+SELECT ''직위'', e1.POSITION, e2.POSITION
+FROM v_ai_employee e1, v_ai_employee e2
+WHERE e1.EMP_ID = :사원번호1 AND e2.EMP_ID = :사원번호2
+UNION ALL
+SELECT ''입사일'', TO_CHAR(e1.HIRE_DATE, ''YYYY-MM-DD''), TO_CHAR(e2.HIRE_DATE, ''YYYY-MM-DD'')
+FROM v_ai_employee e1, v_ai_employee e2
+WHERE e1.EMP_ID = :사원번호1 AND e2.EMP_ID = :사원번호2
+UNION ALL
+SELECT ''근속연수'', NVL(TO_CHAR(e1.CAREER_YEARS), ''-'') || ''년'', NVL(TO_CHAR(e2.CAREER_YEARS), ''-'') || ''년''
+FROM v_ai_employee e1, v_ai_employee e2
+WHERE e1.EMP_ID = :사원번호1 AND e2.EMP_ID = :사원번호2
+UNION ALL
+SELECT ''학력'',
+  (SELECT LISTAGG(SCHOOL_NAME || ''('' || NVL(MAJOR_NAME,''-'') || '')'', '', '') WITHIN GROUP (ORDER BY GRADUATION_DATE)
+   FROM v_ai_scholar WHERE EMP_ID = :사원번호1),
+  (SELECT LISTAGG(SCHOOL_NAME || ''('' || NVL(MAJOR_NAME,''-'') || '')'', '', '') WITHIN GROUP (ORDER BY GRADUATION_DATE)
+   FROM v_ai_scholar WHERE EMP_ID = :사원번호2)
+FROM DUAL
+UNION ALL
+SELECT ''최근급여(실지급액)'',
+  (SELECT TO_CHAR(NET_PAY_AMOUNT, ''FM999,999,999'') || ''원''
+   FROM (SELECT NET_PAY_AMOUNT FROM v_ai_pay_report WHERE EMP_ID = :사원번호1 AND PAYMENT_TYPE_NAME = ''정기급여'' ORDER BY PAY_YEAR_MONTH DESC)
+   WHERE ROWNUM = 1),
+  (SELECT TO_CHAR(NET_PAY_AMOUNT, ''FM999,999,999'') || ''원''
+   FROM (SELECT NET_PAY_AMOUNT FROM v_ai_pay_report WHERE EMP_ID = :사원번호2 AND PAYMENT_TYPE_NAME = ''정기급여'' ORDER BY PAY_YEAR_MONTH DESC)
+   WHERE ROWNUM = 1)
+FROM DUAL
+
+패턴:
+- VARCHAR2 컬럼: 직접 비교 (CROSS JOIN)
+- DATE 컬럼: TO_CHAR(날짜, ''YYYY-MM-DD'')로 변환 필수
+- NUMBER 컬럼: NVL(TO_CHAR(값), ''-'')로 NULL 방어
+- 1:N 데이터 집약: LISTAGG(...) WITHIN GROUP (ORDER BY ...)
+- 1:N 최신 1건: 서브쿼리 ORDER BY + ROWNUM = 1
+- v_ai_pay_report 조인키: EMP_ID (EMPLOYEE_ID 아님)
+- 비교 항목 추가 시: UNION ALL SELECT ''항목명'', ... FROM DUAL 추가');
+
+-- #47 특정 직원 전체 정보 조회
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '특정 직원 전체 정보 조회', 'query_example', 'ko',
+'241번 직원 정보 보여줘
+사원번호 100번 상세 정보
+특정 직원 인사 정보 조회
+직원 한 명 전체 데이터
+홍길동 기본 정보
+- EMP_ID 또는 EMP_NAME으로 검색
+- SELECT * 사용 금지, 주요 컬럼만 선택',
+'SQL:
+SELECT EMP_ID, EMP_NAME, DEPARTMENT, POSITION, GRADE, DUTY,
+       EMP_TYPE, GENDER, HIRE_TYPE,
+       TO_CHAR(HIRE_DATE, ''YYYY-MM-DD'') AS HIRE_DATE,
+       WORK_STATUS, CAREER_YEARS,
+       TO_CHAR(BIRTH_DATE, ''YYYY-MM-DD'') AS BIRTH_DATE
+FROM v_ai_employee
+WHERE EMP_ID = :사원번호
+
+패턴:
+- 절대 SELECT * 사용 금지 — 주요 컬럼만 명시적으로 SELECT
+- DATE 컬럼은 TO_CHAR로 변환하여 가독성 확보
+- 이름 검색: WHERE EMP_NAME LIKE ''%'' || '':이름'' || ''%''
+- 사원번호 검색: WHERE EMP_ID = :사원번호');

@@ -156,7 +156,7 @@ SELECT ...
 | 36 | 부서별 연차 사용률 | 연차 소진률 | JOIN + GROUP BY + CASE WHEN 비율 (0 방어) |
 | 37 | 잔여연차 부족 직원 | 연차 5일 미만 직원 | JOIN + REMAINING_LEAVE_DAYS < N |
 
-### 2.15 복합 패턴 (7건)
+### 2.15 복합 패턴 (10건)
 
 | # | title | 대표 질의 | SQL 핵심 패턴 | 사용 뷰 |
 |---|-------|----------|-------------|---------|
@@ -167,6 +167,9 @@ SELECT ...
 | 42 | 부서별 최고 급여자 조회 | 부서별 급여 1위 | ROW_NUMBER() OVER(PARTITION BY) | employee + pay_report |
 | 43 | 승진이력 없는 장기 근속자 | 5년 이상인데 승진 안 한 직원 | LEFT JOIN + IS NULL | employee + history |
 | 44 | 교육 미이수 재직자 목록 | 올해 교육 안 받은 직원 | NOT EXISTS | employee + training |
+| 45 | 최근 입사자 TOP N 조회 | 최근 입사한 직원 5명 | ORDER BY DESC + FETCH FIRST N (SELECT * 방지) | employee |
+| 46 | 두 사원 종합 비교표 | 241번과 242번 비교 | CROSS JOIN + UNION ALL + LISTAGG + 서브쿼리 | all tables |
+| 47 | 특정 직원 전체 정보 조회 | 241번 직원 정보 | SELECT 주요컬럼 WHERE EMP_ID (SELECT * 방지) | employee |
 
 ---
 
@@ -186,7 +189,8 @@ SELECT ...
 | **ROW_NUMBER() OVER** | #42 | **신규 추가** |
 | **LEFT JOIN + IS NULL** | #43 | **신규 추가** |
 | **NOT EXISTS** | #44 | **신규 추가** |
-| **FETCH FIRST N ROWS** | #12, #42 | **신규 추가** |
+| **FETCH FIRST N ROWS** | #12, #42, #45 | **신규 추가** |
+| **CROSS JOIN + UNION ALL + LISTAGG** | #46 | **신규 추가** (두 사원 비교표) |
 | UNION ALL | #41 | 입사/퇴사 동시 집계 |
 | 서브쿼리 COUNT | #39 | 1:N 요약 리스트 |
 | SUM/AVG 집계 | #18, #25, #28, #32, #33, #34, #36 | 통계 |
@@ -222,7 +226,9 @@ DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_actio
 | ROW_NUMBER() OVER | #42 | 부서별 TOP-N |
 | LEFT JOIN + IS NULL | #43 | 이력 없는 대상 추출 |
 | NOT EXISTS | #44 | 미이수/미보유 대상 추출 |
-| FETCH FIRST N ROWS | #12, #42 | 상위 N건 제한 |
+| FETCH FIRST N ROWS | #12, #42, #45 | 상위 N건 제한 |
+| CROSS JOIN + UNION ALL + LISTAGG | #46 | 두 사원 종합 비교표 |
+| SELECT * 방지 (주요 컬럼만 SELECT) | #45, #47 | history 분석 기반 추가 |
 | v_ai_history 전체 | #29, #30, #31 | 승진/휴직/발령 (기존 미커버) |
 | v_ai_dtm_yy_rest 전체 | #35, #36, #37 | 연차 현황 (기존 미커버) |
 
@@ -260,10 +266,22 @@ FROM ...
 |---------|------|---------|------|
 | P1 | 부서별 남녀 평균 급여 차이 | CASE WHEN + GROUP BY + PIVOT형 | 성별 급여 격차 분석 |
 | P1 | 평가등급별 평균 급여 | 2테이블 + GROUP BY APPR_GRADE | Pay-for-Performance |
-| P2 | 두 사원 종합 비교표 | CROSS JOIN + UNION ALL + LISTAGG | 피벗 비교 |
 | P2 | 부서별 정원 대비 현원 | 서브쿼리 비율 계산 | 인력 과부족 |
-| P3 | 급여 상위 10% 직원 | PERCENTILE / NTILE | 분위수 분석 |
+| P2 | 직급별 급여 중위값/상하위 25% | PERCENTILE_CONT / NTILE | 급여 밴드 분석 |
 | P3 | 전년 대비 입사자 증감 | LAG / 서브쿼리 연도 비교 | 추세 분석 |
+| P3 | 교육기관별 참여 인원 통계 | GROUP BY INSTITUTION_NAME | 교육 투자 분석 |
+
+### 5.3 History 기반 LLM 오류 패턴 (주의사항으로 반영)
+
+> API 이력(tb_api_history) 608건 분석 결과 발견된 반복 오류 패턴.
+> 해당 few-shot의 `패턴:` 섹션에 주의사항으로 추가 반영 완료.
+
+| 오류 패턴 | 발생 건수 | 반영 예제 | 대응 |
+|----------|:---:|---------|------|
+| `PAY_DATE` 환각 (없는 컬럼) | 7건+ | #32, #33, #34 | 패턴에 "PAY_DATE 없음" 명시 |
+| `LANGUAGE_GRADE` 환각 | 1건+ | #17 | 패턴에 "LANGUAGE_GRADE 없음" 명시 |
+| `SELECT *` 남발 | 10건+ | #45, #47 | 주요 컬럼만 SELECT하는 예제 추가 |
+| `EMPLOYEE_ID` 사용 | 3건+ | #32~#34 | EMP_ID로 통일 (수정 완료) |
 
 ---
 
