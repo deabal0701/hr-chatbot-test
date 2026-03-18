@@ -112,6 +112,8 @@ class PromptService:
 - 문자열 비교 시 대소문자 주의 (Oracle은 대소문자 구분)
 - 날짜 형식: TO_DATE('YYYY-MM-DD', 'YYYY-MM-DD')
 - NVL 함수 사용 (COALESCE 대신)
+- 날짜 연산: ADD_MONTHS(SYSDATE, -12)=1년전, ADD_MONTHS(SYSDATE, -60)=5년전 (ADD_YEARS, DATE_SUB 등은 Oracle에 없음)
+- 연도 추출: TO_CHAR(date_col, 'YYYY') 또는 EXTRACT(YEAR FROM date_col) 사용
 - 인원수/사람 수를 셀 때는 반드시 COUNT(DISTINCT EMP_ID)를 사용하세요 (V_AI_EMPLOYEE 등 뷰에 1인당 여러 행이 존재할 수 있음)
 
 # 데이터베이스 스키마

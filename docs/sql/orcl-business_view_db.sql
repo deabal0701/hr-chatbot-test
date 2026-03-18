@@ -1,0 +1,923 @@
+-- ============================================================================
+-- H552_RND V_AI_* Views (Redesigned)
+-- 최종 갱신: 2026-03-18
+-- 목적: NL2SQL 정확도 향상을 위한 뷰 재설계 + COMMENT 개선
+-- 참조: docs/sql/orcl-analysis/01~14 분석 문서
+-- ============================================================================
+
+
+-- ============================================================================
+-- 01. V_AI_EMPLOYEE — 직원 기본정보 (메인 테이블)
+-- 변경: WHERE COMPANY_CD='01' 추가, CAREER_MONTHS/YEARS 계산식 변경
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_EMPLOYEE" (
+    "EMP_ID", "EMP_NAME", "EMP_NAME_ENG", "COMPANY_CODE",
+    "POSITION", "BIRTH_DATE", "DEPARTMENT",
+    "CAREER_MONTHS", "CAREER_YEARS",
+    "DUTY", "DUTY_DATE", "EMP_TYPE", "GENDER",
+    "GROUP_JOIN_DATE", "HIRE_TYPE", "HIRE_DATE",
+    "WORK_STATUS", "GRADE", "GRADE_DATE",
+    "RETIRE_REASON", "RETIRE_DATE",
+    "SALARY_STEP", "SALARY_STEP_DATE"
+) AS
+SELECT
+    PE.EMP_ID                   AS EMP_ID,
+    PN.KOR_NAME                 AS EMP_NAME,
+    PN.ENG_NAME                 AS EMP_NAME_ENG,
+    PE.COMPANY_CD               AS COMPANY_CODE,
+    FC.CD_NM                    AS POSITION,
+    PE.BIRTH_YMD                AS BIRTH_DATE,
+    FC11.CD_NM                  AS DEPARTMENT,
+    TRUNC(MONTHS_BETWEEN(NVL(PE.RETIRE_YMD, SYSDATE), PE.HIRE_YMD))      AS CAREER_MONTHS,
+    TRUNC(MONTHS_BETWEEN(NVL(PE.RETIRE_YMD, SYSDATE), PE.HIRE_YMD) / 12) AS CAREER_YEARS,
+    FC3.CD_NM                   AS DUTY,
+    PE.DUTY_YMD                 AS DUTY_DATE,
+    FC4.CD_NM                   AS EMP_TYPE,
+    FC5.CD_NM                   AS GENDER,
+    PE.GROUP_YMD                AS GROUP_JOIN_DATE,
+    FC6.CD_NM                   AS HIRE_TYPE,
+    PE.HIRE_YMD                 AS HIRE_DATE,
+    CASE PE.IN_OFFI_YN
+        WHEN 'Y' THEN '재직'
+        WHEN 'N' THEN '퇴직'
+        ELSE PE.IN_OFFI_YN
+    END                         AS WORK_STATUS,
+    FC8.CD_NM                   AS GRADE,
+    PE.POS_GRD_YMD              AS GRADE_DATE,
+    FC9.CD_NM                   AS RETIRE_REASON,
+    PE.RETIRE_YMD               AS RETIRE_DATE,
+    FC10.CD_NM                  AS SALARY_STEP,
+    PE.YEARNUM_YMD              AS SALARY_STEP_DATE
+FROM PHM_EMP PE
+LEFT JOIN (
+    SELECT EMP_ID,
+           MAX(CASE WHEN NAME_TYPE_CD = 'KOR' THEN LAST_NM END) AS KOR_NAME,
+           MAX(CASE WHEN NAME_TYPE_CD = 'ENG' THEN LAST_NM END) AS ENG_NAME
+    FROM PHM_NAME
+    GROUP BY EMP_ID
+) PN ON PN.EMP_ID = PE.EMP_ID
+LEFT JOIN FRM_CODE FC   ON FC.CD   = PE.POS_CD         AND FC.CD_KIND   = 'PHM_POS_CD'
+LEFT JOIN FRM_CODE FC3  ON FC3.CD  = PE.DUTY_CD        AND FC3.CD_KIND  = 'PHM_DUTY_CD'
+LEFT JOIN FRM_CODE FC4  ON FC4.CD  = PE.EMP_KIND_CD    AND FC4.CD_KIND  = 'PHM_EMP_KIND_CD'
+LEFT JOIN FRM_CODE FC5  ON FC5.CD  = PE.GENDER_CD      AND FC5.CD_KIND  = 'PHM_GENDER_CD'
+LEFT JOIN FRM_CODE FC6  ON FC6.CD  = PE.HIRE_CD        AND FC6.CD_KIND  = 'CAM_CAU_CD'
+LEFT JOIN FRM_CODE FC8  ON FC8.CD  = PE.POS_GRD_CD     AND FC8.CD_KIND  = 'PHM_POS_GRD_CD'
+LEFT JOIN FRM_CODE FC9  ON FC9.CD  = PE.RETIRE_TYPE_CD  AND FC9.CD_KIND  = 'CAM_CAU_CD'
+LEFT JOIN FRM_CODE FC11 ON FC11.CD = PE.ORG_ID          AND FC11.CD_KIND = 'CPE_GROUP_CD'
+LEFT JOIN FRM_CODE FC10 ON FC10.CD = PE.YEARNUM_CD      AND FC10.CD_KIND = 'PHM_HOBONG'
+WHERE PE.COMPANY_CD = '01';
+
+GRANT SELECT ON "H552_RND"."V_AI_EMPLOYEE" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_EMPLOYEE IS '직원 기본정보 뷰 (메인 테이블, 모든 V_AI_* 뷰와 EMP_ID로 JOIN)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_ID IS '사원 고유 식별 번호 (PK). 모든 V_AI_* 뷰의 조인키';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_NAME IS '사원 이름 (한글)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_NAME_ENG IS '사원 이름 (영문)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.COMPANY_CODE IS '인사영역코드 (01=주소속, WHERE 필터로 01만 노출)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.BIRTH_DATE IS '생년월일';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GENDER IS '성별 (남, 여)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.DEPARTMENT IS '소속 부서명';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.POSITION IS '직위 (회장~사원)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.DUTY IS '직책 (대표이사,팀장,팀원 등)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.DUTY_DATE IS '직책 부여일자';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GRADE IS '직급 (1급~9급)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GRADE_DATE IS '직급 승진일자';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.EMP_TYPE IS '고용형태 (정규직, 기간제)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.HIRE_TYPE IS '입사구분 (신입,경력,재입사 등)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.HIRE_DATE IS '입사일자 (NOT NULL). 근속연수 계산 원천';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.GROUP_JOIN_DATE IS '그룹 입사일자';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.WORK_STATUS IS '재직상태 (재직, 퇴직)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.RETIRE_REASON IS '퇴직사유 (퇴직,정년,사망 등)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.RETIRE_DATE IS '퇴직일자 (재직자는 NULL)';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.CAREER_MONTHS IS '재직 개월수 (재직자=현재-입사일, 퇴직자=퇴직일-입사일). 근속연수 질의 시 사용';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.CAREER_YEARS IS '재직 연수 (CAREER_MONTHS/12 내림). 근속연수 질의 시 사용';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.SALARY_STEP IS '호봉';
+COMMENT ON COLUMN H552_RND.V_AI_EMPLOYEE.SALARY_STEP_DATE IS '호봉 승급일자';
+
+
+-- ============================================================================
+-- 02. V_AI_ADDRESS — 현재 거주지
+-- 변경: WHERE ADDR_TYPE_CD='01' + STA/END_YMD 유효기간 필터 추가
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_ADDRESS" (
+    "EMP_ID", "ADDRESS", "ADDRESS_DETAIL", "ZIP_CODE", "REGION", "MOD_DATE"
+) AS
+SELECT
+    PA.EMP_ID                   AS EMP_ID,
+    PA.ADDR                     AS ADDRESS,
+    PA.DETAIL_ADDR              AS ADDRESS_DETAIL,
+    PA.ZIP_NO                   AS ZIP_CODE,
+    CASE
+        WHEN PA.ADDR LIKE '서울%' THEN '서울'
+        WHEN PA.ADDR LIKE '부산%' THEN '부산'
+        WHEN PA.ADDR LIKE '대구%' THEN '대구'
+        WHEN PA.ADDR LIKE '인천%' THEN '인천'
+        WHEN PA.ADDR LIKE '광주%' THEN '광주'
+        WHEN PA.ADDR LIKE '대전%' THEN '대전'
+        WHEN PA.ADDR LIKE '울산%' THEN '울산'
+        WHEN PA.ADDR LIKE '세종%' THEN '세종'
+        WHEN PA.ADDR LIKE '경기%' THEN '경기'
+        WHEN PA.ADDR LIKE '강원%' THEN '강원'
+        WHEN PA.ADDR LIKE '충북%' OR PA.ADDR LIKE '충청북%' THEN '충북'
+        WHEN PA.ADDR LIKE '충남%' OR PA.ADDR LIKE '충청남%' THEN '충남'
+        WHEN PA.ADDR LIKE '전북%' OR PA.ADDR LIKE '전라북%' THEN '전북'
+        WHEN PA.ADDR LIKE '전남%' OR PA.ADDR LIKE '전라남%' THEN '전남'
+        WHEN PA.ADDR LIKE '경북%' OR PA.ADDR LIKE '경상북%' THEN '경북'
+        WHEN PA.ADDR LIKE '경남%' OR PA.ADDR LIKE '경상남%' THEN '경남'
+        WHEN PA.ADDR LIKE '제주%' THEN '제주'
+        ELSE '기타'
+    END                         AS REGION,
+    PA.MOD_DATE                 AS MOD_DATE
+FROM PHM_ADDR PA
+WHERE PA.ADDR_TYPE_CD = '01'
+  AND PA.STA_YMD <= SYSDATE
+  AND PA.END_YMD >= SYSDATE;
+
+GRANT SELECT ON "H552_RND"."V_AI_ADDRESS" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_ADDRESS IS '사원 현재 거주지 (현주소 + 현재 유효 기간만 필터, 1:1). 주소 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.ADDRESS IS '현재 거주 주소 (PII — 집계용 REGION 사용 권장)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.ADDRESS_DETAIL IS '상세 주소 (PII)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.ZIP_CODE IS '우편번호';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.REGION IS '거주 시/도 (서울,부산,대구,인천,광주,대전,울산,세종,경기,강원,충북,충남,전북,전남,경북,경남,제주,기타)';
+COMMENT ON COLUMN H552_RND.V_AI_ADDRESS.MOD_DATE IS '주소 수정일시';
+
+
+-- ============================================================================
+-- 03. V_AI_CAREER — 이전 직장 경력
+-- 변경: CAREER_START_DATE, CAREER_END_DATE 컬럼 추가
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_CAREER" (
+    "EMP_ID", "PREV_COMPANY", "LOCATION", "PREV_POSITION",
+    "CAREER_START_DATE", "CAREER_END_DATE",
+    "WORK_MONTHS", "WORK_YEARS", "RECOGNITION_RATE", "LEAVE_REASON"
+) AS
+SELECT
+    PC.EMP_ID                   AS EMP_ID,
+    PC.ORG_CORP_NM              AS PREV_COMPANY,
+    PC.PLACE_NM                 AS LOCATION,
+    PC.POSITION_NM              AS PREV_POSITION,
+    PC.STA_YMD                  AS CAREER_START_DATE,
+    PC.END_YMD                  AS CAREER_END_DATE,
+    PC.RCAREER_NUM              AS WORK_MONTHS,
+    TRUNC(PC.RCAREER_NUM / 12)  AS WORK_YEARS,
+    PC.RECO_RATE                AS RECOGNITION_RATE,
+    PC.RETIRE_CAUSE             AS LEAVE_REASON
+FROM PHM_CAREER PC;
+
+GRANT SELECT ON "H552_RND"."V_AI_CAREER" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_CAREER IS '사원 이전 직장 경력 (1:N). 경력 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.PREV_COMPANY IS '전직장 근무기관명';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.LOCATION IS '전직장 소재지';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.PREV_POSITION IS '전직장 최종직위';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.CAREER_START_DATE IS '전직장 근무 시작일';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.CAREER_END_DATE IS '전직장 근무 종료일';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.WORK_MONTHS IS '전직장 실제 근무 개월수 (NULL 가능)';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.WORK_YEARS IS '전직장 근무 연수 (WORK_MONTHS/12 내림, NULL 가능)';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.RECOGNITION_RATE IS '경력 인정 비율 (%, HR 내부 관리용 — NL2SQL 미사용)';
+COMMENT ON COLUMN H552_RND.V_AI_CAREER.LEAVE_REASON IS '전직장 퇴직사유';
+
+
+-- ============================================================================
+-- 04. V_AI_SCHOLAR — 학력 정보
+-- 변경: PHM_EMP JOIN 제거, POSITION 제거, EDUCATION_LEVEL/GRADUATION_STATUS 추가
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_SCHOLAR" (
+    "EMP_ID", "EDUCATION_LEVEL", "GRADUATION_STATUS",
+    "MAJOR_NAME", "DOUBLE_MAJOR_NAME",
+    "SCHOOL_NAME", "ADMISSION_DATE", "GRADUATION_DATE",
+    "SUB_MAJOR_CD", "SUB_MAJOR_NM",
+    "SCHOOL_LOCATION_CODE", "SCHOOL_LOCATION_NAME"
+) AS
+SELECT
+    PS.EMP_ID                   AS EMP_ID,
+    FC_GRD.CD_NM                AS EDUCATION_LEVEL,
+    FC_GRAD.CD_NM               AS GRADUATION_STATUS,
+    PS.MAJOR_NM                 AS MAJOR_NAME,
+    PS.DOU_MAJOR_NM             AS DOUBLE_MAJOR_NAME,
+    FC_SCH.CD_NM                AS SCHOOL_NAME,
+    PS.STA_YM                   AS ADMISSION_DATE,
+    PS.END_YM                   AS GRADUATION_DATE,
+    PS.SUB_MAJOR_CD             AS SUB_MAJOR_CD,
+    PS.SUB_MAJOR_NM             AS SUB_MAJOR_NM,
+    PS.SCH_PLACE_CD             AS SCHOOL_LOCATION_CODE,
+    PS.SCH_PLACE_NM             AS SCHOOL_LOCATION_NAME
+FROM PHM_SCHOLAR PS
+LEFT JOIN FRM_CODE FC_SCH
+  ON FC_SCH.CD = PS.SCH_CD
+ AND FC_SCH.CD_KIND = 'PHM_SCH_CD'
+LEFT JOIN FRM_CODE FC_GRD
+  ON FC_GRD.CD = PS.SCH_GRD_CD
+ AND FC_GRD.CD_KIND = 'PHM_SCH_GRD_CD'
+LEFT JOIN FRM_CODE FC_GRAD
+  ON FC_GRAD.CD = PS.GRAD_CD
+ AND FC_GRAD.CD_KIND = 'PHM_GRAD_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_SCHOLAR" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_SCHOLAR IS '사원 학력 정보 (1:N — 고졸/대졸/석사 등 복수 학력). 학력 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용, 직원 수 집계 시 COUNT(DISTINCT EMP_ID) 필수';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.EDUCATION_LEVEL IS '학력수준 (고졸,전문대졸,대졸,석사,박사 등)';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.GRADUATION_STATUS IS '졸업구분 (졸업,재학,중퇴 등)';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.MAJOR_NAME IS '전공학과명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.DOUBLE_MAJOR_NAME IS '복수전공명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SCHOOL_NAME IS '학교명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.ADMISSION_DATE IS '입학년월 (YYYYMM 형식)';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.GRADUATION_DATE IS '졸업년월 (YYYYMM 형식)';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SUB_MAJOR_CD IS '부전공 코드';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SUB_MAJOR_NM IS '부전공명';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SCHOOL_LOCATION_CODE IS '학교 소재지 코드';
+COMMENT ON COLUMN H552_RND.V_AI_SCHOLAR.SCHOOL_LOCATION_NAME IS '학교 소재지명';
+
+
+-- ============================================================================
+-- 05. V_AI_FAMILY — 현재 가족 구성원
+-- 변경: WHERE STA_YMD/END_YMD 유효기간 필터 추가
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_FAMILY" (
+    "EMP_ID", "RELATION", "FAMILY_NAME", "FAMILY_GENDER",
+    "FAMILY_BIRTH_DATE", "FAMILY_COMPANY", "FAMILY_POSITION",
+    "FAMILY_SCHOOL", "DISABILITY_STATUS", "DISABILITY_GRADE"
+) AS
+SELECT
+    PF.EMP_ID                   AS EMP_ID,
+    FC_REL.CD_NM                AS RELATION,
+    PF.FAM_FIRST_NM             AS FAMILY_NAME,
+    FC_GEN.CD_NM                AS FAMILY_GENDER,
+    PF.BIRTH_YMD                AS FAMILY_BIRTH_DATE,
+    PF.COMPANY_NM               AS FAMILY_COMPANY,
+    PF.POSITION_NM              AS FAMILY_POSITION,
+    PF.SCH_NM                   AS FAMILY_SCHOOL,
+    CASE PF.HANICAP_YN
+        WHEN 'Y' THEN '장애있음'
+        WHEN 'N' THEN '장애없음'
+        ELSE PF.HANICAP_YN
+    END                         AS DISABILITY_STATUS,
+    FC_HAN.CD_NM                AS DISABILITY_GRADE
+FROM PHM_FAMILY PF
+LEFT JOIN FRM_CODE FC_REL ON PF.FAM_REL_CD = FC_REL.CD AND FC_REL.CD_KIND = 'PHM_FAM_REL_CD'
+LEFT JOIN FRM_CODE FC_GEN ON PF.GENDER_CD = FC_GEN.CD AND FC_GEN.CD_KIND = 'PHM_GENDER_CD'
+LEFT JOIN FRM_CODE FC_HAN ON PF.HANDICAP_GRD_CD = FC_HAN.CD AND FC_HAN.CD_KIND = 'PHM_HANDICAP_GRD_CD'
+WHERE PF.STA_YMD <= SYSDATE
+  AND PF.END_YMD >= SYSDATE;
+
+GRANT SELECT ON "H552_RND"."V_AI_FAMILY" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_FAMILY IS '사원 현재 가족 구성원 (현재 유효 기간만 필터, 1:N). 가족 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.RELATION IS '가족 관계 (배우자,자녀,부,모,형제,자매 등)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_NAME IS '가족 구성원 이름 (PII — 직접 조회 지양)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_GENDER IS '가족 성별 (남,여)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_BIRTH_DATE IS '가족 생년월일 (PII — 직접 조회 지양)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_COMPANY IS '가족 근무회사 (채움률 낮음 — NL2SQL 미사용)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_POSITION IS '가족 근무회사 직위 (채움률 낮음 — NL2SQL 미사용)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.FAMILY_SCHOOL IS '가족 출신학교 (채움률 낮음 — NL2SQL 미사용)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.DISABILITY_STATUS IS '장애 여부 (장애있음,장애없음)';
+COMMENT ON COLUMN H552_RND.V_AI_FAMILY.DISABILITY_GRADE IS '장애등급';
+
+
+-- ============================================================================
+-- 06. V_AI_LANGUAGE — 어학 시험 성적
+-- 변경: dead JOIN FC3 제거, LANGUAGE_GRADE→EVAL_METHOD 변경, TO_CHAR 변환
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_LANGUAGE" (
+    "EMP_ID", "LANGUAGE_TYPE", "EXAM_TYPE", "EXAM_INSTITUTION",
+    "SCORE", "EVAL_METHOD", "EXAM_DATE", "EXAM_YEAR",
+    "EVALUATION_YEAR", "EVALUATION_SEQ"
+) AS
+SELECT
+    PL.EMP_ID                   AS EMP_ID,
+    FC1.CD_NM                   AS LANGUAGE_TYPE,
+    FC2.CD_NM                   AS EXAM_TYPE,
+    FC4.CD_NM                   AS EXAM_INSTITUTION,
+    PL.EST_PNT                  AS SCORE,
+    FC_GRD.CD_NM                AS EVAL_METHOD,
+    PL.EST_YMD                  AS EXAM_DATE,
+    TO_CHAR(PL.EST_YMD, 'YYYY') AS EXAM_YEAR,
+    PL.STD_YY                   AS EVALUATION_YEAR,
+    PL.STD_SEQ                  AS EVALUATION_SEQ
+FROM PHM_LANG_EST PL
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PL.LANG_CD AND FC1.CD_KIND = 'PHM_LANG_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PL.EST_CD AND FC2.CD_KIND = 'PHM_EST_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PL.EST_ORG_CD AND FC4.CD_KIND = 'PHM_EST_ORG_CD'
+LEFT JOIN FRM_CODE FC_GRD ON FC_GRD.CD = PL.EST_GRD_CD AND FC_GRD.CD_KIND = 'PHM_EST_GRD_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_LANGUAGE" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_LANGUAGE IS '사원 어학 시험 성적 (1:N — 어학종류/년도/차수별 이력). 어학 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.LANGUAGE_TYPE IS '어학 종류 (영어, 일본어, 중국어 등)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EXAM_TYPE IS '시험 종류 (TOEIC, TOEFL, JLPT 등)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EXAM_INSTITUTION IS '평가기관';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.SCORE IS '어학 시험 점수 (어학 실력의 핵심 지표)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EVAL_METHOD IS '평가유형 (점수, 등급) — 실력 비교는 SCORE 컬럼 사용';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EXAM_DATE IS '시험 응시일';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EXAM_YEAR IS '시험 응시 연도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EVALUATION_YEAR IS '평가 기준년도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_LANGUAGE.EVALUATION_SEQ IS '평가 차수';
+
+
+-- ============================================================================
+-- 07. V_AI_LICENSE — 자격증/면허
+-- 변경: VALIDITY_STATUS 계산식 단순화 (REGEXP_LIKE → DATE 비교)
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_LICENSE" (
+    "EMP_ID", "LICENSE_TYPE", "LICENSE_NAME", "LICENSE_NO",
+    "ISSUING_ORG", "ISSUE_DATE", "EXPIRY_DATE",
+    "VALIDITY_STATUS", "ALLOWANCE_TYPE"
+) AS
+SELECT
+    PL.EMP_ID                   AS EMP_ID,
+    FC2.CD_NM                   AS LICENSE_TYPE,
+    FC1.CD_NM                   AS LICENSE_NAME,
+    PL.LICENSE_NO               AS LICENSE_NO,
+    PL.ORG_NM                   AS ISSUING_ORG,
+    PL.STA_YMD                  AS ISSUE_DATE,
+    PL.END_YMD                  AS EXPIRY_DATE,
+    CASE
+        WHEN PL.END_YMD IS NULL THEN '영구'
+        WHEN PL.END_YMD < SYSDATE THEN '만료'
+        WHEN PL.END_YMD >= SYSDATE THEN '유효'
+        ELSE '확인필요'
+    END                         AS VALIDITY_STATUS,
+    PL.BONUS_TYPE               AS ALLOWANCE_TYPE
+FROM PHM_LICENSE PL
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PL.LICENSE_CD AND FC1.CD_KIND = 'PHM_LICENSE_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PL.LICENSE_TYPE_CD AND FC2.CD_KIND = 'PHM_LICENSE_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_LICENSE" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_LICENSE IS '사원 자격증/면허 보유 현황 (1:N). 자격증 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.LICENSE_TYPE IS '자격 구분 (국가자격,민간자격 등)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.LICENSE_NAME IS '자격증명';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.LICENSE_NO IS '자격증 번호 (PII — 직접 조회 지양)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.ISSUING_ORG IS '발급/주관기관';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.ISSUE_DATE IS '취득일자 (NOT NULL)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.EXPIRY_DATE IS '유효만료일 (NULL=영구)';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.VALIDITY_STATUS IS '유효 상태 (유효,만료,영구) — EXPIRY_DATE 기반 자동 산출';
+COMMENT ON COLUMN H552_RND.V_AI_LICENSE.ALLOWANCE_TYPE IS '수당지급구분 (NL2SQL 미사용)';
+
+
+-- ============================================================================
+-- 08. V_AI_MILITARY — 병역 정보
+-- 변경: ENLIST_DATE 추가, DISCHARGE_YEAR TO_CHAR 변환
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_MILITARY" (
+    "EMP_ID", "MILITARY_TYPE", "MILITARY_BRANCH", "MILITARY_RANK",
+    "SERVICE_TYPE", "SERVICE_STATUS", "DISCHARGE_TYPE",
+    "ENLIST_DATE", "DISCHARGE_DATE", "DISCHARGE_YEAR",
+    "SPECIALTY", "MILITARY_NO"
+) AS
+SELECT
+    PA.EMP_ID                   AS EMP_ID,
+    FC7.CD_NM                   AS MILITARY_TYPE,
+    FC1.CD_NM                   AS MILITARY_BRANCH,
+    FC2.CD_NM                   AS MILITARY_RANK,
+    FC6.CD_NM                   AS SERVICE_TYPE,
+    FC5.CD_NM                   AS SERVICE_STATUS,
+    FC3.CD_NM                   AS DISCHARGE_TYPE,
+    PA.IN_YMD                   AS ENLIST_DATE,
+    PA.OUT_YMD                  AS DISCHARGE_DATE,
+    TO_CHAR(PA.OUT_YMD, 'YYYY') AS DISCHARGE_YEAR,
+    FC4.CD_NM                   AS SPECIALTY,
+    PA.ARMY_NO                  AS MILITARY_NO
+FROM PHM_ARMY PA
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PA.ARMY_BRANCH_CD AND FC1.CD_KIND = 'PHM_ARMY_BRANCH_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PA.ARMY_CLASS_CD AND FC2.CD_KIND = 'PHM_ARMY_CLASS_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PA.ARMY_DISCHARGE_CD AND FC3.CD_KIND = 'PHM_ARMY_DISCHARGE_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PA.ARMY_MTALENT_CD AND FC4.CD_KIND = 'PHM_ARMY_MTALENT_CD'
+LEFT JOIN FRM_CODE FC5 ON FC5.CD = PA.ARMY_NO_REASON_CD AND FC5.CD_KIND = 'PHM_ARMY_NO_REASON_CD'
+LEFT JOIN FRM_CODE FC6 ON FC6.CD = PA.ARMY_SERV_CD AND FC6.CD_KIND = 'PHMARMY_SERV_CD'
+LEFT JOIN FRM_CODE FC7 ON FC7.CD = PA.ARMY_TYPE_CD AND FC7.CD_KIND = 'PHM_ARMY_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_MILITARY" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_MILITARY IS '사원 병역 정보 (1:1). 병역 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_TYPE IS '군 종류 (육군, 해군, 공군, 해병대 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_BRANCH IS '병과';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_RANK IS '최종 계급 (병장, 상병, 하사 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.SERVICE_TYPE IS '복무형태 (현역, 보충역, 전환복무 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.SERVICE_STATUS IS '군필 여부 (군필, 미필, 면제 등)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.DISCHARGE_TYPE IS '전역사유';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.ENLIST_DATE IS '입대일자';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.DISCHARGE_DATE IS '전역일자';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.DISCHARGE_YEAR IS '전역 연도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.SPECIALTY IS '주특기';
+COMMENT ON COLUMN H552_RND.V_AI_MILITARY.MILITARY_NO IS '군번 (PII — 직접 조회 지양)';
+
+
+-- ============================================================================
+-- 09. V_AI_REWARD — 상벌 내역
+-- 변경: REWARD_YEAR TO_CHAR 변환
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_REWARD" (
+    "EMP_ID", "REWARD_TYPE", "REWARD_KIND", "REWARD_REASON",
+    "REWARD_CONTENT", "REWARD_DATE", "REWARD_YEAR",
+    "AWARDING_ORG", "REWARD_AMOUNT", "REWARD_NO"
+) AS
+SELECT
+    PM.EMP_ID                   AS EMP_ID,
+    FC3.CD_NM                   AS REWARD_TYPE,
+    FC2.CD_NM                   AS REWARD_KIND,
+    PM.PPM_DESC                 AS REWARD_REASON,
+    PM.PRIZE_DESC               AS REWARD_CONTENT,
+    PM.PPM_YMD                  AS REWARD_DATE,
+    TO_CHAR(PM.PPM_YMD, 'YYYY') AS REWARD_YEAR,
+    PM.PPM_ORG_NM               AS AWARDING_ORG,
+    PM.PPM_MON                  AS REWARD_AMOUNT,
+    PM.PPM_NO                   AS REWARD_NO
+FROM PPM_MNT PM
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PM.KIND_CD AND FC2.CD_KIND = 'PPM_KIND_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PM.TYPE_CD AND FC3.CD_KIND = 'PPM_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_REWARD" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_REWARD IS '사원 상벌 내역 (1:N). 상벌 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_TYPE IS '상벌 구분 (포상, 징계)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_KIND IS '상벌 종류 (우수사원상, 근속상 등)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_REASON IS '상벌 사유';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_CONTENT IS '포상 내용';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_DATE IS '상벌 일자';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_YEAR IS '상벌 연도 (YYYY, 연도별 집계 시 사용)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.AWARDING_ORG IS '포상 기관';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_AMOUNT IS '포상금액 (원)';
+COMMENT ON COLUMN H552_RND.V_AI_REWARD.REWARD_NO IS '상벌번호';
+
+
+-- ============================================================================
+-- 10. V_AI_TRAINING — 교육/연수 이수 내역
+-- 변경: DDL 변경 없음, COMMENT 보강
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_TRAINING" (
+    "EMP_ID", "TRAINING_YEAR", "COURSE_TYPE", "COURSE_GRADE",
+    "COURSE_FIELD", "COURSE_NAME", "INSTITUTION_TYPE", "INSTITUTION_NAME",
+    "TRAINING_LOCATION", "TRAINING_TYPE", "START_DATE", "END_DATE",
+    "TRAINING_COST", "COMPLETION_POINTS", "COMPLETION_HOURS",
+    "COMPLETION_STATUS", "REFUND_AMOUNT"
+) AS
+SELECT
+    PED.EMP_ID                  AS EMP_ID,
+    PED.EDU_YY                  AS TRAINING_YEAR,
+    FC1.CD_NM                   AS COURSE_TYPE,
+    FC2.CD_NM                   AS COURSE_GRADE,
+    FC3.CD_NM                   AS COURSE_FIELD,
+    PED.EDU_NM                  AS COURSE_NAME,
+    FC4.CD_NM                   AS INSTITUTION_TYPE,
+    PED.EDU_ORG_NM              AS INSTITUTION_NAME,
+    FC5.CD_NM                   AS TRAINING_LOCATION,
+    FC6.CD_NM                   AS TRAINING_TYPE,
+    PED.STA_YMD                 AS START_DATE,
+    PED.END_YMD                 AS END_DATE,
+    PED.REAL_AMT                AS TRAINING_COST,
+    PED.RESULT_PNT              AS COMPLETION_POINTS,
+    PED.RESULT_TIMES            AS COMPLETION_HOURS,
+    CASE PED.RESULT_YN
+        WHEN 'Y' THEN '수료'
+        WHEN 'N' THEN '미수료'
+        ELSE PED.RESULT_YN
+    END                         AS COMPLETION_STATUS,
+    PED.RETURN_AMT              AS REFUND_AMOUNT
+FROM PHM_EDU PED
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PED.EDU_CD AND FC1.CD_KIND = 'PHM_EDU_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PED.EDU_GRD_CD AND FC2.CD_KIND = 'PHM_EDU_GRD_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PED.EDU_KIND_CD AND FC3.CD_KIND = 'PHM_EDU_KIND_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PED.EDU_ORG_CD AND FC4.CD_KIND = 'PHM_EDU_ORG_CD'
+LEFT JOIN FRM_CODE FC5 ON FC5.CD = PED.EDU_PLA_CD AND FC5.CD_KIND = 'PHM_EDU_PLA_CD'
+LEFT JOIN FRM_CODE FC6 ON FC6.CD = PED.EDU_TYPE_CD AND FC6.CD_KIND = 'PHM_EDU_TYPE_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_TRAINING" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_TRAINING IS '사원 교육/연수 이수 내역 (1:N). 교육 미등록 직원 미포함 — 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_YEAR IS '교육 실시 연도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COURSE_TYPE IS '교육과정 유형';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COURSE_GRADE IS '교육등급';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COURSE_FIELD IS '교육분야';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COURSE_NAME IS '교육과정명';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.INSTITUTION_TYPE IS '교육기관 유형';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.INSTITUTION_NAME IS '교육기관명';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_LOCATION IS '교육장소';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_TYPE IS '교육유형 (집합교육, 사이버교육 등)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.START_DATE IS '교육 시작일';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.END_DATE IS '교육 종료일';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.TRAINING_COST IS '실교육비 (원)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COMPLETION_POINTS IS '이수 포인트';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COMPLETION_HOURS IS '이수 시간';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.COMPLETION_STATUS IS '수료 여부 (수료, 미수료)';
+COMMENT ON COLUMN H552_RND.V_AI_TRAINING.REFUND_AMOUNT IS '환급금액 (원)';
+
+
+-- ============================================================================
+-- 11. V_AI_FEEDBACK — 인사평가 결과
+-- 변경: DDL 변경 없음 (Oracle 함수 의존성), COMMENT 개선
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_FEEDBACK" (
+    "EMP_ID", "COMPANY_CD", "LOCALE_CD", "PEE_DEFINITION_ID",
+    "APPR_ID", "APPR_NM", "PEE_TYPE_CD", "PEE_TYPE_NM",
+    "EMP_ORG_ID", "EMP_ORG_NM", "RATEE_ORG_ID", "RATEE_ORG_NM",
+    "RATEE_GROUP_ID", "RATEE_GROUP_NAME", "RATEE_LEVEL_CD", "RATEE_LEVEL_NM",
+    "APPR_SCORE", "APPR_GRADE", "RK", "PEE_OPINION",
+    "APPR_SCORE_OPEN_YN", "APPR_GRADE_OPEN_YN",
+    "APPR_RANK_OPEN_YN", "APPR_OPINION_OPEN_YN",
+    "END_YMD", "APPR_YMD"
+) AS
+SELECT  EMP_ID                    AS Employee_unique_identifier,
+        COMPANY_CD                AS Company_code,
+        LOCALE_CD                 AS Locale_code,
+        PEE_DEFINITION_ID         AS DEFINITION_ID,
+        APPR_ID                   AS Evaluation_ID,
+        APPR_NM                   AS Evaluation_name,
+        PEE_TYPE_CD               AS Evaluation_type_code,
+        PEE_TYPE_NM               AS Evaluation_type_name,
+        EMP_ORG_ID                AS Employee_organization_code,
+        EMP_ORG_NM                AS Employee_organization_name,
+        RATEE_ORG_ID              AS Employee_org_identifier_R,
+        RATEE_ORG_NM              AS Employee_org_name_R,
+        RATEE_GROUP_ID            AS Employee_group_identifier,
+        RATEE_GROUP_NM            AS Employee_group_name,
+        RATEE_LEVEL_CD            AS Position_job_level_code,
+        RATEE_LEVEL_NM            AS Position_job_level_name,
+        APPR_SCORE                AS Evaluation_score,
+        APPR_GRADE                AS Evaluation_grade,
+        RK                        AS Ranking,
+        PEE_OPINION               AS Evaluator_comments,
+        APPR_SCORE_OPEN_YN        AS Whether_evaluation_score_is_disclosed,
+        APPR_GRADE_OPEN_YN        AS Whether_evaluation_grade_is_disclosed,
+        APPR_RANK_OPEN_YN         AS Whether_ranking_are_disclosed,
+        APPR_OPINION_OPEN_YN      AS Whether_opinion_are_disclosed_,
+        END_YMD                   AS Evaluation_end_date,
+        APPR_YMD                  AS Evaluation_date
+ FROM (SELECT C.RATEE_ID,
+                E.COMPANY_CD,
+                E.LOCALE_CD,
+                A.PEE_DEFINITION_ID,
+                B.APPR_ID,
+                B.APPR_NM,
+                B.PEE_TYPE_CD,
+                F_FRM_CODE_NM (E.COMPANY_CD,
+                               E.LOCALE_CD,
+                               'PEE_TYPE_CD',
+                               B.PEE_TYPE_CD,
+                               C.END_YMD,
+                               '1')
+                   AS PEE_TYPE_NM,
+                C.EMP_ORG_ID,
+                F_FRM_ORM_ORG_NM (C.EMP_ORG_ID,
+                                  E.LOCALE_CD,
+                                  B.END_YMD,
+                                  '11')
+                   AS EMP_ORG_NM,
+                C.RATEE_ORG_ID,
+                F_FRM_ORM_ORG_NM (C.RATEE_ORG_ID,
+                                  E.LOCALE_CD,
+                                  B.APPR_YMD,
+                                  '11')
+                   AS RATEE_ORG_NM,
+                C.RATEE_GROUP_ID,
+                F_PEE_GET_RATEE_GROUP_INFO (E.COMPANY_CD,
+                                            C.RATEE_GROUP_ID,
+                                            'RATEE_GROUP_NM')
+                   AS RATEE_GROUP_NM,
+                C.RATEE_LEVEL_CD,
+                F_FRM_CODE_NM (E.COMPANY_CD,
+                               E.LOCALE_CD,
+                               'PEE_RATEE_LEVEL_CD',
+                               C.RATEE_LEVEL_CD,
+                               C.END_YMD,
+                               '1')
+                   AS RATEE_LEVEL_NM,
+                E.EMP_ID,
+                E.EMP_NO,
+                CASE
+                   WHEN D.FIXED_SCORE > 0 THEN D.FIXED_SCORE
+                   ELSE NULL
+                END
+                   AS APPR_SCORE,
+                F_FRM_CODE_NM (E.COMPANY_CD,
+                               E.LOCALE_CD,
+                               'PEE_APPR_GRADE_CD',
+                               D.FIXED_GRADE,
+                               C.END_YMD,
+                               '1')
+                   AS APPR_GRADE,
+                F_PEE_GET_APPR_GRADE_RANK (C.RATEE_ID, 'RANK') AS RK,
+                F_PEE_GET_APPR_OPINION (E.COMPANY_CD,
+                                        E.LOCALE_CD,
+                                        C.RATEE_ID,
+                                        NULL)
+                   AS PEE_OPINION,
+                XF_NVL_C (B.APPR_SCORE_OPEN_YN, 'N') AS APPR_SCORE_OPEN_YN,
+                XF_NVL_C (B.APPR_GRADE_OPEN_YN, 'N') AS APPR_GRADE_OPEN_YN,
+                XF_NVL_C (B.APPR_RANK_OPEN_YN, 'N') AS APPR_RANK_OPEN_YN,
+                XF_NVL_C (B.APPR_OPINION_OPEN_YN, 'N')
+                   AS APPR_OPINION_OPEN_YN,
+                XF_NVL_C (C.EXCEPT_YN, 'N') AS EXCEPT_YN,
+                XF_NVL_C (B.CLOSE_YN, 'N') AS CLOSE_YN,
+                XF_NVL_C (B.FEEDBACK_YN, 'N') AS FEEDBACK_YN,
+                C.END_YMD AS END_YMD,
+                B.APPR_YMD
+           FROM PEE_DEFINITION A,
+                PEE_APPR_AGGREGATE B,
+                PEE_RATEE C,
+                PEE_APPR_RESULT D,
+                VI_FRM_PHM_EMP E
+          WHERE     A.PEE_DEFINITION_ID = B.PEE_DEFINITION_ID
+                AND B.APPR_ID = C.APPR_ID
+                AND C.RATEE_ID = D.RATEE_ID
+                AND C.RATEE_EMP_ID = E.EMP_ID
+                AND A.COMPANY_CD = E.COMPANY_CD);
+
+GRANT SELECT ON "H552_RND"."V_AI_FEEDBACK" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_FEEDBACK IS '인사평가 결과 (1:N — 평가 횟수만큼 행 존재). 직원 수 집계 시 COUNT(DISTINCT EMP_ID) 필수';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_NM IS '평가명 (연간인사평가, 수시평가 등)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_TYPE_CD IS '평가 종류 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_TYPE_NM IS '평가 종류명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_ORG_ID IS '평가 시점 소속 부서 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.EMP_ORG_NM IS '평가 시점 소속 부서명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_GROUP_ID IS '피평가 그룹 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_LEVEL_CD IS '직책 코드';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RATEE_LEVEL_NM IS '직책명';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_SCORE IS '평가 점수 (0 초과 시만 유효)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_GRADE IS '평가등급 (S,A,B,C,D 등)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.RK IS '등급 내 순위';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.PEE_OPINION IS '평가자 의견';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_SCORE_OPEN_YN IS '평가 점수 공개 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_GRADE_OPEN_YN IS '평가등급 공개 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_RANK_OPEN_YN IS '랭킹 공개 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_OPINION_OPEN_YN IS '평가의견 공개 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.END_YMD IS '평가종료일자';
+COMMENT ON COLUMN H552_RND.V_AI_FEEDBACK.APPR_YMD IS '평가일자';
+
+
+-- ============================================================================
+-- 12. V_AI_HISTORY — 인사발령 이력
+-- 변경: DDL 변경 없음, COMMENT 개선 (TITLE_NAME/LEADER_YN 설명 수정)
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_HISTORY" (
+    "ASSIGNMENT_HISTORY_ID", "EMP_ID", "PERSON_ID",
+    "ASSIGNMENT_APPROVAL_ID", "ASSIGNMENT_START_DATE", "ASSIGNMENT_END_DATE",
+    "ASSIGNMENT_DATE", "ASSIGNMENT_SEQUENCE", "ASSIGNMENT_TYPE_CODE",
+    "ASSIGNMENT_REASON_CODE", "HR_AREA", "ASSIGNMENT_DEPARTMENT_ID",
+    "PAYROLL_DEPARTMENT_ID", "ATTENDANCE_DEPARTMENT_ID",
+    "ASSIGNMENT_GRADE_CODE", "ASSIGNMENT_JOB_CODE", "ASSIGNMENT_TITLE_NAME",
+    "IS_ORG_LEADER_YN", "LEAVE_OF_ABSENCE_YN",
+    "EXPECTED_RETURN_FROM_LEAVE_DATE", "EXPECTED_CHILDBIRTH_DATE",
+    "HR_REFLECTED_YN", "PRINT_YN"
+) AS
+SELECT
+    CH.CAM_HISTORY_ID  AS assignment_history_id,
+    CH.EMP_ID          AS emp_id,
+    CH.PERSON_ID       AS person_id,
+    CH.CAM_DOC_ID      AS assignment_approval_id,
+    CH.STA_YMD         AS assignment_start_date,
+    CH.END_YMD         AS assignment_end_date,
+    CH.CAM_YMD         AS assignment_date,
+    CH.SEQ             AS assignment_sequence,
+    FC1.CD_NM          AS assignment_type_code,
+    FC2.CD_NM          AS assignment_reason_code,
+    FC3.CD_NM          AS hr_area,
+    CH.ORG_ID          AS assignment_department_id,
+    CH.PAY_ORG_ID      AS payroll_department_id,
+    CH.DTM_ORG_ID      AS attendance_department_id,
+    FC4.CD_NM          AS assignment_grade_code,
+    FC5.CD_NM          AS assignment_job_code,
+    FC6.CD_NM          AS assignment_title_name,
+    CH.LEADER_YN       AS is_org_leader_yn,
+    CH.REN_YN          AS leave_of_absence_yn,
+    CH.REN_YMD         AS expected_return_from_leave_date,
+    CH.BABY_YMD        AS expected_childbirth_date,
+    CH.MAS_YN          AS hr_reflected_yn,
+    CH.PRINT_YN        AS print_yn
+FROM CAM_HISTORY CH
+LEFT JOIN FRM_CODE FC1
+  ON FC1.CD = CH.TYPE_CD
+ AND FC1.CD_KIND = 'CAM_TYPE_CD'
+LEFT JOIN FRM_CODE FC2
+  ON FC2.CD = CH.CAU_CD
+ AND FC2.CD_KIND = 'CAM_CAU_CD'
+LEFT JOIN FRM_CODE FC3
+  ON FC3.CD = CH.COMPANY_CD
+ AND FC3.CD_KIND = 'CAM_COMPANY_CD'
+LEFT JOIN FRM_CODE FC4
+  ON FC4.CD = CH.POS_GRD_CD
+ AND FC4.CD_KIND = 'PHM_POS_GRD_CD'
+LEFT JOIN FRM_CODE FC5
+  ON FC5.CD = CH.JOB_CD
+ AND FC5.CD_KIND = 'PHM_JOB_CD'
+LEFT JOIN FRM_CODE FC6
+  ON FC6.CD = CH.DUTY_CD
+ AND FC6.CD_KIND = 'PHM_DUTY_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_HISTORY" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_HISTORY IS '인사발령 이력 (1:N — 발령 건수만큼 행 존재). 반드시 V_AI_EMPLOYEE 기준 LEFT JOIN 사용';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_HISTORY_ID IS '발령이력ID (PK)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.PERSON_ID IS '개인ID';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_APPROVAL_ID IS '발령품의서ID';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_START_DATE IS '발령 시작일자';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_END_DATE IS '발령 종료일자';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_DATE IS '발령일자';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_SEQUENCE IS '발령순서';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_TYPE_CODE IS '발령유형 (승진,전보,전직,휴직,복직,퇴직 등)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_REASON_CODE IS '발령사유';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.HR_AREA IS '인사영역';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_DEPARTMENT_ID IS '발령부서ID (숫자, 부서명 아님)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.PAYROLL_DEPARTMENT_ID IS '급여부서ID';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ATTENDANCE_DEPARTMENT_ID IS '근태부서ID';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_GRADE_CODE IS '발령 직급 (1급~9급)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_JOB_CODE IS '발령 직무';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.ASSIGNMENT_TITLE_NAME IS '발령직책명 (팀장,팀원 등)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.IS_ORG_LEADER_YN IS '조직장 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.LEAVE_OF_ABSENCE_YN IS '휴직 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.EXPECTED_RETURN_FROM_LEAVE_DATE IS '휴직 복직예정일';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.EXPECTED_CHILDBIRTH_DATE IS '출산예정일 (PII)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.HR_REFLECTED_YN IS '인사반영 여부 (Y/N)';
+COMMENT ON COLUMN H552_RND.V_AI_HISTORY.PRINT_YN IS '출력 여부 (Y/N)';
+
+
+-- ============================================================================
+-- 13. V_AI_PAY_REPORT — 급여 지급 내역
+-- 변경: DDL 변경 없음, COMMENT 개선 (FC5 CD_KIND 매핑 오류 주의)
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_PAY_REPORT" (
+    "EMP_ID", "EMP_NAME", "PAY_YEAR", "PAY_YEAR_MONTH",
+    "PAY_DATE", "PAY_DATE_ID", "PAYMENT_TYPE_NAME", "SALARY_TYPE_NAME",
+    "PAY_GRADE_NAME", "JOB_GRADE_NAME", "EMPLOYMENT_TYPE",
+    "ACCOUNT_TYPE_NAME", "JOB_TYPE_NAME", "ORGANIZATION_ID",
+    "ORGANIZATION_NAME", "FIXED_PAY_AMOUNT", "VARIABLE_PAY_AMOUNT",
+    "GROSS_PAY_AMOUNT", "DEDUCTION_AMOUNT", "TAX_AMOUNT",
+    "TOTAL_DEDUCTION_AMOUNT", "NET_PAY_AMOUNT", "REMARKS",
+    "TIMEZONE_CODE", "TIMEZONE_DATETIME"
+) AS
+SELECT
+    PR.EMP_ID         AS emp_id,
+    PR.EMP_NM         AS emp_name,
+    PR.PAY_YYYY       AS pay_year,
+    PR.PAY_YM         AS pay_year_month,
+    PR.PAY_YMD        AS pay_date,
+    PR.PAY_YMD_ID     AS pay_date_id,
+    FC1.CD_NM         AS payment_type_name,
+    FC2.CD_NM         AS salary_type_name,
+    FC3.CD_NM         AS pay_grade_name,
+    FC4.CD_NM         AS job_grade_name,
+    PR.DTM_TYPE       AS employment_type,
+    FC5.CD_NM         AS account_type_name,
+    FC6.CD_NM         AS job_type_name,
+    PR.ORG_ID         AS organization_id,
+    PR.ORG_NM         AS organization_name,
+    PR.G_MON          AS fixed_pay_amount,
+    PR.B_MON          AS variable_pay_amount,
+    PR.PSUM           AS gross_pay_amount,
+    PR.DSUM           AS deduction_amount,
+    PR.TSUM           AS tax_amount,
+    PR.DTSUM          AS total_deduction_amount,
+    PR.REAL_AMT       AS net_pay_amount,
+    PR.NOTE           AS remarks,
+    PR.TZ_CD          AS timezone_code,
+    PR.TZ_DATE        AS timezone_datetime
+FROM PAY_REPORT PR
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = PR.PAY_TYPE_CD     AND FC1.CD_KIND = 'PAY_TYPE_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = PR.SALARY_TYPE_CD   AND FC2.CD_KIND = 'PAY_SALARY_TYPE_CD'
+LEFT JOIN FRM_CODE FC3 ON FC3.CD = PR.PAY_POS_GRD_CD   AND FC3.CD_KIND = 'PAY_POS_GRD_CD'
+LEFT JOIN FRM_CODE FC4 ON FC4.CD = PR.POS_GRD_CD       AND FC4.CD_KIND = 'PRM_POS_GRD_CD'
+-- ★ FC5: CD_KIND 매핑 확인 필요 — PHM_ARMY_MTALENT_CD는 군특기코드이므로 ACC_CD와 무관할 수 있음
+LEFT JOIN FRM_CODE FC5 ON FC5.CD = PR.ACC_CD           AND FC5.CD_KIND = 'PHM_ARMY_MTALENT_CD'
+LEFT JOIN FRM_CODE FC6 ON FC6.CD = PR.POS_CD           AND FC6.CD_KIND = 'PHM_POS_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_PAY_REPORT" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_PAY_REPORT IS '급여 지급 내역 (1:N — 급여월+지급구분별 행 존재). 금액 단위: 원. PK: (EMP_ID, PAY_YEAR_MONTH, PAYMENT_TYPE_NAME)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.EMP_NAME IS '급여 시점 성명';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.PAY_YEAR IS '급여 연도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.PAY_YEAR_MONTH IS '급여 년월 (YYYYMM, PK)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.PAY_DATE IS '급여일';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.PAY_DATE_ID IS '급여일자ID';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.PAYMENT_TYPE_NAME IS '급여 지급구분 (정기급여,연차수당,격려금,상여 등, PK)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.SALARY_TYPE_NAME IS '급여유형';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.PAY_GRADE_NAME IS '급여직급';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.JOB_GRADE_NAME IS '직급';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.EMPLOYMENT_TYPE IS '급여직군';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.ACCOUNT_TYPE_NAME IS '코스트센터';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.JOB_TYPE_NAME IS '직위';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.ORGANIZATION_ID IS '소속부서 ID';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.ORGANIZATION_NAME IS '소속부서명';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.FIXED_PAY_AMOUNT IS '고정비 (원)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.VARIABLE_PAY_AMOUNT IS '변동비 (원)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.GROSS_PAY_AMOUNT IS '지급합계 (원, = 고정비 + 변동비)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.DEDUCTION_AMOUNT IS '공제합계 (원)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.TAX_AMOUNT IS '세금합계 (원)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.TOTAL_DEDUCTION_AMOUNT IS '총공제액 (원, = 공제 + 세금)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.NET_PAY_AMOUNT IS '실지급액 (원, = 지급합계 - 총공제액)';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.REMARKS IS '비고';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.TIMEZONE_CODE IS '타임존코드';
+COMMENT ON COLUMN H552_RND.V_AI_PAY_REPORT.TIMEZONE_DATETIME IS '타임존일시';
+
+
+-- ============================================================================
+-- 14. V_AI_DTM_YY_REST — 연차 발생/사용/잔여 관리
+-- 변경: LEAVE_TYPE_NAME/LEAVE_GRANT_RULE_NAME 추가, TOTAL/REMAINING 계산컬럼 추가
+-- ============================================================================
+
+CREATE OR REPLACE FORCE NONEDITIONABLE VIEW "H552_RND"."V_AI_DTM_YY_REST" (
+    "LEAVE_ACCRUAL_ID", "EMP_ID", "REFERENCE_YEAR",
+    "LEAVE_TYPE_CODE", "LEAVE_TYPE_NAME",
+    "ACCRUAL_DATE", "LEAVE_GRANT_RULE_CODE", "LEAVE_GRANT_RULE_NAME",
+    "ACCRUED_LEAVE_DAYS", "ADDITIONAL_LEAVE_DAYS",
+    "COMPENSATED_LEAVE_DAYS", "COMPENSATION_MONTH",
+    "COMPENSATED_LEAVE_DAYS_2", "COMPENSATION_MONTH_2",
+    "RETIREMENT_LEAVE_DAYS", "RETIREMENT_COMPENSATION_MONTH",
+    "USED_LEAVE_DAYS_PAST", "CARRIED_OVER_LEAVE_DAYS",
+    "TOTAL_LEAVE_DAYS", "REMAINING_LEAVE_DAYS",
+    "REMARKS", "UPDATED_BY", "UPDATED_AT",
+    "TIMEZONE_CODE", "TIMEZONE_DATETIME"
+) AS
+SELECT
+    DY.DTM_YY_REST_ID              AS leave_accrual_id,
+    DY.EMP_ID                      AS emp_id,
+    DY.APP_YY                      AS reference_year,
+    DY.YY_KIND_CD                  AS leave_type_code,
+    FC1.CD_NM                      AS leave_type_name,
+    DY.WORK_YMD                    AS accrual_date,
+    DY.YY_NUM_KIND_CD              AS leave_grant_rule_code,
+    FC2.CD_NM                      AS leave_grant_rule_name,
+    NVL(DY.YY_NUM, 0)              AS accrued_leave_days,
+    NVL(DY.ADD_NUM, 0)             AS additional_leave_days,
+    NVL(DY.PAY_YY_NUM, 0)          AS compensated_leave_days,
+    DY.PAY_MM                      AS compensation_month,
+    NVL(DY.PAY_YY_NUM2, 0)         AS compensated_leave_days_2,
+    DY.PAY_MM2                     AS compensation_month_2,
+    NVL(DY.RETIRE_PAY_YY_NUM, 0)   AS retirement_leave_days,
+    DY.RETIRE_PAY_MM               AS retirement_compensation_month,
+    NVL(DY.USED_NUM, 0)            AS used_leave_days_past,
+    NVL(DY.NEXT_YY_NUM, 0)         AS carried_over_leave_days,
+    -- 총 년월차일수 = 발생+추가+보상+보상2+퇴직연차
+    NVL(DY.YY_NUM, 0) + NVL(DY.ADD_NUM, 0)
+      + NVL(DY.PAY_YY_NUM, 0) + NVL(DY.PAY_YY_NUM2, 0)
+      + NVL(DY.RETIRE_PAY_YY_NUM, 0)
+                                   AS total_leave_days,
+    -- 잔여연차일수 = 총 년월차 - 사용
+    NVL(DY.YY_NUM, 0) + NVL(DY.ADD_NUM, 0)
+      + NVL(DY.PAY_YY_NUM, 0) + NVL(DY.PAY_YY_NUM2, 0)
+      + NVL(DY.RETIRE_PAY_YY_NUM, 0)
+      - NVL(DY.USED_NUM, 0)
+                                   AS remaining_leave_days,
+    DY.NOTE                        AS remarks,
+    DY.MOD_USER_ID                 AS updated_by,
+    DY.MOD_DATE                    AS updated_at,
+    DY.TZ_CD                       AS timezone_code,
+    DY.TZ_DATE                     AS timezone_datetime
+FROM DTM_YY_REST DY
+LEFT JOIN FRM_CODE FC1 ON FC1.CD = DY.YY_KIND_CD     AND FC1.CD_KIND = 'DTM_YY_KIND_CD'
+LEFT JOIN FRM_CODE FC2 ON FC2.CD = DY.YY_NUM_KIND_CD  AND FC2.CD_KIND = 'DTM_YY_NUM_KIND_CD';
+
+GRANT SELECT ON "H552_RND"."V_AI_DTM_YY_REST" TO "MUSER";
+
+COMMENT ON TABLE H552_RND.V_AI_DTM_YY_REST IS '연차 발생/사용/잔여 관리 (1:N — 기준년도별 행 존재). 일수 단위: 일';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.LEAVE_ACCRUAL_ID IS '발생연차관리ID (PK)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.EMP_ID IS '사원 고유 식별 번호 (FK → V_AI_EMPLOYEE)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.REFERENCE_YEAR IS '기준년도 (YYYY)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.LEAVE_TYPE_CODE IS '연차구분 코드';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.LEAVE_TYPE_NAME IS '연차구분명';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.ACCRUAL_DATE IS '연차 발생일자';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.LEAVE_GRANT_RULE_CODE IS '연차부여기준 코드';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.LEAVE_GRANT_RULE_NAME IS '연차부여기준명';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.ACCRUED_LEAVE_DAYS IS '발생연차일수 (일)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.ADDITIONAL_LEAVE_DAYS IS '추가연차일수 (일)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.COMPENSATED_LEAVE_DAYS IS '보상연차일수 (일)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.COMPENSATION_MONTH IS '보상적용월';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.COMPENSATED_LEAVE_DAYS_2 IS '보상연차2일수 (일)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.COMPENSATION_MONTH_2 IS '보상적용월2';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.RETIREMENT_LEAVE_DAYS IS '퇴직연차일수 (일)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.RETIREMENT_COMPENSATION_MONTH IS '퇴직보상적용월';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.USED_LEAVE_DAYS_PAST IS '사용연차일수 (일)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.CARRIED_OVER_LEAVE_DAYS IS '이월연차일수 (일, 차년 추가연차)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.TOTAL_LEAVE_DAYS IS '총 년월차일수 (일, = 발생+추가+보상+보상2+퇴직연차)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.REMAINING_LEAVE_DAYS IS '잔여연차일수 (일, = 총 년월차 - 사용)';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.REMARKS IS '비고';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.UPDATED_BY IS '변경자 ID';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.UPDATED_AT IS '변경일시';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.TIMEZONE_CODE IS '타임존코드';
+COMMENT ON COLUMN H552_RND.V_AI_DTM_YY_REST.TIMEZONE_DATETIME IS '타임존일시';

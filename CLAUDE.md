@@ -869,7 +869,8 @@ from langgraph.graph import END, StateGraph
 
 ## **중요**:
 - 가상환경: `conda activate penv3.13-nlq`
-- DB 확인할 경우: `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
+- DB 확인할 경우(MUREUM): `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
+- DB 확인할 경우(MUREUM Business테이블(오라클)): `jdbc:oracle:thin:@115.68.223.220:1521:ORCLCDB` ID : muser
 - 관리자 아이디/패스워드는 admin/Win1234! (admin123!아님)
 - DB스크립트 및 데이터:  docs/sql/psql-hermes_db.sql
 - 로컬의 로그파일 : ./logs/app.log
