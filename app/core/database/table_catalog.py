@@ -275,7 +275,7 @@ _DEFAULT_CATALOG: Dict[str, Dict[str, Any]] = {
             "TOTAL_DEDUCTION_AMOUNT (총공제액, 원, = 공제 + 세금)",
             "NET_PAY_AMOUNT ★실지급액 (원, = 지급합계 - 총공제액)",
         ],
-        "keywords": ["급여", "월급", "연봉", "지급", "실수령", "공제", "세금", "상여", "보너스", "급여명세"],
+        "keywords": ["급여", "월급", "연봉", "지급", "실수령", "공제", "세금", "상여", "보너스", "급여명세", "고정비", "변동비", "급여구조", "인건비", "급여비용", "지급합계"],
         "join_key": "EMP_ID",
         "relation": "1:N",
         "related_tables": ["v_ai_employee"],
