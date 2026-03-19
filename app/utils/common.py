@@ -18,6 +18,22 @@ def is_debug_mode() -> bool:
     return settings.log_level == "DEBUG"
 
 
+def truncate_with_omission(text: str, max_length: int = 500) -> str:
+    """
+    텍스트를 max_length로 자르고 생략 건수를 표시
+
+    디버그 로그의 ANSWER 미리보기용.
+    항상 자르기 적용 (force=True 고정).
+
+    Returns:
+        잘린 텍스트 + "[이하 N자 생략]" 또는 원본 텍스트
+    """
+    if not text or len(text) <= max_length:
+        return text
+    omitted = len(text) - max_length
+    return f"{text[:max_length]}\n... [이하 {omitted}자 생략]"
+
+
 def truncate_text(text: str, max_length: int = 100, force: bool = False) -> str:
     """
     텍스트 자르기 (공통 유틸리티)

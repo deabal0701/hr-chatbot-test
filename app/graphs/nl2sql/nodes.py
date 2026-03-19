@@ -29,7 +29,7 @@ from app.core.llm.llm_config import LLMConfigManager
 from app.core.llm.prompt_service import prompt_service
 from app.core.database.sql_executor import SQLExecutionError, SQLValidationError, sql_executor
 from app.utils.logger import setup_logger, log_step
-from app.utils.common import truncate_text, extract_llm_text_content
+from app.utils.common import truncate_text, extract_llm_text_content, truncate_with_omission
 
 logger = setup_logger(__name__)
 
@@ -168,12 +168,14 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         ]
 
         log_step(logger, request_id, "NL2SQL", "0.5a", "LLM-INPUT", "경량 LLM 호출 (테이블 선택)")
+        logger.debug("[%s] [NL2SQL-0.5a] [LLM-INPUT]\n[SYSTEM]\n%s\n[USER]\n%s", request_id, messages[0].content, messages[1].content)
 
         response = llm.invoke(messages)
 
         response_text = extract_llm_text_content(response.content)
 
         log_step(logger, request_id, "NL2SQL", "0.5b", "LLM-OUTPUT", "LLM 응답 수신", response_length=len(response_text))
+        logger.debug("[%s] [NL2SQL-0.5b] [LLM-OUTPUT]\n%s", request_id, response_text)
 
         # 3. JSON 파싱
         import json
@@ -1026,7 +1028,7 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
         response = llm.invoke(messages)
 
         if logger.isEnabledFor(logging.DEBUG):
-            log_step(logger, request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답", level="DEBUG", content=response.content)
+            log_step(logger, request_id, "NL2SQL", "4b", "LLM-OUTPUT", "LLM 응답 (raw)", level="DEBUG", content=response.content)
 
         answer = extract_llm_text_content(response.content)
 
