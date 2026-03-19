@@ -1,6 +1,6 @@
 # NL2SQL Few-shot 설계 문서
 
-> 최종 갱신: 2026-03-18
+> 최종 갱신: 2026-03-19
 > 대상 DB: Oracle (H552_RND 스키마, MUSER 시노님)
 > 저장 위치: hermesdb.tb_docs (usage_type='rag_action', doc_type='query_example')
 
@@ -39,11 +39,34 @@ SELECT ...
 
 - Oracle 문법 전용 (SYSDATE, NVL, TO_CHAR, FETCH FIRST N ROWS ONLY)
 - 플레이스홀더: ':년도', ':이름', ':부서' 등 콜론 접두사
-- 재직자 기본조건: `WORK_STATUS = '재직'` (명시적 퇴직자 요청 제외)
-- 1:N 뷰 집계: `COUNT(DISTINCT EMP_ID)` 필수
-- 1:N 뷰 필터: EXISTS 서브쿼리 사용 (중복 방지)
-- 1:1 뷰 (address, military): JOIN 사용 가능
 - JOIN 키: 모든 뷰 `EMP_ID` 통일 (v_ai_pay_report 포함)
+- 1:N 뷰 집계: `COUNT(DISTINCT EMP_ID)` 필수
+- `COMPANY_CODE = '01'` 조건 추가 금지 — 뷰 내부에 이미 필터 내장
+
+#### 재직 조건 규칙 ★
+
+| 질의 유형 | WORK_STATUS 조건 |
+|----------|----------------|
+| 입사 인원수 집계 (COUNT, 몇 명) | 없음 (HIRE_DATE 기준) |
+| 퇴직 인원수 집계 (COUNT, 몇 명) | 없음 (RETIRE_DATE 기준) |
+| 그 외 모든 질문 (목록, 분포, 통계) | `WHERE WORK_STATUS = '재직'` 필수 |
+| "퇴직자 포함", "퇴직자만" 명시 | 조건 변경 가능 |
+
+> "전체", "총", "전체 직원", "회사 인원" 표현 → 재직자만
+
+#### 조인 방식 선택 기준
+
+| 상황 | 방법 |
+|------|------|
+| COUNT/존재 여부 확인 (1:N) | `EXISTS` (중복 방지) |
+| 특정 값 필터 조회 | `INNER JOIN` (해당 조건 없는 직원 자동 제외) |
+| 전체 분포/통계 (GROUP BY 집계) | `LEFT JOIN` 필수 (미등록 직원 누락 방지) |
+| 특정 직원 상세 데이터 | `INNER JOIN` |
+
+> **LEFT JOIN 핵심 규칙**: 1:N 테이블 조건은 반드시 **ON절**에 포함
+> - ✅ `LEFT JOIN v_ai_training t ON e.EMP_ID = t.EMP_ID AND t.COMPLETION_STATUS = '수료'`
+> - ❌ `LEFT JOIN ... WHERE t.COMPLETION_STATUS = '수료'` → WHERE절 이동 시 INNER JOIN과 동일
+> - NULL 방어 필수: `NVL(t.컬럼, 0)`
 
 ---
 
@@ -66,8 +89,8 @@ SELECT ...
 
 | # | title | 대표 질의 | SQL 핵심 패턴 |
 |---|-------|----------|-------------|
-| 9 | 특정 지역 거주 직원 수 | 서울 사는 직원 몇 명 | JOIN + WHERE REGION = ':지역' |
-| 10 | 지역별 직원 분포 조회 | 지역별 인원 분포 | JOIN + GROUP BY REGION |
+| 9 | 특정 지역 거주 직원 수 | 서울 사는 직원 몇 명 | INNER JOIN + WHERE REGION = ':지역' |
+| 10 | 지역별 직원 분포 조회 | 지역별 인원 분포 | **LEFT JOIN** + GROUP BY + NVL(REGION,'미등록') |
 
 ### 2.3 V_AI_CAREER — 이전 직장 경력 (2건)
 
@@ -95,7 +118,7 @@ SELECT ...
 | # | title | 대표 질의 | SQL 핵심 패턴 |
 |---|-------|----------|-------------|
 | 17 | 어학 점수 조건 직원 수 | TOEIC 800점 이상 직원 | EXISTS + EXAM_TYPE + SCORE >= |
-| 18 | 시험종류별 평균 점수 | 어학 시험별 평균 점수 | GROUP BY EXAM_TYPE + AVG(SCORE) |
+| 18 | 시험종류별 평균 점수 | 어학 시험별 평균 점수 | **JOIN v_ai_employee + WORK_STATUS** + GROUP BY EXAM_TYPE + AVG(SCORE) |
 
 ### 2.7 V_AI_LICENSE — 자격증 (2건)
 
@@ -122,13 +145,13 @@ SELECT ...
 | # | title | 대표 질의 | SQL 핵심 패턴 |
 |---|-------|----------|-------------|
 | 24 | 교육 수료자 수 조회 | 올해 교육 수료한 직원 | EXISTS + COMPLETION_STATUS = '수료' |
-| 25 | 부서별 교육시간 합계 | 부서별 1인당 교육시간 | JOIN + GROUP BY + SUM + AVG |
+| 25 | 부서별 교육시간 합계 | 부서별 1인당 교육시간 | **LEFT JOIN (ON절 조건)** + GROUP BY + SUM + NVL |
 
 ### 2.11 V_AI_FEEDBACK — 인사평가 (3건)
 
 | # | title | 대표 질의 | SQL 핵심 패턴 |
 |---|-------|----------|-------------|
-| 26 | 평가등급 분포 조회 | S등급 몇 명 | GROUP BY APPR_GRADE + 비율 계산 |
+| 26 | 평가등급 분포 조회 | S등급 몇 명 | **JOIN v_ai_employee + WORK_STATUS** + GROUP BY APPR_GRADE + 비율 계산 |
 | 27 | 특정 직원 평가 이력 조회 | 홍길동 평가 기록 | JOIN + EMP_NAME LIKE |
 | 28 | 부서별 평균 평가점수 | 부서 평가 현황 | JOIN + GROUP BY DEPARTMENT + AVG |
 
@@ -136,7 +159,7 @@ SELECT ...
 
 | # | title | 대표 질의 | SQL 핵심 패턴 |
 |---|-------|----------|-------------|
-| 29 | 승진자 목록 조회 | 올해 승진한 직원 | JOIN + ASSIGNMENT_TYPE_CODE LIKE '%승진%' |
+| 29 | 승진자 목록 조회 | 올해 승진한 직원 | JOIN + **WORK_STATUS='재직'** + ASSIGNMENT_TYPE_CODE LIKE '%승진%' |
 | 30 | 휴직 직원 조회 | 현재 휴직 중인 직원 | JOIN + LEAVE_OF_ABSENCE_YN = 'Y' + 최신 발령 |
 | 31 | 발령유형별 통계 조회 | 발령 종류별 건수 | GROUP BY ASSIGNMENT_TYPE_CODE |
 
@@ -153,7 +176,7 @@ SELECT ...
 | # | title | 대표 질의 | SQL 핵심 패턴 |
 |---|-------|----------|-------------|
 | 35 | 잔여연차 조회 | 남은 연차 현황 | JOIN + REFERENCE_YEAR + ORDER BY ASC |
-| 36 | 부서별 연차 사용률 | 연차 소진률 | JOIN + GROUP BY + CASE WHEN 비율 (0 방어) |
+| 36 | 부서별 연차 사용률 | 연차 소진률 | **LEFT JOIN (ON절 조건)** + GROUP BY + CASE WHEN 비율 + NVL |
 | 37 | 잔여연차 부족 직원 | 연차 5일 미만 직원 | JOIN + REMAINING_LEAVE_DAYS < N |
 
 ### 2.15 복합 패턴 (10건)
@@ -184,7 +207,9 @@ SELECT ...
 | CASE WHEN 구간 분류 | #7, #8 | 연령대/근속구간 |
 | TO_CHAR 날짜 추출 | #5, #6, #26, #29, #31 | 연도 필터 |
 | EXISTS 서브쿼리 | #11, #13, #15, #17, #19, #22, #24 | 1:N 중복 방지 |
-| JOIN (1:1/1:N) | #9, #10, #12, #14, #16, #18, #20, #21, #25, #27, #28, #29, #30, #32, #34, #35, #36, #37, #38, #39, #40 | 다양한 JOIN |
+| INNER JOIN | #9, #12, #14, #16, #20, #21, #27, #28, #29, #30, #32, #34, #35, #37, #40 | 특정 값 필터/상세 데이터 |
+| **LEFT JOIN (분포 통계)** | **#10, #25, #36** | **전체 분포 집계 — 미등록 직원 누락 방지** |
+| JOIN + WORK_STATUS 보강 | #18, #26 | v_ai_language/feedback 단독 → v_ai_employee JOIN 추가 |
 | **HAVING** | #12, #16, #20 | **신규 추가** |
 | **ROW_NUMBER() OVER** | #42 | **신규 추가** |
 | **LEFT JOIN + IS NULL** | #43 | **신규 추가** |
@@ -207,7 +232,7 @@ SELECT ...
 DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_action';
 ```
 
-### 4.2 주요 수정 사항
+### 4.2 주요 수정 사항 (2026-03-18)
 
 | 항목 | 기존 (AS-IS) | 변경 (TO-BE) |
 |------|-------------|-------------|
@@ -217,6 +242,21 @@ DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_actio
 | 연령대 ORDER BY | alias 직접 참조 (Oracle 오류) | 서브쿼리로 감싸서 해결 |
 | v_ai_address relation | content에 "1:N" 표기 | "1:1"로 수정 (카탈로그 일치) |
 | context_data 포맷 | ## SQL + ```sql 중첩 | SQL: / 패턴: 플레인 텍스트 |
+
+### 4.3 주요 수정 사항 (2026-03-19)
+
+| 항목 | 기존 (AS-IS) | 변경 (TO-BE) | 영향 예제 |
+|------|-------------|-------------|---------|
+| 재직 조건 규칙 | "퇴직자", "전체 직원" 명시 시 조건 변경 | "퇴직자 포함" 명시 시에만 변경, "전체"는 재직자로 간주 | 시스템 프롬프트 |
+| 재직 조건 예외 기준 | "입사자 집계 질문" (모호) | "입사 인원수 집계(COUNT, 몇 명)" (명확) | #5, #6 |
+| COMPANY_CODE 조건 | 스키마 설명 참조하여 SQL에 추가 | 뷰 내부 필터 — SQL에 추가 금지 | 시스템 프롬프트 |
+| #10 지역별 분포 | INNER JOIN | **LEFT JOIN + NVL(REGION,'미등록')** | #10 |
+| #18 시험 평균 점수 | v_ai_language 단독 (퇴직자 포함) | JOIN v_ai_employee + WORK_STATUS='재직' | #18 |
+| #25 부서별 교육시간 | INNER JOIN + WHERE COMPLETION_STATUS | **LEFT JOIN + ON절 조건** + NVL | #25 |
+| #26 평가등급 분포 | v_ai_feedback 단독 (퇴직자 포함) | JOIN v_ai_employee + WORK_STATUS='재직' | #26 |
+| #29 승진자 목록 | WORK_STATUS 없음 | WORK_STATUS='재직' 추가 | #29 |
+| #36 부서별 연차 사용률 | INNER JOIN + WHERE REFERENCE_YEAR | **LEFT JOIN + ON절 조건** + NVL | #36 |
+| 1:N 조인 프롬프트 | LEFT JOIN 권장 한 줄 언급 | 조인 선택 기준 표 + LEFT JOIN ON절 규칙 상세화 | 시스템 프롬프트 |
 
 ### 4.3 신규 추가 패턴
 
@@ -282,6 +322,11 @@ FROM ...
 | `LANGUAGE_GRADE` 환각 | 1건+ | #17 | 패턴에 "LANGUAGE_GRADE 없음" 명시 |
 | `SELECT *` 남발 | 10건+ | #45, #47 | 주요 컬럼만 SELECT하는 예제 추가 |
 | `EMPLOYEE_ID` 사용 | 3건+ | #32~#34 | EMP_ID로 통일 (수정 완료) |
+| `COMPANY_CODE = '01'` 조건 추가 | 다수 | 시스템 프롬프트 | 뷰 내부 필터 — 스키마 설명 문구 개선, 프롬프트 금지 규칙 추가 |
+| `WORK_STATUS` 조건 누락 (전체 직원 질의) | 다수 | 시스템 프롬프트 | 재직 조건 규칙 명확화 ("전체"→재직자, COUNT 집계만 예외) |
+| 퇴직자 포함 통계 (#18, #26) | 다수 | #18, #26 | v_ai_language/feedback 단독 조회 → v_ai_employee JOIN 추가 |
+| 분포 통계 INNER JOIN → 미등록 직원 누락 | 다수 | #10, #25, #36 | LEFT JOIN + ON절 조건 + NVL 적용 |
+| LEFT JOIN WHERE절 조건 → INNER JOIN 효과 | 신규 발견 | #25, #36 | ON절 조건 필수 규칙 프롬프트 추가 |
 
 ---
 

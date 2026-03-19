@@ -264,19 +264,20 @@ VALUES ('default', 'rag_action', '지역별 직원 분포 조회', 'query_exampl
 시도별 직원 수
 거주지별 사원 현황
 어디에 많이 살아
-- v_ai_address JOIN
+- v_ai_address LEFT JOIN (주소 미등록 직원 누락 방지)
 - REGION GROUP BY',
 'SQL:
-SELECT a.REGION, COUNT(*) AS emp_count
+SELECT NVL(a.REGION, ''미등록'') AS region, COUNT(*) AS emp_count
 FROM v_ai_employee e
-JOIN v_ai_address a ON e.EMP_ID = a.EMP_ID
+LEFT JOIN v_ai_address a ON e.EMP_ID = a.EMP_ID
 WHERE e.WORK_STATUS = ''재직''
-GROUP BY a.REGION
+GROUP BY NVL(a.REGION, ''미등록'')
 ORDER BY emp_count DESC
 
 패턴:
-- GROUP BY REGION으로 지역별 분포
-- v_ai_address는 1:1 관계 (JOIN 가능, 중복 없음)');
+- LEFT JOIN 필수: 주소 미등록 직원도 집계 포함 (INNER JOIN 시 누락되어 통계 왜곡)
+- NVL(a.REGION, ''미등록''): 주소 없는 직원 → ''미등록'' 처리
+- 특정 지역 필터(WHERE a.REGION = '':지역''): INNER JOIN 사용 가능 (주소 없는 직원은 해당 지역 아님)');
 
 
 -- =============================================================
@@ -667,14 +668,14 @@ SELECT e.DEPARTMENT,
        ROUND(SUM(NVL(t.COMPLETION_HOURS, 0)), 1) AS total_hours,
        ROUND(SUM(NVL(t.COMPLETION_HOURS, 0)) / NULLIF(COUNT(DISTINCT e.EMP_ID), 0), 1) AS avg_hours_per_person
 FROM v_ai_employee e
-JOIN v_ai_training t ON e.EMP_ID = t.EMP_ID
+LEFT JOIN v_ai_training t ON e.EMP_ID = t.EMP_ID AND t.COMPLETION_STATUS = ''수료''
 WHERE e.WORK_STATUS = ''재직''
-  AND t.COMPLETION_STATUS = ''수료''
 GROUP BY e.DEPARTMENT
 ORDER BY total_hours DESC
 
 패턴:
-- COMPLETION_HOURS: 이수 시간
+- LEFT JOIN + ON절 조건: 교육 미등록 부서도 0시간으로 포함 (INNER JOIN 시 누락)
+- COMPLETION_STATUS 조건은 ON절에 포함 (WHERE절 이동 시 LEFT JOIN 효과 소멸)
 - NVL(값, 0): NULL 방어
 - NULLIF(값, 0): 0으로 나누기 방어
 - 1인당 평균: SUM / COUNT(DISTINCT EMP_ID)');
@@ -980,23 +981,24 @@ VALUES ('default', 'rag_action', '부서별 연차 사용률 조회', 'query_exa
 'SQL:
 SELECT e.DEPARTMENT,
        COUNT(DISTINCT e.EMP_ID) AS emp_count,
-       ROUND(AVG(d.TOTAL_LEAVE_DAYS), 1) AS avg_total,
-       ROUND(AVG(d.USED_LEAVE_DAYS_PAST), 1) AS avg_used,
+       ROUND(AVG(NVL(d.TOTAL_LEAVE_DAYS, 0)), 1) AS avg_total,
+       ROUND(AVG(NVL(d.USED_LEAVE_DAYS_PAST, 0)), 1) AS avg_used,
        ROUND(AVG(
-           CASE WHEN d.TOTAL_LEAVE_DAYS > 0
-                THEN d.USED_LEAVE_DAYS_PAST * 100.0 / d.TOTAL_LEAVE_DAYS
+           CASE WHEN NVL(d.TOTAL_LEAVE_DAYS, 0) > 0
+                THEN NVL(d.USED_LEAVE_DAYS_PAST, 0) * 100.0 / d.TOTAL_LEAVE_DAYS
                 ELSE 0
            END
        ), 1) AS avg_usage_rate
 FROM v_ai_employee e
-JOIN v_ai_dtm_yy_rest d ON e.EMP_ID = d.EMP_ID
-WHERE d.REFERENCE_YEAR = TO_CHAR(SYSDATE, ''YYYY'')
-  AND e.WORK_STATUS = ''재직''
+LEFT JOIN v_ai_dtm_yy_rest d ON e.EMP_ID = d.EMP_ID AND d.REFERENCE_YEAR = TO_CHAR(SYSDATE, ''YYYY'')
+WHERE e.WORK_STATUS = ''재직''
 GROUP BY e.DEPARTMENT
 ORDER BY avg_usage_rate DESC
 
 패턴:
-- 사용률 = USED / TOTAL * 100
+- LEFT JOIN + ON절 조건: 연차 미등록 직원도 0%로 포함 (INNER JOIN 시 누락)
+- REFERENCE_YEAR 조건은 ON절에 포함 (WHERE절 이동 시 LEFT JOIN 효과 소멸)
+- NVL(값, 0): NULL 방어 (연차 미등록 직원 → 0 처리)
 - CASE WHEN: TOTAL_LEAVE_DAYS > 0 (0 나누기 방어)
 - 부서별: GROUP BY DEPARTMENT');
 
