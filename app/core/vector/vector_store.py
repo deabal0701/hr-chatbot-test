@@ -262,7 +262,7 @@ class VectorStoreService:
                     doc_type=row['doc_type'],
                     content=content,
                     content_snippet=snippet,
-                    metadata=row.get('metadata', {}),
+                    metadata=row.get('metadata') or {},
                     similarity_score=round(similarity, 4),
                     vector_score=round(similarity, 4),
                     context_data=row.get('context_data')
@@ -336,7 +336,7 @@ class VectorStoreService:
                     doc_type=row['doc_type'],
                     content=content,
                     content_snippet=snippet,
-                    metadata=row.get('metadata', {}),
+                    metadata=row.get('metadata') or {},
                     similarity_score=round(keyword_score, 4),
                     keyword_score=round(keyword_score, 4),
                     context_data=row.get('context_data'),
@@ -386,7 +386,7 @@ class VectorStoreService:
                     doc_type=row['doc_type'],
                     content=content,
                     content_snippet=snippet,
-                    metadata=row.get('metadata', {}),
+                    metadata=row.get('metadata') or {},
                     similarity_score=1.0,
                     context_data=row.get('context_data'),
                 )
