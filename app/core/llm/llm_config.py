@@ -46,8 +46,8 @@ class LLMConfigManager:
     # GPT-5 계열 모델 (reasoning_effort 지원)
     GPT5_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
 
-    # reasoning_effort 유효 값
-    VALID_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high"}
+    # reasoning_effort 유효 값 (gpt-5 계열 지원값: none/low/medium/high/xhigh)
+    VALID_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh"}
 
     @staticmethod
     def _is_gpt5_model(model: Optional[str]) -> bool:

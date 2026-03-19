@@ -32,7 +32,7 @@ WHERE WORK_STATUS = ''재직''
 패턴:
 - 재직자 기본조건: WORK_STATUS = ''재직''
 - 특별한 언급 없으면 재직자만 대상
-- 퇴직자, 전체 직원 등 명시적 언급 시에만 조건 변경');
+- "퇴직자 포함", "퇴직 인원" 명시 시에만 조건 변경 ("전체 직원", "전체 인원" 표현은 재직자만)');
 
 -- #2 부서별 직원 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
@@ -113,7 +113,7 @@ VALUES ('default', 'rag_action', '연도별 입사자 수 조회', 'query_exampl
 작년 신규 입사자 수
 특정 연도 입사 인원
 - HIRE_DATE 기준 연도별 집계
-- 입사자 집계 시 재직 조건 불필요',
+- 입사 인원수 집계(COUNT) 시 재직 조건 불필요',
 'SQL:
 SELECT COUNT(*) AS hire_count
 FROM v_ai_employee
@@ -121,7 +121,7 @@ WHERE TO_CHAR(HIRE_DATE, ''YYYY'') = '':년도''
 
 패턴:
 - 연도 추출: TO_CHAR(HIRE_DATE, ''YYYY'')
-- 입사자 집계 시 WORK_STATUS 조건 불필요 (입사 시점 기준)
+- 입사 인원수 집계(COUNT) 시 WORK_STATUS 조건 불필요 (입사 시점 분석)
 - HIRE_DATE는 NOT NULL');
 
 -- #6 연도별 퇴사자 수 조회
@@ -141,7 +141,7 @@ WHERE RETIRE_DATE IS NOT NULL
 
 패턴:
 - RETIRE_DATE IS NOT NULL 조건 필수
-- 퇴사자 집계 시 WORK_STATUS 조건 불필요
+- 퇴직 인원수 집계(COUNT) 시 WORK_STATUS 조건 불필요 (퇴직 시점 분석)
 - 재직자의 RETIRE_DATE는 NULL');
 
 -- #7 연령대별 직원 분포 조회
@@ -474,14 +474,17 @@ VALUES ('default', 'rag_action', '시험종류별 평균 점수 조회', 'query_
 - v_ai_language 단독
 - EXAM_TYPE GROUP BY + AVG(SCORE)',
 'SQL:
-SELECT EXAM_TYPE, ROUND(AVG(SCORE), 1) AS avg_score,
-       COUNT(*) AS exam_count, COUNT(DISTINCT EMP_ID) AS emp_count
-FROM v_ai_language
-WHERE SCORE > 0
-GROUP BY EXAM_TYPE
+SELECT l.EXAM_TYPE, ROUND(AVG(l.SCORE), 1) AS avg_score,
+       COUNT(*) AS exam_count, COUNT(DISTINCT l.EMP_ID) AS emp_count
+FROM v_ai_language l
+JOIN v_ai_employee e ON l.EMP_ID = e.EMP_ID
+WHERE l.SCORE > 0
+  AND e.WORK_STATUS = ''재직''
+GROUP BY l.EXAM_TYPE
 ORDER BY avg_score DESC
 
 패턴:
+- JOIN v_ai_employee: 재직자만 대상 (퇴직자 제외)
 - AVG(SCORE): 평균 점수
 - SCORE > 0: 유효 점수만
 - COUNT(DISTINCT EMP_ID): 응시 직원 수 (1인 다건 가능)');
@@ -693,18 +696,21 @@ A등급 직원 수
 - v_ai_feedback 단독
 - APPR_GRADE GROUP BY + 비율',
 'SQL:
-SELECT APPR_GRADE, COUNT(DISTINCT EMP_ID) AS emp_count,
-       ROUND(COUNT(DISTINCT EMP_ID) * 100.0 / SUM(COUNT(DISTINCT EMP_ID)) OVER(), 1) AS percentage
-FROM v_ai_feedback
-WHERE APPR_GRADE IS NOT NULL
-  AND TO_CHAR(END_YMD, ''YYYY'') = '':년도''
-GROUP BY APPR_GRADE
-ORDER BY CASE APPR_GRADE
+SELECT f.APPR_GRADE, COUNT(DISTINCT f.EMP_ID) AS emp_count,
+       ROUND(COUNT(DISTINCT f.EMP_ID) * 100.0 / SUM(COUNT(DISTINCT f.EMP_ID)) OVER(), 1) AS percentage
+FROM v_ai_feedback f
+JOIN v_ai_employee e ON f.EMP_ID = e.EMP_ID
+WHERE f.APPR_GRADE IS NOT NULL
+  AND TO_CHAR(f.END_YMD, ''YYYY'') = '':년도''
+  AND e.WORK_STATUS = ''재직''
+GROUP BY f.APPR_GRADE
+ORDER BY CASE f.APPR_GRADE
     WHEN ''S'' THEN 1 WHEN ''A'' THEN 2 WHEN ''B'' THEN 3
     WHEN ''C'' THEN 4 WHEN ''D'' THEN 5 ELSE 6
 END
 
 패턴:
+- JOIN v_ai_employee: 재직자만 대상 (퇴직자 제외)
 - APPR_GRADE: S, A, B, C, D 등급
 - COUNT(DISTINCT EMP_ID): 1인 다건 평가 가능 → 직원 수 기준
 - END_YMD: 평가 종료일 (연도 필터 기준)
@@ -777,11 +783,13 @@ SELECT e.EMP_NAME, e.DEPARTMENT, e.POSITION, e.GRADE,
        h.ASSIGNMENT_DATE, h.ASSIGNMENT_TYPE_CODE
 FROM v_ai_employee e
 JOIN v_ai_history h ON e.EMP_ID = h.EMP_ID
-WHERE h.ASSIGNMENT_TYPE_CODE LIKE ''%승진%''
+WHERE e.WORK_STATUS = ''재직''
+  AND h.ASSIGNMENT_TYPE_CODE LIKE ''%승진%''
   AND TO_CHAR(h.ASSIGNMENT_DATE, ''YYYY'') = '':년도''
 ORDER BY h.ASSIGNMENT_DATE DESC
 
 패턴:
+- WORK_STATUS = ''재직'': 현재 재직 중인 승진자만
 - ASSIGNMENT_TYPE_CODE LIKE ''%승진%'': 승진 발령
 - TO_CHAR(ASSIGNMENT_DATE, ''YYYY''): 연도 필터
 - 승진 수: COUNT(DISTINCT h.EMP_ID)');
