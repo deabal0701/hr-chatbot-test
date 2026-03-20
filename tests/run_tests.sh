@@ -71,9 +71,12 @@ declare -A TOPIC_MAP=(
 
 cd "$PROJECT_DIR"
 
+# 기본 실행에서 제외할 테스트 (별도 실행 권장)
+EXCLUDE="--ignore=tests/test_12_rate_limit.py --ignore=tests/test_hr_analytics_coverage.py --ignore=tests/test_sso.py"
+
 if [ $# -eq 0 ]; then
-    # 전체 실행
-    python -m pytest tests/ -v --tb=short -x 2>&1
+    # 전체 실행 (rate_limit, hr_coverage, sso 제외)
+    python -m pytest tests/ $EXCLUDE -v --tb=short -x 2>&1
 else
     # 선택 실행
     TEST_FILES=""

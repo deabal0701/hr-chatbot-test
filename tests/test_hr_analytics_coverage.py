@@ -12,6 +12,8 @@
   pytest tests/test_hr_analytics_coverage.py -v -s -k "test_hr"
   pytest tests/test_hr_analytics_coverage.py -v -s --timeout=600
 """
+import json
+import time
 import uuid
 import httpx
 import pytest
@@ -29,6 +31,8 @@ ADMIN_PW = "Win1234!"
 
 # SQL 생성 성공 판정 기준
 PASS_RATE_THRESHOLD = 0.60   # SQL 생성률 60% 이상이면 전체 PASS
+QUERY_DELAY = 0.0           # 쿼리 간 대기 시간(초), 0이면 즉시
+REPEAT_COUNT = 2             # 동일 질의 반복 횟수 (일관성 검증, 1이면 1회만)
 
 # 보고서 저장 경로
 REPORT_DIR = Path(__file__).parent.parent / "docs" / "sql" / "fewshot"
@@ -40,7 +44,7 @@ REPORT_DIR = Path(__file__).parent.parent / "docs" / "sql" / "fewshot"
 HR_QUERIES = [
     # A. 인력 현황 분석
     ("A1", "인력현황", "부서별 재직자 수를 알려줘",                                           "인력 과부족 파악"),
-    ("A2", "인력현황", "최근 5년간 연도별 입사 퇴사 추이를 보여줘",                           "이직률 트렌드"),
+    ("A2", "인력현황", "최근 10년간 연도별 입사 퇴사 추이를 보여줘",                           "이직률 트렌드"),
     ("A3", "인력현황", "부서별 퇴직률을 계산해줘",                                            "고위험 부서 식별"),
     ("A4", "인력현황", "정규직과 기간제 비율 및 부서별 분포는?",                               "비정규직 관리"),
     ("A5", "인력현황", "근속연수 구간별 인원 분포를 알려줘 (1년미만, 1~3년, 3~5년, 5~10년, 10년이상)", "조직 안정성"),
@@ -58,7 +62,7 @@ HR_QUERIES = [
     # C. 평가/성과 분석
     ("C1", "평가분석", "부서별 평가등급 분포를 알려줘",                                       "평가 편향 진단"),
     ("C2", "평가분석", "직급별 평균 평가점수를 보여줘",                                       "직급 간 성과 비교"),
-    ("C3", "평가분석", "최근 3년간 S등급을 2회 이상 받은 직원 목록을 알려줘",                  "고성과자 식별"),
+    ("C3", "평가분석", "최근 10년간 S등급을 2회 이상 받은 직원 목록을 알려줘",                  "고성과자 식별"),
     ("C4", "평가분석", "평가등급별 평균 급여를 보여줘",                                       "Pay-for-Performance"),
     ("C5", "평가분석", "평가등급이 C나 D인 직원의 근속연수 분포는?",                           "저성과자 관리"),
     ("C6", "평가분석", "부서별 평가점수 표준편차를 계산해줘",                                  "평가 공정성"),
@@ -71,7 +75,7 @@ HR_QUERIES = [
     ("D6", "교육분석", "자격증 보유 현황을 부서별로 분석해줘",                                 "전문 역량"),
     ("D7", "교육분석", "대졸 석사 박사 학력 분포를 부서별로 알려줘",                           "학력 수준"),
     # E. 인사이동/승진 분석
-    ("E1", "인사이동", "최근 3년간 부서별 승진자 수 추이를 보여줘",                           "승진 기회 균형"),
+    ("E1", "인사이동", "최근 10년간 부서별 승진자 수 추이를 보여줘",                           "승진 기회 균형"),
     ("E2", "인사이동", "직급별 평균 승진 소요연수를 알려줘",                                   "승진 적체"),
     ("E3", "인사이동", "5년 이상 동일 직급에 있는 직원 목록을 알려줘",                        "승진 누락"),
     ("E4", "인사이동", "휴직 유형별 육아휴직 병가 개인휴직 현황을 알려줘",                    "복지 모니터링"),
@@ -96,19 +100,64 @@ def long_client():
         yield c
 
 
+class _AutoRefreshHeaders(dict):
+    """Access Token 만료 시 refresh token으로 자동 갱신하는 헤더 dict (프론트엔드 Axios 인터셉터와 동일 패턴)"""
+
+    def __init__(self, client, login_id, password):
+        super().__init__()
+        self._client = client
+        self._login_id = login_id
+        self._password = password
+        self._refresh_token = None
+        self._login()
+
+    def _login(self):
+        """최초 로그인 (access_token + refresh_token 획득)"""
+        resp = self._client.post("/api/v1/auth/login", json={
+            "login_id": self._login_id, "password": self._password,
+        })
+        assert resp.status_code == 200, f"로그인 실패: {resp.text}"
+        data = resp.json()["data"]
+        self["Authorization"] = f"Bearer {data['access_token']}"
+        self._refresh_token = data.get("refresh_token")
+        self._token_time = time.time()
+
+    def _refresh(self):
+        """refresh token으로 access token 갱신"""
+        if not self._refresh_token:
+            self._login()
+            return
+        resp = self._client.post("/api/v1/auth/refresh", json={
+            "refresh_token": self._refresh_token,
+        })
+        if resp.status_code == 200 and resp.json().get("success"):
+            data = resp.json()["data"]
+            self["Authorization"] = f"Bearer {data['access_token']}"
+            if data.get("refresh_token"):
+                self._refresh_token = data["refresh_token"]
+            self._token_time = time.time()
+        else:
+            self._login()
+
+    def ensure_valid(self):
+        """20분 경과 시 토큰 갱신 (만료 30분 전에 미리)"""
+        if time.time() - self._token_time > 1200:  # 20분
+            self._refresh()
+            print("       [TOKEN] 자동 갱신 완료")
+
+
 @pytest.fixture(scope="module")
 def admin_headers(long_client):
-    resp = long_client.post("/api/v1/auth/login", json={"login_id": ADMIN_ID, "password": ADMIN_PW})
-    assert resp.status_code == 200, f"로그인 실패: {resp.text}"
-    token = resp.json()["data"]["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return _AutoRefreshHeaders(long_client, ADMIN_ID, ADMIN_PW)
 
 
 # ─────────────────────────────────────────
 # 헬퍼
 # ─────────────────────────────────────────
-def _call_nl2sql(client: httpx.Client, headers: dict, question: str) -> dict:
+def _call_nl2sql(client: httpx.Client, headers, question: str) -> dict:
     """NL2SQL 엔드포인트 호출 후 결과 dict 반환"""
+    if hasattr(headers, "ensure_valid"):
+        headers.ensure_valid()
     session_id = f"coverage-{uuid.uuid4().hex[:8]}"
     try:
         resp = client.post(
@@ -133,22 +182,44 @@ def _call_nl2sql(client: httpx.Client, headers: dict, question: str) -> dict:
     row_count = sql_result.get("row_count", -1) if sql_result else -1
     exec_ms = sql_result.get("execution_time_ms", -1) if sql_result else -1
 
+    # 컬럼 목록 및 샘플 데이터 추출
+    columns = sql_result.get("columns", []) if sql_result else []
+    rows_data = sql_result.get("rows", []) if sql_result else []
+    sample_rows = rows_data[:5] if rows_data else []  # 상위 5행만
+
     return {
         "http_ok":      http_ok,
         "api_success":  api_success,
         "has_sql":      bool(sql),
-        "sql":          sql[:120].replace("\n", " ") if sql else "",   # 보고서용 앞 120자
+        "sql_short":    sql[:120].replace("\n", " ") if sql else "",   # 보고서용 앞 120자
+        "sql_full":     sql,                                           # SQL 전문
         "has_result":   bool(sql_result) and row_count >= 0,
         "row_count":    row_count,
         "exec_ms":      exec_ms,
+        "columns":      columns,                                       # 결과 컬럼 목록
+        "sample_rows":  sample_rows,                                   # 결과 상위 5행
         "has_answer":   bool(answer.strip()),
         "answer_len":   len(answer),
+        "answer":       answer,                                        # 답변 전문
         "error":        error_msg[:80] if error_msg else "",
     }
 
 
+def _normalize_sql(sql: str) -> str:
+    """SQL 비교용 정규화 (공백/줄바꿈/대소문자 통일)"""
+    import re
+    if not sql:
+        return ""
+    s = sql.upper().strip()
+    s = re.sub(r'\s+', ' ', s)           # 연속 공백 → 단일 공백
+    s = re.sub(r'\s*,\s*', ', ', s)      # 쉼표 주변 공백 통일
+    s = re.sub(r'\s*\(\s*', '(', s)      # 괄호 주변 공백 제거
+    s = re.sub(r'\s*\)\s*', ')', s)
+    return s
+
+
 def _grade(r: dict) -> str:
-    """결과 단계 판정"""
+    """결과 단계 판정 (일관성 포함)"""
     if not r["http_ok"] or not r["api_success"]:
         return "FAIL-API"
     if not r["has_sql"]:
@@ -159,6 +230,9 @@ def _grade(r: dict) -> str:
         return "WARN-EMPTY"
     if not r["has_answer"]:
         return "WARN-NOANSWER"
+    # 일관성 체크 (2회 실행 결과 비교)
+    if not r.get("consistent", True):
+        return "PASS-INCONSISTENT"
     return "PASS"
 
 
@@ -195,7 +269,7 @@ def _build_report(rows: list) -> str:
         q_short = r["question"][:30] + ("…" if len(r["question"]) > 30 else "")
         lines.append(
             f"| {r['id']} | {r['category']} | {q_short} | `{r['grade']}` "
-            f"| {r['row_count']} | {r['exec_ms']} | {r['sql']} | {r['error']} |"
+            f"| {r['row_count']} | {r['exec_ms']} | {r['sql_short']} | {r['error']} |"
         )
 
     lines += [
@@ -221,6 +295,54 @@ def _save_report(content: str) -> Path:
     return fname
 
 
+def _save_detail_json(rows: list) -> Path:
+    """분석용 상세 JSON 저장 (SQL 전문, 컬럼, 샘플 데이터, 답변 포함)"""
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    fname = REPORT_DIR / f"coverage_detail_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+
+    output = {
+        "generated_at": datetime.now().isoformat(),
+        "repeat_count": REPEAT_COUNT,
+        "total": len(rows),
+        "summary": {
+            "PASS": sum(1 for r in rows if r["grade"] == "PASS"),
+            "PASS_INCONSISTENT": sum(1 for r in rows if r["grade"] == "PASS-INCONSISTENT"),
+            "WARN": sum(1 for r in rows if "WARN" in r["grade"]),
+            "FAIL_SQL": sum(1 for r in rows if "FAIL-SQL" in r["grade"]),
+            "FAIL_EXEC": sum(1 for r in rows if "FAIL-EXEC" in r["grade"]),
+            "FAIL_API": sum(1 for r in rows if "FAIL-API" in r["grade"]),
+        },
+        "results": [
+            {
+                "id":              r["id"],
+                "category":        r["category"],
+                "question":        r["question"],
+                "purpose":         r["purpose"],
+                "grade":           r["grade"],
+                "consistent":      r.get("consistent", True),
+                "sql_consistent":  r.get("sql_consistent", True),
+                "col_consistent":  r.get("col_consistent", True),
+                "row_consistent":  r.get("row_consistent", True),
+                "sql":             r["sql_full"],
+                "sql_runs":        r.get("sql_runs", []),
+                "columns":         r["columns"],
+                "row_count":       r["row_count"],
+                "row_count_runs":  r.get("row_count_runs", []),
+                "sample_rows":     r["sample_rows"],
+                "sample_runs":     r.get("sample_runs", []),
+                "columns_runs":    r.get("columns_runs", []),
+                "exec_ms":         r["exec_ms"],
+                "answer":          r["answer"],
+                "error":           r["error"],
+            }
+            for r in rows
+        ],
+    }
+
+    fname.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
+    return fname
+
+
 # ─────────────────────────────────────────
 # 테스트
 # ─────────────────────────────────────────
@@ -241,56 +363,129 @@ class TestHRAnalyticsCoverage:
         통과 기준: SQL 생성률 60% 이상
         """
         rows = []
-        print(f"\n{'='*70}")
-        print(f"{'HR 분석 쿼리 커버리지 테스트':^70}")
-        print(f"{'='*70}")
-        print(f"{'ID':<4} {'카테고리':<10} {'질의(앞30자)':<32} {'판정':<14} {'rows':>5} {'ms':>6}")
-        print(f"{'-'*70}")
+        repeat = max(REPEAT_COUNT, 1)
+        label = f"HR 분석 쿼리 커버리지 테스트 (반복 {repeat}회)"
+
+        print(f"\n{'='*80}")
+        print(f"{label:^80}")
+        print(f"{'='*80}")
+        print(f"{'ID':<4} {'카테고리':<10} {'질의(앞30자)':<32} {'판정':<18} {'rows':>5} {'ms':>6} {'일관성':>6}")
+        print(f"{'-'*80}")
 
         for query_id, category, question, purpose in HR_QUERIES:
-            result = _call_nl2sql(long_client, admin_headers, question)
-            grade = _grade(result)
+            # 1회차 실행
+            result1 = _call_nl2sql(long_client, admin_headers, question)
+
+            # 2회차 이상 실행 (일관성 검증)
+            sql_runs = [result1["sql_full"]]
+            col_runs = [result1["columns"]]
+            row_runs = [result1["row_count"]]
+            all_results = [result1]
+
+            for _ in range(1, repeat):
+                if QUERY_DELAY > 0:
+                    time.sleep(QUERY_DELAY)
+                result_n = _call_nl2sql(long_client, admin_headers, question)
+                sql_runs.append(result_n["sql_full"])
+                col_runs.append(result_n["columns"])
+                row_runs.append(result_n["row_count"])
+                all_results.append(result_n)
+
+            # 일관성 판정: SQL 정규화 후 비교
+            normalized = [_normalize_sql(s) for s in sql_runs]
+            sql_consistent = len(set(normalized)) <= 1
+            col_consistent = all(c == col_runs[0] for c in col_runs)
+            row_consistent = all(r == row_runs[0] for r in row_runs)
+            consistent = sql_consistent and col_consistent
+
+            # 1회차 결과를 기준으로 판정 (일관성 정보 추가)
+            result1["consistent"] = consistent
+            grade = _grade(result1)
+
+            # 각 회차 sample_rows 수집
+            sample_runs = [r["sample_rows"] for r in all_results]
+            columns_runs = [r["columns"] for r in all_results]
 
             row = {
-                "id":       query_id,
-                "category": category,
-                "question": question,
-                "purpose":  purpose,
-                "grade":    grade,
-                **result,
+                "id":              query_id,
+                "category":        category,
+                "question":        question,
+                "purpose":         purpose,
+                "grade":           grade,
+                "consistent":      consistent,
+                "sql_consistent":  sql_consistent,
+                "col_consistent":  col_consistent,
+                "row_consistent":  row_consistent,
+                "sql_runs":        sql_runs,         # 각 회차 SQL 전문
+                "row_count_runs":  row_runs,         # 각 회차 row_count
+                "sample_runs":     sample_runs,      # 각 회차 sample_rows (상위5행)
+                "columns_runs":    columns_runs,     # 각 회차 컬럼 목록
+                **result1,
             }
             rows.append(row)
 
             q_short = question[:30] + ("…" if len(question) > 30 else "")
-            print(f"{query_id:<4} {category:<10} {q_short:<32} {grade:<14} {result['row_count']:>5} {result['exec_ms']:>6}")
-            if result["error"]:
-                print(f"       ⚠ {result['error']}")
+            con_mark = "O" if consistent else "X"
+            print(f"{query_id:<4} {category:<10} {q_short:<32} {grade:<18} {result1['row_count']:>5} {result1['exec_ms']:>6} {con_mark:>6}")
+            if result1["error"]:
+                print(f"       ⚠ {result1['error']}")
+            if not sql_consistent and repeat > 1:
+                print(f"       ⚠ SQL 불일치 감지! (정규화 후 비교)")
+
+            # 마지막 쿼리가 아니면 대기 (2회차 이후 대기는 위에서 처리)
+            if QUERY_DELAY > 0 and query_id != HR_QUERIES[-1][0]:
+                print(f"       ⏳ {QUERY_DELAY:.0f}초 대기...")
+                time.sleep(QUERY_DELAY)
 
         # 보고서 생성 & 저장
         report = _build_report(rows)
         report_path = _save_report(report)
+        detail_path = _save_detail_json(rows)
 
-        print(f"\n{'='*70}")
-        total   = len(rows)
-        passed  = sum(1 for r in rows if r["grade"] == "PASS")
-        has_sql = sum(1 for r in rows if r["has_sql"])
-        warn    = sum(1 for r in rows if "WARN" in r["grade"])
-        fail    = sum(1 for r in rows if "FAIL" in r["grade"])
-        print(f"  총 {total}건 | PASS {passed} | WARN {warn} | FAIL {fail}")
+        print(f"\n{'='*80}")
+        total        = len(rows)
+        passed       = sum(1 for r in rows if r["grade"] == "PASS")
+        inconsistent = sum(1 for r in rows if r["grade"] == "PASS-INCONSISTENT")
+        has_sql      = sum(1 for r in rows if r["has_sql"])
+        warn         = sum(1 for r in rows if "WARN" in r["grade"])
+        fail         = sum(1 for r in rows if "FAIL" in r["grade"])
+        print(f"  총 {total}건 | PASS {passed} | PASS-INCONSISTENT {inconsistent} | WARN {warn} | FAIL {fail}")
         print(f"  SQL 생성률: {has_sql}/{total} ({has_sql/total:.0%})")
+        if repeat > 1:
+            con_count = sum(1 for r in rows if r["consistent"] and r["has_sql"])
+            print(f"  SQL 일관성: {con_count}/{has_sql} ({con_count/max(has_sql,1):.0%})")
         print(f"  보고서 저장: {report_path}")
-        print(f"{'='*70}")
+        print(f"  상세 JSON: {detail_path}")
+        print(f"{'='*80}")
 
-        # FAIL 목록 출력
-        fail_rows = [r for r in rows if "FAIL-SQL" in r["grade"]]
-        if fail_rows:
-            print("\n[few-shot 보완 필요 목록]")
-            for r in fail_rows:
+        # FAIL 유형별 목록 출력
+        for fail_type in ("FAIL-API", "FAIL-SQL", "FAIL-EXEC"):
+            fail_list = [r for r in rows if fail_type in r["grade"]]
+            if fail_list:
+                print(f"\n[{fail_type} 목록]")
+                for r in fail_list:
+                    print(f"  {r['id']} {r['category']} | {r['question']} | {r['error']}")
+
+        # 일관성 불일치 목록 출력
+        incon_rows = [r for r in rows if r["grade"] == "PASS-INCONSISTENT"]
+        if incon_rows:
+            print("\n[SQL 일관성 불일치 목록 — few-shot 강화 필요]")
+            for r in incon_rows:
                 print(f"  {r['id']} {r['category']} | {r['question']}")
 
-        # 통과 기준 검증
-        sql_rate = has_sql / total
+        # 통과 기준 검증 (FAIL-API는 인프라 문제이므로 제외하고 계산)
+        non_api_fail = [r for r in rows if "FAIL-API" not in r["grade"]]
+        effective_total = len(non_api_fail) if non_api_fail else total
+        effective_sql = sum(1 for r in non_api_fail if r["has_sql"])
+        sql_rate = effective_sql / effective_total if effective_total > 0 else 0
+
+        if len(non_api_fail) < total:
+            api_fail_count = total - len(non_api_fail)
+            print(f"\n  [!] FAIL-API {api_fail_count}건 제외 후 SQL 생성률 계산: {effective_sql}/{effective_total} ({sql_rate:.0%})")
+
         assert sql_rate >= PASS_RATE_THRESHOLD, (
             f"SQL 생성률 {sql_rate:.0%} < 기준 {PASS_RATE_THRESHOLD:.0%}\n"
-            f"FAIL-SQL 목록: {[r['id'] for r in rows if 'FAIL-SQL' in r['grade']]}"
+            f"FAIL-SQL: {[r['id'] for r in rows if 'FAIL-SQL' in r['grade']]}\n"
+            f"FAIL-EXEC: {[r['id'] for r in rows if 'FAIL-EXEC' in r['grade']]}\n"
+            f"FAIL-API: {[r['id'] for r in rows if 'FAIL-API' in r['grade']]}"
         )

@@ -4,6 +4,7 @@
 - BASE_URL: 환경변수 TEST_BASE_URL 또는 기본값 http://localhost:19090
 - admin 로그인 → access_token 제공
 - 테스트 데이터 정리용 cleanup 리스트
+- 세션 종료 시 DB 직접 정리 (API rate limit 우회)
 
 참고:
 - 모든 API 호출은 HistoryMiddleware에 의해 tb_api_history에 자동 기록됨
@@ -76,3 +77,55 @@ def assert_error(resp, expected_code=None):
     if expected_code:
         assert body["error"]["code"] == expected_code
     return body["error"]
+
+
+# ── DB 직접 정리 (전체 테스트 종료 후) ──
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb",
+)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _cleanup_test_data_after_session():
+    """
+    전체 테스트 세션 종료 후 잔여 테스트 데이터를 DB에서 직접 삭제.
+
+    API cleanup이 rate limit 등으로 실패해도 DB 레벨에서 확실히 정리.
+    테스트 데이터는 PYTEST/pytest 접두사로 식별.
+    """
+    yield  # ← 모든 테스트 실행 후 아래 코드 실행
+
+    try:
+        import psycopg
+        conn = psycopg.connect(DATABASE_URL)
+        cur = conn.cursor()
+        deleted = {}
+
+        # 순서 중요: FK 의존성 고려 (자식 → 부모)
+        cleanup_queries = [
+            ("tb_user_menu", "DELETE FROM tb_user_menu WHERE user_id IN (SELECT user_id FROM tb_user WHERE login_id LIKE 'pytest%')"),
+            ("tb_user_session", "DELETE FROM tb_user_session WHERE user_id IN (SELECT user_id FROM tb_user WHERE login_id LIKE 'pytest%')"),
+            ("tb_user", "DELETE FROM tb_user WHERE login_id LIKE 'pytest%'"),
+            ("tb_code", "DELETE FROM tb_code WHERE code_group LIKE 'PYTEST%'"),
+            ("tb_menu", "DELETE FROM tb_menu WHERE menu_code LIKE 'PYTEST%' OR menu_code LIKE 'TEST_MENU%'"),
+            ("tb_role", "DELETE FROM tb_role WHERE role_code LIKE 'TEST_%' AND is_system = false"),
+            ("tb_tenant", "DELETE FROM tb_tenant WHERE tenant_code LIKE 'TEST_%' AND is_system = false"),
+            ("tb_docs", "DELETE FROM tb_docs WHERE title LIKE 'PyTest%'"),
+        ]
+
+        for table, sql in cleanup_queries:
+            cur.execute(sql)
+            if cur.rowcount > 0:
+                deleted[table] = cur.rowcount
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if deleted:
+            summary = ", ".join(f"{t}={n}" for t, n in deleted.items())
+            print(f"\n[CLEANUP] 잔여 테스트 데이터 DB 직접 삭제: {summary}")
+    except Exception as e:
+        print(f"\n[CLEANUP] DB 정리 실패 (무시): {e}")

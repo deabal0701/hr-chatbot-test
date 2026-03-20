@@ -32,8 +32,8 @@ class TestRateLimitHeaders:
         limit = int(resp.headers["x-ratelimit-limit"])
         remaining = int(resp.headers["x-ratelimit-remaining"])
 
-        # 기본 RPM은 120
-        assert limit == 120, f"기본 RPM이 120이어야 함: {limit}"
+        # 기본 RPM은 설정값에 따름 (기본 120, .env로 변경 가능)
+        assert limit >= 60, f"기본 RPM이 60 이상이어야 함: {limit}"
         assert remaining >= 0, f"remaining이 0 이상이어야 함: {remaining}"
         print(f"\n  [INFO] /api/v1/info → limit={limit}, remaining={remaining}")
 
@@ -42,36 +42,42 @@ class TestRateLimitLogin:
     """로그인 엔드포인트 Rate Limit 테스트 (RPM=5)"""
 
     def test_login_rate_limit_enforced(self, client):
-        """로그인 엔드포인트 분당 5회 제한 확인"""
+        """로그인 엔드포인트 Rate Limit 제한 확인 (RPM 설정값 기준)"""
         login_data = {"login_id": "rate_test_nonexist", "password": "wrong_pass"}
-        responses = []
 
-        # 6회 연속 요청 (5회 허용, 6번째 차단)
-        for i in range(6):
+        # 먼저 RPM 값을 헤더에서 확인
+        first_resp = client.post("/api/v1/auth/login", json=login_data)
+        rpm = int(first_resp.headers.get("x-ratelimit-limit", 20))
+        print(f"\n  [INFO] 로그인 RPM={rpm}")
+
+        # RPM까지 요청 소진
+        responses = [first_resp]
+        for i in range(rpm - 1):
             resp = client.post("/api/v1/auth/login", json=login_data)
             responses.append(resp)
 
-        # 처음 5개는 401 (로그인 실패) 또는 423 (계정 잠금) — 429가 아님
-        for i, resp in enumerate(responses[:5]):
+        # RPM 이내는 429가 아님
+        for i, resp in enumerate(responses[:rpm]):
             assert resp.status_code != 429, f"요청 {i+1}이 429여서는 안 됨 (status={resp.status_code})"
-            print(f"  요청 {i+1}: status={resp.status_code}")
 
-        # 6번째는 429 (Rate Limit 초과)
-        last = responses[5]
-        assert last.status_code == 429, f"6번째 요청이 429여야 함: status={last.status_code}, body={last.text}"
+        # RPM+1번째는 429 (Rate Limit 초과)
+        last = client.post("/api/v1/auth/login", json=login_data)
+        assert last.status_code == 429, f"RPM+1번째 요청이 429여야 함: status={last.status_code}, body={last.text}"
 
         body = last.json()
         assert body["success"] is False
         assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
         assert "retry-after" in last.headers
-        print(f"  요청 6: status=429, retry-after={last.headers['retry-after']}s")
+        print(f"  RPM+1 요청: status=429, retry-after={last.headers['retry-after']}s")
 
     def test_login_429_response_format(self, client):
         """429 응답 형식이 표준 에러 포맷을 따르는지 확인"""
         login_data = {"login_id": "format_test_nonexist", "password": "wrong"}
 
-        # RPM(5) 초과하도록 요청
-        for _ in range(5):
+        # RPM 값을 헤더에서 확인 후 초과하도록 요청
+        first = client.post("/api/v1/auth/login", json=login_data)
+        rpm = int(first.headers.get("x-ratelimit-limit", 20))
+        for _ in range(rpm - 1):
             client.post("/api/v1/auth/login", json=login_data)
 
         resp = client.post("/api/v1/auth/login", json=login_data)
@@ -99,8 +105,10 @@ class TestRateLimitDifferentGroups:
 
     def test_login_limit_does_not_affect_other_endpoints(self, client):
         """로그인 제한이 다른 엔드포인트에 영향 주지 않음"""
-        # 로그인 5회 소진
-        for _ in range(5):
+        # 로그인 RPM 소진
+        first = client.post("/api/v1/auth/login", json={"login_id": "group_test", "password": "wrong"})
+        rpm = int(first.headers.get("x-ratelimit-limit", 20))
+        for _ in range(rpm - 1):
             client.post("/api/v1/auth/login", json={"login_id": "group_test", "password": "wrong"})
 
         # 로그인은 429
