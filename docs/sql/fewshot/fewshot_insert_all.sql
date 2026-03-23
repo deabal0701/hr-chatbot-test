@@ -387,7 +387,7 @@ FETCH FIRST 20 ROWS ONLY
 -- 05. V_AI_FAMILY — 가족 정보 (2건)
 -- =============================================================
 
--- #15 배우자 보유 직원 수
+-- #15 배우자 보유 직원 수 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES ('default', 'rag_action', '배우자 보유 직원 수 조회', 'query_example', 'ko',
 '배우자가 있는 직원 수
@@ -395,7 +395,7 @@ VALUES ('default', 'rag_action', '배우자 보유 직원 수 조회', 'query_ex
 결혼한 사원 수
 기혼 직원 현황
 - v_ai_family (1:N) EXISTS 사용
-- RELATION으로 가족 관계 필터',
+- RELATION 실제값: 처, 자녀, 형제자매',
 'SQL:
 SELECT COUNT(*) AS emp_count
 FROM v_ai_employee e
@@ -403,11 +403,13 @@ WHERE e.WORK_STATUS = ''재직''
   AND EXISTS (
     SELECT 1 FROM v_ai_family f
     WHERE f.EMP_ID = e.EMP_ID
-      AND f.RELATION IN (''배우자'', ''처'', ''남편'')
+      AND f.RELATION = ''처''
   )
 
 패턴:
-- RELATION: 배우자, 처, 남편, 자녀, 부, 모 등
+- 배우자 = RELATION = ''처'' (DB 실제값)
+- RELATION 실제값: 처, 자녀, 형제자매
+- ''배우자'', ''남편'' 값은 DB에 없음 — ''처'' 사용 필수
 - 자녀 조건: RELATION = ''자녀''
 - DISABILITY_STATUS: 장애있음, 장애없음');
 
@@ -495,15 +497,15 @@ ORDER BY avg_score DESC
 -- 07. V_AI_LICENSE — 자격증 (2건)
 -- =============================================================
 
--- #19 자격증 보유자 수 조회
+-- #19 자격증 보유자 수 조회 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES ('default', 'rag_action', '자격증 보유자 수 조회', 'query_example', 'ko',
-'정보처리기사 자격증 보유자 수
-특정 자격증 보유 직원 몇 명
+'자격증 보유자 수
+자격증 보유한 직원
 자격증 있는 사원
-국가자격 보유자
+사내자격 보유 현황
 - v_ai_license (1:N) EXISTS 사용
-- LICENSE_NAME LIKE로 자격증명 검색',
+- LICENSE_TYPE 실제값: 사내자격, 사외자격',
 'SQL:
 SELECT COUNT(*) AS emp_count
 FROM v_ai_employee e
@@ -511,12 +513,13 @@ WHERE e.WORK_STATUS = ''재직''
   AND EXISTS (
     SELECT 1 FROM v_ai_license l
     WHERE l.EMP_ID = e.EMP_ID
-      AND l.LICENSE_NAME LIKE ''%'' || '':자격증명'' || ''%''
   )
 
 패턴:
-- LICENSE_NAME LIKE: 자격증명 부분 매칭
-- LICENSE_TYPE: 국가자격, 민간자격
+- LICENSE_TYPE 실제값: 사내자격, 사외자격
+- ''국가자격'', ''민간자격'' 값은 DB에 없음
+- 자격 유형별 필터: LICENSE_TYPE = ''사내자격'' 또는 ''사외자격''
+- LICENSE_NAME LIKE ''%키워드%'' 로 특정 자격증 검색
 - VALIDITY_STATUS: 유효, 만료, 영구');
 
 -- #20 자격증 다수 보유자 목록
@@ -770,29 +773,33 @@ ORDER BY avg_score DESC
 -- 12. V_AI_HISTORY — 인사발령 (3건)
 -- =============================================================
 
--- #29 승진자 목록 조회
+-- #29 승진자 목록 조회 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES ('default', 'rag_action', '승진자 목록 조회', 'query_example', 'ko',
 '올해 승진한 직원
 승진자 목록
 승진한 사람 몇 명
 승진 현황
+직급변경 직원
 - v_ai_employee JOIN v_ai_history
-- ASSIGNMENT_TYPE_CODE LIKE 승진',
+- 승진 = ASSIGNMENT_TYPE_CODE = 직급변경 (실제 DB값)
+- 또는 ASSIGNMENT_REASON_CODE LIKE 승격/승진',
 'SQL:
 SELECT e.EMP_NAME, e.DEPARTMENT, e.POSITION, e.GRADE,
-       h.ASSIGNMENT_DATE, h.ASSIGNMENT_TYPE_CODE
+       h.ASSIGNMENT_DATE, h.ASSIGNMENT_TYPE_CODE, h.ASSIGNMENT_REASON_CODE
 FROM v_ai_employee e
 JOIN v_ai_history h ON e.EMP_ID = h.EMP_ID
 WHERE e.WORK_STATUS = ''재직''
-  AND h.ASSIGNMENT_TYPE_CODE LIKE ''%승진%''
+  AND h.ASSIGNMENT_TYPE_CODE IN (''직급변경'', ''직책변경'')
+  AND h.ASSIGNMENT_REASON_CODE IN (''승격'', ''승진'')
   AND TO_CHAR(h.ASSIGNMENT_DATE, ''YYYY'') = '':년도''
 ORDER BY h.ASSIGNMENT_DATE DESC
 
 패턴:
-- WORK_STATUS = ''재직'': 현재 재직 중인 승진자만
-- ASSIGNMENT_TYPE_CODE LIKE ''%승진%'': 승진 발령
-- TO_CHAR(ASSIGNMENT_DATE, ''YYYY''): 연도 필터
+- 승진 = ASSIGNMENT_TYPE_CODE IN (''직급변경'', ''직책변경'') (DB 실제값)
+- 직급변경 + REASON=''승격'' (직급 승급, 679건)
+- 직책변경 + REASON=''승진'' (직책 승진, 104건)
+- LIKE ''%승진%'' 사용 금지 (ASSIGNMENT_TYPE_CODE에 해당 값 없음)
 - 승진 수: COUNT(DISTINCT h.EMP_ID)');
 
 -- #30 휴직 직원 조회
@@ -825,13 +832,15 @@ ORDER BY h.ASSIGNMENT_START_DATE DESC
 - MAX(ASSIGNMENT_START_DATE): 최신 휴직 발령만
 - 육아휴직: ASSIGNMENT_REASON_CODE LIKE ''%육아%'' 추가');
 
--- #31 발령유형별 통계 조회
+-- #31 발령유형별 통계 조회 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES ('default', 'rag_action', '발령유형별 통계 조회', 'query_example', 'ko',
 '발령유형별 현황
 인사이동 통계
 발령 종류별 건수
-전보 승진 휴직 건수
+이동 승진 휴직 건수
+부서 이동 건수
+전보 현황
 - v_ai_history 단독
 - ASSIGNMENT_TYPE_CODE GROUP BY',
 'SQL:
@@ -844,7 +853,8 @@ GROUP BY ASSIGNMENT_TYPE_CODE
 ORDER BY total_count DESC
 
 패턴:
-- ASSIGNMENT_TYPE_CODE: 승진, 전보, 전직, 휴직, 복직, 퇴직 등
+- ASSIGNMENT_TYPE_CODE 실제값: 채용, 이동, 퇴직, 직책변경, 직급변경, 조직개편, 전출, 귀임, 파견, 겸직, 휴직, 복직, 직위변경
+- 자연어 매핑: 승진→직급변경, 전보/부서이동→이동, 전직→전출
 - COUNT(*): 발령 총 건수
 - COUNT(DISTINCT EMP_ID): 대상 직원 수 (1인 다건 발령 가능)');
 
@@ -1161,31 +1171,34 @@ ORDER BY net_pay DESC
 - WHERE rn = 1: 각 부서 1위만
 - rn <= 3: 각 부서 TOP 3');
 
--- #43 승진이력 없는 장기 근속자
+-- #43 승진이력 없는 장기 근속자 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES ('default', 'rag_action', '승진이력 없는 장기 근속자 조회', 'query_example', 'ko',
 '5년 이상 근무했는데 승진 안 한 직원
 승진 이력 없는 장기 근속자
 승진 누락 직원
 오래 근무했는데 승진 못한 사람
+직급변경 직책변경 이력 없는 재직자
 - LEFT JOIN + IS NULL 패턴
-- 이력 없는 대상 추출',
+- v_ai_history의 ASSIGNMENT_TYPE_CODE IN (직급변경, 직책변경)',
 'SQL:
-SELECT e.EMP_NAME, e.DEPARTMENT, e.POSITION, e.CAREER_YEARS
+SELECT e.EMP_NAME, e.DEPARTMENT, e.POSITION, e.GRADE,
+       e.HIRE_DATE, e.CAREER_YEARS
 FROM v_ai_employee e
 LEFT JOIN v_ai_history h
   ON e.EMP_ID = h.EMP_ID
-  AND h.ASSIGNMENT_TYPE_CODE LIKE ''%승진%''
+  AND h.ASSIGNMENT_TYPE_CODE IN (''직급변경'', ''직책변경'')
+  AND h.ASSIGNMENT_REASON_CODE IN (''승격'', ''승진'')
 WHERE e.WORK_STATUS = ''재직''
   AND e.CAREER_YEARS >= 5
   AND h.EMP_ID IS NULL
 ORDER BY e.CAREER_YEARS DESC
-FETCH FIRST 20 ROWS ONLY
 
 패턴:
-- LEFT JOIN + IS NULL: 매칭되는 이력이 없는 대상 추출
-- ON 절에 조건 추가: 승진 발령만 대상
-- WHERE h.EMP_ID IS NULL: 승진 이력 없음');
+- LEFT JOIN + ON 절에 조건: 직급변경/직책변경 발령만 대상
+- WHERE h.EMP_ID IS NULL: 승진 이력 없음
+- 승진 = ASSIGNMENT_TYPE_CODE IN (''직급변경'', ''직책변경'') + REASON IN (''승격'', ''승진'')
+- LIKE ''%승진%'' 사용 금지');
 
 -- #44 교육 미이수 재직자 목록
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)

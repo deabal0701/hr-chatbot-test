@@ -23,7 +23,9 @@
       "Bash(ls:*)",
       "Bash(PGPASSWORD='hermesuser123!' psql -h 115.68.223.220 -p 5432 -U hermesuser -d hermesdb -c \"SELECT table_name, column_name, data_type, character_maximum_length, is_nullable, column_default FROM information_schema.columns WHERE table_schema = ''business'' AND table_name LIKE ''v_ai_%'' ORDER BY table_name, ordinal_position;\")",
       "Bash(PGPASSWORD='hermesuser123!' psql:*)",
-      "Bash(pip install PyJWT[crypto])"
+      "Bash(pip install PyJWT[crypto])",
+      "Bash(findstr \"19090 19080\")",
+      "Bash(findstr \"LISTENING\")"
     ],
     "deny": [],
     "ask": []
