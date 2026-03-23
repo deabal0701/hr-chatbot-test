@@ -1806,7 +1806,6 @@ const isGPT5Model = computed(() => {
 // reasoning_effort 옵션 목록
 const reasoningEffortOptions = [
   { value: 'none', label: 'None (추론 비활성화)' },
-  { value: 'minimal', label: 'Minimal (최소 추론)' },
   { value: 'low', label: 'Low (낮은 추론)' },
   { value: 'medium', label: 'Medium (중간 추론, 권장)' },
   { value: 'high', label: 'High (높은 추론)' }

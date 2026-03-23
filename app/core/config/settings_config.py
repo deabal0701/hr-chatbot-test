@@ -58,7 +58,7 @@ class SettingsConfig:
             "provider": ("openai", "string", "LLM 제공자 (openai, anthropic, google, google_vertex)", False),
             "temperature": ("0.1", "float", "생성 온도 (0.0-2.0)", False),
             "max_tokens": ("2000", "int", "최대 토큰 수", False),
-            "reasoning_effort": ("medium", "string", "GPT-5 계열 추론 강도 (none, minimal, low, medium, high)", False),
+            "reasoning_effort": ("medium", "string", "GPT-5 계열 추론 강도 (none, low, medium, high)", False),
         },
         "rag": {
             "top_k": ("5", "int", "검색 문서 수", False),
