@@ -67,19 +67,19 @@
 
         <div class="flex-1" />
 
-        <!-- 세션 필터 표시 (세션 ID로 필터링 중일 때) -->
+        <!-- 제목 필터 표시 (제목으로 필터링 중일 때) -->
         <el-tag
-          v-if="filters.session_id"
+          v-if="filters.title"
           type="info"
           closable
-          @close="clearSessionFilter"
+          @close="clearTitleFilter"
         >
-          세션: {{ filters.session_id }}
+          제목: {{ filters.title }}
         </el-tag>
 
         <el-input
-          v-model="filters.session_id"
-          placeholder="세션 ID 검색"
+          v-model="filters.title"
+          placeholder="제목 검색"
           clearable
           @clear="handleFilterChange"
           @keyup.enter="handleFilterChange"
@@ -253,7 +253,7 @@ const pageSize = ref(20)
 const filters = reactive({
   request_type: null,
   success_only: null,
-  session_id: '',
+  title: '',
   from_date: null,
   to_date: null
 })
@@ -283,7 +283,7 @@ const loadData = async () => {
 
     if (filters.request_type) params.request_type = filters.request_type
     if (filters.success_only !== null) params.success_only = filters.success_only
-    if (filters.session_id) params.session_id = filters.session_id
+    if (filters.title) params.title = filters.title
     if (filters.from_date) params.from_date = filters.from_date
     if (filters.to_date) params.to_date = filters.to_date
 
@@ -301,9 +301,9 @@ const loadData = async () => {
 // 필터 변경 핸들러
 const handleFilterChange = () => {
   currentPage.value = 1
-  // URL 쿼리 파라미터 업데이트 (세션 ID)
-  if (filters.session_id) {
-    router.replace({ query: { session_id: filters.session_id } })
+  // URL 쿼리 파라미터 업데이트 (제목 검색)
+  if (filters.title) {
+    router.replace({ query: { title: filters.title } })
   } else {
     router.replace({ query: {} })
   }
@@ -322,9 +322,9 @@ const handleDateRangeChange = (range) => {
   handleFilterChange()
 }
 
-// 세션 필터 제거
-const clearSessionFilter = () => {
-  filters.session_id = ''
+// 제목 필터 제거
+const clearTitleFilter = () => {
+  filters.title = ''
   router.replace({ query: {} })
   loadData()
 }
@@ -333,7 +333,7 @@ const clearSessionFilter = () => {
 const resetFilters = () => {
   filters.request_type = null
   filters.success_only = null
-  filters.session_id = ''
+  filters.title = ''
   filters.from_date = null
   filters.to_date = null
   dateRange.value = null
@@ -451,9 +451,9 @@ const loadTenantOptions = async () => {
 }
 
 
-// URL 쿼리 파라미터 감시 (session_id 직접 감시)
-watch(() => route.query.session_id, (newSessionId) => {
-  filters.session_id = newSessionId || ''
+// URL 쿼리 파라미터 감시 (title 직접 감시)
+watch(() => route.query.title, (newTitle) => {
+  filters.title = newTitle || ''
   loadData()
 }, { immediate: true })
 

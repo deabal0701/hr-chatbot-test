@@ -108,7 +108,7 @@ class HistoryListRequest(BaseModel):
 
     # 기본 필터
     request_type: Optional[str] = Field(None, description="요청 타입 (agent/nl2sql/rag)")
-    session_id: Optional[str] = Field(None, description="세션 ID 필터")
+    title: Optional[str] = Field(None, description="제목(질문) 검색")
     success_only: Optional[bool] = Field(None, description="성공한 요청만 조회")
 
     # 날짜 필터

@@ -127,9 +127,8 @@
                     복사
                   </el-button>
                 </div>
-                <div class="content-body answer-body">
-                  {{ historyItem.answer || '(답변 없음)' }}
-                </div>
+                <div v-if="formattedAnswer" class="content-body answer-body" v-html="formattedAnswer"></div>
+                <div v-else class="content-body answer-body">(답변 없음)</div>
               </div>
 
               <!-- 에러 메시지 (실패 시) -->
@@ -272,6 +271,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowDown, CopyDocument, DataLine, Delete } from '@element-plus/icons-vue'
 import historyApi from '@/api/history'
 import { formatDateTime, formatResponseTime, truncateText } from '@/utils/format'
+import { formatMarkdownToHtml, registerTableCopyFunction } from '@/utils/markdownParser'
 
 const router = useRouter()
 const route = useRoute()
@@ -284,8 +284,14 @@ const showTrace = ref(false)
 
 const requestId = computed(() => route.params.requestId)
 
+const formattedAnswer = computed(() => {
+  if (!historyItem.value?.answer) return ''
+  return formatMarkdownToHtml(historyItem.value.answer)
+})
+
 // 데이터 로드
 onMounted(async () => {
+  registerTableCopyFunction()
   if (requestId.value) {
     isLoading.value = true
     try {
@@ -328,11 +334,11 @@ const handleDelete = async () => {
   }
 }
 
-// 세션 히스토리 보기
+// 세션 히스토리 보기 (제목으로 검색)
 const viewSessionHistory = () => {
   router.push({
     name: 'AdminHistory',
-    query: { session_id: historyItem.value.session_id }
+    query: { title: historyItem.value.question }
   })
 }
 
@@ -483,6 +489,17 @@ const formatJson = (data) => {
         min-height: 420px;
         max-height: 420px;
         overflow-y: auto;
+        white-space: normal;
+
+        @include mx.md-table-styles;
+        @include mx.copy-table-btn;
+        @include mx.md-header-styles;
+        @include mx.md-list-styles;
+        @include mx.md-hr-styles;
+        @include mx.md-em-styles;
+        @include mx.strong-styles;
+        @include mx.inline-code-styles;
+        @include mx.code-block-styles;
       }
 
       &.error-body {

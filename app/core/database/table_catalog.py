@@ -373,7 +373,7 @@ class TableCatalogService:
             lines.append(f"### {name}")
             lines.append(f"- 설명: {info.get('description', name)}")
             lines.append(f"- 관계: {info.get('relation', 'N/A')}")
-            lines.append(f"- 주요 컬럼: {', '.join(info.get('columns', [])[:6])}...")
+            lines.append(f"- 주요 컬럼: {', '.join(info.get('columns', []))}")
             keywords = info.get('keywords', [])
             if keywords:
                 lines.append(f"- 키워드: {', '.join(keywords)}")

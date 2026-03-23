@@ -301,7 +301,7 @@ class HistoryService:
         tenant_id: Optional[str] = None,
         user_id: Optional[str] = None,
         request_type: Optional[str] = None,
-        session_id: Optional[str] = None,
+        title: Optional[str] = None,
         success_only: Optional[bool] = None,
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
@@ -315,7 +315,7 @@ class HistoryService:
             tenant_id: 테넌트 ID 필터 (멀티테넌트)
             user_id: 사용자 ID 필터 (내 이력)
             request_type: 요청 타입 필터 (agent/nl2sql/rag)
-            session_id: 세션 ID 필터
+            title: 제목(질문) 검색 (ILIKE 부분 일치)
             success_only: 성공만 조회
             from_date: 시작일
             to_date: 종료일
@@ -340,9 +340,9 @@ class HistoryService:
             conditions.append("request_type = %s")
             params.append(request_type)
 
-        if session_id:
-            conditions.append("session_id = %s")
-            params.append(session_id)
+        if title:
+            conditions.append("question ILIKE %s")
+            params.append(f"%{title}%")
 
         if success_only is not None:
             conditions.append("success = %s")
@@ -377,7 +377,7 @@ class HistoryService:
         tenant_id: Optional[str] = None,
         user_id: Optional[str] = None,
         request_type: Optional[str] = None,
-        session_id: Optional[str] = None,
+        title: Optional[str] = None,
         success_only: Optional[bool] = None,
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
@@ -398,9 +398,9 @@ class HistoryService:
             conditions.append("request_type = %s")
             params.append(request_type)
 
-        if session_id:
-            conditions.append("session_id = %s")
-            params.append(session_id)
+        if title:
+            conditions.append("question ILIKE %s")
+            params.append(f"%{title}%")
 
         if success_only is not None:
             conditions.append("success = %s")
