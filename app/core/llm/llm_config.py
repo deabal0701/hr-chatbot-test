@@ -138,6 +138,7 @@ class LLMConfigManager:
         model: Optional[str] = None,
         provider: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        with_tools: bool = False,
         **kwargs
     ) -> BaseChatModel:
         """
@@ -150,6 +151,7 @@ class LLMConfigManager:
             model: 모델명 (None이면 DB 설정 또는 provider 기본 모델 사용)
             provider: 제공자명 (None이면 DB 설정 사용, 'openai' | 'anthropic')
             max_tokens: 최대 토큰 수 (None이면 기본값 사용)
+            with_tools: Tool binding 여부 (True면 reasoning_effort 자동 추가 안함)
             **kwargs: 제공자별 추가 파라미터
 
         Returns:
@@ -192,7 +194,8 @@ class LLMConfigManager:
         api_key = LLMConfigManager._get_api_key(provider)
 
         # 5. GPT-5 계열 모델인 경우 reasoning_effort 설정
-        if LLMConfigManager._is_gpt5_model(model) and "reasoning_effort" not in kwargs:
+        #    단, with_tools=True면 스킵 (OpenAI /v1/chat/completions에서 tools + reasoning_effort 동시 사용 불가)
+        if LLMConfigManager._is_gpt5_model(model) and "reasoning_effort" not in kwargs and not with_tools:
             reasoning_effort = settings_service.get_value("llm", "reasoning_effort", "medium")
             if reasoning_effort in LLMConfigManager.VALID_REASONING_EFFORTS:
                 kwargs["reasoning_effort"] = reasoning_effort
@@ -200,6 +203,8 @@ class LLMConfigManager:
             else:
                 logger.warning(f"유효하지 않은 reasoning_effort={reasoning_effort}, 기본값 'medium' 적용")
                 kwargs["reasoning_effort"] = "medium"
+        elif with_tools and LLMConfigManager._is_gpt5_model(model):
+            logger.info(f"GPT-5 모델 + with_tools=True → reasoning_effort 스킵 (API 제약)")
 
         # 6. init_chat_model 호출 (제공자 독립적 인터페이스)
         try:

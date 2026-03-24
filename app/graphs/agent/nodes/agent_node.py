@@ -76,9 +76,9 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "final_answer": "최대 반복 횟수 초과",
         }
 
-    # LLM 인스턴스 생성 (Tool binding 포함)
+    # LLM 인스턴스 생성 (Tool binding 포함, with_tools=True로 reasoning_effort 스킵)
     temperature = settings_config.get_value("agent", "llm_temperature", 0.0)
-    llm = LLMConfigManager.create_llm(temperature=temperature)
+    llm = LLMConfigManager.create_llm(temperature=temperature, with_tools=True)
 
     # Tool binding
     tools = _get_tools()
