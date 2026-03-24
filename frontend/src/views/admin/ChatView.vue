@@ -48,7 +48,81 @@
 
       <!-- 입력 영역 -->
       <div class="chat-input-area">
-        <ChatInput @send="handleSend" :disabled="isLoading" :placeholder="modePlaceholder" />
+        <div class="input-wrapper">
+          <!-- 모드 선택 + 대화 초기화 드롭다운 -->
+          <el-dropdown trigger="click" popper-class="dark-dropdown-popper" @command="handleCommand">
+            <button class="mode-btn" type="button">
+              <el-icon><Operation /></el-icon>
+              <span class="mode-label">{{ modeLabel }}</span>
+              <el-icon class="arrow"><ArrowDown /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="rag" :class="{ active: searchMode === 'rag' }">
+                  <div class="mode-option">
+                    <span class="mode-name">
+                      <el-icon class="mode-icon"><Document /></el-icon>
+                      RAG
+                    </span>
+                    <span class="mode-desc">정책, 가이드, FAQ 등 문서 기반 검색</span>
+                  </div>
+                </el-dropdown-item>
+                <el-dropdown-item command="nl2sql" :class="{ active: searchMode === 'nl2sql' }">
+                  <div class="mode-option">
+                    <span class="mode-name">
+                      <el-icon class="mode-icon"><DataLine /></el-icon>
+                      NL2SQL
+                    </span>
+                    <span class="mode-desc">통계, 수치 등 데이터베이스 조회</span>
+                  </div>
+                </el-dropdown-item>
+                <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
+                  <div class="mode-option">
+                    <span class="mode-name">
+                      <el-icon class="mode-icon"><CoffeeCup /></el-icon>
+                      Agent
+                    </span>
+                    <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
+                  </div>
+                </el-dropdown-item>
+                <el-dropdown-item divided command="clear" :disabled="messages.length === 0">
+                  <div class="mode-option clear-option">
+                    <span class="mode-name clear-text">
+                      <el-icon class="mode-icon"><Delete /></el-icon>
+                      대화 초기화
+                    </span>
+                  </div>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 텍스트 입력 -->
+          <textarea
+            ref="inputRef"
+            v-model="inputText"
+            class="chat-textarea"
+            :placeholder="modePlaceholder"
+            :disabled="isLoading"
+            rows="1"
+            @keydown.enter.exact.prevent="handleSendText"
+            @input="autoResize"
+          />
+
+          <!-- 전송 버튼 -->
+          <button
+            class="send-btn"
+            type="button"
+            :class="{ active: inputText.trim() }"
+            :disabled="!inputText.trim() || isLoading"
+            @click="handleSendText"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -144,14 +218,15 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { Loading, Delete } from '@element-plus/icons-vue'
+import { Loading, Delete, Operation, ArrowDown, Document, DataLine, CoffeeCup } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
-import ChatInput from '@/components/chat/ChatInput.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
 const store = useStore()
 const messagesContainer = ref(null)
+const inputRef = ref(null)
+const inputText = ref('')
 const showGuideModal = ref(false)
 
 // 사이드바 호버 슬라이드 (진입/이탈 모두 1초 대기 후 트랜지션)
@@ -228,11 +303,15 @@ const welcomeDescription = computed(() => {
   return '문서 기반 질문을 자유롭게 해주세요.'
 })
 
+// 모드 라벨
+const modeLabel = computed(() => {
+  const labels = { rag: 'RAG', nl2sql: 'NL2SQL', agent: 'Agent' }
+  return labels[searchMode.value] || 'RAG'
+})
+
 // 검색 모드별 입력 플레이스홀더
 const modePlaceholder = computed(() => {
-  const modeLabels = { rag: 'RAG', nl2sql: 'NL2SQL', agent: 'Agent' }
-  const label = modeLabels[searchMode.value] || searchMode.value
-  return `[${label}] 질문을 입력하세요...`
+  return `[${modeLabel.value}] 질문을 입력하세요...`
 })
 
 const exampleQueries = computed(() => {
@@ -245,7 +324,18 @@ const exampleQueries = computed(() => {
   return ragExampleQueries
 })
 
-// 메시지 전송
+// 메시지 전송 (textarea에서)
+const handleSendText = () => {
+  const text = inputText.value.trim()
+  if (!text || isLoading.value) return
+  store.dispatch('chat/sendMessage', text)
+  inputText.value = ''
+  if (inputRef.value) {
+    inputRef.value.style.height = 'auto'
+  }
+}
+
+// 메시지 전송 (예시 질문 등 외부 호출용)
 const handleSend = (query) => {
   store.dispatch('chat/sendMessage', query)
 }
@@ -253,6 +343,15 @@ const handleSend = (query) => {
 // 예시 질문 전송
 const sendExample = (query) => {
   handleSend(query)
+}
+
+// 드롭다운 command 처리 (모드 변경 + 대화 초기화)
+const handleCommand = (command) => {
+  if (command === 'clear') {
+    clearChat()
+  } else {
+    handleModeChange(command)
+  }
 }
 
 // 모드 변경
@@ -263,6 +362,14 @@ const handleModeChange = (mode) => {
 // 대화 초기화
 const clearChat = () => {
   store.dispatch('chat/clearChat')
+}
+
+// 입력창 자동 크기 조절
+const autoResize = () => {
+  if (inputRef.value) {
+    inputRef.value.style.height = 'auto'
+    inputRef.value.style.height = Math.min(inputRef.value.scrollHeight, 200) + 'px'
+  }
 }
 
 // 가이드에서 예시 사용
@@ -386,6 +493,163 @@ watch(messages, async () => {
 
   @include mx.mobile {
     padding: 8px 12px;
+  }
+}
+
+// 입력 래퍼 (모드버튼 + textarea + 전송버튼)
+.input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: var(--bg-color-input);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--box-shadow-light);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s;
+
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: var(--box-shadow);
+  }
+
+  @include mx.mobile {
+    padding: 10px 12px;
+    border-radius: 12px;
+    gap: 8px;
+  }
+}
+
+// 모드 선택 버튼
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--icon-bg);
+  border: none;
+  border-radius: 8px;
+  color: var(--text-color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: var(--bg-color-hover);
+  }
+
+  .arrow {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+  }
+
+  @include mx.mobile {
+    padding: 6px 8px;
+    font-size: 12px;
+    gap: 6px;
+
+    .mode-label {
+      display: none;
+    }
+
+    .arrow {
+      display: none;
+    }
+  }
+}
+
+// 텍스트 입력
+.chat-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-color-primary);
+  font-size: 15px;
+  line-height: 1.6;
+  resize: none;
+  max-height: 200px;
+  padding: 4px 0;
+  font-family: inherit;
+
+  &::placeholder {
+    color: var(--text-color-placeholder);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
+
+  @include mx.mobile {
+    font-size: 14px;
+  }
+}
+
+// 전송 버튼
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background-color: var(--icon-bg);
+  color: var(--text-color-placeholder);
+  cursor: not-allowed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+
+  &.active {
+    background-color: var(--color-primary);
+    color: var(--bg-color-card);
+    cursor: pointer;
+    box-shadow: var(--box-shadow);
+
+    &:hover {
+      transform: scale(1.05);
+    }
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  @include mx.mobile {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+}
+
+// 드롭다운 메뉴 아이템
+.mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  .mode-name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mode-desc {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+  }
+
+  &.clear-option .clear-text {
+    color: var(--color-danger);
   }
 }
 
