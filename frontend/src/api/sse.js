@@ -118,6 +118,7 @@ export function streamSSE(url, body, callbacks, { idleTimeoutMs = 60000 } = {}) 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let streamCompleted = false // complete 또는 error 이벤트 수신 여부
 
     resetIdleTimer()
 
@@ -149,9 +150,11 @@ export function streamSSE(url, body, callbacks, { idleTimeoutMs = 60000 } = {}) 
             await new Promise(resolve => requestAnimationFrame(resolve))
             break
           case 'complete':
+            streamCompleted = true
             callbacks.onComplete?.(parsed.data)
             break
           case 'error':
+            streamCompleted = true
             callbacks.onError?.(parsed.data)
             break
           default:
@@ -163,6 +166,14 @@ export function streamSSE(url, body, callbacks, { idleTimeoutMs = 60000 } = {}) 
     }
 
     clearIdleTimer()
+
+    // 스트림이 complete/error 이벤트 없이 종료된 경우 → UI 멈춤 방지
+    if (!streamCompleted) {
+      callbacks.onError?.({
+        code: 'STREAM_INCOMPLETE',
+        message: '서버 응답이 불완전하게 종료되었습니다. 다시 시도해주세요.',
+      })
+    }
   }
 
   // 실행
