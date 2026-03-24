@@ -76,6 +76,7 @@
                     <span class="mode-desc">통계, 수치 등 데이터베이스 조회</span>
                   </div>
                 </el-dropdown-item>
+                <!-- Agent 모드 - 추후 Agent 기능 보완 후 주석 제거 예정
                 <el-dropdown-item command="agent" :class="{ active: searchMode === 'agent' }">
                   <div class="mode-option">
                     <span class="mode-name">
@@ -85,10 +86,11 @@
                     <span class="mode-desc">복잡한 멀티스텝 질문 자동 처리 (SQL + 문서 + 계산)</span>
                   </div>
                 </el-dropdown-item>
+                -->
                 <el-dropdown-item divided command="clear" :disabled="messages.length === 0">
                   <div class="mode-option clear-option">
                     <span class="mode-name clear-text">
-                      <el-icon class="mode-icon"><Delete /></el-icon>
+                      <el-icon class="mode-icon"><RefreshLeft /></el-icon>
                       대화 초기화
                     </span>
                   </div>
@@ -126,8 +128,9 @@
       </div>
     </div>
 
-    <!-- 우측: 오버레이 사이드바 -->
+    <!-- 우측: 오버레이 사이드바 (추후 사용 예정 — v-if 제거로 활성화) -->
     <div
+      v-if="false"
       class="sidebar-overlay-wrapper"
       :class="{ visible: isSidebarVisible }"
       @mouseenter="showSidebar"
@@ -218,7 +221,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { Loading, Delete, Operation, ArrowDown, Document, DataLine, CoffeeCup } from '@element-plus/icons-vue'
+import { Loading, Delete, Operation, ArrowDown, Document, DataLine, CoffeeCup, RefreshLeft } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 
@@ -649,7 +652,11 @@ watch(messages, async () => {
   }
 
   &.clear-option .clear-text {
-    color: var(--color-danger);
+    color: var(--text-color-secondary);
+
+    .mode-icon {
+      color: var(--color-warning);
+    }
   }
 }
 
