@@ -11,10 +11,12 @@
 - Route (이 파일) → DocumentService (CRUD) → DB
 - Route (이 파일) → DocumentService → VectorStoreService (임베딩)
 """
+from pathlib import PurePosixPath
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 
+from app.config import settings
 from app.core.security.permission import require_menu_permission
 from app.models.auth import UserContext
 from app.models.documents import (
@@ -227,8 +229,29 @@ async def bulk_delete_documents(request: BulkDelete.Request, current_user: UserC
 async def upload_file(file: UploadFile = File(...), current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "create"))):
     """파일 업로드 및 텍스트 추출 (PDF, DOCX)"""
     try:
-        file_bytes = await file.read()
-        filename = file.filename or "unknown"
+        # 1. 파일명 새니타이징 (경로 탐색 방지)
+        raw_name = file.filename or "unknown"
+        filename = PurePosixPath(raw_name).name
+
+        # 2. 확장자 검증
+        allowed_ext = {e.strip().lower() for e in settings.upload_allowed_extensions.split(",") if e.strip()}
+        file_ext = PurePosixPath(filename).suffix.lower()
+        if file_ext not in allowed_ext:
+            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, message=f"허용되지 않는 파일 형식입니다: {file_ext} (허용: {', '.join(sorted(allowed_ext))})")
+
+        # 3. 크기 제한 (청크 단위 읽기 — 메모리 보호)
+        max_size = settings.upload_max_size_mb * 1024 * 1024
+        chunks = []
+        total_size = 0
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1MB씩 읽기
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > max_size:
+                raise APIException(error_code=ErrorCode.VALIDATION_ERROR, message=f"파일 크기가 {settings.upload_max_size_mb}MB를 초과합니다")
+            chunks.append(chunk)
+        file_bytes = b"".join(chunks)
 
         logger.info(f"파일 업로드 요청: filename='{filename}', size={len(file_bytes)}bytes")
 
@@ -246,6 +269,8 @@ async def upload_file(file: UploadFile = File(...), current_user: UserContext = 
         )
         return success_response(response.model_dump())
 
+    except APIException:
+        raise
     except ValueError as e:
         logger.warning(f"파일 업로드 실패 - 유효성 오류: {e}")
         raise APIException(error_code=ErrorCode.VALIDATION_ERROR, detail=str(e))

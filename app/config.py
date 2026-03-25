@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     rag_similarity_threshold: float = Field(default=0.7, description="RAG 유사도 임계값")
     max_context_length: int = Field(default=4000, description="최대 컨텍스트 길이")
 
+    # File Upload
+    upload_max_size_mb: int = Field(default=50, description="파일 업로드 최대 크기(MB)")
+    upload_allowed_extensions: str = Field(default=".pdf,.docx", description="허용 파일 확장자 (쉼표 구분)")
+
     # NL2SQL Settings (DB에서 동적 관리, fallback 용도)
     sql_timeout_seconds: int = Field(default=30, description="SQL 실행 타임아웃(초)")
     sql_max_rows: int = Field(default=1000, description="SQL 최대 반환 행 수")

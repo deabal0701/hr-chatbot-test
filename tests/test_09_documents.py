@@ -1,11 +1,11 @@
 """문서 관리 API 테스트
 
 위치: tests/test_09_documents.py
-문서 CRUD + 청킹 미리보기 (임베딩 실행은 외부 API 의존이므로 선택적)
+문서 CRUD + 청킹 미리보기 + 파일 업로드 보안
 - fixture 기반 teardown으로 테스트 실패 시에도 데이터 정리 보장
 """
 import pytest
-from conftest import assert_success
+from conftest import assert_success, assert_error
 
 PREFIX = "/api/admin/v1/documents"
 
@@ -85,6 +85,85 @@ class TestBulkDelete:
         finally:
             for doc_id in ids:
                 client.delete(f"{PREFIX}/{doc_id}", headers=admin_headers)
+
+
+class TestFileUploadSecurity:
+    """파일 업로드 보안 검증"""
+
+    def test_upload_invalid_extension(self, client, admin_headers):
+        """허용되지 않는 확장자(.txt) 거부"""
+        resp = client.post(
+            f"{PREFIX}/upload",
+            headers=admin_headers,
+            files={"file": ("test.txt", b"hello world", "text/plain")},
+        )
+        error = assert_error(resp, expected_code="VALIDATION_ERROR")
+        assert "허용되지 않는 파일 형식" in error["message"]
+
+    def test_upload_no_extension(self, client, admin_headers):
+        """확장자 없는 파일 거부"""
+        resp = client.post(
+            f"{PREFIX}/upload",
+            headers=admin_headers,
+            files={"file": ("noext", b"some data", "application/octet-stream")},
+        )
+        error = assert_error(resp, expected_code="VALIDATION_ERROR")
+        assert "허용되지 않는 파일 형식" in error["message"]
+
+    def test_upload_exe_extension(self, client, admin_headers):
+        """실행 파일(.exe) 거부"""
+        resp = client.post(
+            f"{PREFIX}/upload",
+            headers=admin_headers,
+            files={"file": ("malware.exe", b"\x00" * 100, "application/octet-stream")},
+        )
+        error = assert_error(resp, expected_code="VALIDATION_ERROR")
+        assert "허용되지 않는 파일 형식" in error["message"]
+
+    def test_upload_path_traversal(self, client, admin_headers):
+        """경로 탐색 파일명 방어 — 확장자가 허용된 경우 파일명이 정리됨"""
+        # PDF 헤더를 가진 최소한의 바이트 (실제 파싱은 서비스 레이어에서)
+        pdf_header = b"%PDF-1.4 test content"
+        resp = client.post(
+            f"{PREFIX}/upload",
+            headers=admin_headers,
+            files={"file": ("../../etc/passwd.pdf", pdf_header, "application/pdf")},
+        )
+        # 확장자는 .pdf로 허용되므로 검증 통과 → 서비스 레이어에서 처리
+        # 파일명이 정리되었는지는 성공 응답의 filename으로 확인
+        if resp.status_code == 200:
+            body = resp.json()
+            if body["success"]:
+                assert body["data"]["filename"] == "passwd.pdf"
+
+    def test_upload_double_extension(self, client, admin_headers):
+        """이중 확장자(.pdf.exe) 거부"""
+        resp = client.post(
+            f"{PREFIX}/upload",
+            headers=admin_headers,
+            files={"file": ("doc.pdf.exe", b"\x00" * 100, "application/octet-stream")},
+        )
+        error = assert_error(resp, expected_code="VALIDATION_ERROR")
+        assert "허용되지 않는 파일 형식" in error["message"]
+
+    def test_upload_valid_pdf(self, client, admin_headers):
+        """정상 PDF 업로드 — 확장자 검증 통과 확인"""
+        # 최소한의 유효 PDF
+        minimal_pdf = (
+            b"%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            b"3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n"
+            b"xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n"
+            b"0000000058 00000 n \n0000000115 00000 n \n"
+            b"trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
+        )
+        resp = client.post(
+            f"{PREFIX}/upload",
+            headers=admin_headers,
+            files={"file": ("pytest_test.pdf", minimal_pdf, "application/pdf")},
+        )
+        # PDF 파싱 성공 여부는 라이브러리 의존이므로, 확장자 검증 통과(400 아님)만 확인
+        assert resp.status_code != 400 or "허용되지 않는 파일 형식" not in resp.text
 
 
 class TestChunkPreview:
