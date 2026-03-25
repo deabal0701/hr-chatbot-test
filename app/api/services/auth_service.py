@@ -163,7 +163,7 @@ class AuthService:
                 cur.execute("DELETE FROM tb_user_session WHERE session_id = %s", (session_id,))
             raise APIException(ErrorCode.SESSION_EXPIRED, "세션이 만료되었습니다. 다시 로그인해주세요")
 
-        # 4. 최신 권한으로 Access Token 재생성
+        # 4. 최신 권한으로 Access Token + Refresh Token 재생성 (로테이션)
         user_id = session["user_id"]
         user_info = self.get_user_with_permissions(user_id, request_id)
 
@@ -179,11 +179,16 @@ class AuthService:
         }
         new_access_token = create_access_token(token_data)
 
-        log_step(logger, request_id, "AUTH", "3", "REFRESH", "토큰 갱신 완료", user_id=user_id, session_id=session_id[:8])
+        # Refresh Token 로테이션: 새 토큰 발급 + DB 교체 (기존 토큰 즉시 무효화)
+        new_refresh_token = create_refresh_token({"sub": str(user_id), "session_id": session_id})
+        with db_manager.get_cursor(commit=True) as cur:
+            cur.execute("UPDATE tb_user_session SET refresh_token = %s WHERE session_id = %s", (new_refresh_token, session_id))
+
+        log_step(logger, request_id, "AUTH", "3", "REFRESH", "토큰 갱신 완료 (로테이션)", user_id=user_id, session_id=session_id[:8])
 
         return TokenResponse(
             access_token=new_access_token,
-            refresh_token=refresh_token,
+            refresh_token=new_refresh_token,
             token_type="Bearer",
             expires_in=settings.access_token_expire_minutes * 60,
             user=UserInfo(

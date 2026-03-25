@@ -4,6 +4,7 @@ JWT 토큰 생성 및 검증 유틸리티 (v2.0 - 메뉴 기반)
 위치: app/core/security/jwt.py
 python-jose를 사용한 Access/Refresh Token 관리
 """
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -59,11 +60,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Refresh Token 생성 (minimal payload: sub + session_id)"""
+    """Refresh Token 생성 (minimal payload: sub + session_id + jti)"""
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + (expires_delta or timedelta(days=settings.jwt_refresh_token_expire_days))
-    to_encode.update({"exp": expire, "iat": now, "token_type": "refresh"})
+    to_encode.update({"exp": expire, "iat": now, "token_type": "refresh", "jti": uuid.uuid4().hex})
     return jwt.encode(to_encode, settings.secret_key, algorithm=_get_algorithm())
 
 

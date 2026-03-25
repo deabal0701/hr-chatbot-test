@@ -46,6 +46,32 @@ class TestTokenRefresh:
             client.post("/api/v1/auth/refresh", json={"refresh_token": login["refresh_token"]})
         )
         assert "access_token" in data
+        assert "refresh_token" in data
+
+    def test_refresh_rotation(self, client):
+        """Refresh Token 로테이션 — 새 토큰 발급 + 기존 토큰 무효화"""
+        # 1. 로그인
+        login = assert_success(
+            client.post("/api/v1/auth/login", json={"login_id": ADMIN_ID, "password": ADMIN_PW})
+        )
+        old_refresh = login["refresh_token"]
+
+        # 2. refresh → 새 refresh_token 발급
+        data = assert_success(
+            client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+        )
+        new_refresh = data["refresh_token"]
+        assert new_refresh != old_refresh, "로테이션: 새 refresh_token이 발급되어야 함"
+
+        # 3. 기존 토큰으로 재시도 → 실패 (이미 무효화됨)
+        resp = client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+        assert resp.status_code in (400, 401), "기존 refresh_token은 무효화되어야 함"
+
+        # 4. 새 토큰으로 재시도 → 성공
+        data2 = assert_success(
+            client.post("/api/v1/auth/refresh", json={"refresh_token": new_refresh})
+        )
+        assert "access_token" in data2
 
     def test_refresh_invalid_token(self, client):
         """잘못된 refresh token"""
