@@ -25,7 +25,9 @@
       "Bash(PGPASSWORD='hermesuser123!' psql:*)",
       "Bash(pip install PyJWT[crypto])",
       "Bash(findstr \"19090 19080\")",
-      "Bash(findstr \"LISTENING\")"
+      "Bash(findstr \"LISTENING\")",
+      "Bash(find /d/900.develop/02.dev/30.python/12.chatbot-mureum/frontend -type f \\\\\\(-name *.vue -o -name *.js -o -name nginx.conf -o -name .env* -o -name package.json -o -name vite.config.js \\\\\\))",
+      "Bash(find d:900.develop02.dev30.python12.chatbot-mureum -type f \\\\\\(-name *.env -o -name .env* \\\\\\) ! -path *.claude* ! -path *frontend*)"
     ],
     "deny": [],
     "ask": []

@@ -40,9 +40,9 @@ COPY keys/sso_public.pem ./keys/sso_public.pem
 # 로그 디렉토리 생성
 RUN mkdir -p logs
 
-# 환경 변수 파일 복사 (Docker용)
-# 실제 환경변수는 docker run 시 -e 또는 --env-file로 전달
-COPY .env.docker .env
+# 환경 변수 파일 복사 (빌드 인자로 환경 파일 선택)
+ARG ENV_FILE=.env.docker
+COPY ${ENV_FILE} .env
 
 # 포트 노출
 EXPOSE 19090

@@ -4,7 +4,30 @@ set -euo pipefail
 # ============================================================
 # MUREUM Backend Docker 배포 스크립트
 # Python FastAPI + LangChain Application
-# 대상 서버: 115.68.223.220
+# ============================================================
+#
+# [상용 전환 시 변경 항목]
+#
+# 1. 이 파일 (deploy-docker.sh)
+#    - REMOTE_USER    : 상용 서버 계정
+#    - REMOTE_HOST    : 상용 서버 IP/도메인
+#    - REMOTE_DIR     : 상용 서버 배포 경로
+#    - ENV_FILE       : ".env.docker" → ".env.production"
+#    - LOGS_DIR       : 상용 로그 경로
+#
+# 2. .env.production
+#    - DATABASE_URL       : 상용 DB 접속 정보
+#    - SECRET_KEY         : 상용 전용 시크릿 키
+#    - SSO_FRONTEND_URL   : 상용 프론트엔드 도메인
+#    - LANGCHAIN_API_KEY  : 상용 키 (또는 비활성화)
+#    - LOG_LEVEL          : DEBUG → INFO 권장
+#
+# 3. frontend/deploy-docker.sh
+#    - REMOTE_USER, REMOTE_HOST, REMOTE_DIR, ENV_FILE 동일 변경
+#
+# 4. frontend/.env.production
+#    - VITE_API_URL   : 상용 API 도메인
+#
 # ============================================================
 
 # -------------------------------
@@ -171,7 +194,7 @@ build_docker_image() {
 
     # 새 이미지 빌드
     echo \"Docker 이미지 빌드 시작...\"
-    if docker build -f \"$DOCKERFILE\" -t \"$DOCKER_IMAGE_NAME:latest\" .; then
+    if docker build -f \"$DOCKERFILE\" --build-arg ENV_FILE=\"$ENV_FILE\" -t \"$DOCKER_IMAGE_NAME:latest\" .; then
         echo \"[OK] Docker 이미지 빌드 완료\"
         docker images | grep \"$DOCKER_IMAGE_NAME\"
     else
