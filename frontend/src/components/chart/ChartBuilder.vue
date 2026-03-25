@@ -211,13 +211,13 @@ const getThemeColor = (varName) => {
 const chartOption = ref({})
 
 const generateChart = () => {
-  const textColor = whiteBg.value ? '#333333' : getThemeColor('--text-color-primary')
-  const subTextColor = whiteBg.value ? '#666666' : getThemeColor('--text-color-secondary')
-  const borderColor = whiteBg.value ? '#dcdcdc' : getThemeColor('--border-color-lighter')
+  const textColor = whiteBg.value ? getThemeColor('--chart-light-text') : getThemeColor('--text-color-primary')
+  const subTextColor = whiteBg.value ? getThemeColor('--chart-light-sub-text') : getThemeColor('--text-color-secondary')
+  const borderColor = whiteBg.value ? getThemeColor('--chart-light-border') : getThemeColor('--border-color-lighter')
 
   const baseStyle = {
     textStyle: { color: textColor },
-    backgroundColor: whiteBg.value ? '#ffffff' : 'transparent'
+    backgroundColor: whiteBg.value ? getThemeColor('--chart-light-bg') : 'transparent'
   }
 
   if (chartType.value === 'pie') {
@@ -383,7 +383,7 @@ defineExpose({ chartGenerated, chartType, xAxisColumn, yAxisColumns, pieTopN })
   transition: background-color 0.2s;
 
   &.white-bg {
-    background-color: #ffffff;
+    background-color: var(--chart-light-bg);
   }
 
   .bg-toggle-btn {
@@ -413,12 +413,12 @@ defineExpose({ chartGenerated, chartType, xAxisColumn, yAxisColumns, pieTopN })
 
   &.white-bg .bg-toggle-btn {
     background: rgba(0, 0, 0, 0.06);
-    border-color: #ddd;
-    color: #666;
+    border-color: var(--chart-light-border);
+    color: var(--chart-light-sub-text);
 
     &:hover {
       background: rgba(0, 0, 0, 0.12);
-      color: #333;
+      color: var(--chart-light-text);
     }
   }
 
@@ -429,7 +429,7 @@ defineExpose({ chartGenerated, chartType, xAxisColumn, yAxisColumns, pieTopN })
 }
 
 // 모바일 반응형
-@media (max-width: 768px) {
+@include mx.mobile {
   .chart-config {
     padding: 10px;
 

@@ -414,7 +414,7 @@ const copyContent = async () => {
 .message-content {
   flex: 1;
   max-width: calc(100% - 100px);
-  min-width: 720px;
+  min-width: 0;
 }
 
 // 사용자 메시지
@@ -896,7 +896,7 @@ const copyContent = async () => {
 // ===========================================
 // 모바일 반응형 스타일
 // ===========================================
-@media (max-width: 768px) {
+@include mx.mobile {
   .chat-message {
     margin-bottom: 24px;
   }
@@ -1162,15 +1162,15 @@ const copyContent = async () => {
   }
 }
 
-// 매우 작은 화면 (375px 이하)
-@media (max-width: 375px) {
+// 소형 모바일 (480px 미만)
+@include mx.small-mobile {
   .message-row {
     gap: 10px;
   }
 
   .avatar {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
 
     svg {
       width: 16px;
@@ -1179,7 +1179,7 @@ const copyContent = async () => {
   }
 
   .user-message {
-    padding: 8px 14px;
+    padding: 9px 14px;
     font-size: 14px;
   }
 
@@ -1188,7 +1188,7 @@ const copyContent = async () => {
   }
 
   .source-card .source-header .source-title {
-    max-width: 120px;
+    max-width: 140px;
   }
 }
 </style>

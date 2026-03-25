@@ -195,6 +195,14 @@
   --description-content-color: #e5e5e5;
 }
 
+// Chart white-bg mode (스크린샷/내보내기용 강제 라이트 — 테마 불변)
+:root {
+  --chart-light-bg: #ffffff;
+  --chart-light-text: #303133;
+  --chart-light-sub-text: #909399;
+  --chart-light-border: #ebeef5;
+}
+
 // User Chat Sidebar (ChatGPT 스타일)
 :root {
   --user-sidebar-width: 260px;
