@@ -1974,7 +1974,6 @@ const testExternalConnection = async () => {
       schema: formData.external_database.schema
     })
 
-    console.log('연결 테스트 응답:', response)
     externalConnectionStatus.value = response
     if (response.success) {
       ElMessage.success('비즈니스 DB 연결 성공!')
