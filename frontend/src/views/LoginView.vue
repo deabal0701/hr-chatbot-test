@@ -116,8 +116,9 @@ const handleLogin = async () => {
     await login(form.loginId, form.password)
 
     // 로그인 성공 → 랜딩 페이지로 리다이렉트
+    // Open Redirect 방지: 내부 경로(/)만 허용, 외부 URL(// 또는 http 등) 차단
     const redirect = route.query.redirect
-    if (redirect) {
+    if (redirect && typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
       router.push(redirect)
     } else {
       router.push(landingPage.value)
