@@ -138,7 +138,7 @@ async def health_check():
             status_code=503,
             content={
                 "status": "unhealthy",
-                "error": str(e)
+                "error": str(e) if settings.is_development else "service unavailable"
             }
         )
 
