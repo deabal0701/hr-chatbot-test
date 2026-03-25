@@ -180,17 +180,17 @@ const handleSave = () => {
     markdown += `## ${role}\n\n${msg.content}\n\n`
 
     // RAG 소스가 있으면 추가
-    if (msg.ragResult?.sources?.length > 0) {
+    if (msg.sources?.length > 0) {
       markdown += `<details>\n<summary>📚 참조 문서</summary>\n\n`
-      msg.ragResult.sources.forEach((src, idx) => {
+      msg.sources.forEach((src, idx) => {
         markdown += `${idx + 1}. **${src.title}** (유사도: ${(src.score * 100).toFixed(1)}%)\n`
       })
       markdown += `\n</details>\n\n`
     }
 
     // SQL 결과가 있으면 추가
-    if (msg.nl2sqlResult?.sql) {
-      markdown += `<details>\n<summary>🔍 SQL 쿼리</summary>\n\n\`\`\`sql\n${msg.nl2sqlResult.sql}\n\`\`\`\n\n</details>\n\n`
+    if (msg.sql) {
+      markdown += `<details>\n<summary>🔍 SQL 쿼리</summary>\n\n\`\`\`sql\n${msg.sql}\n\`\`\`\n\n</details>\n\n`
     }
 
     markdown += `---\n\n`
