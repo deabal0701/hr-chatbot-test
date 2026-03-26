@@ -863,18 +863,17 @@ ORDER BY total_count DESC
 -- 13. V_AI_PAY_REPORT — 급여 (3건)
 -- =============================================================
 
--- #32 부서별 1인당 평균 실수령액 조회 (수정: 2026-03-24 제목/내용 명확화)
+-- #32 부서별 1인당 평균 실수령액 조회 (수정: 2026-03-26 본부별 급여 fewshot과 충돌 방지)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES ('default', 'rag_action', '부서별 1인당 평균 실수령액 조회', 'query_example', 'ko',
 '부서별 1인당 평균 실수령액
 부서별 평균 급여
-팀별 연봉 현황
-조직별 급여 통계
 부서 평균 월급
 부서별 실수령액
 - v_ai_employee JOIN v_ai_pay_report (EMP_ID)
 - GROUP BY DEPARTMENT + AVG(NET_PAY_AMOUNT)
-- 1인당 평균: 직원 개인별 급여의 평균',
+- 1인당 평균: 직원 개인별 급여의 평균
+- 주의: 본부별 급여는 GROUP BY DIVISION_NAME 사용',
 'SQL:
 SELECT e.DEPARTMENT,
        COUNT(DISTINCT e.EMP_ID) AS emp_count,
@@ -1583,3 +1582,172 @@ ORDER BY avg_gross_pay DESC
 - JOB_GRADE_NAME이 전부 NULL인 경우: e.GRADE + 최신 월 조건으로 대체
 - PAYMENT_TYPE_NAME = ''정기급여'': 상여금 제외
 - GROSS_PAY_AMOUNT: 총지급액, NET_PAY_AMOUNT: 실수령액');
+
+
+-- =============================================================
+-- 조직계층 관련 fewshot (2026-03-26 추가)
+-- V_AI_EMPLOYEE 신규 컬럼: ORG_TYPE, DIVISION_NAME, TEAM_NAME, PART_NAME
+-- =============================================================
+
+-- #56 본부별 재직 인원 현황
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '본부별 재직 인원 현황', 'query_example', 'ko',
+'본부별 인원수
+본부별 재직자 현황
+각 본부에 몇 명이 있어
+본부 인원 분포
+본부별 인원 통계
+- DIVISION_NAME: 소속 본부명 (조직계층에서 본부(300) 레벨)
+- 본부별 통계는 DIVISION_NAME으로 GROUP BY',
+'SQL:
+SELECT NVL(DIVISION_NAME, ''미지정'') AS DIVISION_NAME, COUNT(DISTINCT EMP_ID) AS emp_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직''
+GROUP BY DIVISION_NAME
+ORDER BY emp_count DESC
+
+패턴:
+- NVL(DIVISION_NAME, ''미지정''): NULL이면 미지정 표시
+- DIVISION_NAME IS NOT NULL 조건 제거: 미소속 인원 포함
+- COUNT(DISTINCT EMP_ID): 중복 방지
+- 주의: 부서별 인원은 GROUP BY DEPARTMENT, 본부별 인원은 GROUP BY DIVISION_NAME');
+
+-- #57 팀별 재직 인원 현황
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '팀별 재직 인원 현황', 'query_example', 'ko',
+'팀별 인원수
+팀별 재직자 현황
+각 팀에 몇 명이 있어
+팀 인원 분포
+팀 단위 인원 통계
+- ORG_TYPE = ''팀'': 조직유형이 팀인 부서만 필터
+- DEPARTMENT: 소속 부서명 (최하위 조직)',
+'SQL:
+SELECT DEPARTMENT, COUNT(DISTINCT EMP_ID) AS emp_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직'' AND ORG_TYPE = ''팀''
+GROUP BY DEPARTMENT
+ORDER BY emp_count DESC
+
+패턴:
+- ORG_TYPE = ''팀''으로 팀 단위 조직만 필터
+- DEPARTMENT로 그룹화 (DEPARTMENT = 직원이 배치된 최하위 조직명)
+- 파트별은 ORG_TYPE = ''파트'', 그룹별은 ORG_TYPE = ''그룹''으로 동일 패턴
+- 주의: 부서별은 DEPARTMENT만으로 GROUP BY, 팀별은 ORG_TYPE 필터 추가');
+
+-- #58 특정 본부 소속 하위 조직 인원
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '특정 본부 소속 하위 조직 인원', 'query_example', 'ko',
+'구미생산본부 소속 인원
+XX본부 소속 팀 현황
+생산본부에 어떤 팀이 있고 몇 명이야
+특정 본부의 하위 조직 인원
+XX본부 산하 조직 현황
+- DIVISION_NAME = ''본부명''으로 특정 본부 필터
+- DEPARTMENT로 하위 팀별 GROUP BY',
+'SQL:
+SELECT DEPARTMENT, ORG_TYPE, COUNT(DISTINCT EMP_ID) AS emp_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직'' AND DIVISION_NAME = '':본부명''
+GROUP BY DEPARTMENT, ORG_TYPE
+ORDER BY emp_count DESC
+
+패턴:
+- DIVISION_NAME으로 상위 본부 필터
+- DEPARTMENT + ORG_TYPE으로 하위 조직 상세 표시
+- 본부명은 사용자 질문에서 추출');
+
+-- #59 조직유형별 인원 분포
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '조직유형별 인원 분포', 'query_example', 'ko',
+'조직유형별 인원수
+사업부 본부 그룹 팀 파트별 인원 분포
+조직 레벨별 인원 현황
+조직 유형 분포
+- ORG_TYPE: 조직유형 (사업부, 본부, 그룹, 팀, 파트)',
+'SQL:
+SELECT ORG_TYPE, COUNT(DISTINCT EMP_ID) AS emp_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직'' AND ORG_TYPE IS NOT NULL
+GROUP BY ORG_TYPE
+ORDER BY emp_count DESC
+
+패턴:
+- ORG_TYPE으로 조직 레벨별 그룹화
+- ORG_TYPE IS NOT NULL: 유형 미분류 제외');
+
+-- #60 본부별 평균 급여 조회
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '본부별 평균 급여 조회', 'query_example', 'ko',
+'본부별 평균 급여
+본부별 급여 현황
+각 본부 평균 실수령액
+본부별 인건비 비교
+본부 단위 급여 통계
+- v_ai_employee JOIN v_ai_pay_report
+- DIVISION_NAME으로 본부별 GROUP BY
+- 주의: 부서별 급여는 #32(GROUP BY DEPARTMENT), 본부별 급여는 이 패턴(GROUP BY DIVISION_NAME)',
+'SQL:
+SELECT NVL(e.DIVISION_NAME, ''미지정'') AS DIVISION_NAME,
+       COUNT(DISTINCT e.EMP_ID) AS emp_count,
+       ROUND(AVG(p.NET_PAY_AMOUNT)) AS avg_net_pay
+FROM v_ai_employee e
+JOIN v_ai_pay_report p ON e.EMP_ID = p.EMP_ID
+WHERE e.WORK_STATUS = ''재직''
+  AND p.PAY_YEAR_MONTH = '':년월''
+  AND p.PAYMENT_TYPE_NAME = ''정기급여''
+GROUP BY e.DIVISION_NAME
+ORDER BY avg_net_pay DESC
+
+패턴:
+- NVL(DIVISION_NAME, ''미지정''): NULL이면 미지정 표시
+- v_ai_pay_report JOIN하여 급여 집계
+- PAY_YEAR_MONTH, PAYMENT_TYPE_NAME 조건 필수
+- 주의: 부서별 급여(#32)와 구분 — 부서별은 GROUP BY DEPARTMENT, 본부별은 GROUP BY DIVISION_NAME');
+
+-- #61 본부별 팀별 인원 및 평균 근속연수
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '본부별 팀별 인원 및 평균 근속연수', 'query_example', 'ko',
+'본부별 팀별 인원 현황
+본부 팀 인원 근속 현황
+본부별 하위 조직 근속연수
+조직별 평균 재직 연수
+본부 산하 팀 근속 분석
+- DIVISION_NAME + DEPARTMENT 2단계 GROUP BY
+- CAREER_YEARS: 재직 연수',
+'SQL:
+SELECT NVL(DIVISION_NAME, ''미지정'') AS DIVISION_NAME, DEPARTMENT, ORG_TYPE,
+       COUNT(DISTINCT EMP_ID) AS emp_count,
+       ROUND(AVG(CAREER_YEARS), 1) AS avg_career_years
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직''
+GROUP BY DIVISION_NAME, DEPARTMENT, ORG_TYPE
+ORDER BY DIVISION_NAME, emp_count DESC
+
+패턴:
+- NVL(DIVISION_NAME, ''미지정''): NULL이면 미지정 표시
+- DIVISION_NAME + DEPARTMENT: 본부 > 하위조직 2단계 그룹화
+- ORG_TYPE 포함: 하위가 팀인지 파트인지 구분 가능
+- CAREER_YEARS: 평균 근속연수 산출');
+
+-- #62 그룹별 재직 인원 현황
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '그룹별 재직 인원 현황', 'query_example', 'ko',
+'그룹별 인원수
+그룹별 재직자 현황
+각 그룹에 몇 명이 있어
+그룹 인원 분포
+그룹 단위 인원 통계
+- GROUP_NAME: 소속 그룹명 (조직계층에서 그룹(400) 레벨)
+- 그룹별 통계는 GROUP_NAME으로 GROUP BY',
+'SQL:
+SELECT NVL(GROUP_NAME, ''미지정'') AS GROUP_NAME, COUNT(DISTINCT EMP_ID) AS emp_count
+FROM v_ai_employee
+WHERE WORK_STATUS = ''재직''
+GROUP BY GROUP_NAME
+ORDER BY emp_count DESC
+
+패턴:
+- GROUP_NAME으로 그룹별 그룹화
+- NVL(GROUP_NAME, ''미지정''): NULL이면 미지정 표시
+- 주의: 조직유형별 분포는 GROUP BY ORG_TYPE, 그룹별 인원은 GROUP BY GROUP_NAME');

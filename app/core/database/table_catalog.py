@@ -37,11 +37,16 @@ def _get_settings_config():
 _DEFAULT_CATALOG: Dict[str, Dict[str, Any]] = {
     # ── 01. 메인 테이블 ──
     "v_ai_employee": {
-        "description": "직원 기본정보 (메인 테이블, 모든 V_AI_* 뷰와 EMP_ID로 JOIN)",
+        "description": "직원 기본정보 + 조직계층 (메인 테이블, 모든 V_AI_* 뷰와 EMP_ID로 JOIN, ORM_ORG 기반)",
         "columns": [
             "EMP_ID (PK, 조인키)",
             "EMP_NAME (이름)",
-            "DEPARTMENT (부서)",
+            "DEPARTMENT ★소속 부서명 (직원이 배치된 최하위 조직, 부서별 통계 시 GROUP BY 대상)",
+            "ORG_TYPE ★소속 조직유형 (사업부,본부,그룹,팀,파트). 팀별: WHERE ORG_TYPE='팀', 파트별: WHERE ORG_TYPE='파트'",
+            "DIVISION_NAME ★소속 본부명 (본부별 통계 시 GROUP BY 대상)",
+            "GROUP_NAME (소속 그룹명, 그룹별 통계 시 GROUP BY 대상)",
+            "TEAM_NAME (소속 팀명, 팀별 통계 시 GROUP BY 대상)",
+            "PART_NAME (소속 파트명, 파트가 아니면 NULL)",
             "POSITION (직위: 회장,부사장,전무이사,상무이사,이사,부장,차장,과장,대리,주임,사원)",
             "DUTY (직책: 대표이사,사업부장,본부장,팀장,팀원 등)",
             "GRADE (직급: 1급~9급)",
@@ -56,7 +61,7 @@ _DEFAULT_CATALOG: Dict[str, Dict[str, Any]] = {
             "CAREER_YEARS ★재직 연수 (근속연수 질의 시 사용: CAREER_YEARS >= N)",
             "RETIRE_REASON (퇴직사유: 퇴직,정년,사망 등)",
         ],
-        "keywords": ["직원", "사원", "입사", "퇴사", "부서", "직급", "재직", "퇴직", "근속", "재직연수", "성별", "직위", "직책"],
+        "keywords": ["직원", "사원", "입사", "퇴사", "부서", "직급", "재직", "퇴직", "근속", "재직연수", "성별", "직위", "직책", "본부", "팀", "파트", "사업부", "조직", "본부별", "팀별", "부서별", "조직유형"],
         "is_primary": True,
         "join_key": "EMP_ID",
         "relation": "1 (메인)",

@@ -937,7 +937,17 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     if not result or result.row_count == 0:
         log_step(logger, request_id, "NL2SQL", "4", "ANSWER", "결과 없음 - 기본 응답 반환")
-        state["answer"] = "조회된 결과가 없습니다."
+        state["answer"] = (
+            "조회된 결과가 없습니다.\n"
+            "\n"
+            "&nbsp;\n"
+            "\n"
+            "아래 내용을 확인해 주세요:\n"
+            "- 검색어의 띄어쓰기나 오탈자가 없는지 확인해 주세요 (예: '경영 지원' → '경영지원')\n"
+            "- 해당 조건에 맞는 데이터가 존재하지 않을 수 있습니다\n"
+            "- 검색 조건을 좀 더 넓게 변경하여 다시 질문해 보세요\n"
+            "- 특정 기간을 지정한 경우 기간 범위를 넓혀서 다시 시도해 보세요"
+        )
         return state
 
     # 설정 체크: LLM 답변 생성 스킵 (요청 파라미터 > DB 설정 > 기본값)
