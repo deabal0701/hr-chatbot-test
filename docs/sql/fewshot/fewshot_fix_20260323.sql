@@ -309,11 +309,167 @@ ORDER BY family_count DESC
 - 배우자 조회: RELATION = ''처'' 사용 필수');
 
 
+-- ─────────────────────────────────────────
+-- 급여 관련 few-shot 수정/추가 (2026-03-24)
+-- ─────────────────────────────────────────
+
+-- ■ #1472 부서별 평균 급여 조회 → 1인당 평균 실수령액으로 명확화
+DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_action' AND title = '부서별 평균 급여 조회';
+DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_action' AND title = '부서별 1인당 평균 실수령액 조회';
+
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '부서별 1인당 평균 실수령액 조회', 'query_example', 'ko',
+'부서별 1인당 평균 실수령액
+부서별 평균 급여
+팀별 연봉 현황
+조직별 급여 통계
+부서 평균 월급
+부서별 실수령액
+- v_ai_employee JOIN v_ai_pay_report (EMP_ID)
+- GROUP BY DEPARTMENT + AVG(NET_PAY_AMOUNT)
+- 1인당 평균: 직원 개인별 급여의 평균',
+'SQL:
+SELECT e.DEPARTMENT,
+       COUNT(DISTINCT e.EMP_ID) AS emp_count,
+       ROUND(AVG(p.NET_PAY_AMOUNT)) AS avg_net_pay
+FROM v_ai_employee e
+JOIN v_ai_pay_report p ON e.EMP_ID = p.EMP_ID
+WHERE e.WORK_STATUS = ''재직''
+  AND p.PAYMENT_TYPE_NAME = ''정기급여''
+GROUP BY e.DEPARTMENT
+ORDER BY avg_net_pay DESC
+
+패턴:
+- JOIN 키: e.EMP_ID = p.EMP_ID
+- PAYMENT_TYPE_NAME = ''정기급여'': 상여 제외
+- AVG(NET_PAY_AMOUNT): 직원 1인당 평균 실수령액
+- NET_PAY_AMOUNT: 실지급액
+- 주의: PAY_DATE 컬럼 없음 → 날짜 필터는 PAY_YEAR_MONTH 사용
+- 주의: EMPLOYEE_ID 아닌 EMP_ID로 조인');
+
+
+-- ■ 신규 #53 부서별 월 총 실수령액 평균 (2단계 집계)
+DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_action' AND title = '부서별 월 총 실수령액 평균 조회';
+
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '부서별 월 총 실수령액 평균 조회', 'query_example', 'ko',
+'부서별 월 총 실수령액 평균
+부서별 월평균 실수령액
+부서별 월 인건비 평균
+부서 전체 월급 평균
+- v_ai_employee JOIN v_ai_pay_report
+- 2단계 집계: 부서+월별 SUM → 부서별 AVG
+- 부서 전체 합계의 월평균 (1인당 아님)',
+'SQL:
+SELECT DEPARTMENT,
+       ROUND(AVG(month_total)) AS avg_monthly_net_pay
+FROM (
+    SELECT e.DEPARTMENT, p.PAY_YEAR_MONTH,
+           SUM(NVL(p.NET_PAY_AMOUNT, 0)) AS month_total
+    FROM v_ai_employee e
+    JOIN v_ai_pay_report p ON e.EMP_ID = p.EMP_ID
+    WHERE e.WORK_STATUS = ''재직''
+      AND p.PAYMENT_TYPE_NAME = ''정기급여''
+    GROUP BY e.DEPARTMENT, p.PAY_YEAR_MONTH
+)
+GROUP BY DEPARTMENT
+ORDER BY avg_monthly_net_pay DESC
+
+패턴:
+- 2단계 집계: 서브쿼리에서 부서+월별 SUM → 외부에서 부서별 AVG
+- 부서별 월평균 = 부서 전체 인건비의 월평균 (1인당이 아님)
+- 1인당 평균은 AVG(NET_PAY_AMOUNT) 직접 사용 (별도 few-shot 참조)
+- PAYMENT_TYPE_NAME = ''정기급여'': 상여금 제외
+- NVL(p.NET_PAY_AMOUNT, 0): NULL 처리');
+
+
+-- ─────────────────────────────────────────
+-- 직급별 급여 분석 few-shot 추가 (2026-03-24)
+-- ─────────────────────────────────────────
+
+-- ■ 신규 #54 직급별 인사 분석 (e.GRADE — 현재 직급 기준)
+DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_action' AND title = '직급별 인사 현황 분석';
+
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '직급별 인사 현황 분석', 'query_example', 'ko',
+'직급별 재직자 수
+직급별 남녀 비율
+직급별 평균 근속연수
+직급별 인원 현황
+직급별 여성 비율
+- v_ai_employee.GRADE 사용 (현재 직급 기준)
+- 인사 분석(인원,근속,비율)은 e.GRADE 사용',
+'SQL:
+SELECT e.GRADE,
+       COUNT(*) AS emp_count,
+       ROUND(AVG(e.CAREER_YEARS), 1) AS avg_career_years,
+       SUM(CASE WHEN e.GENDER = ''여'' THEN 1 ELSE 0 END) AS female_count,
+       ROUND(SUM(CASE WHEN e.GENDER = ''여'' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS female_ratio
+FROM v_ai_employee e
+WHERE e.WORK_STATUS = ''재직''
+GROUP BY e.GRADE
+ORDER BY e.GRADE
+
+패턴:
+- ★ 직급 컬럼 선택 기준:
+  인사 분석(인원,근속,비율,연차) → e.GRADE (현재 직급)
+  급여 분석(지급액,공제,상여) → p.JOB_GRADE_NAME (수령 당시 직급)
+- e.GRADE 실제값: 1급, 2급, 3급, 4급, 5급, 6급, 9급
+- 직급 = GRADE (1급~9급), 직위 = POSITION (회장~사원) — 혼동 주의');
+
+
+-- ■ 신규 #55 직급별 급여 분석 (p.JOB_GRADE_NAME — 수령 당시 직급 기준)
+DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_action' AND title = '직급별 평균 급여 분석';
+
+INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
+VALUES ('default', 'rag_action', '직급별 평균 급여 분석', 'query_example', 'ko',
+'직급별 평균 총지급액
+직급별 평균 급여
+직급별 급여 중위값
+직급별 상여금 총액
+직급별 공제 세금 비율
+- v_ai_pay_report.JOB_GRADE_NAME 사용 (수령 당시 직급 기준)
+- 급여 분석은 수령 당시 직급이 정확함
+- JOB_GRADE_NAME이 NULL인 경우 e.GRADE + 최신 월 조건으로 대체',
+'SQL:
+-- ● JOB_GRADE_NAME에 데이터가 있는 경우 (권장)
+SELECT p.JOB_GRADE_NAME,
+       COUNT(DISTINCT p.EMP_ID) AS emp_count,
+       ROUND(AVG(p.GROSS_PAY_AMOUNT)) AS avg_gross_pay,
+       ROUND(AVG(p.NET_PAY_AMOUNT)) AS avg_net_pay
+FROM v_ai_employee e
+JOIN v_ai_pay_report p ON e.EMP_ID = p.EMP_ID
+WHERE e.WORK_STATUS = ''재직''
+  AND p.PAYMENT_TYPE_NAME = ''정기급여''
+GROUP BY p.JOB_GRADE_NAME
+ORDER BY avg_gross_pay DESC
+
+-- ● JOB_GRADE_NAME이 NULL인 경우 (현재 상태 — 대체 쿼리)
+-- SELECT e.GRADE,
+--        COUNT(DISTINCT e.EMP_ID) AS emp_count,
+--        ROUND(AVG(p.GROSS_PAY_AMOUNT)) AS avg_gross_pay
+-- FROM v_ai_employee e
+-- JOIN v_ai_pay_report p ON e.EMP_ID = p.EMP_ID
+-- WHERE e.WORK_STATUS = ''재직''
+--   AND p.PAYMENT_TYPE_NAME = ''정기급여''
+--   AND p.PAY_YEAR_MONTH = (SELECT MAX(PAY_YEAR_MONTH) FROM v_ai_pay_report)
+-- GROUP BY e.GRADE
+-- ORDER BY avg_gross_pay DESC
+
+패턴:
+- ★ 직급 컬럼 선택 기준:
+  급여 분석 → p.JOB_GRADE_NAME (수령 당시 직급, 과거 포함 시 정확)
+  인사 분석 → e.GRADE (현재 직급)
+- JOB_GRADE_NAME이 전부 NULL인 경우: e.GRADE + 최신 월 조건으로 대체
+- PAYMENT_TYPE_NAME = ''정기급여'': 상여금 제외
+- GROSS_PAY_AMOUNT: 총지급액, NET_PAY_AMOUNT: 실수령액');
+
+
 -- =============================================================
 -- 검증: 변경/추가된 few-shot 확인
 -- =============================================================
 -- SELECT title, LEFT(content, 80), LEFT(context_data, 80)
 -- FROM tb_docs
 -- WHERE doc_type = 'query_example' AND usage_type = 'rag_action'
--- ORDER BY doc_id DESC
--- LIMIT 10;
+-- ORDER BY id DESC
+-- LIMIT 15;
