@@ -143,12 +143,20 @@ class VectorStoreService:
     # 공통 필터 헬퍼
     # ============================================
 
+    # 시스템 테넌트 ID (공용 리소스)
+    SYSTEM_TENANT_ID = '1'
+
     def _build_filter_conditions(
         self,
         filters: Optional[SearchFilters],
         tenant_id: Optional[str],
     ):
         """공통 WHERE 조건 구성 (tenant, usage_type, doc_type, language, department)
+
+        테넌트 격리 규칙:
+        - tenant_id=None (GLOBAL): 필터 없음 → 전체 조회
+        - tenant_id='1' (시스템): 시스템 리소스만
+        - tenant_id=기타 (일반): 자기 테넌트 + 시스템('1') 공용 리소스
 
         Returns:
             (conditions: List[str], params: List) — WHERE 절 구성용
@@ -157,8 +165,12 @@ class VectorStoreService:
         params = []
 
         if tenant_id:
-            conditions.append("tenant_id = %s")
-            params.append(tenant_id)
+            if tenant_id == self.SYSTEM_TENANT_ID:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id)
+            else:
+                conditions.append("tenant_id IN (%s, %s)")
+                params.extend([tenant_id, self.SYSTEM_TENANT_ID])
 
         usage_type = "rag_knowledge"
         if filters and filters.usage_type:

@@ -314,12 +314,13 @@ def fewshot_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # Enhanced 모드: 재시도 시 top_k 2배
         top_k = base_top_k * 2 if enhanced_fewshot else base_top_k
 
-        # Few-shot 예제 검색
+        # Few-shot 예제 검색 (공용 + 자기 테넌트)
         example_docs = vector_store.search_similar_documents(
             query=question,
             filters=SearchFilters(usage_type="rag_action", doc_type="query_example"),
             top_k=top_k,
-            similarity_threshold=similarity_threshold
+            similarity_threshold=similarity_threshold,
+            tenant_id=state.get("tenant_id"),
         )
 
         if not example_docs:

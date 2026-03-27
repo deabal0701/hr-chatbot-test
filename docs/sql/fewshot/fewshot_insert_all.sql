@@ -16,7 +16,7 @@ DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_actio
 
 -- #1 현재 재직자 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '현재 재직자 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '현재 재직자 수 조회', 'query_example', 'ko',
 '현재 재직 중인 직원 수
 전체 재직자 몇 명
 현재 근무 중인 사원 수
@@ -36,7 +36,7 @@ WHERE WORK_STATUS = ''재직''
 
 -- #2 부서별 직원 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 직원 수 조회', 'query_example', 'ko',
 '부서별 직원 수를 알려줘
 팀별 인원 현황
 각 부서에 몇 명이 있어
@@ -58,7 +58,7 @@ ORDER BY emp_count DESC
 
 -- #3 직위별 직원 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '직위별 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '직위별 직원 수 조회', 'query_example', 'ko',
 '직위별 사원 수를 알려줘
 직급별 직원 수 현황
 사원 대리 과장 차장 부장 인원
@@ -85,7 +85,7 @@ ORDER BY
 
 -- #4 성별 직원 비율 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '성별 직원 비율 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '성별 직원 비율 조회', 'query_example', 'ko',
 '성별 직원 수를 알려줘
 남녀 비율
 남자 여자 직원 몇 명
@@ -107,7 +107,7 @@ ORDER BY GENDER
 
 -- #5 연도별 입사자 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '연도별 입사자 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '연도별 입사자 수 조회', 'query_example', 'ko',
 '2024년 입사자 수를 알려줘
 올해 입사한 직원 몇 명
 작년 신규 입사자 수
@@ -126,7 +126,7 @@ WHERE TO_CHAR(HIRE_DATE, ''YYYY'') = '':년도''
 
 -- #6 연도별 퇴사자 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '연도별 퇴사자 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '연도별 퇴사자 수 조회', 'query_example', 'ko',
 '올해 퇴사자 수를 알려줘
 퇴직한 직원 몇 명
 작년 퇴사 인원
@@ -146,7 +146,7 @@ WHERE RETIRE_DATE IS NOT NULL
 
 -- #7 연령대별 직원 분포 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '연령대별 직원 분포 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '연령대별 직원 분포 조회', 'query_example', 'ko',
 '연령대별 직원 수를 알려줘
 나이대별 사원이 몇 명
 20대 30대 40대 각각 몇 명이야
@@ -191,7 +191,7 @@ END
 
 -- #8 근속연수 구간별 직원 분포
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '근속연수 구간별 직원 분포', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '근속연수 구간별 직원 분포', 'query_example', 'ko',
 '근속연수 구간별 인원 분포
 근속 5년 이상 직원 수
 장기 근속자 몇 명
@@ -239,7 +239,7 @@ END
 
 -- #9 특정 지역 거주 직원 수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '특정 지역 거주 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '특정 지역 거주 직원 수 조회', 'query_example', 'ko',
 '서울에 사는 직원 몇 명
 경기도 거주자 수
 부산 지역 직원 현황
@@ -259,7 +259,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #10 지역별 직원 분포 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '지역별 직원 분포 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '지역별 직원 분포 조회', 'query_example', 'ko',
 '지역별 인원 분포
 시도별 직원 수
 거주지별 사원 현황
@@ -286,7 +286,7 @@ ORDER BY emp_count DESC
 
 -- #11 이전 경력 보유 직원 수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '이전 경력 보유 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '이전 경력 보유 직원 수 조회', 'query_example', 'ko',
 '경력직 출신 직원 수
 이전 회사 경력 있는 사원
 전직장 경험자 몇 명
@@ -308,7 +308,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #12 전직장 다수 경력자 목록
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '전직장 다수 경력자 목록 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '전직장 다수 경력자 목록 조회', 'query_example', 'ko',
 '전직장 3곳 이상인 직원
 이직 경험 많은 사원
 전직장 많은 직원 목록
@@ -337,7 +337,7 @@ FETCH FIRST 20 ROWS ONLY
 
 -- #13 학력별 직원 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '학력별 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '학력별 직원 수 조회', 'query_example', 'ko',
 '대졸 이상 직원 수
 학력별 인원 현황
 석사 박사 몇 명
@@ -361,7 +361,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #14 특정 전공자 목록 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '특정 전공자 목록 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '특정 전공자 목록 조회', 'query_example', 'ko',
 '컴퓨터공학 전공자 수
 경영학과 출신 직원
 특정 전공 직원 목록
@@ -389,7 +389,7 @@ FETCH FIRST 20 ROWS ONLY
 
 -- #15 배우자 보유 직원 수 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '배우자 보유 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '배우자 보유 직원 수 조회', 'query_example', 'ko',
 '배우자가 있는 직원 수
 기혼자 몇 명
 결혼한 사원 수
@@ -415,7 +415,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #16 자녀 다수 보유 직원 목록
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '자녀 다수 보유 직원 목록 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '자녀 다수 보유 직원 목록 조회', 'query_example', 'ko',
 '자녀 2명 이상 직원
 자녀가 많은 사원 목록
 다자녀 직원 수
@@ -443,7 +443,7 @@ ORDER BY child_count DESC
 
 -- #17 어학 점수 조건 직원 수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '어학 점수 조건 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '어학 점수 조건 직원 수 조회', 'query_example', 'ko',
 'TOEIC 800점 이상인 직원 수
 영어 점수 높은 사원
 토익 점수 조건
@@ -469,7 +469,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #18 시험종류별 평균 점수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '시험종류별 평균 점수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '시험종류별 평균 점수 조회', 'query_example', 'ko',
 '어학 시험별 평균 점수
 토익 평균 점수
 시험 종류별 성적 현황
@@ -499,7 +499,7 @@ ORDER BY avg_score DESC
 
 -- #19 자격증 보유자 수 조회 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '자격증 보유자 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '자격증 보유자 수 조회', 'query_example', 'ko',
 '자격증 보유자 수
 자격증 보유한 직원
 자격증 있는 사원
@@ -524,7 +524,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #20 자격증 다수 보유자 목록
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '자격증 다수 보유자 목록 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '자격증 다수 보유자 목록 조회', 'query_example', 'ko',
 '자격증 3개 이상 보유 직원
 자격증 많이 가진 사원
 자격증 보유 순위
@@ -551,7 +551,7 @@ ORDER BY license_count DESC
 
 -- #21 군종별 직원 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '군종별 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '군종별 직원 수 조회', 'query_example', 'ko',
 '육군 출신 직원 몇 명
 군종별 인원 현황
 해군 공군 육군 직원
@@ -581,7 +581,7 @@ ORDER BY emp_count DESC
 
 -- #22 포상 직원 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '포상 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '포상 직원 수 조회', 'query_example', 'ko',
 '포상 받은 직원 수
 상 받은 사원 몇 명
 우수사원 현황
@@ -606,7 +606,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #23 연도별 포상 건수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '연도별 포상 건수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '연도별 포상 건수 조회', 'query_example', 'ko',
 '올해 포상 현황
 연도별 포상 건수
 포상 추이
@@ -633,7 +633,7 @@ ORDER BY REWARD_YEAR DESC
 
 -- #24 교육 수료자 수 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '교육 수료자 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '교육 수료자 수 조회', 'query_example', 'ko',
 '올해 교육 수료한 직원 수
 교육 이수자 몇 명
 교육 과정 완료한 직원
@@ -658,7 +658,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #25 부서별 교육시간 합계
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 교육시간 합계 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 교육시간 합계 조회', 'query_example', 'ko',
 '부서별 교육시간 합계
 부서별 1인당 교육시간
 교육 이수시간 통계
@@ -690,7 +690,7 @@ ORDER BY total_hours DESC
 
 -- #26 평가등급 분포 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '평가등급 분포 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '평가등급 분포 조회', 'query_example', 'ko',
 '평가등급 분포
 등급별 직원 수
 S등급 몇 명
@@ -722,7 +722,7 @@ END
 
 -- #27 특정 직원 평가 이력 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '특정 직원 평가 이력 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '특정 직원 평가 이력 조회', 'query_example', 'ko',
 '홍길동 평가 기록
 직원 평가 이력
 인사평가 결과 확인
@@ -745,7 +745,7 @@ ORDER BY f.APPR_YMD DESC
 
 -- #28 부서별 평균 평가점수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 평균 평가점수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 평균 평가점수 조회', 'query_example', 'ko',
 '부서별 평균 평가점수
 부서 평가 현황
 부서별 평가 통계
@@ -775,7 +775,7 @@ ORDER BY avg_score DESC
 
 -- #29 승진자 목록 조회 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '승진자 목록 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '승진자 목록 조회', 'query_example', 'ko',
 '올해 승진한 직원
 승진자 목록
 승진한 사람 몇 명
@@ -804,7 +804,7 @@ ORDER BY h.ASSIGNMENT_DATE DESC
 
 -- #30 휴직 직원 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '휴직 직원 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '휴직 직원 조회', 'query_example', 'ko',
 '휴직 중인 직원
 현재 휴직자
 휴직 현황
@@ -834,7 +834,7 @@ ORDER BY h.ASSIGNMENT_START_DATE DESC
 
 -- #31 발령유형별 통계 조회 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '발령유형별 통계 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '발령유형별 통계 조회', 'query_example', 'ko',
 '발령유형별 현황
 인사이동 통계
 발령 종류별 건수
@@ -865,7 +865,7 @@ ORDER BY total_count DESC
 
 -- #32 부서별 1인당 평균 실수령액 조회 (수정: 2026-03-26 본부별 급여 fewshot과 충돌 방지)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 1인당 평균 실수령액 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 1인당 평균 실수령액 조회', 'query_example', 'ko',
 '부서별 1인당 평균 실수령액
 부서별 평균 급여
 부서 평균 월급
@@ -895,7 +895,7 @@ ORDER BY avg_net_pay DESC
 
 -- #33 특정 연월 급여 현황
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '특정 연월 급여 현황 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '특정 연월 급여 현황 조회', 'query_example', 'ko',
 '이번 달 급여 현황
 급여 통계
 급여 지급 현황
@@ -923,7 +923,7 @@ ORDER BY total_gross DESC
 
 -- #34 직원 연간 급여 합계
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '직원 연간 급여 합계 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '직원 연간 급여 합계 조회', 'query_example', 'ko',
 '연간 급여 합계
 올해 급여 총액
 직원별 연봉
@@ -956,7 +956,7 @@ FETCH FIRST 20 ROWS ONLY
 
 -- #35 잔여연차 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '잔여연차 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '잔여연차 조회', 'query_example', 'ko',
 '올해 남은 연차
 잔여연차 현황
 남은 휴가 일수
@@ -981,7 +981,7 @@ ORDER BY d.REMAINING_LEAVE_DAYS ASC
 
 -- #36 부서별 연차 사용률
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 연차 사용률 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 연차 사용률 조회', 'query_example', 'ko',
 '연차 사용률
 부서별 연차 사용 현황
 연차 소진률
@@ -1014,7 +1014,7 @@ ORDER BY avg_usage_rate DESC
 
 -- #37 잔여연차 부족 직원
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '잔여연차 부족 직원 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '잔여연차 부족 직원 조회', 'query_example', 'ko',
 '잔여연차 5일 미만 직원
 남은 연차 적은 직원
 연차 소진 임박 직원
@@ -1043,7 +1043,7 @@ ORDER BY d.REMAINING_LEAVE_DAYS ASC
 
 -- #38 복합 조건 직원 수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '복합 조건 직원 수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '복합 조건 직원 수 조회', 'query_example', 'ko',
 '서울 거주하면서 TOEIC 800점 이상인 직원
 여러 조건 동시 만족
 복합 조건 검색
@@ -1071,7 +1071,7 @@ WHERE e.WORK_STATUS = ''재직''
 
 -- #39 입사자 자격증 보유 개수 (1:N 요약)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '입사자 자격증 보유 개수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '입사자 자격증 보유 개수 조회', 'query_example', 'ko',
 '입사자 현황과 자격증 보유 사항을 알려줘
 입사자별 자격증 개수
 직원 목록과 보유 자격증 수
@@ -1093,7 +1093,7 @@ ORDER BY e.EMP_NAME
 
 -- #40 개인 상세 정보 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '개인 상세 정보 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '개인 상세 정보 조회', 'query_example', 'ko',
 '홍길동의 자격증 목록
 특정 직원 학력 정보
 개인 상세 데이터 조회
@@ -1114,7 +1114,7 @@ ORDER BY l.ISSUE_DATE DESC
 
 -- #41 연도별 입사 퇴사 추이
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '연도별 입사 퇴사 추이 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '연도별 입사 퇴사 추이 조회', 'query_example', 'ko',
 '연도별 입사자 퇴사자 추이
 채용 이직 트렌드
 기간별 인력 변동
@@ -1144,7 +1144,7 @@ ORDER BY year_val DESC
 
 -- #42 부서별 최고 급여자 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 최고 급여자 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 최고 급여자 조회', 'query_example', 'ko',
 '부서별 급여 1위
 부서별 최고 연봉자
 부서에서 급여 가장 많이 받는 사람
@@ -1173,7 +1173,7 @@ ORDER BY net_pay DESC
 
 -- #43 승진이력 없는 장기 근속자 (수정: 2026-03-23 실제값 반영)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '승진이력 없는 장기 근속자 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '승진이력 없는 장기 근속자 조회', 'query_example', 'ko',
 '5년 이상 근무했는데 승진 안 한 직원
 승진 이력 없는 장기 근속자
 승진 누락 직원
@@ -1202,7 +1202,7 @@ ORDER BY e.CAREER_YEARS DESC
 
 -- #44 교육 미이수 재직자 목록
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '교육 미이수 재직자 목록 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '교육 미이수 재직자 목록 조회', 'query_example', 'ko',
 '올해 교육 안 받은 직원
 교육 미이수 재직자
 교육 수료 안 한 사원
@@ -1229,7 +1229,7 @@ ORDER BY e.DEPARTMENT, e.EMP_NAME
 
 -- #45 최근 입사자 TOP N 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '최근 입사자 TOP N 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '최근 입사자 TOP N 조회', 'query_example', 'ko',
 '최근 입사한 직원 5명
 가장 최근에 들어온 사람
 신규 입사자 목록
@@ -1253,7 +1253,7 @@ FETCH FIRST 5 ROWS ONLY
 
 -- #46 두 사원 종합 비교표
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '두 사원 종합 비교표 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '두 사원 종합 비교표 조회', 'query_example', 'ko',
 '사원번호 241번과 242번 비교
 두 직원 전체 정보 비교 표로 보여줘
 두 사람 인사 정보 전부 비교해줘
@@ -1311,7 +1311,7 @@ FROM DUAL
 
 -- #47 특정 직원 전체 정보 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '특정 직원 전체 정보 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '특정 직원 전체 정보 조회', 'query_example', 'ko',
 '241번 직원 정보 보여줘
 사원번호 100번 상세 정보
 특정 직원 인사 정보 조회
@@ -1341,7 +1341,7 @@ WHERE EMP_ID = :사원번호
 
 -- #48 교육 유형별 통계 (TRAINING_TYPE: 선택, 필수)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '교육 유형별 통계 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '교육 유형별 통계 조회', 'query_example', 'ko',
 '교육 유형별 현황
 필수교육 선택교육 통계
 교육 유형별 수료 건수
@@ -1368,7 +1368,7 @@ ORDER BY total_count DESC
 
 -- #49 부서별 인사이동 건수 (ASSIGNMENT_TYPE_CODE = '이동')
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 인사이동 건수 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 인사이동 건수 조회', 'query_example', 'ko',
 '부서별 인사이동 건수
 부서 간 전보 빈도
 부서 이동 현황
@@ -1394,7 +1394,7 @@ ORDER BY move_count DESC
 
 -- #50 평가명별 통계 (APPR_NM)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '평가명별 통계 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '평가명별 통계 조회', 'query_example', 'ko',
 '평가명별 현황
 역량평가 업적평가 통계
 인사평가 종류별 결과
@@ -1420,7 +1420,7 @@ ORDER BY eval_count DESC
 
 -- #51 인사발령 유형 매핑 가이드
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '인사발령 유형 매핑 가이드', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '인사발령 유형 매핑 가이드', 'query_example', 'ko',
 '인사이동 유형
 발령 종류
 승진 전보 휴직
@@ -1452,7 +1452,7 @@ ORDER BY cnt DESC
 
 -- #52 가족관계 조회 가이드
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '가족관계 조회 가이드', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '가족관계 조회 가이드', 'query_example', 'ko',
 '배우자 있는 직원
 자녀 있는 직원
 가족 현황
@@ -1479,7 +1479,7 @@ ORDER BY family_count DESC
 
 -- #53 부서별 월 총 실수령액 평균 조회 (2단계 집계)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '부서별 월 총 실수령액 평균 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '부서별 월 총 실수령액 평균 조회', 'query_example', 'ko',
 '부서별 월 총 실수령액 평균
 부서별 월평균 실수령액
 부서별 월 인건비 평균
@@ -1512,7 +1512,7 @@ ORDER BY avg_monthly_net_pay DESC
 
 -- #54 직급별 인사 현황 분석 (e.GRADE — 현재 직급 기준)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '직급별 인사 현황 분석', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '직급별 인사 현황 분석', 'query_example', 'ko',
 '직급별 재직자 수
 직급별 남녀 비율
 직급별 평균 근속연수
@@ -1541,7 +1541,7 @@ ORDER BY e.GRADE
 
 -- #55 직급별 평균 급여 분석 (p.JOB_GRADE_NAME — 수령 당시 직급 기준)
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '직급별 평균 급여 분석', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '직급별 평균 급여 분석', 'query_example', 'ko',
 '직급별 평균 총지급액
 직급별 평균 급여
 직급별 급여 중위값
@@ -1591,7 +1591,7 @@ ORDER BY avg_gross_pay DESC
 
 -- #56 본부별 재직 인원 현황
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '본부별 재직 인원 현황', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '본부별 재직 인원 현황', 'query_example', 'ko',
 '본부별 인원수
 본부별 재직자 현황
 각 본부에 몇 명이 있어
@@ -1614,7 +1614,7 @@ ORDER BY emp_count DESC
 
 -- #57 팀별 재직 인원 현황
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '팀별 재직 인원 현황', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '팀별 재직 인원 현황', 'query_example', 'ko',
 '팀별 인원수
 팀별 재직자 현황
 각 팀에 몇 명이 있어
@@ -1637,7 +1637,7 @@ ORDER BY emp_count DESC
 
 -- #58 특정 본부 소속 하위 조직 인원
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '특정 본부 소속 하위 조직 인원', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '특정 본부 소속 하위 조직 인원', 'query_example', 'ko',
 '구미생산본부 소속 인원
 XX본부 소속 팀 현황
 생산본부에 어떤 팀이 있고 몇 명이야
@@ -1659,7 +1659,7 @@ ORDER BY emp_count DESC
 
 -- #59 조직유형별 인원 분포
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '조직유형별 인원 분포', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '조직유형별 인원 분포', 'query_example', 'ko',
 '조직유형별 인원수
 사업부 본부 그룹 팀 파트별 인원 분포
 조직 레벨별 인원 현황
@@ -1678,7 +1678,7 @@ ORDER BY emp_count DESC
 
 -- #60 본부별 평균 급여 조회
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '본부별 평균 급여 조회', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '본부별 평균 급여 조회', 'query_example', 'ko',
 '본부별 평균 급여
 본부별 급여 현황
 각 본부 평균 실수령액
@@ -1707,7 +1707,7 @@ ORDER BY avg_net_pay DESC
 
 -- #61 본부별 팀별 인원 및 평균 근속연수
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '본부별 팀별 인원 및 평균 근속연수', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '본부별 팀별 인원 및 평균 근속연수', 'query_example', 'ko',
 '본부별 팀별 인원 현황
 본부 팀 인원 근속 현황
 본부별 하위 조직 근속연수
@@ -1732,7 +1732,7 @@ ORDER BY DIVISION_NAME, emp_count DESC
 
 -- #62 그룹별 재직 인원 현황
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
-VALUES ('default', 'rag_action', '그룹별 재직 인원 현황', 'query_example', 'ko',
+VALUES ('1', 'rag_action', '그룹별 재직 인원 현황', 'query_example', 'ko',
 '그룹별 인원수
 그룹별 재직자 현황
 각 그룹에 몇 명이 있어

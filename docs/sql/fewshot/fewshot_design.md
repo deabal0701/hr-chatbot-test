@@ -281,7 +281,7 @@ DELETE FROM tb_docs WHERE doc_type = 'query_example' AND usage_type = 'rag_actio
 ```sql
 INSERT INTO tb_docs (tenant_id, usage_type, title, doc_type, language, content, context_data)
 VALUES (
-    'default',
+    '1',  -- 1이 공용
     'rag_action',
     '예제 제목',
     'query_example',
