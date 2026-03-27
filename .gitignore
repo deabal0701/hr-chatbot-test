@@ -71,3 +71,16 @@ yarn-error.log
 
 # SSO Keys
 keys/
+
+# Documentation
+/docs
+
+# Playwright MCP
+.playwright-mcp/
+
+# Deploy scripts
+deploy-docker.sh
+deploy-gen-ssh-key.sh
+
+# Test config
+pytest.ini
