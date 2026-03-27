@@ -230,6 +230,7 @@ class DocumentService:
         indexed: Optional[bool] = None,
         include_chunks: bool = False,
         usage_type: Optional[str] = None,
+        title: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
         current_user: Optional[UserContext] = None,
@@ -280,6 +281,11 @@ class DocumentService:
         if source_type:
             conditions.append("source_type = %s")
             params.append(source_type)
+
+        # 제목 검색 (부분 일치)
+        if title:
+            conditions.append("title ILIKE %s")
+            params.append(f"%{title}%")
 
         # 임베딩 여부 필터
         if indexed is not None:

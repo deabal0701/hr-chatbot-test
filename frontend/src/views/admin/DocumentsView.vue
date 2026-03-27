@@ -82,6 +82,29 @@
 
         <div class="flex-1" />
 
+        <!-- 제목 필터 표시 (제목으로 필터링 중일 때) -->
+        <el-tag
+          v-if="filters.title"
+          type="info"
+          closable
+          @close="clearTitleFilter"
+        >
+          제목: {{ filters.title }}
+        </el-tag>
+
+        <el-input
+          v-model="filters.title"
+          placeholder="제목 검색"
+          clearable
+          style="width: 200px"
+          @clear="handleFilterChange"
+          @keyup.enter="handleFilterChange"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+
         <!-- 선택된 항목 액션 -->
         <template v-if="selectedCount > 0">
           <span class="selected-info">{{ selectedCount }}개 선택됨</span>
@@ -216,7 +239,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, Delete, Edit, Upload } from '@element-plus/icons-vue'
+import { Plus, Refresh, Delete, Edit, Upload, Search } from '@element-plus/icons-vue'
 import codesApi from '@/api/codes'
 import usersApi from '@/api/users'
 import { formatDate, formatNumber } from '@/utils/format'
@@ -342,6 +365,10 @@ const handleFilterChange = () => {
 const resetFilters = () => {
   tenantFilter.value = null
   store.dispatch('document/resetFilters')
+}
+
+const clearTitleFilter = () => {
+  store.dispatch('document/setFilters', { ...filters.value, title: null })
 }
 
 // 페이지 변경

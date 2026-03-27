@@ -14,7 +14,8 @@ export default {
       docType: null,
       sourceType: null,
       usageType: null,  // rag, cortex
-      indexed: null
+      indexed: null,
+      title: null
     },
     tenantFilter: null,  // 테넌트 필터 (GLOBAL 역할 전용)
     pagination: {
@@ -47,7 +48,8 @@ export default {
         docType: null,
         sourceType: null,
         usageType: null,
-        indexed: null
+        indexed: null,
+        title: null
       }
       state.tenantFilter = null
     },
@@ -114,6 +116,9 @@ export default {
         }
         if (state.filters.indexed !== null) {
           params.indexed = state.filters.indexed
+        }
+        if (state.filters.title) {
+          params.title = state.filters.title
         }
         if (state.tenantFilter) {
           params.tenant_id = state.tenantFilter

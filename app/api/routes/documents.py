@@ -94,6 +94,7 @@ async def list_documents(
     indexed: Optional[bool] = Query(None, description="임베딩 여부 필터"),
     include_chunks: bool = Query(False, description="청크 포함 여부"),
     tenant_id: Optional[str] = Query(None, description="테넌트 필터 (GLOBAL 역할 전용)"),
+    title: Optional[str] = Query(None, description="제목 검색 (부분 일치)"),
     limit: int = Query(100, ge=1, le=1000, description="최대 결과 수"),
     offset: int = Query(0, ge=0, description="시작 위치"),
     current_user: UserContext = Depends(require_menu_permission("DOC_MGMT", "read")),
@@ -102,7 +103,8 @@ async def list_documents(
     try:
         documents, total_count = document_service.list_documents(
             doc_type=doc_type, source_type=source_type, indexed=indexed,
-            include_chunks=include_chunks, usage_type=usage_type, limit=limit, offset=offset,
+            include_chunks=include_chunks, usage_type=usage_type, title=title,
+            limit=limit, offset=offset,
             current_user=current_user, tenant_id_filter=tenant_id
         )
 
