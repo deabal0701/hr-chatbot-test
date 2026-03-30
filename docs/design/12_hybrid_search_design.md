@@ -10,7 +10,7 @@
 
 ### 1.1 목적
 
-현재 MUREUM RAG 시스템은 pgvector 코사인 유사도 기반의 **순수 벡터 검색**만 수행한다.
+현재 win-AI RAG 시스템은 pgvector 코사인 유사도 기반의 **순수 벡터 검색**만 수행한다.
 벡터 검색은 의미적 유사성에 강하지만 아래 케이스에서 한계가 있다.
 
 | 케이스 | 현재 문제 |
@@ -574,15 +574,15 @@ class RerankerFactory:
 ```
 [원격 서버: 115.68.223.220]
 │
-├── Docker Network: mureum-network
-│   ├── mureum-backend (python:3.13-slim)  :19090  컨테이너명: mureum-backend
+├── Docker Network: winai-network
+│   ├── winai-backend (python:3.13-slim)  :19090  컨테이너명: winai-backend
 │   └── PostgreSQL 컨테이너                :5432   컨테이너명: pgvector-db  ★확인됨
 │       ├── 데이터베이스: hermesdb
 │       ├── 관리 계정:   postgres  (superuser, extension 설치 전용)
 │       ├── 앱 계정:     hermesuser (일반 권한, 앱 접속용)
 │       └── pg_trgm: contrib 포함 → CREATE EXTENSION 한 줄로 활성화 가능
 │
-└── /data/files/mureum/ (볼륨)
+└── /data/files/winai/ (볼륨)
 ```
 
 **확인된 접속 명령**:
@@ -648,7 +648,7 @@ PostgreSQL **contrib 모듈**. 텍스트를 3글자(trigram) 단위로 분해하
 
 ```bash
 # PostgreSQL 컨테이너 이름 확인
-docker ps --filter "network=mureum-network" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+docker ps --filter "network=winai-network" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
 
 # pg_trgm 설치 가능 여부 확인
 docker exec -it <postgres_container> \
@@ -844,7 +844,7 @@ HuggingFace 모델 캐시 볼륨 마운트 권장:
 
 ```bash
 # deploy-docker.sh docker run에 추가
--v /data/files/mureum/hf_cache:/root/.cache/huggingface
+-v /data/files/winai/hf_cache:/root/.cache/huggingface
 ```
 
 ### 10.3 폴백(Fallback) 처리

@@ -268,7 +268,7 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
 
 ### 7.1 개요
 
-외부 IdP(HR 시스템 등)에서 RS256 개인키로 서명한 JWT 토큰으로 MUREUM에 로그인하는 SSO 연동.
+외부 IdP(HR 시스템 등)에서 RS256 개인키로 서명한 JWT 토큰으로 win-AI에 로그인하는 SSO 연동.
 **Hidden Form POST + Cookie Base64URL** 방식으로 토큰을 안전하게 전달한다.
 미등록 사용자는 **JIT(Just-In-Time) 자동 생성** 후 로그인된다 (USER 역할 고정).
 
@@ -295,7 +295,7 @@ USER 역할    → tenant_id 필수, 시스템 테넌트 불가
        → USER 역할로 사용자 자동 생성
        → USER 기본 메뉴 권한 할당 (AI_CHAT: CR)
        → 로그인
-  → MUREUM JWT 발급 (HS256)
+  → win-AI JWT 발급 (HS256)
   → Set-Cookie: sso_auth = Base64URL({at, rt}) (60초 TTL)
   → 302 Redirect → /sso
   → SSOCallbackView: 쿠키 읽기 → /me API → Vuex 저장 → landing_page
@@ -363,7 +363,7 @@ POST /api/v1/auth/sso (body: {"sso_token": "eyJ..."})
 ### 8.1 인증 상태 (Vuex auth 모듈)
 
 ```
-localStorage: mureum_access_token, mureum_refresh_token, mureum_user
+localStorage: winai_access_token, winai_refresh_token, winai_user
 ```
 
 | Getter | 용도 |

@@ -128,7 +128,7 @@ frontend/src/
 | **State** | user, accessToken, refreshToken, loginLoading |
 | **Actions** | login, logout, refresh, fetchMe, changePassword, initAuth (SSO는 SSOCallbackView에서 직접 처리) |
 | **Getters** | isAuthenticated, hasMenuPermission(menuCode, action), canAccessAdmin, roleCode, accessibleMenus |
-| **저장소** | localStorage: `mureum_access_token`, `mureum_refresh_token`, `mureum_user` |
+| **저장소** | localStorage: `winai_access_token`, `winai_refresh_token`, `winai_user` |
 
 ### 3.2 chat — 채팅 대화
 

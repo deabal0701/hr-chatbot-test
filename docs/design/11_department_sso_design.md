@@ -506,19 +506,19 @@ token_data = {
 ### 6.1 방식: Hidden Form POST + Cookie Base64URL (RS256)
 
 메인 시스템이 **RS256 개인키**로 서명한 JWT를 **Hidden Form POST**로 백엔드에 직접 전달하고,
-백엔드가 검증 후 MUREUM JWT를 **Cookie(Base64URL)**에 담아 302 리다이렉트한다.
+백엔드가 검증 후 win-AI JWT를 **Cookie(Base64URL)**에 담아 302 리다이렉트한다.
 Vue 프론트엔드(SSOCallbackView)가 쿠키를 읽어 인증을 완료한다.
 
 ```
 RS256 (비대칭키) 역할 분리:
   메인 시스템: 개인키(private_key.pem)로 서명 → 토큰 생성 가능
-  MUREUM:     공개키(public_key.pem)로 검증  → 토큰 검증만 가능 (생성 불가)
+  win-AI:     공개키(public_key.pem)로 검증  → 토큰 검증만 가능 (생성 불가)
 ```
 
 #### 전체 시퀀스
 
 ```
-[메인 시스템/SSO 테스트 HTML]     [MUREUM 백엔드]              [Vue 프론트엔드]
+[메인 시스템/SSO 테스트 HTML]     [win-AI 백엔드]             [Vue 프론트엔드]
      │                              │                           │
      │ 1. 사용자 클릭 "AI 챗봇"      │                           │
      │ 2. RS256 개인키로 SSO JWT 서명 │                           │
@@ -530,7 +530,7 @@ RS256 (비대칭키) 역할 분리:
      │                              │ 5. RS256 공개키로 서명 검증  │
      │                              │ 6. issuer, exp, iat 검증   │
      │                              │ 7. 사용자 조회 (기존 계정)   │
-     │                              │ 8. MUREUM JWT 발급 (HS256)  │
+     │                              │ 8. win-AI JWT 발급 (HS256)  │
      │                              │ 9. Set-Cookie: sso_auth    │
      │                              │    = Base64URL({at, rt})   │
      │                              │ 10. 302 Redirect → /sso    │
@@ -557,8 +557,8 @@ RS256 (비대칭키) 역할 분리:
 > - OAuth 2.1에서 Implicit Flow(hash fragment) 폐지 → Cookie 기반이 현대 표준에 부합
 
 > **왜 RS256인가?**
-> HS256(대칭키)은 MUREUM도 같은 키를 보유하므로 위조 토큰 생성 가능.
-> RS256(비대칭키)은 MUREUM이 공개키만 보유하므로 검증만 가능, 위조 불가.
+> HS256(대칭키)은 win-AI도 같은 키를 보유하므로 위조 토큰 생성 가능.
+> RS256(비대칭키)은 win-AI가 공개키만 보유하므로 검증만 가능, 위조 불가.
 > 향후 여러 외부 시스템 연동 시에도 공개키만 추가하면 됨 (1:N 확장 용이).
 
 ### 6.2 메인 시스템이 보내는 SSO 토큰
@@ -579,7 +579,7 @@ RS256 (비대칭키) 역할 분리:
 
 | 필드 | 용도 | 필수 | 비고 |
 |------|------|:---:|------|
-| sub | 사용자 식별자 (MUREUM login_id로 매핑) | O | `tb_user.login_id`와 매칭 |
+| sub | 사용자 식별자 (win-AI login_id로 매핑) | O | `tb_user.login_id`와 매칭 |
 | name | 이름 | O | 표시명 (display_name) |
 | email | 이메일 | **O** | **JIT 사용자 생성 시 필수** (tb_user.email UNIQUE) |
 | tenant_code | 회사 코드 (Company Code → 내부 테넌트 매핑) | **O** | **JIT 사용자 생성 시 필수** |
@@ -594,7 +594,7 @@ RS256 (비대칭키) 역할 분리:
 
 ### 6.3 사용자 자동 생성 (Just-In-Time Provisioning) — 설계 완료
 
-SSO 로그인 시 MUREUM에 사용자가 없으면 **즉시 생성**한다.
+SSO 로그인 시 win-AI에 사용자가 없으면 **즉시 생성**한다.
 
 > **핵심 정책**: 모든 SSO 자동 생성 사용자는 **USER 역할 고정**. 관리자(GLOBAL/TENANT/DEPT)는 시스템에서 직접 등록한다.
 
@@ -713,7 +713,7 @@ FROM tb_menu m WHERE m.menu_code = 'AI_CHAT';
 
 ### 6.4 부서 자동 생성
 
-SSO 토큰의 `dept_code`가 있으나 MUREUM에 없으면 **자동 생성**한다.
+SSO 토큰의 `dept_code`가 있으나 win-AI에 없으면 **자동 생성**한다.
 `dept_code`가 없으면 `dept_id=NULL`로 처리 (부서 미지정).
 
 ```python
@@ -776,8 +776,8 @@ SSO_FRONTEND_URL=                              # SSO 리다이렉트 프론트�
 ```
 
 > **키 관리 원칙**:
-> - `keys/sso_public.pem` — MUREUM이 보유 (검증 전용, 유출되어도 안전)
-> - `keys/sso_private.pem` — 메인 시스템이 보유 (서명 전용, MUREUM에 저장 금지)
+> - `keys/sso_public.pem` — win-AI가 보유 (검증 전용, 유출되어도 안전)
+> - `keys/sso_private.pem` — 메인 시스템이 보유 (서명 전용, win-AI에 저장 금지)
 > - `keys/` 디렉토리는 `.gitignore`에 등록
 
 > **SSO_FRONTEND_URL**:
@@ -978,7 +978,7 @@ SSO JIT 방식의 보조 수단으로 **배치 동기화**를 병행한다.
 ### 7.2 동기화 범위
 
 ```
-메인 시스템 API → MUREUM 배치 스크립트
+메인 시스템 API → win-AI 배치 스크립트
 
 1. 부서 동기화: 전체 조직도 → tb_department UPSERT (계층 포함)
 2. 사용자 동기화: 재직자 목록 → tb_user UPSERT
@@ -1091,7 +1091,7 @@ app/models/
 app/main.py                            # 변경: lifespan에 load_sso_public_key() 호출 추가  ✅
 
 keys/                                  # ★ 신규 디렉토리 (.gitignore 등록)  ✅
-  ├── sso_public.pem                   # RS256 공개키 (MUREUM 보유)
+  ├── sso_public.pem                   # RS256 공개키 (win-AI 보유)
   └── sso_private.pem                  # RS256 개인키 (테스트용)
 
 scripts/
@@ -1229,7 +1229,7 @@ tests/
 
 | 항목 | 결정 | 근거 |
 |------|------|------|
-| SSO 서명 방식 | **RS256 (비대칭키)** | MUREUM은 공개키만 보유 → 키 유출 시에도 토큰 위조 불가, 1:N 확장 용이 |
+| SSO 서명 방식 | **RS256 (비대칭키)** | win-AI는 공개키만 보유 → 키 유출 시에도 토큰 위조 불가, 1:N 확장 용이 |
 | SSO 토큰 전달 방식 | **Hidden Form POST + Cookie Base64URL** | URL에 토큰 미노출, OAuth 2.1 Implicit Flow 폐지 방향 부합, 엔터프라이즈 표준 패턴 |
 | Cookie 인코딩 | **Base64URL (RFC 4648 §5)** | `A-Za-z0-9-_` 문자만 사용 → Starlette 쿠키 자동 인용 회피, 패딩(`=`) 제거 |
 | 사용자 정보 전달 | **/me API 패턴** | 쿠키에는 토큰만(at+rt), 사용자 정보는 `/me` API로 별도 조회 → 쿠키 크기 제한 회피 |
@@ -1245,4 +1245,4 @@ tests/
 |------|------|------|
 | 퇴직자 처리 주기 | 일 1회 배치 vs 메인 시스템 이벤트 수신 | Phase 5에서 결정 |
 | 다중 issuer 키 관리 | issuer별 공개키 분리 vs 단일 공개키 | 현재는 단일 공개키, 추후 확장 시 검토 |
-| SSO 로그아웃 연동 (SLO) | 메인 시스템 로그아웃 시 MUREUM 세션 만료 | 필요 시 Phase 5+ |
+| SSO 로그아웃 연동 (SLO) | 메인 시스템 로그아웃 시 win-AI 세션 만료 | 필요 시 Phase 5+ |

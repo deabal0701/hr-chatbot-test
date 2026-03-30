@@ -1,4 +1,4 @@
-# MUREUM - 기업용 AI 지식 베이스 어시스턴트
+# win-AI - 기업용 AI 지식 베이스 어시스턴트
 
 자연어 기반 기업 지식 검색 및 통계 조회를 위한 AI 어시스턴트 시스템
 
@@ -186,13 +186,13 @@ npm run preview  # 빌드 미리보기
 ### Docker 배포
 ```bash
 # Backend
-docker build -t mureum-backend .
-docker run -p 19090:19090 mureum-backend
+docker build -t winai-backend .
+docker run -p 19090:19090 winai-backend
 
 # Frontend
 cd frontend
-docker build -t mureum-frontend .
-docker run -p 19080:19080 mureum-frontend
+docker build -t winai-frontend .
+docker run -p 19080:19080 winai-frontend
 ```
 
 ## API 문서

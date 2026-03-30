@@ -1696,7 +1696,7 @@ DashboardWidget 등에서 사용하는 CSS 커스텀 속성:
 - `auto`: 사용자 전역 설정 (`app/isUserDarkMode`)을 따름
 - `light`: 강제 라이트 모드
 - `dark`: 강제 다크 모드
-- 테마 설정은 localStorage에 독립 저장 (`mureum_dashboard_theme`)
+- 테마 설정은 localStorage에 독립 저장 (`winai_dashboard_theme`)
 
 ### 12.3 ECharts 테마
 

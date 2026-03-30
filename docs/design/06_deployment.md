@@ -11,14 +11,14 @@
 │              배포 서버 (115.68.223.220)           │
 │                                                   │
 │  ┌─────────────────┐    ┌─────────────────────┐  │
-│  │ mureum-frontend  │    │ mureum-backend       │  │
+│  │ winai-frontend   │    │ winai-backend        │  │
 │  │ (Nginx, :19080)  │───►│ (Uvicorn, :19090)    │  │
 │  │                  │    │                       │  │
 │  │ 정적파일 서빙    │    │ FastAPI + LangGraph   │  │
 │  │ /api/* 프록시    │    │                       │  │
 │  └─────────────────┘    └──────────┬────────────┘  │
 │                                     │               │
-│           mureum-network (Docker)    │               │
+│           winai-network (Docker)     │               │
 └─────────────────────────────────────┼───────────────┘
                                       │
                           ┌───────────┴───────────┐
@@ -76,7 +76,7 @@ server {
 
     # API 프록시 → 백엔드
     location /api/ {
-        proxy_pass http://mureum-backend:19090/api/;
+        proxy_pass http://winai-backend:19090/api/;
         proxy_connect_timeout 60s;
         proxy_read_timeout 120s;    # Agent/NL2SQL 긴 처리
     }
@@ -149,11 +149,11 @@ async def lifespan(app: FastAPI):
 |------|---|
 | REMOTE_HOST | 115.68.223.220 |
 | REMOTE_USER | deabal |
-| REMOTE_DIR | /home/deabal/mureum/backend |
-| CONTAINER | mureum-backend |
+| REMOTE_DIR | /home/deabal/winai/backend |
+| CONTAINER | winai-backend |
 | PORT | 19090 |
-| NETWORK | mureum-network |
-| LOGS | /data/files/mureum/logs |
+| NETWORK | winai-network |
+| LOGS | /data/files/winai/logs |
 | ENV_FILE | .env.docker |
 
 **배포 단계**:
@@ -169,8 +169,8 @@ async def lifespan(app: FastAPI):
 
 | 설정 | 값 |
 |------|---|
-| REMOTE_DIR | /home/deabal/mureum/frontend |
-| CONTAINER | mureum-frontend |
+| REMOTE_DIR | /home/deabal/winai/frontend |
+| CONTAINER | winai-frontend |
 | PORT | 19080 |
 | ENV_FILE | .env.docker |
 
@@ -235,7 +235,7 @@ async def lifespan(app: FastAPI):
 | 변수 | 개발 | Docker | 운영 |
 |------|------|--------|------|
 | VITE_API_URL | `http://localhost:19090` | (빈값) | `https://api.company.com` |
-| VITE_APP_TITLE | Chatbot - MUREUM | Chatbot - MUREUM | Chatbot - MUREUM |
+| VITE_APP_TITLE | Chatbot - win-AI | Chatbot - win-AI | Chatbot - win-AI |
 
 ---
 
@@ -322,12 +322,12 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 19090
 cd frontend && npm run dev
 
 # Docker 빌드 & 실행
-docker build -t mureum-backend .
-docker run -p 19090:19090 --network mureum-network mureum-backend
+docker build -t winai-backend .
+docker run -p 19090:19090 --network winai-network winai-backend
 
 cd frontend
-docker build -t mureum-frontend .
-docker run -p 19080:19080 --network mureum-network mureum-frontend
+docker build -t winai-frontend .
+docker run -p 19080:19080 --network winai-network winai-frontend
 
 # 원격 배포
 bash deploy-docker.sh

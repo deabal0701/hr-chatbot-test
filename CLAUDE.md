@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MUREUM is an enterprise AI knowledge base assistant combining multiple AI techniques for natural language search over documents and databases. The system features an AI Agent (ReAct pattern), RAG, and NL2SQL capabilities with multi-turn conversation support, multi-tenant architecture, and role-based access control.
+win-AI is an enterprise AI knowledge base assistant combining multiple AI techniques for natural language search over documents and databases. The system features an AI Agent (ReAct pattern), RAG, and NL2SQL capabilities with multi-turn conversation support, multi-tenant architecture, and role-based access control.
 
 **Stack**: FastAPI + LangGraph + PostgreSQL (pgvector) + Vue 3 + Multi-LLM Provider (OpenAI, Anthropic) + Multi-DB Support (PostgreSQL, Oracle)
 
@@ -795,13 +795,13 @@ async def get_me(
 
 ```bash
 # Backend
-docker build -t mureum-backend .
-docker run -p 19090:19090 mureum-backend
+docker build -t winai-backend .
+docker run -p 19090:19090 winai-backend
 
 # Frontend
 cd frontend
-docker build -t mureum-frontend .
-docker run -p 80:80 mureum-frontend
+docker build -t winai-frontend .
+docker run -p 80:80 winai-frontend
 ```
 
 **Files**:
@@ -869,8 +869,8 @@ from langgraph.graph import END, StateGraph
 
 ## **중요**:
 - 가상환경: `conda activate penv3.13-nlq`
-- DB 확인할 경우(MUREUM): `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
-- DB 확인할 경우(MUREUM Business테이블(오라클)): `jdbc:oracle:thin:@115.68.223.220:1521:ORCLCDB` ID : muser
+- DB 확인할 경우(win-AI): `postgresql://hermesuser:hermesuser123%21@115.68.223.220:5432/hermesdb`
+- DB 확인할 경우(win-AI Business테이블(오라클)): `jdbc:oracle:thin:@115.68.223.220:1521:ORCLCDB` ID : muser
 - 관리자 아이디/패스워드는 admin/Win1234! (admin123!아님)
 - DB스크립트 및 데이터:  docs/sql/psql-hermes_db.sql
 - 로컬의 로그파일 : ./logs/app.log

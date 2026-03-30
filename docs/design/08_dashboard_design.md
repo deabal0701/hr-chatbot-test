@@ -1,4 +1,4 @@
-# MUREUM Dashboard 전면 보완 설계서
+# win-AI Dashboard 전면 보완 설계서
 
 ## 1. 현황 분석
 
@@ -372,7 +372,7 @@ export default dashboardApi
     <div class="page-header">
       <div>
         <h2>대시보드</h2>
-        <p class="subtitle">MUREUM AI 지식기반 관리 현황</p>
+        <p class="subtitle">win-AI 지식기반 관리 현황</p>
       </div>
       <div class="header-actions">
         <el-button-group>

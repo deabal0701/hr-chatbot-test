@@ -564,7 +564,7 @@ getters: {
   canAccessAdmin: () => { /* menus.length > 0 */ },
   accessibleMenus: () => { /* menu_type=PAGE && can_read 필터 */ },
 }
-// localStorage: mureum_access_token, mureum_refresh_token, mureum_user
+// localStorage: winai_access_token, winai_refresh_token, winai_user
 ```
 
 ### 8.2 사이드바 동적 메뉴

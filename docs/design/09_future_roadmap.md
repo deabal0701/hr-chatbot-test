@@ -1,4 +1,4 @@
-# MUREUM 추가 개발 로드맵
+# win-AI 추가 개발 로드맵
 
 > **최종 업데이트**: 2026-02-21
 > **현재 상태**: Core AI + Auth + Multi-Tenant + Dashboard 구현 완료
