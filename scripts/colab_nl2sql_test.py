@@ -1,5 +1,5 @@
 """
-MUREUM NL2SQL 테스트 스크립트 - Google Colab용
+win-AI NL2SQL 테스트 스크립트 - Google Colab용
 기존 Colab 환경(모델+tokenizer+test_chat 로딩 완료)에서
 아래 셀들을 순서대로 붙여넣어 실행합니다.
 
@@ -449,7 +449,7 @@ def run_all():
     total_time = 0
 
     print("=" * 70)
-    print("  MUREUM NL2SQL 전체 테스트")
+    print("  win-AI NL2SQL 전체 테스트")
     print("=" * 70)
 
     for qid, cat, question, keywords in TEST_QUESTIONS:

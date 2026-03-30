@@ -1083,14 +1083,12 @@ def handle_error_node(state: Dict[str, Any]) -> Dict[str, Any]:
 """
         log_step(logger, request_id, "NL2SQL", "ERR", "IRRELEVANT", "DB 무관 질문 안내 메시지 반환")
     else:
-        state["answer"] = f"""SQL 생성 또는 실행 중 오류가 발생했습니다.
+        state["answer"] = """질문을 처리하는 중 문제가 발생했습니다.
 
-오류 내용: {error_msg}
-
-다음 사항을 확인해주세요:
-1. 질문이 데이터베이스 스키마에 맞는지 확인
-2. 테이블명과 컬럼명이 정확한지 확인
-3. 질문을 더 구체적으로 작성
+다음과 같이 다시 시도해 주세요:
+1. 질문을 좀 더 간결하고 구체적으로 작성해 주세요
+2. 조회하려는 항목을 명확히 지정해 주세요
+3. 그래도 문제가 계속되면 관리자에게 문의해 주세요
 """
         log_step(logger, request_id, "NL2SQL", "ERR", "ERROR", "오류 처리 완료", error=error_msg)
 

@@ -1,5 +1,5 @@
 # ============================================
-# MUREUM Backend Dockerfile
+# win-AI Backend Dockerfile
 # Python FastAPI + LangChain Application
 # ============================================
 

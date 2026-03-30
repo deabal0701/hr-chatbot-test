@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════
-# MUREUM API 통합 테스트 실행 스크립트
+# win-AI API 통합 테스트 실행 스크립트
 #
 # 사용법:
 #   bash tests/run_tests.sh              # 전체 실행
@@ -24,7 +24,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 export TEST_BASE_URL="${TEST_BASE_URL:-http://localhost:19090}"
 
 echo "════════════════════════════════════════════"
-echo "  MUREUM API Integration Tests"
+echo "  win-AI API Integration Tests"
 echo "  Server: $TEST_BASE_URL"
 echo "════════════════════════════════════════════"
 

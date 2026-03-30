@@ -225,7 +225,7 @@ import { Loading, Delete, Operation, ArrowDown, Document, DataLine, CoffeeCup, R
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 const store = useStore()
 const messagesContainer = ref(null)
 const inputRef = ref(null)

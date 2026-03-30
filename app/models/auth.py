@@ -215,7 +215,7 @@ class SSOLoginRequest(BaseModel):
 
 class SSOTokenPayload(BaseModel):
     """SSO JWT 토큰 페이로드 (메인 시스템이 서명)"""
-    sub: str = Field(..., description="사번 (MUREUM login_id로 매핑)")
+    sub: str = Field(..., description="사번 (win-AI login_id로 매핑)")
     name: str = Field(..., description="사용자 이름")
     email: Optional[str] = Field(None, description="이메일")
     tenant_code: Optional[str] = Field(None, description="테넌트 코드")

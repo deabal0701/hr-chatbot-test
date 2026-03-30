@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development", description="애플리케이션 환경")
     app_host: str = Field(default="0.0.0.0", description="애플리케이션 호스트")
     app_port: int = Field(default=19090, description="애플리케이션 포트")
-    context_path: str = Field(default="", description="API Context Path (예: /mureum)")
+    context_path: str = Field(default="", description="API Context Path (예: /winai)")
     log_level: str = Field(default="INFO", description="로그 레벨")
     log_format: str = Field(default="text", description="로그 포맷 (text: 텍스트, json: JSON)")
     log_file: Optional[str] = Field(default=None, description="로그 파일 경로 (None이면 파일 출력 안함)")

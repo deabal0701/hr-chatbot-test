@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo   MUREUM Frontend Dev Server
+echo   win-AI Frontend Dev Server
 echo ========================================
 echo.
 echo Starting Vue.js dev server on http://localhost:19080

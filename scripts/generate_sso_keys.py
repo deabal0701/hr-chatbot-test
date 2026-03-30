@@ -57,7 +57,7 @@ def generate_rsa_key_pair(output_dir: str = "keys", key_size: int = 2048) -> Non
     print(f"  Public Key:  {public_key_path}")
     print()
     print("주의: Private Key는 메인 시스템(SSO 토큰 서명)에서 사용합니다.")
-    print("      Public Key만 MUREUM 서버에 배포하세요.")
+    print("      Public Key만 win-AI 서버에 배포하세요.")
     print("      keys/ 디렉토리는 .gitignore에 포함되어 있습니다.")
 
 

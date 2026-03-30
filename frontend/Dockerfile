@@ -1,4 +1,4 @@
-# MUREUM Frontend Dockerfile
+# win-AI Frontend Dockerfile
 # Multi-stage build for optimized production image
 
 FROM node:24.14-alpine AS builder

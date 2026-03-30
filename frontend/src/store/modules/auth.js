@@ -7,9 +7,9 @@
  *   refreshToken — JWT Refresh Token
  *
  * 토큰 저장: localStorage
- *   - mureum_access_token
- *   - mureum_refresh_token
- *   - mureum_user (JSON)
+ *   - winai_access_token
+ *   - winai_refresh_token
+ *   - winai_user (JSON)
  */
 import authApi from '@/api/auth'
 

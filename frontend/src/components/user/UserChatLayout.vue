@@ -100,7 +100,7 @@ import { ElMessage } from 'element-plus'
 import UserChatSidebar from '@/components/user/UserChatSidebar.vue'
 import UserChatView from '@/views/user/UserChatView.vue'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 const store = useStore()
 const router = useRouter()
 
@@ -201,7 +201,7 @@ const handleSave = () => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `mureum-chat-${now.toISOString().slice(0, 10)}.md`
+  link.download = `winai-chat-${now.toISOString().slice(0, 10)}.md`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

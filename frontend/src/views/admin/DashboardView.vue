@@ -106,7 +106,7 @@ import RequestTypeChart from '@/components/dashboard/RequestTypeChart.vue'
 import RecentActivity from '@/components/dashboard/RecentActivity.vue'
 import SystemStatus from '@/components/dashboard/SystemStatus.vue'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 const router = useRouter()
 
 const isLoading = ref(false)

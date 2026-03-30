@@ -113,7 +113,7 @@ const sidebarCollapsed = computed(() => store.state.app.sidebarCollapsed)
 const toggleSidebar = () => store.dispatch('app/toggleSidebar')
 
 const pageTitle = computed(() => {
-  return route.meta.title || import.meta.env.VITE_APP_TITLE || 'MUREUM'
+  return route.meta.title || import.meta.env.VITE_APP_TITLE || 'win-AI'
 })
 
 

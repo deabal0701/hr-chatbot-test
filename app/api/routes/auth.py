@@ -38,7 +38,7 @@ async def login(body: LoginRequest, request: Request):
 
 @router.post("/sso")
 async def sso_login(body: SSOLoginRequest, request: Request):
-    """SSO 로그인 — 외부 시스템 JWT 토큰 검증 후 MUREUM JWT 발급"""
+    """SSO 로그인 — 외부 시스템 JWT 토큰 검증 후 win-AI JWT 발급"""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4())[:8])
     ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "")

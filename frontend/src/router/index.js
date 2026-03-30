@@ -156,7 +156,7 @@ const router = createRouter({
 
 // 페이지 타이틀 업데이트
 router.afterEach((to) => {
-  const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+  const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
   document.title = to.meta.title ? `${to.meta.title} - ${appTitle}` : appTitle
 })
 

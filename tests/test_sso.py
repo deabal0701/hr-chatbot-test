@@ -175,7 +175,7 @@ class TestSSOExistingUser:
             sub=ADMIN_ID,
             name="시스템 관리자",
             iss=allowed_issuer,
-            email="admin@mureum.com",
+            email="admin@winai.com",
         )
         _sso_login(client, token2)
 
@@ -443,7 +443,7 @@ class TestSSOScenarios:
     def test_sso_then_password_both_work_for_existing(self, client, allowed_issuer):
         """기존 사용자(admin): SSO 로그인 후에도 비밀번호 로그인 가능"""
         # SSO 로그인
-        token = _make_sso_token(sub=ADMIN_ID, name="시스템 관리자", iss=allowed_issuer, email="admin@mureum.com")
+        token = _make_sso_token(sub=ADMIN_ID, name="시스템 관리자", iss=allowed_issuer, email="admin@winai.com")
         resp1 = _sso_login(client, token)
         assert_success(resp1)
 
@@ -453,7 +453,7 @@ class TestSSOScenarios:
 
     def test_sso_redirect_endpoint(self, client, allowed_issuer):
         """SSO 리다이렉트 엔드포인트 (form POST) 테스트"""
-        token = _make_sso_token(sub=ADMIN_ID, name="시스템 관리자", iss=allowed_issuer, email="admin@mureum.com")
+        token = _make_sso_token(sub=ADMIN_ID, name="시스템 관리자", iss=allowed_issuer, email="admin@winai.com")
         resp = client.post(
             "/api/v1/auth/sso-redirect",
             data={"token": token},

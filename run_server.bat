@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo   MUREUM Backend Server 시작
+echo   win-AI Backend Server 시작
 echo ========================================
 
 cd /d %~dp0

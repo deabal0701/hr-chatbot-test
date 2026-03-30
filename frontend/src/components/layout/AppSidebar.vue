@@ -74,7 +74,7 @@ import { ChatDotSquare } from '@element-plus/icons-vue'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 const route = useRoute()
 const router = useRouter()
 const store = useStore()

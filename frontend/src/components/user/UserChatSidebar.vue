@@ -171,7 +171,7 @@ import { useAuth } from '@/composables/useAuth'
 import { ElMessage } from 'element-plus'
 import { Close, RefreshRight, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis, Setting } from '@element-plus/icons-vue'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 
 const props = defineProps({
   isMobile: {

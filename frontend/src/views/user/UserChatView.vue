@@ -201,7 +201,7 @@ import PromptGuideModal from '@/components/chat/PromptGuideModal.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 
 // Props
 defineProps({

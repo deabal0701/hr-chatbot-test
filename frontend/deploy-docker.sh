@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# MUREUM Frontend Docker 배포 스크립트
+# win-AI Frontend Docker 배포 스크립트
 # ============================================================
 #
 # [상용 전환 시 변경 항목]
@@ -57,7 +57,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}MUREUM Frontend Docker 배포 시작${NC}"
+echo -e "${GREEN}win-AI Frontend Docker 배포 시작${NC}"
 echo -e "${GREEN}Target: ${REMOTE_HOST}${NC}"
 echo -e "${GREEN}Environment: ${ENV_FILE}${NC}"
 echo -e "${GREEN}========================================${NC}"
@@ -261,7 +261,7 @@ main() {
     cleanup
 
     echo -e "\n${GREEN}========================================${NC}"
-    echo -e "${GREEN}MUREUM Frontend Docker 배포 완료!${NC}"
+    echo -e "${GREEN}win-AI Frontend Docker 배포 완료!${NC}"
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}Frontend URL:  http://$REMOTE_HOST:$FRONTEND_PORT${NC}"
     echo -e "${GREEN}Health Check:  http://$REMOTE_HOST:$FRONTEND_PORT/health${NC}"

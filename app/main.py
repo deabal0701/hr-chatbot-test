@@ -26,7 +26,7 @@ logger = setup_logger(__name__)
 async def lifespan(app: FastAPI):
     """애플리케이션 시작/종료 이벤트"""
     # 시작
-    logger.info(f"MUREUM 시작: env={settings.app_env}")
+    logger.info(f"win-AI 시작: env={settings.app_env}")
 
     # LangSmith 초기화 (옵션)
     init_langsmith()
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # 종료
-    logger.info("MUREUM 종료 중...")
+    logger.info("win-AI 종료 중...")
     history_service.stop_worker()  # 이력 저장 워커 종료
     db_manager.close()
     external_db_manager.close()
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 
 # FastAPI 앱 생성
 app = FastAPI(
-    title="MUREUM API",
+    title="win-AI API",
     description="기업용 지식 베이스 기반 AI 어시스턴트 API",
     version="1.0.0",
     lifespan=lifespan,
@@ -113,7 +113,7 @@ app.include_router(personal_dashboard.router)  # 개인 대시보드 라우터
 async def root():
     """루트 엔드포인트"""
     return {
-        "service": "MUREUM API",
+        "service": "win-AI API",
         "version": "1.0.0",
         "status": "running",
         "environment": settings.app_env

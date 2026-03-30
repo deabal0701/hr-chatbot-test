@@ -84,7 +84,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { ChatDotRound, User, Lock } from '@element-plus/icons-vue'
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'MUREUM'
+const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 const store = useStore()
 const router = useRouter()
 const route = useRoute()
