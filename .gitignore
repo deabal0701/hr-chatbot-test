@@ -28,6 +28,9 @@ ENV/
 # Environment variables
 .env
 .env.local
+.env.development
+.env.production
+.env.docker
 
 # IDE
 .vscode/
@@ -65,9 +68,6 @@ dist/
 #docs/
 npm-debug.log
 yarn-error.log
-
-# End of https://www.toptal.com/developers/gitignore/api/vuejs
-.env.docker
 
 # SSO Keys
 keys/
