@@ -46,7 +46,7 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # agent_node에서 이미 오류로 final_answer가 설정된 경우, LLM 재호출 없이 에러 응답 반환
     existing_answer = state.get("final_answer", "")
     if existing_answer and existing_answer.startswith("오류:"):
-        error_answer = "죄송합니다. AI 모델 호출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        error_answer = "AI 모델 호출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         log_step(logger, request_id, "AGENT", "ANSWER", "SKIP", "agent_node 오류로 답변 생성 건너뜀", error=existing_answer)
         return {
             "messages": [AIMessage(content=error_answer)],
@@ -121,7 +121,7 @@ def answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     except Exception as e:
         log_step(logger, request_id, "AGENT", "ANSWER", "ERROR", "답변 생성 실패", level="ERROR", error=str(e))
-        error_answer = f"죄송합니다. 답변 생성 중 오류가 발생했습니다.\n\n오류 내용: {str(e)}\n\n잠시 후 다시 시도해주세요."
+        error_answer = f"답변 생성 중 오류가 발생했습니다.\n\n오류 내용: {str(e)}\n\n잠시 후 다시 시도해주세요."
         return {
             "messages": [AIMessage(content=error_answer)],
             "final_answer": error_answer,

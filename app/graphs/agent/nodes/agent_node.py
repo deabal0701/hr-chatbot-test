@@ -71,7 +71,7 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
     if iteration_count >= max_iterations:
         log_step(logger, request_id, "AGENT", str(iteration_count), "WARN", "최대 반복 횟수 도달", level="WARNING")
         return {
-            "messages": [AIMessage(content="죄송합니다. 질문에 대한 답변을 찾는 데 너무 오래 걸리고 있습니다. 질문을 더 구체적으로 해주시겠어요?")],
+            "messages": [AIMessage(content="질문에 대한 답변을 찾는 데 너무 오래 걸리고 있습니다. 질문을 더 구체적으로 해주시겠어요?")],
             "iteration_count": iteration_count + 1,
             "final_answer": "최대 반복 횟수 초과",
         }
@@ -122,7 +122,7 @@ def agent_node(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         log_step(logger, request_id, "AGENT", str(iteration_count), "ERROR", f"LLM 호출 실패: {e}", level="ERROR")
         return {
-            "messages": [AIMessage(content=f"죄송합니다. 처리 중 오류가 발생했습니다: {str(e)}")],
+            "messages": [AIMessage(content=f"처리 중 오류가 발생했습니다: {str(e)}")],
             "iteration_count": iteration_count + 1,
             "final_answer": f"오류: {str(e)}",
         }
