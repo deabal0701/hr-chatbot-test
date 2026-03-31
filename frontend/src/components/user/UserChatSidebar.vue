@@ -10,7 +10,7 @@
       </div>
       <!-- Desktop collapse button -->
       <button v-if="!isMobile" class="collapse-btn" @click="$emit('toggle')" title="사이드바 접기">
-        <el-icon><Fold /></el-icon>
+        <el-icon :size="20"><Fold /></el-icon>
       </button>
       <!-- Mobile close button -->
       <button class="close-btn" @click="$emit('close')" v-if="isMobile">
