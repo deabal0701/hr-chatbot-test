@@ -429,8 +429,14 @@ watch(messages, async () => {
 
 .welcome-message {
   text-align: center;
-  padding: 60px 20px;
+  padding: 20px;
   color: var(--text-color-regular);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding-bottom: 180px;
 
   .welcome-icon {
     width: 84px;
