@@ -4,7 +4,7 @@
       <el-tooltip content="대화로 이동" placement="bottom">
         <el-button :icon="ArrowLeft" circle size="small" class="back-btn" @click="$emit('go-chat')" />
       </el-tooltip>
-      <el-icon class="toolbar-icon" :size="22"><DataAnalysis /></el-icon>
+      <img :src="logoMark" alt="win-AI" class="toolbar-logo" />
 
       <!-- 대시보드 선택 드롭다운 -->
       <div class="toolbar-title-area">
@@ -144,6 +144,12 @@ import {
   ArrowLeft, ArrowDown, DataAnalysis, Refresh, Edit, Delete, Sunny, Moon, Monitor,
   Download, PictureFilled, Document, Plus, Share, Setting, Star
 } from '@element-plus/icons-vue'
+import { useTheme } from '@/composables/useTheme'
+import logoMarkLight from '@/assets/logo/winai_logo_mark.png'
+import logoMarkDark from '@/assets/logo/winai_logo_mark_dark.png'
+
+const { isDarkMode } = useTheme()
+const logoMark = computed(() => isDarkMode.value ? logoMarkDark : logoMarkLight)
 
 const props = defineProps({
   editMode: { type: Boolean, default: false },
@@ -232,6 +238,13 @@ const handleExportCommand = (command) => {
 
   .toolbar-icon {
     color: var(--el-color-primary);
+    flex-shrink: 0;
+  }
+
+  .toolbar-logo {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
     flex-shrink: 0;
   }
 
