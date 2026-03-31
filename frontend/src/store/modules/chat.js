@@ -165,7 +165,7 @@ export default {
         // 에러 메시지도 대화에 추가
         commit('ADD_MESSAGE', {
           role: 'assistant',
-          content: `죄송합니다. ${errorMessage}`,
+          content: errorMessage,
           isError: true,
           errorCode: errorCode
         })
@@ -268,7 +268,7 @@ export default {
 
           commit('SET_ERROR', { code: errorCode, message: errorMessage })
           commit('UPDATE_LAST_MESSAGE', {
-            content: `죄송합니다. ${errorMessage}`,
+            content: errorMessage,
             isStreaming: false,
             isError: true,
             errorCode: errorCode

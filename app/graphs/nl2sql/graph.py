@@ -42,6 +42,7 @@ from app.core.checkpoint import BoundedInMemorySaver
 from langchain_core.runnables import RunnableConfig
 
 from app.models.search import SearchResponse
+from app.core.errors.response import get_user_friendly_error as _get_user_friendly_error
 from app.utils.logger import setup_logger, log_step
 
 # LangSmith traceable (조건부 import)
@@ -405,7 +406,8 @@ class NL2SQLGraph:
         except Exception as e:
             log_step(logger, request_id, "NL2SQL", "ERR", "SSE", f"NL2SQL SSE 실패: {str(e)}", level="ERROR")
 
-            error_event = ErrorEvent(code="NL2SQL_FAILED", message=f"NL2SQL 실행 중 오류: {str(e)}", detail=str(e))
+            user_message = _get_user_friendly_error(str(e))
+            error_event = ErrorEvent(code="NL2SQL_FAILED", message=user_message, detail=str(e))
             yield format_sse("error", error_event.model_dump())
 
     async def ainvoke(self, inputs: Dict[str, Any]) -> SearchResponse:

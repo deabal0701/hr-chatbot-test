@@ -34,6 +34,7 @@ from app.graphs.agent.nodes.answer_node import answer_node
 from app.graphs.agent.middleware.chain import MiddlewareChain
 from app.graphs.agent.middleware.pii import PIIMiddleware
 from app.models.agent import AgentResponse, AgentConfig, AgentStep, AgentSQLResult
+from app.core.errors.response import get_user_friendly_error as _get_user_friendly_error
 from app.utils.logger import setup_logger, log_step
 from app.utils.common import truncate_text, extract_llm_text_content
 
@@ -344,7 +345,8 @@ class InsightAgentGraph:
             execution_time_ms = int((time.time() - start_time) * 1000)
             log_step(logger, request_id, "AGENT", "END", "ERROR", "ReAct Agent SSE 실패", level="ERROR", error=str(e))
 
-            error_event = ErrorEvent(code="AGENT_FAILED", message=f"Agent 실행 중 오류: {str(e)}", detail=str(e))
+            user_message = _get_user_friendly_error(str(e))
+            error_event = ErrorEvent(code="AGENT_FAILED", message=user_message, detail=str(e))
             yield format_sse("error", error_event.model_dump())
 
     async def _run_graph(self, inputs: Dict[str, Any]) -> AgentResponse:

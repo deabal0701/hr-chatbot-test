@@ -240,9 +240,9 @@ const formatTime = (timestamp) => {
     min-width: 720px;
 
     &.error {
-      background-color: var(--color-danger-light-bg);
-      border-color: var(--color-danger-light-border);
-      color: var(--color-danger);
+      background-color: var(--color-warning-light-bg);
+      border-color: var(--color-warning-light-border);
+      color: var(--text-color-primary);
     }
   }
 }
