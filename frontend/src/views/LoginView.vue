@@ -3,8 +3,7 @@
     <div class="login-card">
       <!-- 로고 + 타이틀 -->
       <div class="login-header">
-        <el-icon :size="48" color="var(--color-primary)"><ChatDotRound /></el-icon>
-        <h1 class="login-title">{{ appTitle }}</h1>
+        <img src="@/assets/logo/winai_logo.png" alt="win-AI" class="login-logo" />
         <p class="login-subtitle">AI 통합 검색 어시스턴트</p>
       </div>
 
@@ -64,15 +63,15 @@
     </div>
 
     <!-- SSO 로그인 버튼 -->
-    <div class="sso-test-area">
+    <!-- <div class="sso-test-area">
       <el-button type="info" text @click="openSSOTest">
         SSO 로그인
       </el-button>
-    </div>
+    </div> -->
 
     <!-- 하단 정보 -->
     <div class="login-footer">
-      <span>{{ appTitle }} v2.0.0</span>
+      <span>{{ appTitle }} v1.0.0</span>
     </div>
   </div>
 </template>
@@ -82,7 +81,7 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import { ChatDotRound, User, Lock } from '@element-plus/icons-vue'
+import { User, Lock } from '@element-plus/icons-vue'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
 const store = useStore()
@@ -204,22 +203,28 @@ onMounted(() => {
   text-align: center;
   margin-bottom: 32px;
 
-  .login-title {
-    margin: 12px 0 4px;
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text-color-primary);
-    letter-spacing: 2px;
+  .login-logo {
+    max-width: 200px;
+    height: auto;
+    margin-bottom: 8px;
+
+    [data-theme="dark"] & {
+      filter: brightness(2.5);
+    }
 
     @include mx.mobile {
-      font-size: 24px;
+      max-width: 170px;
     }
   }
 
   .login-subtitle {
     margin: 0;
     font-size: 14px;
-    color: var(--text-color-secondary);
+    color: var(--text-color-regular);
+    // 대체 가능한 색상 옵션:
+    // color: var(--text-color-secondary);  // #8c8c8c — 가장 어두움
+    // color: var(--text-color-regular);    // #a3a3a3 — 현재 적용 (중간)
+    // color: var(--text-color-primary);    // #e5e5e5 — 가장 밝음
   }
 }
 
@@ -283,6 +288,6 @@ onMounted(() => {
   z-index: 1;
   margin-top: 24px;
   font-size: 12px;
-  color: var(--text-color-secondary);
+  color: var(--text-color-regular);
 }
 </style>

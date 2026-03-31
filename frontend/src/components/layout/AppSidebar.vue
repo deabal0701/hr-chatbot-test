@@ -3,12 +3,7 @@
     <!-- 로고 -->
     <div class="sidebar-logo" :class="{ collapsed: isCollapsed }">
       <div class="logo-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          <path d="M8 10h.01"></path>
-          <path d="M12 10h.01"></path>
-          <path d="M16 10h.01"></path>
-        </svg>
+        <img :src="logoMark" alt="win-AI" />
       </div>
       <span v-if="!isCollapsed" class="logo-text">{{ appTitle }}</span>
     </div>
@@ -61,7 +56,7 @@
         <el-icon><ChatDotSquare /></el-icon>
         <span v-if="!isCollapsed">사용자 페이지</span>
       </button>
-      <div v-if="!isCollapsed" class="version">v2.0.0</div>
+      <div v-if="!isCollapsed" class="version">v1.0.0</div>
     </div>
   </div>
 </template>
@@ -82,6 +77,10 @@ const store = useStore()
 const { isAuthenticated } = useAuth()
 const { isDarkMode } = useTheme()
 const isCollapsed = computed(() => store.state.app.sidebarCollapsed)
+
+import logoMarkLight from '@/assets/logo/winai_logo_mark.png'
+import logoMarkDark from '@/assets/logo/winai_logo_mark_dark.png'
+const logoMark = computed(() => isDarkMode.value ? logoMarkDark : logoMarkLight)
 const activeMenu = computed(() => route.path)
 
 // DB 아이콘명 → Element Plus 전역 등록 아이콘명 매핑
@@ -180,14 +179,15 @@ const goToUserChat = () => {
   height: 60px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 20px;
+  justify-content: flex-start;
+  padding: 0 16px;
   background-color: var(--sidebar-bg);
   border-bottom: 1px solid var(--sidebar-border);
   transition: var(--theme-transition);
 
   &.collapsed {
     padding: 0;
+    justify-content: center;
 
     .logo-icon {
       margin: 0;
@@ -197,26 +197,20 @@ const goToUserChat = () => {
   .logo-icon {
     width: 32px;
     height: 32px;
-    background-color: var(--icon-bg, #333333);
-    border: 1px solid var(--icon-bg-border, #555555);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     flex-shrink: 0;
-    color: var(--icon-color, #ffffff);
 
-    svg {
-      width: 18px;
-      height: 18px;
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
     }
   }
 
   .logo-text {
-    margin-left: 12px;
+    margin-left: 8px;
     font-size: 18px;
-    font-weight: 600;
-    color: var(--sidebar-toggle-color);
+    font-weight: 700;
+    color: var(--user-sidebar-text);
     white-space: nowrap;
   }
 }

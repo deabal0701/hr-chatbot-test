@@ -5,10 +5,7 @@
       <div class="header-left">
         <div class="header-logo">
           <div class="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.7 8.5 8.5 0 0 1 5.3 1.9"></path>
-              <polyline points="16 5 12 9 8 5"></polyline>
-            </svg>
+            <img :src="logoMark" alt="win-AI" />
           </div>
           <h1 class="logo-text">{{ appTitle }}</h1>
         </div>
@@ -224,6 +221,10 @@ const goToLogin = () => {
 // 테마 관련
 const { isDarkMode, toggleDarkMode } = useTheme()
 
+import logoMarkLight from '@/assets/logo/winai_logo_mark.png'
+import logoMarkDark from '@/assets/logo/winai_logo_mark_dark.png'
+const logoMark = computed(() => isDarkMode.value ? logoMarkDark : logoMarkLight)
+
 // 채팅 이력 로드
 onMounted(() => {
   store.dispatch('chat/fetchChatHistory')
@@ -374,17 +375,12 @@ watch(messages, async () => {
     .logo-icon {
       width: 32px;
       height: 32px;
-      background-color: var(--icon-bg, #333333);
-      border: 1px solid var(--icon-bg-border, #555555);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--icon-color, #ffffff);
+      flex-shrink: 0;
 
-      svg {
-        width: 18px;
-        height: 18px;
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
     }
 
@@ -804,11 +800,6 @@ watch(messages, async () => {
       .logo-icon {
         width: 28px;
         height: 28px;
-
-        svg {
-          width: 16px;
-          height: 16px;
-        }
       }
 
       .logo-text {

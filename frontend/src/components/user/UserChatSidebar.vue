@@ -4,11 +4,7 @@
     <div class="sidebar-header">
       <div class="logo-section">
         <div class="logo-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <img :src="logoMark" alt="win-AI" />
         </div>
         <span class="logo-text">{{ appTitle }}</span>
       </div>
@@ -171,7 +167,13 @@ import { useAuth } from '@/composables/useAuth'
 import { ElMessage } from 'element-plus'
 import { Close, RefreshRight, ChatLineRound, Fold, User, Search, Delete, UserFilled, MoreFilled, Lock, SwitchButton, DataAnalysis, Setting } from '@element-plus/icons-vue'
 
+import { useTheme } from '@/composables/useTheme'
+import logoMarkLight from '@/assets/logo/winai_logo_mark.png'
+import logoMarkDark from '@/assets/logo/winai_logo_mark_dark.png'
+
 const appTitle = import.meta.env.VITE_APP_TITLE || 'win-AI'
+const { isDarkMode } = useTheme()
+const logoMark = computed(() => isDarkMode.value ? logoMarkDark : logoMarkLight)
 
 const props = defineProps({
   isMobile: {
@@ -380,19 +382,19 @@ const clearSearch = () => {
   .logo-section {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
 
   .logo-icon {
-    width: 36px;
-    height: 36px;
-    background-color: var(--icon-bg);
-    border: 1px solid var(--icon-bg-border);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--icon-color);
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
   }
 
   .logo-text {
@@ -773,12 +775,6 @@ const clearSearch = () => {
     .logo-icon {
       width: 32px;
       height: 32px;
-      border-radius: 8px;
-
-      svg {
-        width: 20px;
-        height: 20px;
-      }
     }
 
     .logo-text {

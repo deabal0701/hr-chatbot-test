@@ -60,6 +60,9 @@
         <button class="sidebar-toggle-btn" @click="toggleSidebar">
           <el-icon :size="20"><Menu /></el-icon>
         </button>
+        <div class="logo-icon">
+          <img :src="logoMark" alt="win-AI" />
+        </div>
         <h1 class="logo-text">{{ appTitle }}</h1>
         <div class="header-actions-mobile">
           <!-- [임시 비활성화] 테마 토글 - 이 코드를 삭제하지 마시오. 추후 복구 예정입니다.
@@ -119,6 +122,10 @@ const sidebarVisible = computed(() => store.state.app.userSidebarVisible)
 
 // 테마 관련
 const { isDarkMode, toggleDarkMode } = useTheme()
+
+import logoMarkLight from '@/assets/logo/winai_logo_mark.png'
+import logoMarkDark from '@/assets/logo/winai_logo_mark_dark.png'
+const logoMark = computed(() => isDarkMode.value ? logoMarkDark : logoMarkLight)
 
 const toggleSidebar = () => {
   store.dispatch('app/toggleUserSidebar')
@@ -346,6 +353,18 @@ onUnmounted(() => {
 
     &:hover {
       background-color: var(--bg-color-hover);
+    }
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
     }
   }
 
