@@ -246,6 +246,10 @@ const handleExportCommand = (command) => {
     height: 24px;
     object-fit: contain;
     flex-shrink: 0;
+
+    [data-theme="dark"] & {
+      filter: brightness(2.5);
+    }
   }
 
   .toolbar-title-area {

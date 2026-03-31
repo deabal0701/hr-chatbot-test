@@ -394,6 +394,10 @@ const clearSearch = () => {
       width: 100%;
       height: 100%;
       object-fit: contain;
+
+      [data-theme="dark"] & {
+        filter: brightness(2.5);
+      }
     }
   }
 
