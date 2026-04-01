@@ -437,7 +437,7 @@ class InsightAgentGraph:
             log_step(logger, request_id, "AGENT", "END", "ERROR", "ReAct Agent 실패", level="ERROR", error=str(e))
 
             return AgentResponse(
-                answer=f"Agent 실행 중 오류가 발생했습니다: {str(e)}",
+                answer=_get_user_friendly_error(str(e)),
                 steps=[],
                 total_iterations=0,
                 tools_used=[],

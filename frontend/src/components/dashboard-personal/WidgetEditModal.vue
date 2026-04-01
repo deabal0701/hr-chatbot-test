@@ -219,7 +219,8 @@ const handleSave = async () => {
     emit('saved')
     visible.value = false
   } catch (err) {
-    ElMessage.error('위젯 수정에 실패했습니다')
+    const detail = err?.detail || err?.message || '위젯 수정에 실패했습니다'
+    ElMessage.error(detail)
   }
 }
 

@@ -15,8 +15,8 @@ win-AI는 기업용 AI 지식베이스 어시스턴트로, 자연어 질의를 �
 | Backend | Python 3.13, FastAPI, LangGraph 1.0+, LangChain 1.2+ |
 | Frontend | Vue 3, Vuex, Element Plus, ECharts, Vite |
 | Database | PostgreSQL (pgvector), Oracle (외부 비즈니스 DB) |
-| LLM | OpenAI (gpt-4o, gpt-4o-mini), Anthropic (claude-3-5-sonnet), Google Gemini |
-| Embedding | OpenAI text-embedding-3-small (1536D) |
+| LLM | OpenAI (gpt-4o, gpt-4o-nano, gpt-5.4-nano), Anthropic (claude-3-5-sonnet), Google Gemini |
+| Embedding | OpenAI text-embedding-3-large (1536D, 3072) |
 | Infra | Docker, Nginx, SSH 배포 |
 
 ---

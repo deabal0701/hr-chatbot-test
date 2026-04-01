@@ -87,17 +87,13 @@ def get_user_friendly_error(error_str: str) -> str:
     """
     error_lower = error_str.lower()
 
-    # DB 연결 끊김 (Oracle DPY-4011, 네트워크 오류)
-    if "dpy-4011" in error_lower or "database or network closed" in error_lower:
+    # DB 연결 끊김/실패 (Oracle DPY 에러 계열)
+    if any(kw in error_lower for kw in ["dpy-4011", "dpy-6005", "dpy-6000", "database or network closed", "cannot connect to database"]):
         return "데이터베이스 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요."
 
-    # DB 연결 실패
-    if any(kw in error_lower for kw in ["connection refused", "could not connect", "연결 실패", "connectionerror"]):
-        return "데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."
-
-    # Oracle 리스너 오류
-    if "ora-12541" in error_lower or "no listener" in error_lower:
-        return "데이터베이스 서버에 연결할 수 없습니다. 관리자에게 문의해 주세요."
+    # DB 연결 실패 / 리스너 오류
+    if any(kw in error_lower for kw in ["connection refused", "could not connect", "연결 실패", "connectionerror", "listener refused", "ora-12528", "ora-12541", "no listener", "데이터베이스 연결 오류"]):
+        return "데이터베이스 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요."
 
     # Oracle 인증 오류
     if "ora-01017" in error_lower or "invalid username/password" in error_lower:

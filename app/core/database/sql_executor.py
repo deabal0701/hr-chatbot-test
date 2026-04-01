@@ -368,7 +368,12 @@ class SQLExecutorService:
             logger.error(f"SQL 실행 실패: {e}, sql={sql}")
             # 연결 오류와 쿼리 오류 구분
             error_type = type(e).__name__
-            if error_type in ("OperationalError", "InterfaceError", "ConnectionError", "PoolTimeout"):
+            error_str = str(e).lower()
+            is_connection_error = (
+                error_type in ("OperationalError", "InterfaceError", "ConnectionError", "PoolTimeout")
+                or any(kw in error_str for kw in ("dpy-4011", "dpy-6005", "dpy-6000", "listener refused", "ora-12528", "ora-12541"))
+            )
+            if is_connection_error:
                 raise SQLConnectionError(f"데이터베이스 연결 오류: {str(e)}")
             raise SQLExecutionError(f"SQL 실행 오류: {str(e)}")
 
