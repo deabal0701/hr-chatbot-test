@@ -218,18 +218,20 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
     documents = state["retrieved_docs"]
     request_id = state.get("request_id", "unknown")
 
-    if not documents:
-        log_step(logger, request_id, "RAG", "3", "GENERATE", "문서 없음 - 기본 응답 반환")
-        state["answer"] = "관련 문서를 찾을 수 없습니다. 다른 질문을 시도해주세요."
-        return state
-
-    log_step(logger, request_id, "RAG", "3a", "CONTEXT", "컨텍스트 구성 시작", doc_count=len(documents))
-    context = _build_context(documents)
-    log_step(logger, request_id, "RAG", "3a", "CONTEXT", "컨텍스트 구성 완료", context_length=len(context))
+    # [주석] 검색 결과 0건이어도 LLM에 전달하여 질문 내 텍스트 처리 가능하도록 변경
+    # if not documents:
+    #     log_step(logger, request_id, "RAG", "3", "GENERATE", "문서 없음 - 기본 응답 반환")
+    #     state["answer"] = "관련 문서를 찾을 수 없습니다. 다른 질문을 시도해주세요."
+    #     return state
 
     system_prompt = prompt_service.get_rag_system_prompt()
 
-    user_prompt = f"""질문: {question}
+    if documents:
+        log_step(logger, request_id, "RAG", "3a", "CONTEXT", "컨텍스트 구성 시작", doc_count=len(documents))
+        context = _build_context(documents)
+        log_step(logger, request_id, "RAG", "3a", "CONTEXT", "컨텍스트 구성 완료", context_length=len(context))
+
+        user_prompt = f"""질문: {question}
 
 참고 문서:
 {context}
@@ -237,6 +239,15 @@ def generate_answer_node(state: Dict[str, Any]) -> Dict[str, Any]:
 위 문서를 참고하여 질문에 마크다운 형식으로 답변해주세요.
 - 절차/단계가 있으면 번호 목록으로, 비교 항목이 있으면 표로 정리하세요.
 - 답변 끝에 참고한 문서의 제목을 《》로 감싸 표기하세요."""
+    else:
+        context = ""
+        log_step(logger, request_id, "RAG", "3a", "CONTEXT", "검색된 참고 문서 없음 → LLM에 질문만 전달")
+
+        user_prompt = f"""질문: {question}
+
+참고 문서: 검색된 참고 문서가 없습니다.
+
+위 질문에 대해 답변해주세요."""
 
     messages = [
         SystemMessage(content=system_prompt),
