@@ -31,6 +31,7 @@ ENV/
 .env.development
 .env.production
 .env.docker
+.env.oci.docker
 
 # IDE
 .vscode/
