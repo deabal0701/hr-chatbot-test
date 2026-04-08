@@ -32,7 +32,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 소스 복사
 COPY app/ ./app/
-COPY scripts/ ./scripts/
 
 # SSO 공개키 복사
 COPY keys/sso_public.pem ./keys/sso_public.pem
