@@ -25,7 +25,7 @@
     <el-form v-else label-position="top">
       <!-- 대시보드 선택 -->
       <el-form-item label="대시보드">
-        <el-select v-model="selectedDashboardId" placeholder="저장할 대시보드 선택" style="width: 100%">
+        <el-select v-model="selectedDashboardId" placeholder="저장할 대시보드 선택" :popper-class="popperClass" style="width: 100%">
           <el-option
             v-for="db in dashboardOptions"
             :key="db.dashboard_id"
@@ -36,7 +36,7 @@
       </el-form-item>
 
       <!-- 위젯 설정 (공통 컴포넌트) -->
-      <WidgetConfigForm ref="configRef" :columns="columns" :rows="rows" />
+      <WidgetConfigForm ref="configRef" :columns="columns" :rows="rows" :popper-class="popperClass" />
     </el-form>
 
     <template #footer>
@@ -71,6 +71,7 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 const store = useStore()
 const router = useRouter()
 const themeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
+const popperClass = computed(() => store.getters['dashboard/isDashboardDark'] ? 'dashboard-popper-dark' : 'dashboard-popper-light')
 const configRef = ref(null)
 
 const visible = computed({

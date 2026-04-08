@@ -19,6 +19,7 @@
               placeholder="대화를 선택하세요"
               filterable
               :loading="isLoadingSessions"
+              :popper-class="popperClass"
               style="width: 100%"
               @change="handleSessionSelect"
             >
@@ -46,6 +47,7 @@
             <el-select
               v-model="selectedMessageIndex"
               placeholder="쿼리 결과를 선택하세요"
+              :popper-class="popperClass"
               style="width: 100%"
               @change="handleMessageSelect"
             >
@@ -141,6 +143,7 @@
               v-model="importDashboardId"
               placeholder="대시보드를 선택하세요"
               :loading="isLoadingImportDashboards"
+              :popper-class="popperClass"
               style="width: 100%"
               @change="handleImportDashboardSelect"
             >
@@ -201,7 +204,7 @@
 
     <!-- 공통: 실행 결과 + 위젯 설정 (결과가 있을 때만) -->
     <el-form v-if="hasResult" label-position="top" style="margin-top: 8px">
-      <WidgetConfigForm ref="configRef" :columns="resultColumns" :rows="resultRows" />
+      <WidgetConfigForm ref="configRef" :columns="resultColumns" :rows="resultRows" :popper-class="popperClass" />
     </el-form>
 
     <template #footer>
@@ -228,6 +231,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'saved'])
 const store = useStore()
 const themeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
+const popperClass = computed(() => store.getters['dashboard/isDashboardDark'] ? 'dashboard-popper-dark' : 'dashboard-popper-light')
 const configRef = ref(null)
 
 const visible = computed({

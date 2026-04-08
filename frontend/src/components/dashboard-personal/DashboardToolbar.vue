@@ -8,7 +8,7 @@
 
       <!-- 대시보드 선택 드롭다운 -->
       <div class="toolbar-title-area">
-        <el-dropdown trigger="click" @command="handleDashboardCommand">
+        <el-dropdown trigger="click" :popper-class="popperClass" @command="handleDashboardCommand">
           <h2 class="dashboard-selector">
             <span class="selector-title">{{ currentTitle }}</span>
             <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
@@ -69,7 +69,7 @@
       </template>
       <template v-else-if="currentDashboard">
         <!-- 내보내기 (readOnly에서도 허용) -->
-        <el-dropdown trigger="click" @command="handleExportCommand">
+        <el-dropdown trigger="click" :popper-class="popperClass" @command="handleExportCommand">
           <el-button :loading="exporting">
             <el-icon><Download /></el-icon>
             <span>내보내기</span>
@@ -93,7 +93,7 @@
         </el-tooltip>
 
         <!-- 설정 드롭다운 -->
-        <el-dropdown trigger="click" @command="handleManageCommand">
+        <el-dropdown trigger="click" :popper-class="popperClass" @command="handleManageCommand">
           <el-button :icon="Setting" />
           <template #dropdown>
             <el-dropdown-menu>
@@ -150,6 +150,13 @@ import logoMarkDark from '@/assets/logo/winai_logo_mark_dark.png'
 
 const { isDarkMode } = useTheme()
 const logoMark = computed(() => isDarkMode.value ? logoMarkDark : logoMarkLight)
+
+// 대시보드 테마에 따른 popper class (텔레포트된 드롭다운에 적용)
+const isDashboardDark = computed(() => {
+  if (props.dashboardTheme === 'auto') return isDarkMode.value
+  return props.dashboardTheme === 'dark'
+})
+const popperClass = computed(() => isDashboardDark.value ? 'dashboard-popper-dark' : 'dashboard-popper-light')
 
 const props = defineProps({
   editMode: { type: Boolean, default: false },

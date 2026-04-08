@@ -22,7 +22,7 @@
     <el-row :gutter="16">
       <el-col :span="12">
         <el-form-item :label="form.widgetType === 'pie' ? '항목 (Label)' : 'X축 컬럼'">
-          <el-select v-model="form.xColumn" placeholder="컬럼 선택" style="width: 100%">
+          <el-select v-model="form.xColumn" placeholder="컬럼 선택" :popper-class="popperClass" style="width: 100%">
             <el-option v-for="col in columns" :key="col" :label="col" :value="col" />
           </el-select>
         </el-form-item>
@@ -34,6 +34,7 @@
             :multiple="form.widgetType !== 'pie'"
             placeholder="컬럼 선택"
             collapse-tags
+            :popper-class="popperClass"
             style="width: 100%"
           >
             <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
@@ -44,7 +45,7 @@
     <el-row :gutter="16">
       <el-col :span="12">
         <el-form-item v-if="form.widgetType === 'pie'" label="표시 개수">
-          <el-select v-model="form.pieTopN" style="width: 100%">
+          <el-select v-model="form.pieTopN" :popper-class="popperClass" style="width: 100%">
             <el-option label="Top 5" :value="5" />
             <el-option label="Top 10" :value="10" />
             <el-option label="Top 15" :value="15" />
@@ -55,7 +56,7 @@
       </el-col>
       <el-col :span="12">
         <el-form-item label="컬러 팔레트">
-          <el-select v-model="form.colorPalette" style="width: 100%">
+          <el-select v-model="form.colorPalette" :popper-class="popperClass" style="width: 100%">
             <el-option
               v-for="(palette, key) in CHART_PALETTES"
               :key="key"
@@ -80,7 +81,7 @@
     <el-row :gutter="16">
       <el-col :span="12">
         <el-form-item label="값 컬럼">
-          <el-select v-model="form.kpiColumn" placeholder="컬럼 선택" style="width: 100%">
+          <el-select v-model="form.kpiColumn" placeholder="컬럼 선택" :popper-class="popperClass" style="width: 100%">
             <el-option v-for="col in numericCols" :key="col" :label="col" :value="col" />
           </el-select>
         </el-form-item>
@@ -147,7 +148,8 @@ import WidgetKpi from './widgets/WidgetKpi.vue'
 
 const props = defineProps({
   columns: { type: Array, default: () => [] },
-  rows: { type: Array, default: () => [] }
+  rows: { type: Array, default: () => [] },
+  popperClass: { type: String, default: '' }
 })
 
 const columnsRef = toRef(props, 'columns')

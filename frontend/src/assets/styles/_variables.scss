@@ -270,10 +270,20 @@
   --el-loading-spinner-size: 42px;
   --el-color-white: #ffffff;
   --el-box-shadow-light: 0 0 12px rgba(0, 0, 0, 0.12);
+
+  // Primary 색상 변형 (다크모드에서 변경된 값을 라이트 값으로 복원)
+  --el-color-primary: #409eff;
+  --el-color-primary-light-3: #79bbff;
+  --el-color-primary-light-5: #a0cfff;
+  --el-color-primary-light-7: #c6e2ff;
+  --el-color-primary-light-8: #d9ecff;
+  --el-color-primary-light-9: #ecf5ff;
+  --el-color-primary-dark-2: #337ecc;
 }
 
 // 라이트 모드: html.dark 상태에서도 버튼 라이트 스타일 강제
-.dashboard-light .el-button {
+// el-button--default만 대상 (primary/success 등은 별도 설정)
+.dashboard-light .el-button--default {
   --el-button-text-color: #606266;
   --el-button-bg-color: #ffffff;
   --el-button-border-color: #dcdfe6;
@@ -283,6 +293,18 @@
   --el-button-disabled-text-color: #a8abb2;
   --el-button-disabled-bg-color: #ffffff;
   --el-button-disabled-border-color: #e4e7ed;
+}
+
+.dashboard-light .el-button--primary {
+  --el-button-text-color: #ffffff;
+  --el-button-bg-color: #409eff;
+  --el-button-border-color: #409eff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-hover-bg-color: #79bbff;
+  --el-button-hover-border-color: #79bbff;
+  --el-button-disabled-text-color: #ffffff;
+  --el-button-disabled-bg-color: #a0cfff;
+  --el-button-disabled-border-color: #a0cfff;
 }
 
 // Dashboard theme variables (Dark)
@@ -327,7 +349,8 @@
 }
 
 // 다크 모드: 라이트 상태에서도 버튼 다크 스타일 강제
-.dashboard-dark .el-button {
+// el-button--default만 대상 (primary/success 등은 기본 색상 유지)
+.dashboard-dark .el-button--default {
   --el-button-text-color: #cfd3dc;
   --el-button-bg-color: #1f1f1f;
   --el-button-border-color: #4c4d4f;

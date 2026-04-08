@@ -10,7 +10,7 @@
   >
     <el-form label-position="top">
       <!-- 위젯 설정 (공통 컴포넌트) -->
-      <WidgetConfigForm ref="configRef" :columns="currentColumns" :rows="currentRows" />
+      <WidgetConfigForm ref="configRef" :columns="currentColumns" :rows="currentRows" :popper-class="popperClass" />
 
       <!-- 쿼리 정보 + SQL 편집 -->
       <el-collapse class="section-collapse">
@@ -86,6 +86,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'saved'])
 const store = useStore()
 const themeClass = computed(() => store.getters['dashboard/dashboardThemeClass'])
+const popperClass = computed(() => store.getters['dashboard/isDashboardDark'] ? 'dashboard-popper-dark' : 'dashboard-popper-light')
 const configRef = ref(null)
 
 const visible = computed({

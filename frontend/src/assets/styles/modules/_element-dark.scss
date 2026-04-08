@@ -373,4 +373,279 @@
   // Tag / Alert / Loading
   .el-tag--info { background-color: var(--bg-color-hover); border-color: var(--border-color); color: var(--text-color-secondary); }
   .el-loading-mask { background-color: var(--loading-overlay-bg); }
+
+  // Collapse
+  .el-collapse-item__header { background-color: var(--bg-color-card); color: var(--text-color-primary); border-color: var(--border-color); }
+  .el-collapse-item__wrap { background-color: var(--bg-color-card); border-color: var(--border-color); }
+  .el-collapse-item__content { color: var(--text-color-primary); }
+
+  // Switch
+  .el-switch:not(.is-checked) .el-switch__core { background-color: var(--border-color); border-color: var(--border-color); }
+
+  // Alert
+  .el-alert--info { background-color: var(--bg-color-hover); }
+}
+
+// =============================================
+// Personal Dashboard 모달 라이트 모드 강제 적용
+// 관리자가 다크 모드 설정 시에도 개인 대시보드가 라이트이면
+// el-dialog에 .dashboard-light 클래스를 적용하여 라이트 모드 강제.
+// =============================================
+.el-dialog.dashboard-light {
+  // Custom app variables (라이트 모드 값)
+  --bg-color-card: #ffffff;
+  --bg-color-input: #ffffff;
+  --bg-color-hover: #f5f7fa;
+  --text-color-primary: #303133;
+  --text-color-secondary: #909399;
+  --text-color-placeholder: #a8abb2;
+  --border-color: #dcdfe6;
+  --border-color-light: #e4e7ed;
+  --border-color-lighter: #ebeef5;
+  --color-primary: #409eff;
+  --table-header-bg: #f5f7fa;
+  --table-row-hover-bg: #f5f7fa;
+  --table-border-color: #ebeef5;
+  --loading-overlay-bg: rgba(255, 255, 255, 0.7);
+
+  // Dialog 자체 스타일
+  background-color: var(--bg-color-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-color-primary);
+
+  .el-dialog__title { color: var(--text-color-primary); }
+  .el-dialog__headerbtn .el-dialog__close { color: var(--text-color-secondary); &:hover { color: var(--text-color-primary); } }
+  .el-dialog__body { color: var(--text-color-primary); }
+
+  // Input / Select
+  .el-input__wrapper {
+    background-color: var(--bg-color-input);
+    box-shadow: 0 0 0 1px var(--border-color) inset;
+    &:hover { box-shadow: 0 0 0 1px var(--border-color-light) inset; }
+    &.is-focus { box-shadow: 0 0 0 1px var(--color-primary) inset; }
+  }
+  .el-input__inner { color: var(--text-color-primary); &::placeholder { color: var(--text-color-placeholder); } }
+  .el-textarea__inner { background-color: var(--bg-color-input); color: var(--text-color-primary); box-shadow: 0 0 0 1px var(--border-color) inset; &::placeholder { color: var(--text-color-placeholder); } }
+  .el-select .el-select__wrapper { background-color: var(--bg-color-input); box-shadow: 0 0 0 1px var(--border-color) inset; }
+
+  // Button
+  .el-button--default {
+    background-color: var(--bg-color-card);
+    border-color: var(--border-color);
+    color: var(--text-color-primary);
+    &:hover { background-color: var(--bg-color-hover); border-color: var(--color-primary); color: var(--color-primary); }
+  }
+
+  // Tabs
+  .el-tabs__item { color: var(--text-color-secondary); &.is-active { color: var(--color-primary); } &:hover { color: var(--text-color-primary); } }
+  .el-tabs__nav-wrap::after { background-color: var(--border-color); }
+
+  // Table
+  .el-table {
+    background-color: var(--bg-color-card); color: var(--text-color-primary);
+    th.el-table__cell { background-color: var(--table-header-bg); color: var(--text-color-primary); }
+    tr { background-color: var(--bg-color-card); &:hover > td.el-table__cell { background-color: var(--table-row-hover-bg); } }
+    td.el-table__cell { border-color: var(--table-border-color); }
+    .el-table__inner-wrapper::before { background-color: var(--table-border-color); }
+  }
+
+  // Form / Radio Button
+  .el-form-item__label { color: var(--text-color-primary); }
+  .el-radio-button__inner { background-color: var(--bg-color-card); border-color: var(--border-color); color: var(--text-color-primary); }
+  .el-radio-button__original-radio:checked + .el-radio-button__inner { background-color: var(--color-primary); border-color: var(--color-primary); }
+
+  // Radio (일반)
+  .el-radio { color: var(--text-color-primary); }
+  .el-radio__inner { border-color: var(--border-color); background-color: transparent; }
+  .el-radio.is-checked .el-radio__inner { border-color: var(--color-primary); background-color: var(--color-primary); }
+  .el-radio.is-checked .el-radio__label { color: var(--color-primary); }
+  .el-radio__label { color: var(--text-color-primary); }
+
+  // Tag / Alert / Loading
+  .el-tag--info { background-color: var(--bg-color-hover); border-color: var(--border-color); color: var(--text-color-secondary); }
+  .el-loading-mask { background-color: var(--loading-overlay-bg); }
+
+  // Collapse
+  .el-collapse-item__header { background-color: var(--bg-color-card); color: var(--text-color-primary); border-color: var(--border-color); }
+  .el-collapse-item__wrap { background-color: var(--bg-color-card); border-color: var(--border-color); }
+  .el-collapse-item__content { color: var(--text-color-primary); }
+
+  // Switch
+  .el-switch:not(.is-checked) .el-switch__core { background-color: var(--border-color); border-color: var(--border-color); }
+
+  // Alert
+  .el-alert--info { background-color: var(--bg-color-hover); }
+}
+
+// =============================================
+// Personal Dashboard 텔레포트된 팝업 (드롭다운/셀렉트) 테마 강제 적용
+// el-dropdown, el-select 팝업은 body에 텔레포트되어 테마 스코프 밖.
+// popper-class를 통해 다크/라이트 모드 강제.
+// =============================================
+
+// 다크 모드 드롭다운 / 셀렉트 팝업
+.dashboard-popper-dark {
+  background-color: #1f1f1f !important;
+  border: 1px solid #4a4a4a !important;
+
+  .el-popper__arrow::before {
+    background-color: #1f1f1f !important;
+    border-color: #4a4a4a !important;
+  }
+
+  // el-dropdown-menu
+  .el-dropdown-menu {
+    background-color: #1f1f1f !important;
+    border: none !important;
+  }
+
+  .el-dropdown-menu__item {
+    color: #e5e5e5 !important;
+
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus {
+      background-color: #2c2c2c !important;
+      color: #e5e5e5 !important;
+    }
+
+    &.is-active {
+      color: #409eff !important;
+    }
+
+    &.is-disabled {
+      color: #5c5c5c !important;
+    }
+
+    &--divided {
+      border-top: 1px solid #3a3a3a !important;
+      margin-top: 4px !important;
+    }
+  }
+
+  // el-select-dropdown
+  .el-select-dropdown__item {
+    color: #e5e5e5 !important;
+
+    &.is-hovering {
+      background-color: #2c2c2c !important;
+    }
+
+    &.is-selected {
+      color: #409eff !important;
+    }
+
+    &.is-disabled {
+      color: #5c5c5c !important;
+    }
+  }
+
+  .el-select-group__title {
+    color: #8c8c8c !important;
+  }
+
+  // section titles
+  .dropdown-section-title {
+    color: #8c8c8c !important;
+  }
+
+  // db-meta 스타일
+  .db-count {
+    background: #303030 !important;
+    color: #8c8c8c !important;
+  }
+
+  .db-owner {
+    color: #8c8c8c !important;
+  }
+
+  // 텍스트 위험
+  .text-danger {
+    color: #f56c6c !important;
+  }
+
+  // tag 스타일
+  .el-tag {
+    border-color: transparent;
+  }
+}
+
+// 라이트 모드 드롭다운 / 셀렉트 팝업
+.dashboard-popper-light {
+  background-color: #ffffff !important;
+  border: 1px solid #dcdfe6 !important;
+
+  .el-popper__arrow::before {
+    background-color: #ffffff !important;
+    border-color: #dcdfe6 !important;
+  }
+
+  // el-dropdown-menu
+  .el-dropdown-menu {
+    background-color: #ffffff !important;
+    border: none !important;
+  }
+
+  .el-dropdown-menu__item {
+    color: #303133 !important;
+
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus {
+      background-color: #f5f7fa !important;
+      color: #303133 !important;
+    }
+
+    &.is-active {
+      color: #409eff !important;
+    }
+
+    &.is-disabled {
+      color: #a8abb2 !important;
+    }
+
+    &--divided {
+      border-top: 1px solid #ebeef5 !important;
+      margin-top: 4px !important;
+    }
+  }
+
+  // el-select-dropdown
+  .el-select-dropdown__item {
+    color: #303133 !important;
+
+    &.is-hovering {
+      background-color: #f5f7fa !important;
+    }
+
+    &.is-selected {
+      color: #409eff !important;
+    }
+
+    &.is-disabled {
+      color: #a8abb2 !important;
+    }
+  }
+
+  .el-select-group__title {
+    color: #909399 !important;
+  }
+
+  // section titles
+  .dropdown-section-title {
+    color: #909399 !important;
+  }
+
+  // db-meta 스타일
+  .db-count {
+    background: #f0f2f5 !important;
+    color: #909399 !important;
+  }
+
+  .db-owner {
+    color: #909399 !important;
+  }
+
+  // 텍스트 위험
+  .text-danger {
+    color: #f56c6c !important;
+  }
 }
