@@ -436,7 +436,7 @@ frontend/src/
 │       ├── HistoryView.vue       # API 이력
 │       └── HistoryDetailView.vue
 ├── components/
-│   ├── chat/                     # ChatMessage, ChatInput, SourceCard 등
+│   ├── chat/                     # ChatMessage, SourceCard 등
 │   ├── dashboard/                # KpiCards, DailyTrendChart, SystemStatus 등
 │   ├── personal-dashboard/       # DashboardGrid, DashboardWidget 등
 │   ├── chart/                    # ChartBuilder

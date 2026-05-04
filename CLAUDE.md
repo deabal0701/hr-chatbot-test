@@ -483,7 +483,6 @@ frontend/src/
 ├── components/
 │   ├── chat/                  # Chat components
 │   │   ├── ChatMessage.vue    # Message display (admin)
-│   │   ├── ChatInput.vue      # Message input
 │   │   ├── SourceCard.vue     # Source document display
 │   │   └── PromptGuideModal.vue # NL2SQL/RAG examples modal
 │   ├── chart/                 # Chart components
