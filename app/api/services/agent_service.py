@@ -102,7 +102,6 @@ class AgentService:
         # 모든 설정을 DB/캐시에서 로드 (사용자 입력 무시)
         config.max_iterations = settings_config.get_value("agent", "max_iterations", 10)
         config.timeout_seconds = settings_config.get_value("agent", "timeout_seconds", 60)
-        config.llm_model = settings_config.get_value("llm", "model", "gpt-4o-mini")
         config.llm_temperature = settings_config.get_value("agent", "llm_temperature", 0.0)
         config.enable_memory = settings_config.get_value("agent", "enable_memory", True)
         config.enable_streaming = settings_config.get_value("agent", "enable_streaming", False)
@@ -120,7 +119,7 @@ class AgentService:
         # tools_blacklist는 DB에서 관리하지 않으므로 None 유지
         config.tools_blacklist = None
 
-        logger.debug(f"[{request_id}] Agent 설정: max_iter={config.max_iterations}, timeout={config.timeout_seconds}s, model={config.llm_model}")
+        logger.debug(f"[{request_id}] Agent 설정: max_iter={config.max_iterations}, timeout={config.timeout_seconds}s")
 
         return config
 

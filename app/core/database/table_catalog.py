@@ -2,7 +2,7 @@
 
 위치: app/core/database/table_catalog.py
 
-schema_retrieval_node에서 경량 LLM에게 제공할 테이블 요약 정보
+schema_retrieval_node에서 LLM에게 제공할 테이블 요약 정보
 - DB 설정(tb_app_settings)에서 로드, 없으면 기본값 폴백
 
 주요 기능:
@@ -366,7 +366,7 @@ class TableCatalogService:
 
     def get_table_summary_for_llm(self) -> str:
         """
-        schema_retrieval_node에서 경량 LLM에게 전달할 테이블 요약
+        schema_retrieval_node에서 LLM에게 전달할 테이블 요약
 
         Returns:
             테이블 요약 문자열 (LLM 프롬프트용)

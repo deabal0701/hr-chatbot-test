@@ -576,24 +576,6 @@
                     <div class="form-help">이 값 이상의 신뢰도를 가진 테이블만 선택 (0.1-1.0)</div>
                   </el-form-item>
 
-                  <el-form-item label="스키마 선택용 LLM 모델">
-                    <el-select
-                      v-model="formData.nl2sql.schema_retrieval_model"
-                      style="width: 100%"
-                      filterable
-                      allow-create
-                      :loading="llmModelsLoading"
-                      placeholder="경량 모델 권장 (예: gpt-4.1-mini)"
-                    >
-                      <el-option
-                        v-for="model in schemaRetrievalModels"
-                        :key="model.code_value"
-                        :label="model.code_name"
-                        :value="model.code_value"
-                      />
-                    </el-select>
-                    <div class="form-help">테이블 선택에 사용할 경량 LLM (빠른 응답, gpt-4.1-mini/nano 권장)</div>
-                  </el-form-item>
                 </template>
               </div>
 
@@ -1451,7 +1433,6 @@ const formData = reactive({
     // 스키마 검색 설정
     schema_retrieval_enabled: true,
     schema_retrieval_confidence_threshold: 0.7,
-    schema_retrieval_model: 'gpt-4.1-mini',
     // Few-shot 설정
     fewshot_enabled: true,
     fewshot_top_k: 3,
@@ -1810,16 +1791,6 @@ const reasoningEffortOptions = [
   { value: 'medium', label: 'Medium (중간 추론, 권장)' },
   { value: 'high', label: 'High (높은 추론)' }
 ]
-
-// NL2SQL 스키마 선택용 경량 LLM 모델 목록 (OpenAI 모델 중 경량 모델만 필터링)
-const schemaRetrievalModels = computed(() => {
-  // 경량 모델 패턴: gpt-4o, gpt-4.1-mini, gpt-4.1-nano, gpt-4o-mini 등
-  const lightweightPatterns = ['gpt-4o', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o-mini', 'gpt-3.5']
-  return llmModelsOpenAI.value.filter(model => {
-    const value = model.code_value?.toLowerCase() || ''
-    return lightweightPatterns.some(pattern => value.includes(pattern.toLowerCase()))
-  })
-})
 
 // 코드 마스터에서 LLM 제공자 목록 로드
 const loadLLMProviders = async () => {

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", description="OpenAI API 키 (DB tb_app_settings에서 관리, fallback 용도)")
     embedding_model: str = Field(default="text-embedding-3-small", description="임베딩 모델")
     embedding_dimension: int = Field(default=1536, description="임베딩 차원 수")
-    llm_model: str = Field(default="gpt-4-turbo-preview", description="LLM 모델")
+    llm_model: str = Field(default="gpt-5.4-nano", description="LLM 모델")
 
     # Anthropic (Phase 2)
     anthropic_api_key: Optional[str] = Field(default=None, description="Anthropic API 키 (선택)")

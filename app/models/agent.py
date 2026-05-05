@@ -47,13 +47,11 @@ class AgentConfig(BaseModel):
 
     확장 포인트:
     - 도구 선택 전략
-    - LLM 모델 선택
     - 타임아웃 설정
 
-    주의: llm_model은 None일 경우 DB 설정(tb_app_settings)에서 자동 로드됩니다.
+    LLM 모델/제공자는 전역 설정(llm.model, llm.provider)을 사용하며, Agent 별도 설정은 없습니다.
     """
     max_iterations: int = Field(default=10, ge=1, le=20, description="최대 반복 횟수")
-    llm_model: Optional[str] = Field(default=None, description="사용할 LLM 모델 (None=DB 설정 사용)")
     llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="LLM 온도")
     enable_memory: bool = Field(default=True, description="메모리 활성화 여부")
     enable_streaming: bool = Field(default=False, description="스트리밍 응답 (확장)")

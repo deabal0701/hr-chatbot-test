@@ -15,10 +15,6 @@
         {{ llmProvider }}
       </el-descriptions-item>
 
-      <el-descriptions-item label="의도 분석 모델">
-        {{ schemaRetrievalModel }}
-      </el-descriptions-item>
-
       <el-descriptions-item label="LLM 모델">
         {{ llmModel }}
       </el-descriptions-item>
@@ -82,11 +78,6 @@ const llmModel = computed(() => {
 const embeddingModel = computed(() => {
   const s = props.settings
   return s?.embedding?.model || s?.embedding?.find?.(i => i.key === 'model')?.value || '-'
-})
-
-const schemaRetrievalModel = computed(() => {
-  const s = props.settings
-  return s?.nl2sql?.schema_retrieval_model || s?.nl2sql?.find?.(i => i.key === 'schema_retrieval_model')?.value || '-'
 })
 
 const docPercentage = computed(() => {

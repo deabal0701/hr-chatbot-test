@@ -54,7 +54,7 @@ class SettingsConfig:
             "dimension": ("1536", "int", "벡터 차원 수", False),
         },
         "llm": {
-            "model": ("gpt-4.1-mini", "string", "LLM 모델명", False),
+            "model": ("gpt-5.4-nano", "string", "LLM 모델명", False),
             "provider": ("openai", "string", "LLM 제공자 (openai, anthropic, google, google_vertex)", False),
             "temperature": ("0.1", "float", "생성 온도 (0.0-2.0)", False),
             "max_tokens": ("2000", "int", "최대 토큰 수", False),
@@ -75,7 +75,7 @@ class SettingsConfig:
             # 리랭커 (현재 passthrough)
             "reranker_mode": ("none", "string", "리랭커 모드: none | llm | cross_encoder", False),
             "reranker_top_n": ("5", "integer", "리랭킹 후 최종 반환 문서 수", False),
-            "reranker_llm_model": ("gpt-4.1-mini", "string", "LLM 리랭커 모델명", False),
+            "reranker_llm_model": ("", "string", "LLM 리랭커 모델명 (비워두면 llm.model을 따름)", False),
             "reranker_ce_model": ("BAAI/bge-reranker-v2-m3", "string", "Cross-Encoder 모델명 (HuggingFace)", False),
         },
         "nl2sql": {
@@ -86,7 +86,6 @@ class SettingsConfig:
             # 스키마 검색 설정
             "schema_retrieval_enabled": ("true", "bool", "스키마 선택 기능 활성화", False),
             "schema_retrieval_confidence_threshold": ("0.7", "float", "테이블 선택 신뢰도 임계값", False),
-            "schema_retrieval_model": ("gpt-4.1-mini", "string", "테이블 선택용 경량 LLM 모델", False),
             # Few-shot 설정
             "fewshot_enabled": ("true", "bool", "Few-shot 예제 검색 활성화", False),
             "fewshot_top_k": ("3", "int", "Few-shot 예제 검색 개수", False),

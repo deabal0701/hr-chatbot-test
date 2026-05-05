@@ -51,7 +51,8 @@
       "Bash(findstr \":19090 :19080\")",
       "mcp__plugin_playwright_playwright__browser_fill_form",
       "mcp__plugin_playwright_playwright__browser_press_key",
-      "Bash(NODE_PATH=\"C:/Program Files/nodejs/node_modules\" node docs/manual/generate_manual.js)"
+      "Bash(NODE_PATH=\"C:/Program Files/nodejs/node_modules\" node docs/manual/generate_manual.js)",
+      "Bash(powershell -Command \"\\(Get-Item ./logs/app.log\\).Length; \\(Get-Item ./logs/app.log\\).LastWriteTime\")"
     ],
     "deny": [],
     "ask": []

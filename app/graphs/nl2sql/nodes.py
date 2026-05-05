@@ -56,18 +56,6 @@ def _get_llm():
     return LLMConfigManager.create_llm(temperature=0)
 
 
-def _get_lightweight_llm():
-    """
-    테이블 선택용 경량 LLM 인스턴스 생성
-
-    schema_retrieval_node에서 사용 (비용 절감)
-    스키마 검색용 경량 모델은 OpenAI 전용 (gpt-4.1-nano 등)
-    """
-    settings_config = _get_settings_config()
-    model = settings_config.get_value("nl2sql", "schema_retrieval_model", "gpt-4.1-nano")
-    return LLMConfigManager.create_llm(temperature=0, model=model, provider="openai")
-
-
 def _get_table_catalog_service():
     """table_catalog_service 지연 로드"""
     from app.core.database.table_catalog import table_catalog_service
@@ -93,7 +81,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     처리 흐름:
     1. 테이블 카탈로그 조회 (이름 + 설명 + 컬럼)
-    2. 경량 LLM으로 관련 테이블 선택 (JSON 응답)
+    2. LLM으로 관련 테이블 선택 (JSON 응답)
     3. FK 관계 테이블 자동 포함
     4. 선택된 테이블 스키마만 로드
     5. 신뢰도 낮으면 전체 스키마 fallback
@@ -136,8 +124,8 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
         catalog_service = _get_table_catalog_service()
         table_summary = catalog_service.get_table_summary_for_llm()
 
-        # 2. 경량 LLM으로 테이블 선택
-        llm = _get_lightweight_llm()
+        # 2. LLM으로 테이블 선택 (메인 LLM 사용)
+        llm = _get_llm()
 
         system_prompt = """당신은 SQL 전문가입니다.
 사용자 질문에 필요한 테이블을 선택하세요.
@@ -189,7 +177,7 @@ def schema_retrieval_node(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=user_prompt)
         ]
 
-        log_step(logger, request_id, "NL2SQL", "0.5a", "LLM-INPUT", "경량 LLM 호출 (테이블 선택)")
+        log_step(logger, request_id, "NL2SQL", "0.5a", "LLM-INPUT", "LLM 호출 (테이블 선택)")
         logger.debug("[%s] [NL2SQL-0.5a] [LLM-INPUT]\n[SYSTEM]\n%s\n[USER]\n%s", request_id, messages[0].content, messages[1].content)
 
         response = llm.invoke(messages)
