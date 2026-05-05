@@ -174,6 +174,18 @@
                 </el-form-item>
               </div>
 
+              <!-- Ollama 선택 시 Base URL 입력 필드 표시 -->
+              <el-form-item v-if="isOllamaProvider" label="Base URL">
+                <el-input
+                  v-model="formData.llm.base_url"
+                  placeholder="http://localhost:11434"
+                  clearable
+                />
+                <div class="form-help">
+                  Ollama 서버 주소 (비워두면 http://localhost:11434 사용). 다른 호스트/포트인 경우 입력하세요.
+                </div>
+              </el-form-item>
+
               <el-form-item label="Temperature">
                 <el-slider
                   v-model="formData.llm.temperature"
@@ -1380,6 +1392,7 @@ const llmProviders = ref([])
 const llmModelsOpenAI = ref([])
 const llmModelsAnthropic = ref([])
 const llmModelsGoogle = ref([])
+const llmModelsOllama = ref([])
 const embeddingModelsLoading = ref(false)
 const llmProvidersLoading = ref(false)
 const llmModelsLoading = ref(false)
@@ -1403,6 +1416,7 @@ const formData = reactive({
   llm: {
     provider: 'openai',
     model: 'gpt-4-turbo-preview',
+    base_url: '',
     temperature: 0.1,
     max_tokens: 2000,
     reasoning_effort: 'medium'
@@ -1763,6 +1777,8 @@ const currentLLMModels = computed(() => {
     return llmModelsAnthropic.value
   } else if (provider === 'google') {
     return llmModelsGoogle.value
+  } else if (provider === 'ollama') {
+    return llmModelsOllama.value
   }
   return llmModelsOpenAI.value
 })
@@ -1782,6 +1798,11 @@ const temperatureHelpText = computed(() => {
 const isGPT5Model = computed(() => {
   const model = formData.llm.model?.toLowerCase() || ''
   return model.startsWith('gpt-5') || model.startsWith('gpt-5-mini') || model.startsWith('gpt-5-nano')
+})
+
+// Ollama provider 여부 (base_url 입력 필드 노출 조건)
+const isOllamaProvider = computed(() => {
+  return formData.llm.provider === 'ollama'
 })
 
 // reasoning_effort 옵션 목록
@@ -1823,14 +1844,16 @@ const loadEmbeddingModels = async () => {
 const loadLLMModels = async () => {
   llmModelsLoading.value = true
   try {
-    const [openaiRes, anthropicRes, googleRes] = await Promise.all([
+    const [openaiRes, anthropicRes, googleRes, ollamaRes] = await Promise.all([
       codesApi.getByGroup('LLM_MODEL_OPENAI', false),
       codesApi.getByGroup('LLM_MODEL_ANTHROPIC', false),
-      codesApi.getByGroup('LLM_MODEL_GOOGLE', false)
+      codesApi.getByGroup('LLM_MODEL_GOOGLE', false),
+      codesApi.getByGroup('LLM_MODEL_OLLAMA', false)
     ])
     llmModelsOpenAI.value = openaiRes.items || []
     llmModelsAnthropic.value = anthropicRes.items || []
     llmModelsGoogle.value = googleRes.items || []
+    llmModelsOllama.value = ollamaRes.items || []
   } catch (error) {
     console.error('LLM 모델 목록 로드 실패:', error)
     // 실패 시 빈 배열 유지 (하위 호환성)

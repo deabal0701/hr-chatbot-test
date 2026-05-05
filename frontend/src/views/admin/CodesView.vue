@@ -147,7 +147,7 @@
             placeholder="예: gpt-4o-mini"
             :disabled="dialogMode === 'edit'"
           />
-          <div class="form-help">코드의 실제 값 (영문, 숫자, -, _, . 만 사용)</div>
+          <div class="form-help">코드의 실제 값 (영문, 숫자, -, _, ., : 만 사용)</div>
         </el-form-item>
 
         <el-form-item label="표시명" prop="code_name">
@@ -363,7 +363,7 @@ const currentEditId = ref(null)
 const formRules = {
   code_value: [
     { required: true, message: '코드 값을 입력하세요', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9\-_.]+$/, message: '영문, 숫자, -, _, . 만 사용 가능합니다', trigger: 'blur' }
+    { pattern: /^[a-zA-Z0-9\-_.:]+$/, message: '영문, 숫자, -, _, ., : 만 사용 가능합니다', trigger: 'blur' }
   ],
   code_name: [
     { required: true, message: '표시명을 입력하세요', trigger: 'blur' }

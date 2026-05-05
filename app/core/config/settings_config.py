@@ -55,7 +55,8 @@ class SettingsConfig:
         },
         "llm": {
             "model": ("gpt-5.4-nano", "string", "LLM 모델명", False),
-            "provider": ("openai", "string", "LLM 제공자 (openai, anthropic, google, google_vertex)", False),
+            "provider": ("openai", "string", "LLM 제공자 (openai, anthropic, google, google_vertex, ollama)", False),
+            "base_url": ("", "string", "Base URL (Ollama: http://localhost:11434, vLLM 등 OpenAI 호환 서버, 비워두면 클라우드 기본 endpoint 사용)", False),
             "temperature": ("0.1", "float", "생성 온도 (0.0-2.0)", False),
             "max_tokens": ("2000", "int", "최대 토큰 수", False),
             "reasoning_effort": ("medium", "string", "GPT-5 계열 추론 강도 (none, low, medium, high)", False),

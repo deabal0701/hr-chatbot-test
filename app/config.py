@@ -32,8 +32,9 @@ class Settings(BaseSettings):
     # Google Gemini (Phase 3)
     google_api_key: Optional[str] = Field(default=None, description="Google Gemini API 키 (선택)")
 
-    # LLM Provider (Phase 3: OpenAI + Anthropic + Google 지원)
-    llm_provider: str = Field(default="openai", description="LLM 제공자 (openai, anthropic, google)")
+    # LLM Provider (Phase 3: OpenAI + Anthropic + Google + Ollama 지원)
+    llm_provider: str = Field(default="openai", description="LLM 제공자 (openai, anthropic, google, ollama)")
+    llm_base_url: Optional[str] = Field(default=None, description="LLM Base URL (Ollama/vLLM 등 OpenAI 호환 서버용, 예: http://localhost:11434)")
     embedding_provider: str = Field(default="openai", description="임베딩 제공자 (openai)")
 
     # Application
@@ -129,8 +130,8 @@ class Settings(BaseSettings):
     @field_validator("llm_provider")
     @classmethod
     def validate_llm_provider(cls, v: str) -> str:
-        # Phase 3: OpenAI + Anthropic + Google (genai) / Google Vertex
-        valid_providers = ["openai", "anthropic", "google", "google_vertex"]
+        # Phase 3+: OpenAI + Anthropic + Google (genai) / Google Vertex + Ollama (로컬)
+        valid_providers = ["openai", "anthropic", "google", "google_vertex", "ollama"]
         v = v.lower()
         if v not in valid_providers:
             raise ValueError(f"llm_provider must be one of {valid_providers}")

@@ -38,7 +38,11 @@ class LLMConfigManager:
         "anthropic": "claude-3-5-sonnet-20241022",
         "google_genai": "gemini-3-flash-preview",
         "google_vertexai": "gemini-3-flash-preview",  # Vertex Express API (api_type=vertex)
+        "ollama": "qwen2.5-coder:1.5b",  # 로컬 Ollama (PoC/폐쇄망 PoC용)
     }
+
+    # Ollama 기본 base_url
+    DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 
     # Gemini 지원 모델 (2.0 이상)
     GEMINI_MODELS = {"gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"}
@@ -58,19 +62,23 @@ class LLMConfigManager:
         return any(model_lower.startswith(gpt5) for gpt5 in LLMConfigManager.GPT5_MODELS)
 
     @staticmethod
-    def _get_api_key(provider: str) -> str:
+    def _get_api_key(provider: str) -> Optional[str]:
         """
         제공자별 API 키 가져오기
 
         Args:
-            provider: 제공자명 ('openai' | 'anthropic' | 'google_genai' | 'google_vertexai')
+            provider: 제공자명 ('openai' | 'anthropic' | 'google_genai' | 'google_vertexai' | 'ollama')
 
         Returns:
-            API 키
+            API 키 (Ollama는 None — 로컬 실행이라 인증 불필요)
 
         Raises:
-            ValueError: API 키가 설정되지 않은 경우
+            ValueError: API 키가 설정되지 않은 경우 (ollama 제외)
         """
+        # Ollama는 인증 불필요 (로컬 실행)
+        if provider == "ollama":
+            return None
+
         settings_service = _get_settings_service()
 
         if provider == "openai":
@@ -172,7 +180,7 @@ class LLMConfigManager:
             provider = "google_vertexai"
 
         # Provider 검증
-        if provider not in ["openai", "anthropic", "google_genai", "google_vertexai"]:
+        if provider not in ["openai", "anthropic", "google_genai", "google_vertexai", "ollama"]:
             logger.warning(f"지원하지 않는 provider='{provider}'. 'openai'로 fallback")
             provider = "openai"
 
@@ -190,12 +198,17 @@ class LLMConfigManager:
         if max_tokens is None:
             max_tokens = settings_service.get_value("llm", "max_tokens", 2000)
 
-        # 4. API 키 가져오기 (제공자별)
+        # 4. API 키 가져오기 (제공자별, ollama는 None)
         api_key = LLMConfigManager._get_api_key(provider)
 
-        # 5. GPT-5 계열 모델인 경우 reasoning_effort 설정
+        # 5. GPT-5 계열 모델인 경우 reasoning_effort 설정 (Ollama는 미지원이라 스킵)
         #    단, with_tools=True면 스킵 (OpenAI /v1/chat/completions에서 tools + reasoning_effort 동시 사용 불가)
-        if LLMConfigManager._is_gpt5_model(model) and "reasoning_effort" not in kwargs and not with_tools:
+        if (
+            provider != "ollama"
+            and LLMConfigManager._is_gpt5_model(model)
+            and "reasoning_effort" not in kwargs
+            and not with_tools
+        ):
             reasoning_effort = settings_service.get_value("llm", "reasoning_effort", "medium")
             if reasoning_effort in LLMConfigManager.VALID_REASONING_EFFORTS:
                 kwargs["reasoning_effort"] = reasoning_effort
@@ -203,19 +216,31 @@ class LLMConfigManager:
             else:
                 logger.warning(f"유효하지 않은 reasoning_effort={reasoning_effort}, 기본값 'medium' 적용")
                 kwargs["reasoning_effort"] = "medium"
-        elif with_tools and LLMConfigManager._is_gpt5_model(model):
+        elif with_tools and LLMConfigManager._is_gpt5_model(model) and provider != "ollama":
             logger.info(f"GPT-5 모델 + with_tools=True → reasoning_effort 스킵 (API 제약)")
 
+        # 5-2. Ollama 전용: base_url 주입 + 미지원 파라미터 제거
+        if provider == "ollama":
+            base_url = settings_service.get_value("llm", "base_url", settings.llm_base_url) \
+                or LLMConfigManager.DEFAULT_OLLAMA_BASE_URL
+            kwargs["base_url"] = base_url
+            kwargs.pop("reasoning_effort", None)  # Ollama는 미지원
+            logger.info(f"Ollama 모드: base_url={base_url}, model={model}")
+
         # 6. init_chat_model 호출 (제공자 독립적 인터페이스)
+        #    Ollama는 api_key가 None이므로 kwargs에서 제외
         try:
-            llm = init_chat_model(
-                model=model,
-                model_provider=provider,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=api_key,
-                **kwargs
-            )
+            init_kwargs = {
+                "model": model,
+                "model_provider": provider,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                **kwargs,
+            }
+            if api_key:
+                init_kwargs["api_key"] = api_key
+
+            llm = init_chat_model(**init_kwargs)
 
             logger.info(f"LLM 초기화 성공: provider={provider}, model={model}, temperature={temperature}")
             return llm
@@ -230,12 +255,14 @@ class LLMConfigManager:
                     fallback_api_key = settings_service.get_value("openai", "api_key", settings.openai_api_key)
                     # Fallback 모델도 DB 설정 사용
                     fallback_model = settings_service.get_value("llm", "model", settings.llm_model)
+                    # 다른 provider 전용 kwargs 제거 (ollama: base_url 등)
+                    fallback_kwargs = {k: v for k, v in kwargs.items() if k not in ("base_url",)}
                     return ChatOpenAI(
                         model=fallback_model,
                         temperature=temperature,
                         api_key=fallback_api_key,
                         max_tokens=max_tokens,
-                        **kwargs
+                        **fallback_kwargs
                     )
                 except Exception as fallback_error:
                     logger.error(f"Fallback도 실패: {fallback_error}")
